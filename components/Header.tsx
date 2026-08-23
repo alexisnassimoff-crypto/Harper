@@ -6,8 +6,9 @@ import Logo from "./Logo";
 import { useCarrito } from "./carrito/CarritoContexto";
 
 const SECCIONES = [
-  { href: "/anteojos", texto: "Anteojos" },
   { href: "/estuches", texto: "Estuches" },
+  { href: "/anteojos", texto: "Anteojos" },
+  { href: "/panos", texto: "Paños" },
 ];
 
 export default function Header({ banner }: { banner?: string }) {

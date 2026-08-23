@@ -1,6 +1,6 @@
 /** Tipos de dominio de la tienda. */
 
-export type Categoria = "Anteojos" | "Estuches";
+export type Categoria = "Anteojos" | "Estuches" | "Paños";
 
 export type Variante = {
   id: string;

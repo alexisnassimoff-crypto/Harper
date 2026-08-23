@@ -13,6 +13,7 @@ mails automáticos. Reemplaza a Tienda Nube con costo de infraestructura cero.
 | Pagos | Mercado Pago Checkout Pro |
 | Mails | Resend |
 | Hosting | Vercel |
+| Importación | API pública de Mercado Libre |
 
 ## Cómo funciona
 
@@ -38,6 +39,7 @@ cliente no tiene efecto.
 |---|---|
 | `Productos` | Un registro por modelo: nombre, precio, categoría, video |
 | `Variantes` | Un registro por modelo×color: stock y fotos |
+| `Importacion ML` | Publicaciones traídas de Mercado Libre, para revisar |
 | `Pedidos` | Se crean solos. Filtrá por `Estado = pagado` para despachar |
 | `Clientes` | Lista de compradores y de mails capturados sin compra |
 | `Config` | Costo de envío, textos y datos legales, sin tocar código |
@@ -94,6 +96,39 @@ Body:   { "pedidoId": "<Record ID>" }
 Además hay un cron diario a las 06:00 UTC que espeja lo que haya quedado
 pendiente, por si una automation falla.
 
+## Traer las fotos desde Mercado Libre
+
+Las fotos de las publicaciones se importan sin descargar nada a mano. Va en dos
+pasos a propósito: primero trae todo para revisar, y recién después asigna.
+
+**Paso 1 — traer las publicaciones**
+
+```
+https://harper.ar/api/importar-ml?token=<SYNC_TOKEN>
+```
+
+Llena la tabla `Importacion ML` con el título, el precio, el link y todas las
+fotos de cada publicación, en máxima resolución. La columna `Sugerencia` trae
+el SKU que detectó a partir del título.
+
+**Paso 2 — revisar y asignar**
+
+En Airtable, en cada fila enlazá la columna `Variante` a la variante que
+corresponde. La `Sugerencia` es solo eso: verificala antes de seguir. Lo que no
+quieras importar, marcalo como `ignorar`.
+
+**Paso 3 — aplicar**
+
+```
+https://harper.ar/api/importar-ml?token=<SYNC_TOKEN>&aplicar=1
+```
+
+Copia las fotos de cada fila enlazada a su variante. Después corré
+`/api/sync-media` para pasarlas a almacenamiento permanente.
+
+El importador **nunca asigna una foto a un producto por su cuenta**: sin el
+enlace manual del paso 2 no toca nada.
+
 ## Cargar un producto
 
 1. En `Productos`, crear el registro: nombre, slug (minúscula y sin espacios),
@@ -116,6 +151,7 @@ Un producto sin variantes activas no aparece en la web.
 | `POST /api/mercadopago/webhook` | Confirma el pago, descuenta stock y manda mails |
 | `POST /api/sync-media` | Espeja fotos y videos a Blob |
 | `POST /api/pedidos/notificar-envio` | Manda el mail con el tracking |
+| `GET /api/importar-ml` | Trae las publicaciones de Mercado Libre |
 
 ## Desarrollo local
 

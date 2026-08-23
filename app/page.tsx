@@ -7,8 +7,9 @@ export const revalidate = 60;
 
 export default async function Home() {
   const productos = await getProductos();
-  const anteojos = productos.filter((p) => p.categoria === "Anteojos");
   const estuches = productos.filter((p) => p.categoria === "Estuches");
+  const anteojos = productos.filter((p) => p.categoria === "Anteojos");
+  const panos = productos.filter((p) => p.categoria === "Paños");
 
   // El video del primer anteojo hace de portada.
   const portada = anteojos.find((p) => p.video)?.video ?? null;
@@ -117,6 +118,25 @@ export default async function Home() {
             </Link>
           </div>
           <GrillaProductos productos={anteojos} />
+        </section>
+      ) : null}
+
+      {panos.length > 0 ? (
+        <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: "2rem",
+            }}
+          >
+            <h2 className="titulo">Paños</h2>
+            <Link href="/panos" className="label enlace-verde">
+              Ver todo
+            </Link>
+          </div>
+          <GrillaProductos productos={panos} />
         </section>
       ) : null}
 
