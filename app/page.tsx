@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 import GrillaProductos from "@/components/GrillaProductos";
@@ -11,38 +12,36 @@ export default async function Home() {
   const anteojos = productos.filter((p) => p.categoria === "Anteojos");
   const panos = productos.filter((p) => p.categoria === "Paños");
 
-  // El video del primer anteojo hace de portada.
-  const portada = anteojos.find((p) => p.video)?.video ?? null;
-
   return (
     <>
       <section
         style={{
           position: "relative",
-          minHeight: "min(78svh, 44rem)",
+          minHeight: "min(82svh, 46rem)",
           display: "grid",
           placeItems: "center",
           overflow: "hidden",
-          background: "var(--fondo-alt)",
+          background: "var(--tinta)",
         }}
       >
-        {portada ? (
-          <video
-            src={portada}
-            autoPlay
-            muted
-            loop
-            playsInline
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-        ) : null}
+        <Image
+          src="/hero.webp"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          style={{ objectFit: "cover", objectPosition: "center 30%" }}
+        />
+        {/* Velo para que el logo y los botones lean sobre cualquier zona de la foto. */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(to top, rgb(12 12 8 / 0.62) 0%, rgb(12 12 8 / 0.18) 45%, rgb(12 12 8 / 0.25) 100%)",
+          }}
+        />
 
         <div
           className="contenedor pila"
@@ -52,13 +51,12 @@ export default async function Home() {
             alignItems: "center",
             textAlign: "center",
             paddingBlock: "5rem",
-            // Mantiene el texto legible cuando corre el video detrás.
-            textShadow: portada ? "0 1px 24px rgb(0 0 0 / 0.35)" : undefined,
-            color: portada ? "#fff" : undefined,
+            color: "#fff",
+            textShadow: "0 1px 24px rgb(0 0 0 / 0.35)",
           }}
         >
           <h1 style={{ margin: 0 }}>
-            <Logo alto={portada ? 132 : 116} lockup claro={Boolean(portada)} />
+            <Logo alto={120} lockup claro />
             <span className="solo-lectores">Harper — cases &amp; eyewear</span>
           </h1>
           <p style={{ fontSize: "1.0625rem", maxWidth: "30rem" }}>
@@ -68,14 +66,14 @@ export default async function Home() {
             <Link
               href="/estuches"
               className="boton"
-              style={portada ? { background: "#fff", borderColor: "#fff", color: "var(--verde)" } : undefined}
+              style={{ background: "#fff", borderColor: "#fff", color: "var(--verde)" }}
             >
               Ver estuches
             </Link>
             <Link
               href="/anteojos"
               className="boton boton--fantasma"
-              style={portada ? { color: "#fff", borderColor: "rgb(255 255 255 / 0.55)" } : undefined}
+              style={{ color: "#fff", borderColor: "rgb(255 255 255 / 0.55)" }}
             >
               Ver anteojos
             </Link>
