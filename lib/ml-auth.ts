@@ -47,9 +47,19 @@ async function escribirClave(clave: string, valor: string) {
   });
 }
 
+/**
+ * Limpia una credencial pegada a mano: recorta espacios y saltos de línea y,
+ * si el valor quedó duplicado (pegar dos veces con un Enter en el medio),
+ * se queda con el primer término. Un client_id con un \n adentro hace que
+ * Mercado Libre rechace la autorización con un error genérico.
+ */
+function limpiarCredencial(valor: string | undefined) {
+  return (valor ?? "").trim().split(/\s+/)[0] ?? "";
+}
+
 function credenciales() {
-  const appId = process.env.ML_APP_ID;
-  const secreto = process.env.ML_APP_SECRET;
+  const appId = limpiarCredencial(process.env.ML_APP_ID);
+  const secreto = limpiarCredencial(process.env.ML_APP_SECRET);
 
   if (!appId || !secreto) {
     throw new Error("Faltan las variables ML_APP_ID y ML_APP_SECRET");
@@ -59,7 +69,10 @@ function credenciales() {
 }
 
 export function mlConfigurado() {
-  return Boolean(process.env.ML_APP_ID && process.env.ML_APP_SECRET);
+  return Boolean(
+    limpiarCredencial(process.env.ML_APP_ID) &&
+      limpiarCredencial(process.env.ML_APP_SECRET)
+  );
 }
 
 /** URL a la que se manda al usuario para autorizar la aplicación. */
