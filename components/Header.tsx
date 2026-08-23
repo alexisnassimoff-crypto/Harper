@@ -19,8 +19,8 @@ export default function Header({ banner }: { banner?: string }) {
       {banner ? (
         <div
           style={{
-            background: "var(--texto)",
-            color: "var(--fondo)",
+            background: "var(--verde)",
+            color: "var(--hueso)",
             textAlign: "center",
             padding: "0.6rem 1rem",
             fontSize: "0.6875rem",
@@ -63,10 +63,10 @@ export default function Header({ banner }: { banner?: string }) {
                 href={s.href}
                 className="label"
                 style={{
-                  color: pathname === s.href ? "var(--texto)" : undefined,
+                  color: pathname === s.href ? "var(--verde)" : undefined,
                   borderBottom:
                     pathname === s.href
-                      ? "1px solid var(--texto)"
+                      ? "1px solid var(--verde)"
                       : "1px solid transparent",
                   paddingBottom: "2px",
                 }}
@@ -77,11 +77,11 @@ export default function Header({ banner }: { banner?: string }) {
           </nav>
 
           <Link href="/" aria-label="Harper — Inicio">
-            <Logo alto={17} />
+            <Logo alto={22} />
           </Link>
 
           <div style={{ justifySelf: "end" }}>
-            <Link href="/carrito" className="label" style={{ color: "var(--texto)" }}>
+            <Link href="/carrito" className="label" style={{ color: "var(--verde)" }}>
               Carrito
               {listo && unidades > 0 ? ` (${unidades})` : ""}
             </Link>

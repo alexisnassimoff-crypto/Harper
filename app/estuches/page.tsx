@@ -6,7 +6,7 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Estuches",
-  description: "Todos los modelos de estuches Harper.",
+  description: "Estuches rígidos de ecocuero premium con paño de microfibra. Modelos R100, O300 y M500.",
 };
 
 export default async function Estuches() {

@@ -1,20 +1,21 @@
 /* ==========================================================================
    HARPER — sistema de diseño
-   La paleta vive entera en este bloque. Cuando se confirmen los colores
-   exactos del logo, se cambian acá y se propagan a todo el sitio.
+
+   Los colores salen del catálogo oficial de la marca: el verde #004226 es el
+   del logo, medido sobre el PDF original. Los colores de producto son los
+   mismos puntos de color que usa el catálogo impreso.
    ========================================================================== */
 
 :root {
-  /* Paleta */
+  /* Marca */
+  --verde: #004226;
+  --verde-claro: #0a5c37;
   --hueso: #faf9f6;
   --hueso-hundido: #f2f0ec;
   --tinta: #16150f;
-  --tinta-suave: #3d3b34;
   --apagado: #78756c;
   --linea: #e3e0d8;
-  --plata: #9a978d;
   --alerta: #a4442e;
-  --exito: #3f6b4a;
 
   /* Roles */
   --fondo: var(--hueso);
@@ -22,7 +23,7 @@
   --texto: var(--tinta);
   --texto-suave: var(--apagado);
   --borde: var(--linea);
-  --acento: var(--tinta);
+  --acento: var(--verde);
   --sobre-acento: var(--hueso);
 
   /* Medidas */
@@ -129,6 +130,16 @@ p {
 
 .apagado {
   color: var(--texto-suave);
+}
+
+.enlace-verde {
+  color: var(--verde);
+  border-bottom: 1px solid color-mix(in srgb, var(--verde) 35%, transparent);
+  padding-bottom: 1px;
+}
+
+.enlace-verde:hover {
+  border-bottom-color: var(--verde);
 }
 
 /* ---------- Botones ---------- */

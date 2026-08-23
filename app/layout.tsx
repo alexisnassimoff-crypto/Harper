@@ -18,11 +18,11 @@ const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";
 export const metadata: Metadata = {
   metadataBase: new URL(SITIO),
   title: {
-    default: "Harper — Anteojos y estuches",
+    default: "Harper — Cases & Eyewear",
     template: "%s · Harper",
   },
   description:
-    "Anteojos y estuches Harper. Comprá online con envíos a todo el país.",
+    "Estuches rígidos de ecocuero premium y anteojos Harper. Comprá online con envíos a todo el país.",
   openGraph: {
     type: "website",
     locale: "es_AR",

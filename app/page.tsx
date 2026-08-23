@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Logo from "@/components/Logo";
 import GrillaProductos from "@/components/GrillaProductos";
 import { getProductos } from "@/lib/catalogo";
 
@@ -55,47 +56,31 @@ export default async function Home() {
             color: portada ? "#fff" : undefined,
           }}
         >
-          <h1 className="display">Harper</h1>
+          <h1 style={{ margin: 0 }}>
+            <Logo alto={portada ? 132 : 116} lockup claro={Boolean(portada)} />
+            <span className="solo-lectores">Harper — cases &amp; eyewear</span>
+          </h1>
           <p style={{ fontSize: "1.0625rem", maxWidth: "30rem" }}>
-            Anteojos y estuches. Envíos a todo el país.
+            Estuches rígidos de ecocuero premium y anteojos. Envíos a todo el país.
           </p>
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
             <Link
-              href="/anteojos"
+              href="/estuches"
               className="boton"
-              style={portada ? { background: "#fff", borderColor: "#fff", color: "var(--tinta)" } : undefined}
+              style={portada ? { background: "#fff", borderColor: "#fff", color: "var(--verde)" } : undefined}
             >
-              Ver anteojos
+              Ver estuches
             </Link>
             <Link
-              href="/estuches"
+              href="/anteojos"
               className="boton boton--fantasma"
               style={portada ? { color: "#fff", borderColor: "rgb(255 255 255 / 0.55)" } : undefined}
             >
-              Ver estuches
+              Ver anteojos
             </Link>
           </div>
         </div>
       </section>
-
-      {anteojos.length > 0 ? (
-        <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              marginBottom: "2rem",
-            }}
-          >
-            <h2 className="titulo">Anteojos</h2>
-            <Link href="/anteojos" className="label">
-              Ver todo
-            </Link>
-          </div>
-          <GrillaProductos productos={anteojos} />
-        </section>
-      ) : null}
 
       {estuches.length > 0 ? (
         <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
@@ -108,11 +93,30 @@ export default async function Home() {
             }}
           >
             <h2 className="titulo">Estuches</h2>
-            <Link href="/estuches" className="label">
+            <Link href="/estuches" className="label enlace-verde">
               Ver todo
             </Link>
           </div>
           <GrillaProductos productos={estuches} />
+        </section>
+      ) : null}
+
+      {anteojos.length > 0 ? (
+        <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: "2rem",
+            }}
+          >
+            <h2 className="titulo">Anteojos</h2>
+            <Link href="/anteojos" className="label enlace-verde">
+              Ver todo
+            </Link>
+          </div>
+          <GrillaProductos productos={anteojos} />
         </section>
       ) : null}
 

@@ -1,26 +1,36 @@
+import Image from "next/image";
+
 /**
- * Marca denominativa de Harper.
+ * Logo oficial de Harper, extraído del catálogo de marca.
  *
- * Es tipográfica a propósito: está construida con Raleway, la misma fuente
- * del manual de marca. Cuando esté el SVG vectorial del logo original,
- * se reemplaza el contenido de este componente y cambia en todo el sitio.
+ * `lockup` incluye el tagline "cases & eyewear" y se usa en el pie y en piezas
+ * grandes; sin él queda solo la marca denominativa, que es lo que va en el header.
  */
-export default function Logo({ alto = 20 }: { alto?: number }) {
+export default function Logo({
+  alto = 22,
+  lockup = false,
+  claro = false,
+}: {
+  alto?: number;
+  lockup?: boolean;
+  /** Invierte el logo a blanco, para fondos oscuros. */
+  claro?: boolean;
+}) {
+  const proporcion = lockup ? 1200 / 443 : 1200 / 260;
+
   return (
-    <span
-      aria-label="Harper"
+    <Image
+      src={lockup ? "/logo-harper-lockup.png" : "/logo-harper.png"}
+      alt="Harper"
+      width={Math.round(alto * proporcion)}
+      height={alto}
+      priority
       style={{
-        display: "inline-block",
-        fontSize: `${alto}px`,
-        fontWeight: 500,
-        letterSpacing: "0.42em",
-        // El tracking agrega aire a la derecha; esto vuelve a centrar la palabra.
-        textIndent: "0.42em",
-        lineHeight: 1,
-        textTransform: "uppercase",
+        height: `${alto}px`,
+        width: "auto",
+        // El logo es verde sólido: invertirlo y desaturarlo lo deja blanco puro.
+        filter: claro ? "brightness(0) invert(1)" : undefined,
       }}
-    >
-      Harper
-    </span>
+    />
   );
 }

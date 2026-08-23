@@ -28,9 +28,9 @@ export default function Footer({ config }: { config: ConfigTienda }) {
         }}
       >
         <div className="pila" style={{ gap: "1rem" }}>
-          <Logo alto={16} />
+          <Logo alto={54} lockup />
           <p className="apagado" style={{ fontSize: "0.875rem", maxWidth: "22rem" }}>
-            Anteojos y estuches. Envíos a todo el país.
+            Estuches y anteojos. Envíos a todo el país.
           </p>
         </div>
 
