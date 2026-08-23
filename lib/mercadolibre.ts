@@ -1,12 +1,13 @@
+import { tokenVigente } from "./ml-auth";
+
 /**
- * Cliente de la API pública de Mercado Libre.
+ * Cliente de la API de Mercado Libre.
  *
- * No necesita credenciales: las publicaciones y sus fotos son públicas.
- * Corre del lado del servidor, en Vercel, que sí tiene salida a internet.
+ * ML cerró los endpoints públicos de búsqueda: todos los pedidos van
+ * autenticados con el token OAuth de la cuenta del vendedor (ver ml-auth.ts).
  */
 
 const API = "https://api.mercadolibre.com";
-const SITIO_AR = "MLA";
 
 export type PublicacionML = {
   id: string;
@@ -16,24 +17,23 @@ export type PublicacionML = {
   fotos: string[];
 };
 
-type ItemBusqueda = {
-  id: string;
-  title: string;
-  price: number;
-  permalink: string;
-};
-
 type ItemDetalle = {
   id: string;
   title: string;
   price: number;
   permalink: string;
+  status?: string;
   pictures?: { secure_url?: string; url?: string; max_size?: string }[];
 };
 
 async function pedir<T>(ruta: string): Promise<T> {
+  const token = await tokenVigente();
+
   const respuesta = await fetch(`${API}${ruta}`, {
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     cache: "no-store",
   });
 
@@ -57,32 +57,38 @@ export function fotoEnMaximaCalidad(url: string) {
     .replace(/-[A-Z]\.(jpg|jpeg|png|webp)$/i, "-O.$1");
 }
 
-/** Trae todas las publicaciones activas de un vendedor, por su nickname. */
+/**
+ * Trae todas las publicaciones activas de la cuenta conectada.
+ *
+ * Usa /users/me: no depende del nickname, sino de la cuenta que autorizó
+ * la aplicación. El parámetro nickname se conserva por compatibilidad pero
+ * ya no se usa.
+ */
 export async function publicacionesDeVendedor(
-  nickname: string
+  _nickname?: string
 ): Promise<PublicacionML[]> {
-  const encontrados: ItemBusqueda[] = [];
+  const yo = await pedir<{ id: number; nickname: string }>("/users/me");
+
+  const ids: string[] = [];
   let offset = 0;
 
-  // La búsqueda pagina de a 50; se corta al agotar los resultados.
-  while (offset < 500) {
+  // El listado propio pagina de a 50.
+  while (offset < 1000) {
     const pagina = await pedir<{
-      results: ItemBusqueda[];
+      results: string[];
       paging: { total: number };
-    }>(
-      `/sites/${SITIO_AR}/search?nickname=${encodeURIComponent(
-        nickname
-      )}&limit=50&offset=${offset}`
-    );
+    }>(`/users/${yo.id}/items/search?limit=50&offset=${offset}`);
 
-    encontrados.push(...pagina.results);
+    ids.push(...pagina.results);
 
-    if (encontrados.length >= pagina.paging.total || pagina.results.length === 0) {
+    if (ids.length >= pagina.paging.total || pagina.results.length === 0) {
       break;
     }
 
     offset += 50;
   }
+
+  const encontrados = ids;
 
   if (encontrados.length === 0) return [];
 
@@ -90,16 +96,19 @@ export async function publicacionesDeVendedor(
   const publicaciones: PublicacionML[] = [];
 
   for (let i = 0; i < encontrados.length; i += 20) {
-    const lote = encontrados.slice(i, i + 20).map((r) => r.id);
+    const lote = encontrados.slice(i, i + 20);
 
     const detalles = await pedir<{ code: number; body: ItemDetalle }[]>(
-      `/items?ids=${lote.join(",")}&attributes=id,title,price,permalink,pictures`
+      `/items?ids=${lote.join(",")}&attributes=id,title,price,permalink,pictures,status`
     );
 
     for (const entrada of detalles) {
       if (entrada.code !== 200 || !entrada.body) continue;
 
       const item = entrada.body;
+
+      // Solo las publicaciones activas: las pausadas o cerradas no suman.
+      if (item.status && item.status !== "active") continue;
       const fotos = (item.pictures ?? [])
         .map((f) => f.secure_url ?? f.url ?? "")
         .filter(Boolean)

@@ -98,8 +98,21 @@ pendiente, por si una automation falla.
 
 ## Traer las fotos desde Mercado Libre
 
-Las fotos de las publicaciones se importan sin descargar nada a mano. Va en dos
-pasos a propósito: primero trae todo para revisar, y recién después asigna.
+Mercado Libre cerró su API pública: hace falta conectar la cuenta del vendedor
+una única vez.
+
+**Paso 0 — conectar la cuenta (una sola vez)**
+
+1. En [developers.mercadolibre.com.ar](https://developers.mercadolibre.com.ar)
+   → Mis aplicaciones → **Crear aplicación**: nombre `Harper Web`, redirect URI
+   exactamente `https://harperar.vercel.app/api/ml/callback`, y tildar el scope
+   **offline_access** (además de read)
+2. Copiar el **App ID** y la **Secret Key** en Vercel como `ML_APP_ID` y
+   `ML_APP_SECRET`, y redeployar
+3. Abrir `https://harperar.vercel.app/api/ml/conectar?token=<SYNC_TOKEN>`,
+   iniciar sesión con la cuenta vendedora y autorizar
+
+Los tokens quedan guardados en la tabla Config y se renuevan solos.
 
 **Paso 1 — traer las publicaciones**
 
