@@ -1,68 +1,261 @@
+/* ==========================================================================
+   HARPER — sistema de diseño
+   La paleta vive entera en este bloque. Cuando se confirmen los colores
+   exactos del logo, se cambian acá y se propagan a todo el sitio.
+   ========================================================================== */
+
 :root {
-  --bg: #0a0a0a;
-  --fg: #ededed;
-  --muted: #8a8a8a;
-  --border: #262626;
+  /* Paleta */
+  --hueso: #faf9f6;
+  --hueso-hundido: #f2f0ec;
+  --tinta: #16150f;
+  --tinta-suave: #3d3b34;
+  --apagado: #78756c;
+  --linea: #e3e0d8;
+  --plata: #9a978d;
+  --alerta: #a4442e;
+  --exito: #3f6b4a;
+
+  /* Roles */
+  --fondo: var(--hueso);
+  --fondo-alt: var(--hueso-hundido);
+  --texto: var(--tinta);
+  --texto-suave: var(--apagado);
+  --borde: var(--linea);
+  --acento: var(--tinta);
+  --sobre-acento: var(--hueso);
+
+  /* Medidas */
+  --ancho: 78rem;
+  --gutter: 1.25rem;
+  --radio: 2px;
+
+  /* Tipografía */
+  --tracking-titulo: -0.03em;
+  --tracking-label: 0.16em;
 }
 
-* {
+@media (min-width: 48rem) {
+  :root {
+    --gutter: 2.5rem;
+  }
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-html,
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
-  padding: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--fuente-raleway), Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-main {
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1.5rem;
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: 3rem 1.5rem;
+img,
+video {
+  display: block;
+  max-width: 100%;
+  height: auto;
 }
 
-h1 {
-  font-size: clamp(2.5rem, 10vw, 4rem);
-  letter-spacing: -0.04em;
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3 {
   margin: 0;
+  font-weight: 500;
+  letter-spacing: var(--tracking-titulo);
+  line-height: 1.05;
 }
 
 p {
-  color: var(--muted);
-  line-height: 1.6;
   margin: 0;
 }
 
-.status {
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  padding: 1rem 1.25rem;
-  font-size: 0.875rem;
+/* ---------- Layout ---------- */
+
+.contenedor {
+  width: 100%;
+  max-width: var(--ancho);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.pila {
   display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Tipografía utilitaria ---------- */
+
+.display {
+  font-size: clamp(2.75rem, 11vw, 6.5rem);
+  font-weight: 300;
+}
+
+.titulo {
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  font-weight: 400;
+}
+
+.label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.apagado {
+  color: var(--texto-suave);
+}
+
+/* ---------- Botones ---------- */
+
+.boton {
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0 1.75rem;
+  border: 1px solid var(--acento);
+  border-radius: var(--radio);
+  background: var(--acento);
+  color: var(--sobre-acento);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: opacity 0.15s ease;
 }
 
-.dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  flex-shrink: 0;
+.boton:hover:not(:disabled) {
+  opacity: 0.82;
 }
 
-.dot.on {
-  background: #22c55e;
+.boton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
-.dot.off {
-  background: #f59e0b;
+.boton--fantasma {
+  background: transparent;
+  color: var(--texto);
+  border-color: var(--borde);
+}
+
+.boton--fantasma:hover:not(:disabled) {
+  border-color: var(--texto);
+  opacity: 1;
+}
+
+.boton--bloque {
+  width: 100%;
+}
+
+/* ---------- Formularios ---------- */
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.campo > span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.campo input,
+.campo select,
+.campo textarea {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: #fff;
+  color: var(--texto);
+  font: inherit;
+  font-size: 1rem; /* 16px evita el zoom automático en iOS */
+}
+
+.campo input:focus,
+.campo select:focus,
+.campo textarea:focus {
+  outline: 2px solid var(--texto);
+  outline-offset: -1px;
+}
+
+.campo[data-error="true"] input,
+.campo[data-error="true"] select {
+  border-color: var(--alerta);
+}
+
+.campo small {
+  color: var(--alerta);
+  font-size: 0.75rem;
+}
+
+/* ---------- Utilidades ---------- */
+
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.saltar-al-contenido {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  background: var(--texto);
+  color: var(--fondo);
+}
+
+.saltar-al-contenido:focus {
+  left: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
