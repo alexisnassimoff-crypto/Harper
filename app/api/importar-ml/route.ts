@@ -7,7 +7,11 @@ import {
   updateRecord,
 } from "@/lib/airtable";
 import { tokenValido } from "@/lib/media";
-import { publicacionesDeVendedor, sugerirSku } from "@/lib/mercadolibre";
+import {
+  fotoEnMaximaCalidad,
+  publicacionesDeVendedor,
+  sugerirSku,
+} from "@/lib/mercadolibre";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -160,10 +164,14 @@ async function aplicarFotos() {
       continue;
     }
 
-    // Se escriben las URLs de Mercado Libre, que son públicas y permanentes.
-    // Airtable las descarga; después /api/sync-media las espeja a Blob.
+    // Antes de copiar, cada URL se sube a su mejor variante disponible:
+    // las guardadas pueden ser la estándar de 500 px y en la ficha se pixela.
+    const mejoradas = await Promise.all(
+      urls.slice(0, 10).map((url) => fotoEnMaximaCalidad(url))
+    );
+
     await updateRecord<FilaVariante>(TABLAS.variantes, varianteId, {
-      Fotos: urls.slice(0, 10).map((url) => ({ url })),
+      Fotos: mejoradas.map((url) => ({ url })),
       // Se limpia el espejo para que sync-media vuelva a generarlo.
       Fotos_url: "",
     });

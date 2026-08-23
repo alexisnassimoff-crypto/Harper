@@ -45,16 +45,41 @@ async function pedir<T>(ruta: string): Promise<T> {
 }
 
 /**
- * Lleva la URL de una foto a su versión original.
+ * Candidatas de una foto, de mayor a menor calidad.
  *
- * Mercado Libre sirve varios tamaños con un sufijo de una letra antes de la
- * extensión (-I, -V, -F, -O…). `-O` es la original, que es la que queremos
- * para la ficha de producto.
+ * La API de ítems entrega la variante estándar de ~500 px. La versión que
+ * usa el zoom del sitio es el doble de resolución: prefijo `D_NQ_NP_2X_` y
+ * sufijo `-F`. No todas las publicaciones la tienen generada, así que se
+ * arma la lista y quien la use verifica cuál existe.
  */
-export function fotoEnMaximaCalidad(url: string) {
-  return url
-    .replace(/^http:/, "https:")
-    .replace(/-[A-Z]\.(jpg|jpeg|png|webp)$/i, "-O.$1");
+export function candidatasDeFoto(url: string): string[] {
+  const segura = url.replace(/^http:/, "https:");
+
+  const base = segura
+    .replace("D_NQ_NP_2X_", "D_NQ_NP_")
+    .replace(/-[A-Z]\.(jpg|jpeg|png|webp)$/i, "-F.$1");
+
+  const dobleResolucion = base.replace("D_NQ_NP_", "D_NQ_NP_2X_");
+
+  // Sin duplicados y siempre con la original como último recurso.
+  return [...new Set([dobleResolucion, base, segura])];
+}
+
+/**
+ * Devuelve la mejor variante de la foto que realmente exista,
+ * verificando con un HEAD contra el CDN de Mercado Libre.
+ */
+export async function fotoEnMaximaCalidad(url: string): Promise<string> {
+  for (const candidata of candidatasDeFoto(url)) {
+    try {
+      const r = await fetch(candidata, { method: "HEAD", cache: "no-store" });
+      if (r.ok) return candidata;
+    } catch {
+      // El CDN no respondió esa variante: se prueba la siguiente.
+    }
+  }
+
+  return url.replace(/^http:/, "https:");
 }
 
 /**
@@ -109,10 +134,12 @@ export async function publicacionesDeVendedor(
 
       // Solo las publicaciones activas: las pausadas o cerradas no suman.
       if (item.status && item.status !== "active") continue;
-      const fotos = (item.pictures ?? [])
-        .map((f) => f.secure_url ?? f.url ?? "")
-        .filter(Boolean)
-        .map(fotoEnMaximaCalidad);
+      const fotos = await Promise.all(
+        (item.pictures ?? [])
+          .map((f) => f.secure_url ?? f.url ?? "")
+          .filter(Boolean)
+          .map(fotoEnMaximaCalidad)
+      );
 
       publicaciones.push({
         id: item.id,

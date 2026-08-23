@@ -25,6 +25,9 @@ export default function Logo({
       width={Math.round(alto * proporcion)}
       height={alto}
       priority
+      // El PNG ya está optimizado; reprocesarlo lo reescala a la medida CSS
+      // y en pantallas retina se ve borroso.
+      unoptimized
       style={{
         height: `${alto}px`,
         width: "auto",
