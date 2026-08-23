@@ -29,7 +29,19 @@
   /* Medidas */
   --ancho: 78rem;
   --gutter: 1.25rem;
-  --radio: 2px;
+  --radio: 14px;
+  --radio-pill: 999px;
+
+  /* Movimiento: una sola curva para que todo el sitio se sienta igual */
+  --curva: cubic-bezier(0.22, 1, 0.36, 1);
+  --rapido: 180ms;
+  --medio: 320ms;
+  --lento: 620ms;
+
+  /* Sombras */
+  --sombra-baja: 0 1px 2px rgb(22 21 15 / 0.05);
+  --sombra-media: 0 10px 30px -12px rgb(22 21 15 / 0.22);
+  --sombra-alta: 0 22px 48px -18px rgb(22 21 15 / 0.30);
 
   /* Tipografía */
   --tracking-titulo: -0.03em;
@@ -132,38 +144,58 @@ p {
   color: var(--texto-suave);
 }
 
-.enlace-verde {
-  color: var(--verde);
-  border-bottom: 1px solid color-mix(in srgb, var(--verde) 35%, transparent);
-  padding-bottom: 1px;
-}
-
-.enlace-verde:hover {
-  border-bottom-color: var(--verde);
-}
-
 /* ---------- Botones ---------- */
 
 .boton {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   min-height: 3.25rem;
-  padding: 0 1.75rem;
+  padding: 0 2rem;
   border: 1px solid var(--acento);
-  border-radius: var(--radio);
+  border-radius: var(--radio-pill);
   background: var(--acento);
   color: var(--sobre-acento);
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  transition: opacity 0.15s ease;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform var(--rapido) var(--curva),
+    box-shadow var(--medio) var(--curva),
+    color var(--rapido) var(--curva),
+    border-color var(--rapido) var(--curva);
 }
 
-.boton:hover:not(:disabled) {
-  opacity: 0.82;
+/* Velo que sube desde abajo al pasar el mouse. */
+.boton::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--verde-claro);
+  transform: translateY(101%);
+  transition: transform var(--medio) var(--curva);
+}
+
+.boton:hover:not(:disabled)::before,
+.boton:focus-visible:not(:disabled)::before {
+  transform: translateY(0);
+}
+
+.boton:hover:not(:disabled),
+.boton:focus-visible:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--sombra-media);
+}
+
+.boton:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--sombra-baja);
 }
 
 .boton:disabled {
@@ -177,13 +209,60 @@ p {
   border-color: var(--borde);
 }
 
-.boton--fantasma:hover:not(:disabled) {
+.boton--fantasma::before {
+  background: var(--texto);
+}
+
+.boton--fantasma:hover:not(:disabled),
+.boton--fantasma:focus-visible:not(:disabled) {
+  color: var(--fondo);
   border-color: var(--texto);
-  opacity: 1;
 }
 
 .boton--bloque {
   width: 100%;
+}
+
+/* Sobre foto: pastilla blanca que se invierte a verde al pasar el mouse.
+   El texto tiene que cambiar junto con el fondo o queda verde sobre verde. */
+.boton--claro {
+  background: #fff;
+  border-color: #fff;
+  color: var(--verde);
+}
+
+.boton--claro::before {
+  background: var(--verde);
+}
+
+.boton--claro:hover:not(:disabled),
+.boton--claro:focus-visible:not(:disabled) {
+  color: #fff;
+  border-color: var(--verde);
+}
+
+/* Sobre foto: contorno claro que se rellena de blanco. */
+.boton--contorno-claro {
+  background: transparent;
+  color: #fff;
+  border-color: rgb(255 255 255 / 0.6);
+}
+
+.boton--contorno-claro::before {
+  background: #fff;
+}
+
+.boton--contorno-claro:hover:not(:disabled),
+.boton--contorno-claro:focus-visible:not(:disabled) {
+  color: var(--verde);
+  border-color: #fff;
+}
+
+/* Botón chico, para acciones secundarias. */
+.boton--chico {
+  min-height: 2.5rem;
+  padding: 0 1.25rem;
+  font-size: 0.6875rem;
 }
 
 /* ---------- Formularios ---------- */
@@ -206,21 +285,34 @@ p {
 .campo select,
 .campo textarea {
   width: 100%;
-  min-height: 3rem;
-  padding: 0.75rem 0.875rem;
+  min-height: 3.25rem;
+  padding: 0.85rem 1.15rem;
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  border-radius: var(--radio-pill);
   background: #fff;
   color: var(--texto);
   font: inherit;
   font-size: 1rem; /* 16px evita el zoom automático en iOS */
+  transition:
+    border-color var(--rapido) var(--curva),
+    box-shadow var(--rapido) var(--curva);
+}
+
+.campo textarea {
+  border-radius: var(--radio);
+}
+
+.campo input:hover,
+.campo select:hover {
+  border-color: color-mix(in srgb, var(--verde) 40%, var(--borde));
 }
 
 .campo input:focus,
 .campo select:focus,
 .campo textarea:focus {
-  outline: 2px solid var(--texto);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--verde);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--verde) 14%, transparent);
 }
 
 .campo[data-error="true"] input,
@@ -231,6 +323,273 @@ p {
 .campo small {
   color: var(--alerta);
   font-size: 0.75rem;
+}
+
+
+/* ---------- Enlaces con subrayado animado ---------- */
+
+.enlace-verde {
+  position: relative;
+  color: var(--verde);
+  transition: color var(--rapido) var(--curva);
+}
+
+.enlace-verde::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--medio) var(--curva);
+}
+
+.enlace-verde:hover::after,
+.enlace-verde:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* Enlace suave del pie y textos secundarios. */
+.enlace-suave {
+  color: var(--texto-suave);
+  transition: color var(--rapido) var(--curva);
+}
+
+.enlace-suave:hover,
+.enlace-suave:focus-visible {
+  color: var(--verde);
+}
+
+/* Navegación del header: la línea crece desde el centro. */
+.nav-enlace {
+  position: relative;
+  padding-bottom: 4px;
+  transition: color var(--rapido) var(--curva);
+}
+
+.nav-enlace::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--verde);
+  transform: scaleX(0);
+  transition: transform var(--medio) var(--curva);
+}
+
+.nav-enlace:hover,
+.nav-enlace[data-activo="true"] {
+  color: var(--verde);
+}
+
+.nav-enlace:hover::after,
+.nav-enlace:focus-visible::after,
+.nav-enlace[data-activo="true"]::after {
+  transform: scaleX(1);
+}
+
+/* ---------- Tarjeta de producto ---------- */
+
+.tarjeta {
+  transition: transform var(--medio) var(--curva);
+}
+
+.tarjeta__marco {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radio);
+  background: var(--fondo-alt);
+  transition: box-shadow var(--medio) var(--curva);
+}
+
+.tarjeta__marco img {
+  transition: transform var(--lento) var(--curva);
+}
+
+.tarjeta:hover .tarjeta__marco {
+  box-shadow: var(--sombra-alta);
+}
+
+.tarjeta:hover .tarjeta__marco img {
+  transform: scale(1.06);
+}
+
+.tarjeta:hover .tarjeta__nombre {
+  color: var(--verde);
+}
+
+.tarjeta__nombre {
+  transition: color var(--rapido) var(--curva);
+}
+
+/* Los puntitos de color asoman al pasar el mouse. */
+.tarjeta__colores {
+  display: flex;
+  gap: 0.3rem;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity var(--medio) var(--curva),
+    transform var(--medio) var(--curva);
+}
+
+.tarjeta:hover .tarjeta__colores,
+.tarjeta:focus-within .tarjeta__colores {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- Selector de color y miniaturas ---------- */
+
+.swatch {
+  position: relative;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--borde);
+  transition:
+    transform var(--rapido) var(--curva),
+    box-shadow var(--rapido) var(--curva);
+}
+
+.swatch:hover:not(:disabled) {
+  transform: scale(1.12);
+  box-shadow: var(--sombra-media);
+}
+
+.swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--fondo), 0 0 0 4px var(--verde);
+}
+
+.mini {
+  position: relative;
+  width: 4.5rem;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--borde);
+  background: var(--fondo-alt);
+  transition:
+    transform var(--rapido) var(--curva),
+    border-color var(--rapido) var(--curva);
+}
+
+.mini:hover {
+  transform: translateY(-2px);
+  border-color: var(--verde);
+}
+
+.mini[aria-current="true"] {
+  border-color: var(--verde);
+  box-shadow: 0 0 0 1px var(--verde);
+}
+
+/* ---------- Aparición al cargar ---------- */
+
+@keyframes surgir {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.surge {
+  animation: surgir var(--lento) var(--curva) both;
+}
+
+.surge-1 { animation-delay: 60ms; }
+.surge-2 { animation-delay: 140ms; }
+.surge-3 { animation-delay: 220ms; }
+
+/* ---------- Resumen sin recuadro ---------- */
+/* Un panel que se apoya en el fondo, sin borde propio: evita el recuadro
+   dentro del recuadro. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.75rem 0 0;
+  border-top: 1px solid var(--borde);
+}
+
+@media (min-width: 60rem) {
+  .panel {
+    padding: 0 0 0 2.5rem;
+    border-top: 0;
+    border-left: 1px solid var(--borde);
+  }
+}
+
+.fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9375rem;
+}
+
+.fila--total {
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--borde);
+  font-size: 1.125rem;
+}
+
+/* ---------- Logo y flotantes ---------- */
+
+.logo-enlace {
+  display: inline-flex;
+  transition:
+    opacity var(--rapido) var(--curva),
+    transform var(--medio) var(--curva);
+}
+
+.logo-enlace:hover {
+  opacity: 0.72;
+  transform: translateY(-1px);
+}
+
+.wsp {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: #25d366;
+  box-shadow: var(--sombra-media);
+  transition:
+    transform var(--medio) var(--curva),
+    box-shadow var(--medio) var(--curva);
+}
+
+.wsp:hover,
+.wsp:focus-visible {
+  transform: translateY(-3px) scale(1.06);
+  box-shadow: var(--sombra-alta);
+}
+
+/* Filas de listado que responden al mouse. */
+.item-lista {
+  transition: opacity var(--rapido) var(--curva);
+}
+
+.item-lista:hover {
+  opacity: 0.88;
 }
 
 /* ---------- Utilidades ---------- */

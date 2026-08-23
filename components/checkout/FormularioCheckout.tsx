@@ -255,33 +255,15 @@ export default function FormularioCheckout() {
         </label>
       </div>
 
-      <aside
-        className="pila"
-        style={{
-          gap: "1rem",
-          padding: "1.75rem",
-          border: "1px solid var(--borde)",
-          borderRadius: "var(--radio)",
-          background: "var(--fondo-alt)",
-          position: "sticky",
-          top: "6rem",
-        }}
-      >
+      <aside className="panel" style={{ position: "sticky", top: "6rem" }}>
         <h2 className="label">Tu pedido</h2>
 
         <ul className="pila" style={{ gap: "0.85rem", listStyle: "none", margin: 0, padding: 0 }}>
           {carrito.items.map((item) => (
             <li key={item.varianteId} style={{ display: "flex", gap: "0.75rem" }}>
               <div
-                style={{
-                  position: "relative",
-                  width: "3rem",
-                  aspectRatio: "1 / 1",
-                  flexShrink: 0,
-                  background: "var(--fondo)",
-                  borderRadius: "var(--radio)",
-                  overflow: "hidden",
-                }}
+                className="tarjeta__marco"
+                style={{ width: "3rem", aspectRatio: "1 / 1", flexShrink: 0 }}
               >
                 {item.foto ? (
                   <Image src={item.foto} alt="" fill sizes="48px" style={{ objectFit: "cover" }} />
@@ -298,24 +280,16 @@ export default function FormularioCheckout() {
           ))}
         </ul>
 
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
+        <div className="fila">
           <span className="apagado">Subtotal</span>
           <span>{formatearPrecio(carrito.subtotal)}</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
-          <span className="apagado">Envío</span>
+        <div className="fila">
+          <span className="apagado">Envío por Correo Argentino</span>
           <span>{carrito.envio === 0 ? "Gratis" : formatearPrecio(carrito.envio)}</span>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            paddingTop: "0.75rem",
-            borderTop: "1px solid var(--borde)",
-            fontSize: "1.125rem",
-          }}
-        >
+        <div className="fila fila--total">
           <span>Total</span>
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(carrito.total)}</strong>
         </div>
@@ -332,7 +306,7 @@ export default function FormularioCheckout() {
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
           Pagás con Mercado Pago. Aceptamos tarjetas en cuotas, débito y
-          transferencia. Entrega en {carrito.plazoEntrega}.
+          transferencia. Entrega por Correo Argentino en {carrito.plazoEntrega}.
         </p>
       </aside>
     </form>

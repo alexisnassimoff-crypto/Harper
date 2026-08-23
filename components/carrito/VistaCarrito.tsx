@@ -51,15 +51,8 @@ export default function VistaCarrito() {
             style={{ display: "flex", gap: "1rem", alignItems: "flex-start" }}
           >
             <div
-              style={{
-                position: "relative",
-                width: "5.5rem",
-                aspectRatio: "4 / 5",
-                flexShrink: 0,
-                background: "var(--fondo-alt)",
-                borderRadius: "var(--radio)",
-                overflow: "hidden",
-              }}
+              className="tarjeta__marco"
+              style={{ width: "5.5rem", aspectRatio: "4 / 5", flexShrink: 0 }}
             >
               {item.foto ? (
                 <Image
@@ -112,7 +105,7 @@ export default function VistaCarrito() {
                 <button
                   type="button"
                   onClick={() => quitar(item.varianteId)}
-                  className="apagado"
+                  className="enlace-suave"
                   style={{
                     background: "none",
                     border: 0,
@@ -133,21 +126,12 @@ export default function VistaCarrito() {
         ))}
       </ul>
 
-      <aside
-        className="pila"
-        style={{
-          gap: "1rem",
-          padding: "1.75rem",
-          border: "1px solid var(--borde)",
-          borderRadius: "var(--radio)",
-          background: "var(--fondo-alt)",
-        }}
-      >
+      <aside className="panel">
         <h2 className="label">Resumen</h2>
 
         <Fila etiqueta="Subtotal" valor={formatearPrecio(datos.subtotal)} />
         <Fila
-          etiqueta="Envío"
+          etiqueta="Envío por Correo Argentino"
           valor={datos.envio === 0 ? "Gratis" : formatearPrecio(datos.envio)}
         />
 
@@ -157,15 +141,7 @@ export default function VistaCarrito() {
           </p>
         ) : null}
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            paddingTop: "0.75rem",
-            borderTop: "1px solid var(--borde)",
-            fontSize: "1.125rem",
-          }}
-        >
+        <div className="fila fila--total">
           <span>Total</span>
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(datos.total)}</strong>
         </div>
@@ -175,7 +151,7 @@ export default function VistaCarrito() {
         </Link>
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
-          Entrega en {datos.plazoEntrega}.
+          Entrega por Correo Argentino en {datos.plazoEntrega}.
         </p>
       </aside>
     </div>
@@ -184,7 +160,7 @@ export default function VistaCarrito() {
 
 function Fila({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9375rem" }}>
+    <div className="fila">
       <span className="apagado">{etiqueta}</span>
       <span>{valor}</span>
     </div>

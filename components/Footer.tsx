@@ -30,18 +30,14 @@ export default function Footer({ config }: { config: ConfigTienda }) {
         <div className="pila" style={{ gap: "1rem" }}>
           <Logo alto={54} lockup />
           <p className="apagado" style={{ fontSize: "0.875rem", maxWidth: "22rem" }}>
-            Estuches y anteojos. Envíos a todo el país.
+            Anteojos y estuches. Entrega por Correo Argentino a todo el país.
           </p>
         </div>
 
         <nav className="pila" style={{ gap: "0.6rem" }} aria-label="Legales">
           <span className="label">Legales</span>
           {LEGALES.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              style={{ fontSize: "0.875rem", color: "var(--texto-suave)" }}
-            >
+            <Link key={l.href} href={l.href} className="enlace-suave" style={{ fontSize: "0.875rem" }}>
               {l.texto}
             </Link>
           ))}
@@ -51,7 +47,8 @@ export default function Footer({ config }: { config: ConfigTienda }) {
           <span className="label">Contacto</span>
           <a
             href={`mailto:${config.emailContacto}`}
-            style={{ fontSize: "0.875rem", color: "var(--texto-suave)" }}
+            className="enlace-suave"
+            style={{ fontSize: "0.875rem" }}
           >
             {config.emailContacto}
           </a>
@@ -60,7 +57,8 @@ export default function Footer({ config }: { config: ConfigTienda }) {
               href={`https://wa.me/${config.whatsapp}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ fontSize: "0.875rem", color: "var(--texto-suave)" }}
+              className="enlace-suave"
+              style={{ fontSize: "0.875rem" }}
             >
               WhatsApp
             </a>
@@ -89,6 +87,7 @@ export default function Footer({ config }: { config: ConfigTienda }) {
           href="https://autogestion.produccion.gob.ar/consumidores"
           target="_blank"
           rel="noopener noreferrer"
+          className="enlace-suave"
         >
           Defensa de las y los Consumidores
         </a>

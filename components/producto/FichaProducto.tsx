@@ -67,16 +67,8 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
       }}
     >
       {/* ---------- Galería ---------- */}
-      <div className="pila" style={{ gap: "0.75rem" }}>
-        <div
-          style={{
-            position: "relative",
-            aspectRatio: "1 / 1",
-            background: "var(--fondo-alt)",
-            overflow: "hidden",
-            borderRadius: "var(--radio)",
-          }}
-        >
+      <div className="pila surge" style={{ gap: "0.75rem" }}>
+        <div className="tarjeta__marco" style={{ aspectRatio: "1 / 1" }}>
           {fotoActual ? (
             <Image
               src={fotoActual}
@@ -105,19 +97,7 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
                 onClick={() => setIndiceFoto(i)}
                 aria-label={`Ver foto ${i + 1} de ${fotos.length}`}
                 aria-current={i === indiceFoto}
-                style={{
-                  position: "relative",
-                  width: "4.5rem",
-                  aspectRatio: "1 / 1",
-                  padding: 0,
-                  overflow: "hidden",
-                  borderRadius: "var(--radio)",
-                  border:
-                    i === indiceFoto
-                      ? "1px solid var(--texto)"
-                      : "1px solid var(--borde)",
-                  background: "var(--fondo-alt)",
-                }}
+                className="mini"
               >
                 <Image
                   src={foto}
@@ -149,7 +129,7 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
       </div>
 
       {/* ---------- Datos y compra ---------- */}
-      <div className="pila" style={{ gap: "1.5rem", position: "sticky", top: "6rem" }}>
+      <div className="pila surge surge-1" style={{ gap: "1.5rem", position: "sticky", top: "6rem" }}>
         <div className="pila" style={{ gap: "0.6rem" }}>
           <span className="label">{producto.categoria}</span>
           <h1 style={{ fontSize: "clamp(2rem, 5vw, 2.75rem)" }}>
@@ -192,20 +172,8 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
                 title={v.agotada ? `${v.color} — agotado` : v.color}
                 aria-label={v.agotada ? `${v.color}, agotado` : v.color}
                 aria-pressed={i === indiceVariante}
-                style={{
-                  position: "relative",
-                  width: "2.5rem",
-                  height: "2.5rem",
-                  padding: 0,
-                  borderRadius: "50%",
-                  background: v.colorHex,
-                  border:
-                    i === indiceVariante
-                      ? "2px solid var(--texto)"
-                      : "1px solid var(--borde)",
-                  outlineOffset: "3px",
-                  opacity: v.agotada ? 0.4 : 1,
-                }}
+                className="swatch"
+                style={{ background: v.colorHex, opacity: v.agotada ? 0.4 : 1 }}
               >
                 {v.agotada ? (
                   <span

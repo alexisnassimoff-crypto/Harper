@@ -20,7 +20,8 @@ export default async function Panos() {
       </h1>
       <p className="apagado" style={{ marginBottom: "2.5rem", maxWidth: "34rem" }}>
         Microfibra que no raya ni deja pelusa. Aptos para cristales con
-        tratamiento antirreflejo, blue cut y polarizados.
+        tratamiento antirreflejo, blue cut y polarizados. Entrega por Correo
+        Argentino a todo el país.
       </p>
       <GrillaProductos productos={productos} />
     </section>

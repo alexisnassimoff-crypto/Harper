@@ -45,11 +45,9 @@ export default async function Arrepentimiento() {
         className="pila"
         style={{
           gap: "1rem",
-          marginTop: "1rem",
-          padding: "1.75rem",
-          border: "1px solid var(--borde)",
-          borderRadius: "var(--radio)",
-          background: "var(--fondo-alt)",
+          marginTop: "1.5rem",
+          paddingTop: "1.75rem",
+          borderTop: "1px solid var(--borde)",
           alignItems: "flex-start",
         }}
       >

@@ -6,8 +6,8 @@ import Logo from "./Logo";
 import { useCarrito } from "./carrito/CarritoContexto";
 
 const SECCIONES = [
-  { href: "/estuches", texto: "Estuches" },
   { href: "/anteojos", texto: "Anteojos" },
+  { href: "/estuches", texto: "Estuches" },
   { href: "/panos", texto: "Paños" },
 ];
 
@@ -39,9 +39,11 @@ export default function Header({ banner }: { banner?: string }) {
           position: "sticky",
           top: 0,
           zIndex: 50,
-          background: "color-mix(in srgb, var(--fondo) 88%, transparent)",
-          backdropFilter: "blur(12px)",
-          borderBottom: "1px solid var(--borde)",
+          // Translúcido de verdad: deja ver el contenido pasar por debajo.
+          background: "color-mix(in srgb, var(--fondo) 62%, transparent)",
+          backdropFilter: "blur(18px) saturate(160%)",
+          WebkitBackdropFilter: "blur(18px) saturate(160%)",
+          borderBottom: "1px solid color-mix(in srgb, var(--borde) 70%, transparent)",
         }}
       >
         <div
@@ -62,27 +64,30 @@ export default function Header({ banner }: { banner?: string }) {
               <Link
                 key={s.href}
                 href={s.href}
-                className="label"
-                style={{
-                  color: pathname === s.href ? "var(--verde)" : undefined,
-                  borderBottom:
-                    pathname === s.href
-                      ? "1px solid var(--verde)"
-                      : "1px solid transparent",
-                  paddingBottom: "2px",
-                }}
+                className="label nav-enlace"
+                data-activo={pathname === s.href}
               >
                 {s.texto}
               </Link>
             ))}
           </nav>
 
-          <Link href="/" aria-label="Harper — Inicio">
+          <Link
+            href="/"
+            aria-label="Harper — Inicio"
+            className="logo-enlace"
+            style={{ justifySelf: "center" }}
+          >
             <Logo alto={22} />
           </Link>
 
           <div style={{ justifySelf: "end" }}>
-            <Link href="/carrito" className="label" style={{ color: "var(--verde)" }}>
+            <Link
+              href="/carrito"
+              className="label nav-enlace"
+              data-activo={pathname === "/carrito"}
+              style={{ color: "var(--verde)" }}
+            >
               Carrito
               {listo && unidades > 0 ? ` (${unidades})` : ""}
             </Link>

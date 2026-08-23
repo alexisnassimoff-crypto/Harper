@@ -16,18 +16,10 @@ export default function ProductoCard({
   return (
     <Link
       href={`/producto/${producto.slug}`}
-      className="pila"
+      className="pila tarjeta"
       style={{ gap: "0.85rem" }}
     >
-      <div
-        style={{
-          position: "relative",
-          aspectRatio: "4 / 5",
-          background: "var(--fondo-alt)",
-          overflow: "hidden",
-          borderRadius: "var(--radio)",
-        }}
-      >
+      <div className="tarjeta__marco" style={{ aspectRatio: "4 / 5" }}>
         {producto.fotoPrincipal ? (
           <Image
             src={producto.fotoPrincipal}
@@ -64,7 +56,7 @@ export default function ProductoCard({
       </div>
 
       <div className="pila" style={{ gap: "0.15rem" }}>
-        <h3 style={{ fontSize: "1rem", letterSpacing: "0.06em" }}>
+        <h3 className="tarjeta__nombre" style={{ fontSize: "1rem", letterSpacing: "0.06em" }}>
           {producto.nombre}
         </h3>
 
@@ -82,9 +74,33 @@ export default function ProductoCard({
           ) : null}
         </div>
 
-        <span className="apagado" style={{ fontSize: "0.75rem" }}>
-          {colores === 1 ? "1 color" : `${colores} colores`}
-        </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6rem",
+            minHeight: "1.1rem",
+          }}
+        >
+          <span className="apagado" style={{ fontSize: "0.75rem" }}>
+            {colores === 1 ? "1 color" : `${colores} colores`}
+          </span>
+
+          <span className="tarjeta__colores" aria-hidden="true">
+            {producto.variantes.slice(0, 5).map((v) => (
+              <span
+                key={v.id}
+                style={{
+                  width: "0.5rem",
+                  height: "0.5rem",
+                  borderRadius: "50%",
+                  background: v.colorHex,
+                  border: "1px solid color-mix(in srgb, var(--texto) 18%, transparent)",
+                }}
+              />
+            ))}
+          </span>
+        </div>
       </div>
     </Link>
   );

@@ -44,7 +44,7 @@ export default async function Home() {
         />
 
         <div
-          className="contenedor pila"
+          className="contenedor pila surge"
           style={{
             position: "relative",
             gap: "1.75rem",
@@ -60,45 +60,19 @@ export default async function Home() {
             <span className="solo-lectores">Harper — cases &amp; eyewear</span>
           </h1>
           <p style={{ fontSize: "1.0625rem", maxWidth: "30rem" }}>
-            Estuches rígidos de ecocuero premium y anteojos. Envíos a todo el país.
+            Anteojos y estuches rígidos de ecocuero premium. Entrega por Correo
+            Argentino a todo el país.
           </p>
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
-            <Link
-              href="/estuches"
-              className="boton"
-              style={{ background: "#fff", borderColor: "#fff", color: "var(--verde)" }}
-            >
-              Ver estuches
-            </Link>
-            <Link
-              href="/anteojos"
-              className="boton boton--fantasma"
-              style={{ color: "#fff", borderColor: "rgb(255 255 255 / 0.55)" }}
-            >
+            <Link href="/anteojos" className="boton boton--claro">
               Ver anteojos
+            </Link>
+            <Link href="/estuches" className="boton boton--contorno-claro">
+              Ver estuches
             </Link>
           </div>
         </div>
       </section>
-
-      {estuches.length > 0 ? (
-        <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              marginBottom: "2rem",
-            }}
-          >
-            <h2 className="titulo">Estuches</h2>
-            <Link href="/estuches" className="label enlace-verde">
-              Ver todo
-            </Link>
-          </div>
-          <GrillaProductos productos={estuches} />
-        </section>
-      ) : null}
 
       {anteojos.length > 0 ? (
         <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
@@ -116,6 +90,25 @@ export default async function Home() {
             </Link>
           </div>
           <GrillaProductos productos={anteojos} />
+        </section>
+      ) : null}
+
+      {estuches.length > 0 ? (
+        <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: "2rem",
+            }}
+          >
+            <h2 className="titulo">Estuches</h2>
+            <Link href="/estuches" className="label enlace-verde">
+              Ver todo
+            </Link>
+          </div>
+          <GrillaProductos productos={estuches} />
         </section>
       ) : null}
 
