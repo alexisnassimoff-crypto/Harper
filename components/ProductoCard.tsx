@@ -19,7 +19,7 @@ export default function ProductoCard({
       className="pila tarjeta"
       style={{ gap: "0.85rem" }}
     >
-      <div className="tarjeta__marco" style={{ aspectRatio: "4 / 5" }}>
+      <div className="tarjeta__marco" style={{ aspectRatio: "1 / 1" }}>
         {producto.fotoPrincipal ? (
           <Image
             src={producto.fotoPrincipal}

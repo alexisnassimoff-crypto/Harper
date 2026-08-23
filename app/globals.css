@@ -29,7 +29,8 @@
   /* Medidas */
   --ancho: 78rem;
   --gutter: 1.25rem;
-  --radio: 14px;
+  --radio: 18px;
+  --radio-tarjeta: 28px;
   --radio-pill: 999px;
 
   /* Movimiento: una sola curva para que todo el sitio se sienta igual */
@@ -403,7 +404,7 @@ p {
 .tarjeta__marco {
   position: relative;
   overflow: hidden;
-  border-radius: var(--radio);
+  border-radius: var(--radio-tarjeta);
   background: var(--fondo-alt);
   transition: box-shadow var(--medio) var(--curva);
 }
@@ -474,7 +475,7 @@ p {
   aspect-ratio: 1 / 1;
   padding: 0;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 16px;
   border: 1px solid var(--borde);
   background: var(--fondo-alt);
   transition:

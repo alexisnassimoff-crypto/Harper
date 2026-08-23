@@ -121,7 +121,7 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
             preload="none"
             style={{
               width: "100%",
-              borderRadius: "var(--radio)",
+              borderRadius: "var(--radio-tarjeta)",
               background: "var(--fondo-alt)",
             }}
           />
@@ -129,7 +129,7 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
       </div>
 
       {/* ---------- Datos y compra ---------- */}
-      <div className="pila surge surge-1" style={{ gap: "1.5rem", position: "sticky", top: "6rem" }}>
+      <div className="pila surge surge-1" style={{ gap: "1.75rem", position: "sticky", top: "6rem" }}>
         <div className="pila" style={{ gap: "0.6rem" }}>
           <span className="label">{producto.categoria}</span>
           <h1 style={{ fontSize: "clamp(2rem, 5vw, 2.75rem)" }}>

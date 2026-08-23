@@ -52,7 +52,7 @@ export default function VistaCarrito() {
           >
             <div
               className="tarjeta__marco"
-              style={{ width: "5.5rem", aspectRatio: "4 / 5", flexShrink: 0 }}
+              style={{ width: "5.5rem", aspectRatio: "1 / 1", flexShrink: 0 }}
             >
               {item.foto ? (
                 <Image
@@ -85,9 +85,9 @@ export default function VistaCarrito() {
                   }
                   style={{
                     minHeight: "2.25rem",
-                    padding: "0 0.5rem",
+                    padding: "0 0.75rem",
                     border: "1px solid var(--borde)",
-                    borderRadius: "var(--radio)",
+                    borderRadius: "var(--radio-pill)",
                     background: "#fff",
                     font: "inherit",
                   }}
