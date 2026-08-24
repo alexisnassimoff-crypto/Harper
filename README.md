@@ -202,23 +202,29 @@ comprador.
 
 ## Antes de salir a producción
 
-- [x] Compra completa end-to-end verificada contra el código (firma, preferencia
-      y casos borde del checkout)
-- [x] `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` y `NEXT_PUBLIC_SITE_URL` cargadas en
-      Vercel — `/api/health` da `mercadopago: true`
-- [x] **Compra real verificada** (24/08/2026, pedido HARPER-8812049): preferencia
-      creada con credenciales de producción, firma del webhook validada, pago
-      re-consultado contra la API de MP, monto verificado, `Estado = pagado`,
-      stock descontado y cliente registrado
-- [ ] `RESEND_API_KEY` cargada y dominio verificado, o no sale ningún mail
-- [ ] Segunda compra de prueba para verificar que los mails llegan
-- [ ] Mail de confirmación recibido y sin caer en spam
-- [ ] Subir una foto en Airtable y verificar que aparece en el sitio
-- [ ] Completar `domicilio` y `razon_social` en `Config` (obligatorio por ley)
-- [ ] Confirmar `costo_envio` y `envio_gratis_desde` en `Config`
+**El circuito de venta está cerrado y verificado con plata real** (24/08/2026).
+
+- [x] Compra completa verificada contra el código: firma del webhook, cuerpo de la
+      preferencia y casos borde del checkout
+- [x] `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL` y
+      `RESEND_API_KEY` cargadas — `/api/health` sin avisos
+- [x] **Compra real** (HARPER-8812049): preferencia creada con credenciales de
+      producción, firma del webhook validada, pago re-consultado contra la API de
+      Mercado Pago, monto verificado, `Estado = pagado`, stock descontado y cliente
+      registrado
+- [x] **Mails** (HARPER-956523Y): dominio `harper.ar` verificado en Resend con SPF y
+      DKIM. El aviso de venta llegó a Recibidos, no a spam, con la foto del producto
+      renderizando — o sea que el `.jpg` que reemplaza al WebP funciona en un cliente
+      real
+- [x] `domicilio`, `razon_social` y `cuit` completos en `Config`
+- [ ] Confirmar la casilla del comprador (el mail de confirmación es distinto del
+      aviso interno; si falta, se revisa en Resend → Logs)
 - [ ] Cargar el stock real de los paños (hoy son valores provisorios)
 - [ ] Cargar `Peso_g`, `Largo_cm`, `Ancho_cm` y `Alto_cm` de cada producto
 - [ ] Credenciales de la API de MiCorreo, para cotizar el envío real
+- [ ] Generar la etiqueta de despacho (`POST /shipping/import`) desde Airtable
+- [ ] Conectar `harper.ar` a Vercel: `NEXT_PUBLIC_SITE_URL`, la URL del webhook en
+      Mercado Pago y redeploy, los tres juntos
 
 ## Envíos
 
