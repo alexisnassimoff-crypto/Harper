@@ -202,11 +202,14 @@ comprador.
 
 - [x] Compra completa end-to-end verificada contra el código (firma, preferencia
       y casos borde del checkout)
-- [ ] Las tres variables cargadas en Vercel y `/api/health` sin avisos
-- [ ] Webhook probado con el simulador del panel de MP (tiene que dar 200, no 401)
-- [ ] Compra real por un monto chico: pedido en Airtable → `pagado` → stock -1 →
-      mail al cliente → aviso interno → plata acreditada
+- [x] `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` y `NEXT_PUBLIC_SITE_URL` cargadas en
+      Vercel — `/api/health` da `mercadopago: true`
+- [x] **Compra real verificada** (24/08/2026, pedido HARPER-8812049): preferencia
+      creada con credenciales de producción, firma del webhook validada, pago
+      re-consultado contra la API de MP, monto verificado, `Estado = pagado`,
+      stock descontado y cliente registrado
 - [ ] `RESEND_API_KEY` cargada y dominio verificado, o no sale ningún mail
+- [ ] Segunda compra de prueba para verificar que los mails llegan
 - [ ] Mail de confirmación recibido y sin caer en spam
 - [ ] Subir una foto en Airtable y verificar que aparece en el sitio
 - [ ] Completar `domicilio` y `razon_social` en `Config` (obligatorio por ley)
