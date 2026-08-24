@@ -39,6 +39,13 @@ export default async function RootLayout({
 
   return (
     <html lang="es" className={raleway.variable}>
+      <head>
+        {/* Sin JavaScript nadie dispara la aparición al scrollear: el
+            contenido tiene que verse igual. */}
+        <noscript>
+          <style>{".revelar{opacity:1;transform:none}"}</style>
+        </noscript>
+      </head>
       <body>
         <ProveedorCarrito>
           <a className="saltar-al-contenido" href="#contenido">

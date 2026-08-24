@@ -10,8 +10,8 @@
   /* Marca */
   --verde: #004226;
   --verde-claro: #0a5c37;
-  --hueso: #faf9f6;
-  --hueso-hundido: #f2f0ec;
+  --hueso: #ffffff;
+  --hueso-hundido: #f6f5f2;
   --tinta: #16150f;
   --apagado: #78756c;
   --linea: #e3e0d8;
@@ -401,8 +401,9 @@ p {
 .tarjeta__marco {
   position: relative;
   overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tinta) 14%, var(--fondo));
   border-radius: var(--radio-tarjeta);
-  background: var(--fondo-alt);
+  background: var(--fondo);
   transition: box-shadow var(--medio) var(--curva);
 }
 
@@ -448,7 +449,7 @@ p {
   overflow: hidden;
   border-radius: 16px;
   border: 1px solid var(--borde);
-  background: var(--fondo-alt);
+  background: var(--fondo);
   transition:
     transform var(--rapido) var(--curva),
     border-color var(--rapido) var(--curva);
@@ -612,23 +613,17 @@ p {
 --------------------------------------------------------------------------- */
 
 .ficha {
-  --tinte: var(--hueso-hundido);
   display: flex;
   flex-direction: column;
-  border: 1px solid color-mix(in srgb, var(--tinta) 13%, var(--tinte));
+  border: 1px solid color-mix(in srgb, var(--tinta) 14%, var(--fondo));
   border-radius: var(--radio-tarjeta);
-  background: var(--tinte);
+  background: var(--fondo);
   overflow: hidden;
   transition:
     transform var(--medio) var(--curva),
     box-shadow var(--medio) var(--curva),
     border-color var(--medio) var(--curva);
 }
-.ficha[data-tinte="0"] { --tinte: #f1eee6; }  /* lino    */
-.ficha[data-tinte="1"] { --tinte: #e8efe9; }  /* salvia  */
-.ficha[data-tinte="2"] { --tinte: #efeae6; }  /* arena   */
-.ficha[data-tinte="3"] { --tinte: #e9edf0; }  /* niebla  */
-.ficha[data-tinte="4"] { --tinte: #f0ecef; }  /* malva   */
 
 .ficha:hover,
 .ficha:focus-within {
@@ -641,10 +636,12 @@ p {
   position: relative;
   display: block;
   aspect-ratio: 1 / 1;
-  padding: 1.25rem;
+  /* Sin padding la caja de la foto crece ~20% respecto del 1.25rem que tenía,
+     y como es `contain` el producto nunca se recorta. Escalar la imagen sí lo
+     recortaba en las fotos donde el producto casi llena el cuadrado. */
+  padding: 0;
 }
 .ficha__foto img {
-  padding: inherit;
   transition: transform var(--lento) var(--curva);
 }
 .ficha:hover .ficha__foto img {
@@ -716,7 +713,7 @@ p {
   transform: scale(1.15);
 }
 .ficha__swatch[data-elegido] {
-  box-shadow: 0 0 0 2px var(--tinte), 0 0 0 3.5px var(--verde);
+  box-shadow: 0 0 0 2px var(--fondo), 0 0 0 3.5px var(--verde);
 }
 .ficha__swatch[data-agotada] {
   opacity: 0.4;
@@ -728,6 +725,10 @@ p {
 }
 
 /* Botón compacto, para que entre cómodo dentro de la ficha. */
+.ficha__cuerpo .boton {
+  margin-top: auto;
+}
+
 .boton--chico {
   min-height: 2.6rem;
   padding: 0 1.25rem;
@@ -746,4 +747,90 @@ p {
 .boton--contorno:hover:not(:disabled),
 .boton--contorno:focus-visible:not(:disabled) {
   color: var(--sobre-acento);
+}
+
+/* ---------------------------------------------------------------------------
+   Aparición al scrollear
+
+   El estado oculto se define acá y no en JS: así no hay parpadeo en la primera
+   pintura. <Revelar> solo agrega data-visible cuando el elemento entra.
+--------------------------------------------------------------------------- */
+
+.revelar {
+  opacity: 0;
+  transform: translateY(1.5rem);
+  transition:
+    opacity 700ms var(--curva),
+    transform 700ms var(--curva);
+  will-change: opacity, transform;
+}
+.revelar[data-visible] {
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revelar {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Envuelto en <Revelar>, el que ocupa la celda de la grilla es el envoltorio:
+   sin esto la ficha deja de estirarse y los botones de una misma fila quedan
+   a distinta altura. */
+.revelar--celda,
+.revelar--celda > .ficha {
+  height: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   Carrito del header
+--------------------------------------------------------------------------- */
+
+.carrito-enlace {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-right: -0.5rem;   /* alinea el icono con el borde del contenedor */
+  border-radius: 50%;
+  color: var(--verde);
+  transition:
+    background var(--rapido) var(--curva),
+    transform var(--rapido) var(--curva);
+}
+.carrito-enlace:hover,
+.carrito-enlace:focus-visible,
+.carrito-enlace[data-activo="true"] {
+  background: color-mix(in srgb, var(--verde) 10%, transparent);
+}
+.carrito-enlace:hover {
+  transform: translateY(-1px);
+}
+.carrito-enlace:active {
+  transform: translateY(0);
+}
+
+/* Contador de unidades. */
+.carrito-globo {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.1rem;
+  min-width: 0.95rem;
+  height: 0.95rem;
+  padding: 0 0.25rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radio-pill);
+  background: var(--verde);
+  color: var(--sobre-acento);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }

@@ -7,19 +7,13 @@ import { useCarrito } from "./carrito/CarritoContexto";
 import { precio as formatearPrecio } from "@/lib/formato";
 import type { Producto } from "@/lib/tipos";
 
-/** Cinco tintes de la paleta de marca. La grilla los rota para que no sea monótona. */
-const TINTES = 5;
-
 export default function ProductoCard({
   producto,
   prioridad = false,
-  tinte = 0,
 }: {
   producto: Producto;
   /** Solo para las primeras tarjetas visibles: precarga la imagen. */
   prioridad?: boolean;
-  /** Índice del tinte de fondo; la grilla lo va rotando. */
-  tinte?: number;
 }) {
   const { agregar } = useCarrito();
 
@@ -50,7 +44,7 @@ export default function ProductoCard({
   }
 
   return (
-    <article className="ficha" data-tinte={tinte % TINTES}>
+    <article className="ficha">
       <Link
         href={`/producto/${producto.slug}`}
         className="ficha__foto"

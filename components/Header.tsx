@@ -84,16 +84,46 @@ export default function Header({ banner }: { banner?: string }) {
           <div style={{ justifySelf: "end" }}>
             <Link
               href="/carrito"
-              className="label nav-enlace"
+              className="carrito-enlace"
               data-activo={pathname === "/carrito"}
-              style={{ color: "var(--verde)" }}
+              aria-label={
+                listo && unidades > 0
+                  ? `Carrito, ${unidades} ${unidades === 1 ? "unidad" : "unidades"}`
+                  : "Carrito"
+              }
             >
-              Carrito
-              {listo && unidades > 0 ? ` (${unidades})` : ""}
+              <CarritoIcono />
+              {listo && unidades > 0 ? (
+                <span className="carrito-globo" aria-hidden="true">
+                  {unidades}
+                </span>
+              ) : null}
             </Link>
           </div>
         </div>
       </header>
     </>
+  );
+}
+
+/** Carrito de compras, trazado a mano para que herede el verde de la marca. */
+function CarritoIcono() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M2.5 3h2.2l2.1 10.4a1.8 1.8 0 0 0 1.8 1.4h8.1a1.8 1.8 0 0 0 1.8-1.4l1.4-6.6H6" />
+      <circle cx="9.5" cy="20" r="1.5" />
+      <circle cx="17.5" cy="20" r="1.5" />
+    </svg>
   );
 }

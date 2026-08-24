@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 import GrillaProductos from "@/components/GrillaProductos";
+import Revelar from "@/components/Revelar";
 import { getProductos } from "@/lib/catalogo";
 
 export const revalidate = 60;
@@ -79,6 +80,7 @@ export default async function Home() {
 
       {anteojos.length > 0 ? (
         <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
+          <Revelar>
           <div
             style={{
               display: "flex",
@@ -92,12 +94,14 @@ export default async function Home() {
               Ver todo
             </Link>
           </div>
+          </Revelar>
           <GrillaProductos productos={anteojos} />
         </section>
       ) : null}
 
       {estuches.length > 0 ? (
         <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
+          <Revelar>
           <div
             style={{
               display: "flex",
@@ -111,12 +115,14 @@ export default async function Home() {
               Ver todo
             </Link>
           </div>
+          </Revelar>
           <GrillaProductos productos={estuches} />
         </section>
       ) : null}
 
       {panos.length > 0 ? (
         <section className="contenedor" style={{ paddingBlock: "4.5rem 0" }}>
+          <Revelar>
           <div
             style={{
               display: "flex",
@@ -130,6 +136,7 @@ export default async function Home() {
               Ver todo
             </Link>
           </div>
+          </Revelar>
           <GrillaProductos productos={panos} />
         </section>
       ) : null}

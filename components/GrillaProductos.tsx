@@ -1,4 +1,5 @@
 import ProductoCard from "./ProductoCard";
+import Revelar from "./Revelar";
 import type { Producto } from "@/lib/tipos";
 
 export default function GrillaProductos({
@@ -23,7 +24,11 @@ export default function GrillaProductos({
       }}
     >
       {productos.map((p, i) => (
-        <ProductoCard key={p.id} producto={p} prioridad={i < 4} tinte={i} />
+        // El retraso se reinicia por fila para que la cascada no se alargue
+        // en un listado largo.
+        <Revelar key={p.id} retraso={(i % 4) * 80} className="revelar--celda">
+          <ProductoCard producto={p} prioridad={i < 4} />
+        </Revelar>
       ))}
     </div>
   );
