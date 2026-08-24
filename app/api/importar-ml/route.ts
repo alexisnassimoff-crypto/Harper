@@ -180,8 +180,12 @@ async function traerPublicaciones(nickname: string) {
  * sobrescribe.
  */
 async function importarMedidas(forzar: boolean) {
+  // Alcanza con que la fila esté enlazada a una variante. NO se excluye lo
+  // marcado como "ignorar": esa marca significa "no me pises las fotos del
+  // catálogo", que es un dato distinto del peso. Excluirlas dejaba a los tres
+  // modelos de estuche sin medidas y cobrando el envío plano.
   const filas = await listRecords<FilaImportacion>(IMPORTACION, {
-    filterByFormula: `AND({Variante}, {Estado} != 'ignorar')`,
+    filterByFormula: `{Variante}`,
   });
 
   const conMLId = filas.filter((f) => f.fields.ML_id && f.fields.Variante?.[0]);
