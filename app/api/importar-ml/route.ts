@@ -43,6 +43,7 @@ type FilaVariante = {
 
 type FilaProducto = {
   Nombre?: string;
+  Activo?: boolean;
   Peso_g?: number;
   Largo_cm?: number;
   Ancho_cm?: number;
@@ -273,8 +274,10 @@ async function importarMedidas(forzar: boolean) {
   }
 
   // Los que quedan sin medidas después de todo esto hay que cargarlos a mano.
+  // Solo los activos: un producto despublicado no se vende, así que no tiene
+  // sentido que ensucie la lista de pendientes.
   const faltantes = productos
-    .filter((p) => !aEscribir.has(p.id) && !p.fields.Peso_g)
+    .filter((p) => p.fields.Activo && !aEscribir.has(p.id) && !p.fields.Peso_g)
     .map((p) => p.fields.Nombre ?? p.id);
 
   return {
