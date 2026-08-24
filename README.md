@@ -128,6 +128,22 @@ En Airtable, en cada fila enlazá la columna `Variante` a la variante que
 corresponde. La `Sugerencia` es solo eso: verificala antes de seguir. Lo que no
 quieras importar, marcalo como `ignorar`.
 
+**Peso y medidas para el envío**
+
+```
+https://harperar.vercel.app/api/importar-ml?token=<SYNC_TOKEN>&medidas=1
+```
+
+Trae el peso y las medidas del paquete que ya están cargados en cada publicación
+de Mercado Libre y los escribe en `Productos`. Usa el mismo enlace publicación →
+variante de la tabla `Importacion ML`, y resuelve la variante a su producto.
+
+No pisa lo que ya esté cargado: un número medido a mano gana sobre el de Mercado
+Libre. Con `&forzar=1` se sobrescribe.
+
+La respuesta dice qué escribió, qué respetó, qué publicaciones no tenían medidas
+cargadas y **qué productos siguen faltando** — esos hay que completarlos a mano.
+
 **Paso 3 — aplicar**
 
 ```

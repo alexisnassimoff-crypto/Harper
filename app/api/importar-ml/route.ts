@@ -9,6 +9,7 @@ import {
 import { tokenValido } from "@/lib/media";
 import {
   fotoEnMaximaCalidad,
+  medidasDePublicaciones,
   publicacionesDeVendedor,
   sugerirSku,
 } from "@/lib/mercadolibre";
@@ -33,7 +34,20 @@ type FilaImportacion = {
   Estado?: string;
 };
 
-type FilaVariante = { SKU?: string; Fotos?: { url: string }[]; Fotos_url?: string };
+type FilaVariante = {
+  SKU?: string;
+  Fotos?: { url: string }[];
+  Fotos_url?: string;
+  Producto?: string[];
+};
+
+type FilaProducto = {
+  Nombre?: string;
+  Peso_g?: number;
+  Largo_cm?: number;
+  Ancho_cm?: number;
+  Alto_cm?: number;
+};
 
 /**
  * Importa las fotos de las publicaciones de Mercado Libre.
@@ -60,9 +74,16 @@ export async function GET(request: Request) {
   }
 
   const aplicar = url.searchParams.get("aplicar") === "1";
+  const medidas = url.searchParams.get("medidas") === "1";
   const nickname = url.searchParams.get("nickname") ?? NICKNAME_POR_DEFECTO;
 
   try {
+    if (medidas) {
+      return NextResponse.json(
+        await importarMedidas(url.searchParams.get("forzar") === "1")
+      );
+    }
+
     return aplicar
       ? NextResponse.json(await aplicarFotos())
       : NextResponse.json(await traerPublicaciones(nickname));
@@ -143,6 +164,129 @@ async function traerPublicaciones(nickname: string) {
 }
 
 /** Paso 2: copia las fotos de las filas ya enlazadas a su variante. */
+/**
+ * Trae el peso y las medidas de las publicaciones de Mercado Libre y los
+ * escribe en Productos.
+ *
+ * Es lo que le falta a Correo Argentino para poder cotizar un envío. La
+ * información ya existe cargada en cada publicación; esto solo la trae.
+ *
+ * El camino es publicación -> variante -> producto, usando el enlace que ya se
+ * revisó a mano en la tabla Importacion ML. El peso vive en Productos y no en
+ * Variantes porque los colores de un mismo modelo pesan igual.
+ *
+ * Por defecto **no pisa** lo que ya esté cargado: si alguien midió un producto
+ * a mano, ese número gana sobre el de Mercado Libre. Con `&forzar=1` se
+ * sobrescribe.
+ */
+async function importarMedidas(forzar: boolean) {
+  const filas = await listRecords<FilaImportacion>(IMPORTACION, {
+    filterByFormula: `AND({Variante}, {Estado} != 'ignorar')`,
+  });
+
+  const conMLId = filas.filter((f) => f.fields.ML_id && f.fields.Variante?.[0]);
+
+  if (conMLId.length === 0) {
+    return {
+      ok: true,
+      mensaje:
+        "No hay filas enlazadas a una variante en la tabla Importacion ML. Enlazalas primero.",
+    };
+  }
+
+  const [variantes, productos, medidasML] = await Promise.all([
+    listRecords<FilaVariante>(TABLAS.variantes, {}),
+    listRecords<FilaProducto>(TABLAS.productos, {}),
+    medidasDePublicaciones(conMLId.map((f) => f.fields.ML_id!)),
+  ]);
+
+  const productoDeVariante = new Map(variantes.map((v) => [v.id, v.fields.Producto?.[0]]));
+  const nombreDeProducto = new Map(productos.map((p) => [p.id, p.fields.Nombre ?? p.id]));
+  const yaCargado = new Map(
+    productos.map((p) => [p.id, Boolean(p.fields.Peso_g && p.fields.Largo_cm)])
+  );
+  const porMLId = new Map(medidasML.map((m) => [m.id, m]));
+
+  const aEscribir = new Map<string, { pesoG: number; largoCm: number; anchoCm: number; altoCm: number; publicacion: string }>();
+  const sinDatos: string[] = [];
+  const conflictos: string[] = [];
+
+  for (const fila of conMLId) {
+    const mlId = fila.fields.ML_id!;
+    const productoId = productoDeVariante.get(fila.fields.Variante![0]);
+    const m = porMLId.get(mlId);
+
+    if (!productoId) continue;
+
+    // Sin los cuatro datos no se puede cotizar: se reporta y no se escribe nada
+    // a medias, que sería peor que no tener nada.
+    if (!m || !m.pesoG || !m.largoCm || !m.anchoCm || !m.altoCm) {
+      sinDatos.push(`${fila.fields.Titulo ?? mlId} (${mlId})`);
+      continue;
+    }
+
+    const previo = aEscribir.get(productoId);
+
+    if (previo && previo.pesoG !== m.pesoG) {
+      // Dos colores del mismo modelo con pesos distintos: se avisa y se queda
+      // con el primero, que es lo menos sorpresivo.
+      conflictos.push(
+        `${nombreDeProducto.get(productoId)}: ${previo.pesoG}g vs ${m.pesoG}g`
+      );
+      continue;
+    }
+
+    if (!previo) {
+      aEscribir.set(productoId, {
+        pesoG: m.pesoG,
+        largoCm: m.largoCm,
+        anchoCm: m.anchoCm,
+        altoCm: m.altoCm,
+        publicacion: mlId,
+      });
+    }
+  }
+
+  const escritos: string[] = [];
+  const respetados: string[] = [];
+
+  for (const [productoId, datos] of aEscribir) {
+    if (!forzar && yaCargado.get(productoId)) {
+      respetados.push(nombreDeProducto.get(productoId) ?? productoId);
+      continue;
+    }
+
+    await updateRecord<FilaProducto>(TABLAS.productos, productoId, {
+      Peso_g: datos.pesoG,
+      Largo_cm: datos.largoCm,
+      Ancho_cm: datos.anchoCm,
+      Alto_cm: datos.altoCm,
+    });
+
+    escritos.push(
+      `${nombreDeProducto.get(productoId)}: ${datos.pesoG}g · ${datos.largoCm}×${datos.anchoCm}×${datos.altoCm} cm`
+    );
+  }
+
+  // Los que quedan sin medidas después de todo esto hay que cargarlos a mano.
+  const faltantes = productos
+    .filter((p) => !aEscribir.has(p.id) && !p.fields.Peso_g)
+    .map((p) => p.fields.Nombre ?? p.id);
+
+  return {
+    ok: true,
+    escritos,
+    respetados,
+    faltantes,
+    publicacionesSinMedidas: sinDatos,
+    conflictos,
+    mensaje:
+      faltantes.length > 0
+        ? `Faltan cargar a mano en Airtable: ${faltantes.join(", ")}`
+        : "Todos los productos tienen peso y medidas.",
+  };
+}
+
 async function aplicarFotos() {
   const filas = await listRecords<FilaImportacion>(IMPORTACION, {
     filterByFormula: `AND({Variante}, {Estado} != 'importado', {Estado} != 'ignorar')`,
