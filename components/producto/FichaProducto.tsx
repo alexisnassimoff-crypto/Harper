@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import FotoCruzada from "@/components/FotoCruzada";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
@@ -68,18 +69,13 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
     >
       {/* ---------- Galería ---------- */}
       <div className="pila surge" style={{ gap: "0.75rem" }}>
-        <div
-          className="tarjeta__marco"
-          style={{ aspectRatio: "1 / 1", padding: "2rem" }}
-        >
+        <div className="tarjeta__marco" style={{ aspectRatio: "1 / 1" }}>
           {fotoActual ? (
-            <Image
+            <FotoCruzada
               src={fotoActual}
               alt={`${producto.nombre} — ${variante.color}`}
-              fill
               sizes="(max-width: 1024px) 100vw, 50vw"
-              style={{ objectFit: "contain", padding: "inherit" }}
-              priority
+              prioridad
             />
           ) : (
             <div

@@ -46,20 +46,8 @@ export default function Header({ banner }: { banner?: string }) {
           borderBottom: "1px solid color-mix(in srgb, var(--borde) 70%, transparent)",
         }}
       >
-        <div
-          className="contenedor"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto 1fr",
-            alignItems: "center",
-            minHeight: "4.25rem",
-            gap: "1rem",
-          }}
-        >
-          <nav
-            aria-label="Categorías"
-            style={{ display: "flex", gap: "1.5rem" }}
-          >
+        <div className="contenedor cabecera__barra">
+          <nav aria-label="Categorías" className="cabecera__nav">
             {SECCIONES.map((s) => (
               <Link
                 key={s.href}
@@ -72,16 +60,11 @@ export default function Header({ banner }: { banner?: string }) {
             ))}
           </nav>
 
-          <Link
-            href="/"
-            aria-label="Harper — Inicio"
-            className="logo-enlace"
-            style={{ justifySelf: "center" }}
-          >
+          <Link href="/" aria-label="Harper — Inicio" className="logo-enlace cabecera__marca">
             <Logo alto={22} />
           </Link>
 
-          <div style={{ justifySelf: "end" }}>
+          <div className="cabecera__carrito">
             <Link
               href="/carrito"
               className="carrito-enlace"

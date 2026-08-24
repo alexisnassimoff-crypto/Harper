@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
 import { ProveedorCarrito } from "@/components/carrito/CarritoContexto";
+import TransicionDePagina from "@/components/TransicionDePagina";
 import { getConfig } from "@/lib/config";
 import "./globals.css";
 
@@ -52,7 +53,9 @@ export default async function RootLayout({
             Saltar al contenido
           </a>
           <Header banner={config.bannerTexto} />
-          <main id="contenido">{children}</main>
+          <main id="contenido">
+            <TransicionDePagina>{children}</TransicionDePagina>
+          </main>
           <Footer config={config} />
           <WhatsApp numero={config.whatsapp} />
         </ProveedorCarrito>

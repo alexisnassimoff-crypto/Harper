@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import FotoCruzada from "./FotoCruzada";
 import { useCarrito } from "./carrito/CarritoContexto";
 import { precio as formatearPrecio } from "@/lib/formato";
 import type { Producto } from "@/lib/tipos";
@@ -10,18 +10,15 @@ import type { Producto } from "@/lib/tipos";
 export default function ProductoCard({
   producto,
   prioridad = false,
+  inicial = 0,
 }: {
   producto: Producto;
   /** Solo para las primeras tarjetas visibles: precarga la imagen. */
   prioridad?: boolean;
+  /** Color con el que abre la ficha; lo reparte la grilla para no repetir. */
+  inicial?: number;
 }) {
   const { agregar } = useCarrito();
-
-  // Arranca en el primer color con stock; si están todos agotados, el primero.
-  const inicial = Math.max(
-    0,
-    producto.variantes.findIndex((v) => !v.agotada)
-  );
   const [indice, setIndice] = useState(inicial);
   const [agregado, setAgregado] = useState(false);
 
@@ -51,13 +48,11 @@ export default function ProductoCard({
         aria-label={producto.nombre}
       >
         {foto ? (
-          <Image
+          <FotoCruzada
             src={foto}
             alt={producto.nombre}
-            fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            style={{ objectFit: "contain" }}
-            priority={prioridad}
+            prioridad={prioridad}
           />
         ) : (
           <span className="label ficha__sinfoto">Sin foto</span>

@@ -63,10 +63,6 @@ export default async function Home() {
             <Logo alto="clamp(3.25rem, 9.5vw, 7.5rem)" lockup claro />
             <span className="solo-lectores">Harper — cases &amp; eyewear</span>
           </h1>
-          <p style={{ fontSize: "1.0625rem", maxWidth: "30rem" }}>
-            Anteojos y estuches rígidos de ecocuero premium. Entrega por Correo
-            Argentino a todo el país.
-          </p>
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
             <Link href="/anteojos" className="boton boton--claro">
               Ver anteojos
