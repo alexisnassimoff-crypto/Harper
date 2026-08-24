@@ -676,9 +676,13 @@ p {
   gap: 0.5rem;
   padding: 0 1.1rem 1.1rem;
 }
+/* Mismo tratamiento que los títulos de sección: Raleway ya era la familia en
+   todo el sitio, pero acá el texto iba con tracking abierto (+0.06em) contra el
+   cerrado de los títulos (-0.03em), y eso lo hacía leer como otra tipografía. */
 .ficha__titulo {
-  font-size: 1rem;
-  letter-spacing: 0.06em;
+  font-size: 1.0625rem;
+  font-weight: 400;
+  letter-spacing: var(--tracking-titulo);
   transition: color var(--rapido) var(--curva);
 }
 .ficha:hover .ficha__titulo {
@@ -689,6 +693,7 @@ p {
   align-items: baseline;
   gap: 0.5rem;
   font-size: 0.9375rem;
+  letter-spacing: var(--tracking-titulo);
 }
 .ficha__precio s {
   font-size: 0.8125rem;
@@ -935,4 +940,14 @@ p {
    propia imagen, y en porcentaje como en la grilla. */
 .tarjeta__marco .foto-cruzada {
   padding: 7%;
+}
+
+/* El botón de la ficha también deja la caja alta y el tracking de etiqueta:
+   dentro de la tarjeta desentonaba con el resto del texto. Los botones del
+   resto del sitio no cambian. */
+.ficha__cuerpo .boton {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: var(--tracking-titulo);
+  text-transform: none;
 }
