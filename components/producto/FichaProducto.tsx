@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import FotoCruzada from "@/components/FotoCruzada";
+import VisorFoto from "@/components/VisorFoto";
+import { useDeslizar } from "@/components/useDeslizar";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
@@ -22,6 +24,7 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
   const [indiceVariante, setIndiceVariante] = useState(indiceInicial);
   const [indiceFoto, setIndiceFoto] = useState(0);
   const [agregado, setAgregado] = useState(false);
+  const [visorAbierto, setVisorAbierto] = useState(false);
 
   const variante = producto.variantes[indiceVariante];
 
@@ -31,6 +34,17 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
   );
 
   const fotoActual = fotos[Math.min(indiceFoto, fotos.length - 1)] ?? null;
+
+  function pasarFoto(paso: number) {
+    if (fotos.length < 2) return;
+    setIndiceFoto((n) => (n + paso + fotos.length) % fotos.length);
+  }
+
+  // El estilo del gesto se combina con el del marco; el resto son manejadores.
+  const { style: estiloDeslizar, ...gestos } = useDeslizar({
+    alSiguiente: () => pasarFoto(1),
+    alAnterior: () => pasarFoto(-1),
+  });
 
   function elegirColor(indice: number) {
     setIndiceVariante(indice);
@@ -69,7 +83,23 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
     >
       {/* ---------- Galería ---------- */}
       <div className="pila surge" style={{ gap: "0.75rem" }}>
-        <div className="tarjeta__marco" style={{ aspectRatio: "1 / 1" }}>
+        <div
+          className="tarjeta__marco galeria"
+          style={{ aspectRatio: "1 / 1", ...estiloDeslizar }}
+          role={fotoActual ? "button" : undefined}
+          tabIndex={fotoActual ? 0 : undefined}
+          aria-label={fotoActual ? "Ampliar la foto" : undefined}
+          onClick={() => fotoActual && setVisorAbierto(true)}
+          onKeyDown={(e) => {
+            if (!fotoActual) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setVisorAbierto(true);
+            } else if (e.key === "ArrowRight") pasarFoto(1);
+            else if (e.key === "ArrowLeft") pasarFoto(-1);
+          }}
+          {...gestos}
+        >
           {fotoActual ? (
             <FotoCruzada
               src={fotoActual}
@@ -86,6 +116,18 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
             </div>
           )}
         </div>
+
+        {fotos.length > 1 ? (
+          <span className="galeria__puntos" aria-hidden="true">
+            {fotos.map((f, i) => (
+              <span
+                key={f}
+                className="ficha__punto"
+                data-activo={i === indiceFoto || undefined}
+              />
+            ))}
+          </span>
+        ) : null}
 
         {fotos.length > 1 ? (
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -228,6 +270,16 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
           </div>
         )}
       </div>
+
+      {visorAbierto && fotoActual ? (
+        <VisorFoto
+          fotos={fotos}
+          indice={Math.min(indiceFoto, fotos.length - 1)}
+          alt={`${producto.nombre} — ${variante.color}`}
+          alCambiar={setIndiceFoto}
+          alCerrar={() => setVisorAbierto(false)}
+        />
+      ) : null}
     </div>
   );
 }

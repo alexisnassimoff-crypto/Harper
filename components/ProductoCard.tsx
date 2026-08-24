@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import FotoCruzada from "./FotoCruzada";
+import { useDeslizar } from "./useDeslizar";
 import { useCarrito } from "./carrito/CarritoContexto";
 import { precio as formatearPrecio } from "@/lib/formato";
 import type { Producto } from "@/lib/tipos";
@@ -20,13 +21,26 @@ export default function ProductoCard({
 }) {
   const { agregar } = useCarrito();
   const [indice, setIndice] = useState(inicial);
+  const [indiceFoto, setIndiceFoto] = useState(0);
   const [agregado, setAgregado] = useState(false);
 
   const variante = producto.variantes[indice];
-  const foto = variante?.fotos[0] ?? producto.fotoPrincipal;
+  const fotos = variante?.fotos.length ? variante.fotos : [];
+  const foto = fotos[indiceFoto] ?? fotos[0] ?? producto.fotoPrincipal;
+
+  const deslizar = useDeslizar({
+    alSiguiente: () => pasarFoto(1),
+    alAnterior: () => pasarFoto(-1),
+  });
+
+  function pasarFoto(paso: number) {
+    if (fotos.length < 2) return;
+    setIndiceFoto((n) => (n + paso + fotos.length) % fotos.length);
+  }
 
   function elegirColor(i: number) {
     setIndice(i);
+    setIndiceFoto(0);
     setAgregado(false);
   }
 
@@ -46,6 +60,7 @@ export default function ProductoCard({
         href={`/producto/${producto.slug}`}
         className="ficha__foto"
         aria-label={producto.nombre}
+        {...deslizar}
       >
         {foto ? (
           <FotoCruzada
@@ -59,6 +74,18 @@ export default function ProductoCard({
         )}
 
         {producto.agotado ? <span className="ficha__cinta">Agotado</span> : null}
+
+        {fotos.length > 1 ? (
+          <span className="ficha__puntos" aria-hidden="true">
+            {fotos.map((f, i) => (
+              <span
+                key={f}
+                className="ficha__punto"
+                data-activo={i === indiceFoto || undefined}
+              />
+            ))}
+          </span>
+        ) : null}
       </Link>
 
       <div className="ficha__cuerpo">

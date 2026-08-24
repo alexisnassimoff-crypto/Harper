@@ -55,6 +55,7 @@ export default function FotoCruzada({
           aria-hidden="true"
           fill
           sizes={sizes}
+          draggable={false}
           className="foto-cruzada foto-cruzada--sale"
           style={{ objectFit: "contain" }}
         />
@@ -67,6 +68,7 @@ export default function FotoCruzada({
         fill
         sizes={sizes}
         priority={prioridad}
+        draggable={false}
         className="foto-cruzada foto-cruzada--entra"
         style={{ objectFit: "contain" }}
       />
