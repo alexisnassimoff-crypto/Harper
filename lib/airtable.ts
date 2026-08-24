@@ -31,6 +31,35 @@ export type AirtableRecord<T = Record<string, unknown>> = {
   fields: T;
 };
 
+/**
+ * Error de Airtable con el código HTTP a mano.
+ *
+ * Sirve para distinguir un fallo permanente de uno pasajero. El webhook de
+ * Mercado Pago lo necesita: ante un 404 —un pedido borrado a mano— tiene que
+ * cortar, porque devolver 500 haría que MP reintente para siempre algo que
+ * nunca va a funcionar. Ante un 500 de Airtable, en cambio, el reintento es
+ * exactamente lo que queremos.
+ */
+export class ErrorAirtable extends Error {
+  readonly status: number;
+
+  constructor(status: number, path: string, body: string) {
+    super(`Airtable ${status} en ${path}: ${body}`);
+    this.name = "ErrorAirtable";
+    this.status = status;
+  }
+}
+
+/** Verdadero si el error es de Airtable y no tiene sentido reintentarlo. */
+export function esErrorPermanente(error: unknown) {
+  return (
+    error instanceof ErrorAirtable &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    error.status !== 429
+  );
+}
+
 function config() {
   const token = process.env.AIRTABLE_TOKEN;
   const baseId = process.env.AIRTABLE_BASE_ID;
@@ -73,15 +102,16 @@ async function request<T>(
       "Content-Type": "application/json",
       ...rest.headers,
     },
-    // Las lecturas se cachean; las escrituras nunca.
-    ...(revalidate === undefined
+    // Las lecturas se cachean; las escrituras nunca. `revalidate: 0` es la
+    // lectura que no quiere cache: la que se usa para cobrar.
+    ...(revalidate === undefined || revalidate === 0
       ? { cache: "no-store" as const }
       : { next: { revalidate } }),
   });
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Airtable ${res.status} en ${path}: ${body}`);
+    throw new ErrorAirtable(res.status, path, body);
   }
 
   return res.json() as Promise<T>;

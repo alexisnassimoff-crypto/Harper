@@ -12,6 +12,15 @@ import { PROVINCIAS } from "./provincias";
 
 const CLAVE_DATOS = "harper.datos.v1";
 
+/** Lo que puede contestar /api/checkout. */
+type RespuestaCheckout = {
+  initPoint?: string;
+  numero?: string;
+  error?: string;
+  errores?: ErroresCliente;
+  descartados?: { varianteId: string; motivo: string }[];
+};
+
 const VACIO: DatosCliente = {
   email: "",
   nombre: "",
@@ -25,7 +34,7 @@ const VACIO: DatosCliente = {
 };
 
 export default function FormularioCheckout() {
-  const { items } = useCarrito();
+  const { items, quitar } = useCarrito();
   const { datos: carrito, cargando } = useCarritoResuelto();
 
   const [form, setForm] = useState<DatosCliente>(VACIO);
@@ -107,7 +116,29 @@ export default function FormularioCheckout() {
         body: JSON.stringify({ cliente: form, items }),
       });
 
-      const cuerpo = await respuesta.json();
+      // Un 500 puede volver como página de error en HTML. Sin esta guarda,
+      // `json()` explotaba y el cliente terminaba leyendo "Unexpected token '<'".
+      const cuerpo: RespuestaCheckout = await respuesta.json().catch(() => ({}));
+
+      // El servidor revalida con la misma función que el navegador, así que
+      // si encontró algo que acá pasó, se pinta campo por campo.
+      if (respuesta.status === 400 && cuerpo.errores) {
+        setErrores(cuerpo.errores);
+        setEnviando(false);
+        document
+          .querySelector<HTMLElement>('[data-error="true"] input, [data-error="true"] select')
+          ?.focus();
+        return;
+      }
+
+      // Algo se agotó mientras completaba los datos: se saca del carrito y se
+      // le muestra el total nuevo antes de mandarlo a pagar.
+      if (respuesta.status === 409 && cuerpo.descartados) {
+        for (const d of cuerpo.descartados) quitar(d.varianteId);
+        setFallo(cuerpo.error ?? "Tu carrito cambió: revisalo antes de pagar.");
+        setEnviando(false);
+        return;
+      }
 
       if (!respuesta.ok || !cuerpo.initPoint) {
         throw new Error(cuerpo.error ?? "No pudimos iniciar el pago");

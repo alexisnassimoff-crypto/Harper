@@ -95,17 +95,35 @@ export async function getProductos(categoria?: Categoria): Promise<Producto[]> {
   return tolerante(() => leerProductos(categoria), []);
 }
 
-async function leerProductos(categoria?: Categoria): Promise<Producto[]> {
+/**
+ * El catálogo sin cachear y sin red de contención, para cobrar.
+ *
+ * Se diferencia de `getProductos` en dos cosas, las dos a propósito:
+ *
+ *  - No usa el cache de 60 segundos. Un precio o un stock viejo da igual en
+ *    una grilla; cobrando, no.
+ *  - No pasa por `tolerante()`. Si Airtable no responde tiene que explotar
+ *    para que el checkout conteste "problema momentáneo" y no el "tu carrito
+ *    está vacío" que salía antes, que es mentira y encima espanta la venta.
+ */
+export async function getProductosParaCobrar(): Promise<Producto[]> {
+  return leerProductos(undefined, 0);
+}
+
+async function leerProductos(
+  categoria?: Categoria,
+  revalidate: number = REVALIDATE
+): Promise<Producto[]> {
   const [productos, variantes] = await Promise.all([
     listRecords<FilaProducto>(TABLAS.productos, {
       filterByFormula: "{Activo}",
       sort: [{ field: "Orden" }],
-      revalidate: REVALIDATE,
+      revalidate,
     }),
     listRecords<FilaVariante>(TABLAS.variantes, {
       filterByFormula: "{Activo}",
       sort: [{ field: "Orden" }],
-      revalidate: REVALIDATE,
+      revalidate,
     }),
   ]);
 

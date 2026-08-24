@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolverCarrito } from "@/lib/pedidos";
-import type { ItemCarrito } from "@/lib/tipos";
+import { limpiarItems, resolverCarrito } from "@/lib/pedidos";
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Falta items" }, { status: 400 });
   }
 
-  const limpios: ItemCarrito[] = items
-    .filter(
-      (i): i is ItemCarrito =>
-        typeof i === "object" &&
-        i !== null &&
-        typeof (i as ItemCarrito).varianteId === "string"
-    )
-    .slice(0, 50);
-
-  const resuelto = await resolverCarrito(limpios);
+  const resuelto = await resolverCarrito(limpiarItems(items));
 
   return NextResponse.json({
     items: resuelto.items,

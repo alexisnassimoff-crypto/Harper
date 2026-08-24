@@ -1,4 +1,5 @@
-import { getProductos } from "./catalogo";
+import { escaparFormula, listRecords, TABLAS } from "./airtable";
+import { getProductos, getProductosParaCobrar } from "./catalogo";
 import { calcularEnvio, getConfig, type ConfigTienda } from "./config";
 import type { ItemCarrito, ItemResuelto } from "./tipos";
 
@@ -15,6 +16,30 @@ export type CarritoResuelto = {
 /** Tope por variante: evita que un bug o un curioso pida 9999 unidades. */
 const MAX_POR_ITEM = 20;
 
+/** Tope de líneas distintas por pedido. */
+const MAX_ITEMS = 50;
+
+/**
+ * Deja pasar solo lo que tiene forma de ítem de carrito.
+ *
+ * El cuerpo de la request es texto de internet: sin este filtro, un
+ * `items: [null]` reventaba con un TypeError dentro de `resolverCarrito` y el
+ * cliente terminaba viendo un 500 en HTML.
+ */
+export function limpiarItems(crudos: unknown): ItemCarrito[] {
+  if (!Array.isArray(crudos)) return [];
+
+  return crudos
+    .filter(
+      (i): i is ItemCarrito =>
+        typeof i === "object" &&
+        i !== null &&
+        typeof (i as ItemCarrito).varianteId === "string" &&
+        (i as ItemCarrito).varianteId.length > 0
+    )
+    .slice(0, MAX_ITEMS);
+}
+
 /**
  * Convierte el carrito del navegador en un pedido con precios y stock reales.
  *
@@ -22,9 +47,13 @@ const MAX_POR_ITEM = 20;
  * Nunca se confía en un precio que venga del navegador.
  */
 export async function resolverCarrito(
-  itemsCrudos: ItemCarrito[]
+  itemsCrudos: ItemCarrito[],
+  opciones: { paraCobrar?: boolean } = {}
 ): Promise<CarritoResuelto> {
-  const [productos, config] = await Promise.all([getProductos(), getConfig()]);
+  const [productos, config] = await Promise.all([
+    opciones.paraCobrar ? getProductosParaCobrar() : getProductos(),
+    getConfig(),
+  ]);
 
   const items: ItemResuelto[] = [];
   const descartados: CarritoResuelto["descartados"] = [];
@@ -103,4 +132,44 @@ export function numeroDePedido(fecha: Date) {
   ).join("");
 
   return `HARPER-${base}${sufijo}`;
+}
+
+/** Lo poco que la página de gracias necesita saber de un pedido. */
+export type PedidoPublico = {
+  numero: string;
+  estado: string;
+  total: number;
+};
+
+/**
+ * Busca un pedido por su número, para mostrarle al cliente el estado real.
+ *
+ * Antes la página de gracias felicitaba a cualquiera que abriera la URL, sin
+ * consultar nada: un pago rechazado terminaba en un "Gracias por tu compra".
+ *
+ * Solo devuelve estado y total. El número es semiadivinable, así que acá no
+ * puede salir ningún dato personal.
+ */
+export async function buscarPedido(numero: string): Promise<PedidoPublico | null> {
+  type Fila = { Numero?: string; Estado?: string; Total?: number };
+
+  try {
+    const registros = await listRecords<Fila>(TABLAS.pedidos, {
+      filterByFormula: `{Numero} = "${escaparFormula(numero)}"`,
+      maxRecords: 1,
+    });
+
+    const fila = registros[0]?.fields;
+    if (!fila) return null;
+
+    return {
+      numero: fila.Numero ?? numero,
+      estado: fila.Estado ?? "pendiente",
+      total: fila.Total ?? 0,
+    };
+  } catch (error) {
+    // Airtable caído no puede romper la vuelta del cliente desde el pago.
+    console.error("[pedidos] no se pudo leer el pedido", numero, error);
+    return null;
+  }
 }

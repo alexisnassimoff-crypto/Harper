@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { createRecord, TABLAS, updateRecord } from "@/lib/airtable";
+import { createRecord, esErrorPermanente, TABLAS, updateRecord } from "@/lib/airtable";
 import { guardarCliente } from "@/lib/clientes";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
-import { numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
-import type { ItemCarrito } from "@/lib/tipos";
+import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
+import { urlDelSitio } from "@/lib/sitio";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
 
 export const dynamic = "force-dynamic";
@@ -37,22 +37,42 @@ export async function POST(request: Request) {
   }
 
   const cliente = normalizarCliente(cuerpo.cliente as Record<string, unknown>);
+  const items = limpiarItems(cuerpo.items);
 
-  // ---- Resolución del carrito contra Airtable ----
-  const items = Array.isArray(cuerpo.items) ? (cuerpo.items as ItemCarrito[]) : [];
-  const carrito = await resolverCarrito(items.slice(0, 50));
-
-  if (carrito.items.length === 0) {
-    return NextResponse.json(
-      { error: "No hay productos disponibles en tu carrito." },
-      { status: 400 }
-    );
+  if (items.length === 0) {
+    return NextResponse.json({ error: "Tu carrito está vacío." }, { status: 400 });
   }
 
-  const ahora = new Date();
-  const numero = numeroDePedido(ahora);
+  // A partir de acá todo va dentro del try: antes la resolución del carrito
+  // quedaba afuera y un ítem con forma rara terminaba en un 500 con HTML,
+  // que el formulario le mostraba al cliente como "Unexpected token '<'".
+  let pedidoId: string | null = null;
 
   try {
+    // Para cobrar se lee el catálogo sin cache y sin red de contención.
+    const carrito = await resolverCarrito(items, { paraCobrar: true });
+
+    if (carrito.items.length === 0) {
+      return NextResponse.json(
+        { error: "No hay productos disponibles en tu carrito." },
+        { status: 400 }
+      );
+    }
+
+    // Si algo se agotó o desapareció entre que armó el carrito y apretó
+    // comprar, no lo mandamos a pagar un total distinto del que vio.
+    if (carrito.descartados.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Tu carrito cambió: revisalo antes de pagar.",
+          descartados: carrito.descartados,
+        },
+        { status: 409 }
+      );
+    }
+
+    const ahora = new Date();
+    const numero = numeroDePedido(ahora);
     const clienteId = await guardarCliente(cliente);
 
     // El pedido nace en "pendiente". Solo el webhook lo pasa a "pagado".
@@ -72,8 +92,7 @@ export async function POST(request: Request) {
       Fecha: ahora.toISOString(),
     });
 
-    const sitio =
-      process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
+    pedidoId = pedido.id;
 
     const preferencia = await crearPreferencia({
       numeroPedido: numero,
@@ -81,7 +100,7 @@ export async function POST(request: Request) {
       items: carrito.items,
       envio: carrito.envio,
       cliente,
-      sitio,
+      sitio: urlDelSitio(request),
     });
 
     await updateRecord<FilaPedido>(TABLAS.pedidos, pedido.id, {
@@ -95,9 +114,29 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[checkout] falló al crear el pedido:", error);
 
+    // Si el pedido llegó a crearse pero el pago no, queda marcado. Sin esto
+    // cada intento fallido dejaba un "pendiente" eterno ensuciando Airtable.
+    if (pedidoId) await anularPedido(pedidoId);
+
+    // Airtable caído no es "tu carrito está vacío": es un problema nuestro.
+    const codigo = esErrorPermanente(error) ? 400 : 503;
+
     return NextResponse.json(
       { error: "No pudimos iniciar el pago. Probá de nuevo en un momento." },
-      { status: 500 }
+      { status: codigo }
     );
+  }
+}
+
+/** Marca un pedido que nunca llegó a tener preferencia de pago. */
+async function anularPedido(pedidoId: string) {
+  try {
+    await updateRecord<FilaPedido>(TABLAS.pedidos, pedidoId, {
+      Estado: "cancelado",
+      MP_status: "sin preferencia de pago",
+    });
+  } catch (error) {
+    // Nunca puede tapar el error original.
+    console.error("[checkout] no se pudo anular el pedido", pedidoId, error);
   }
 }

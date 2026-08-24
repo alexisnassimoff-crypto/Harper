@@ -65,11 +65,9 @@ se agrega solo.
 
 ### 4. Mercado Pago
 
-1. Panel → Tus integraciones → crear una aplicación de tipo Checkout Pro
-2. Copiar el **Access Token** en `MP_ACCESS_TOKEN` (arrancar con el de prueba)
-3. Configurar el webhook apuntando a
-   `https://harper.ar/api/mercadopago/webhook`, evento **Pagos**
-4. Copiar la **clave secreta** del webhook en `MP_WEBHOOK_SECRET`
+Panel → Tus integraciones → crear una aplicación de tipo Checkout Pro. Los pasos
+exactos y el orden en que hay que hacerlos están en
+[Activar el cobro](#activar-el-cobro).
 
 Sin `MP_WEBHOOK_SECRET` el webhook rechaza todas las notificaciones. Es a
 propósito: sin firma no se puede distinguir una venta real de una falsificada.
@@ -174,12 +172,43 @@ cp .env.example .env.local   # completar las credenciales
 npm run dev
 ```
 
+## Activar el cobro
+
+Tres variables, en Vercel > Settings > Environment Variables, entorno **Production**.
+Los secretos no van nunca al repositorio.
+
+1. `NEXT_PUBLIC_SITE_URL` = `https://harperar.vercel.app`
+   El día que `harper.ar` esté conectado, se cambia acá.
+2. `MP_ACCESS_TOKEN` — Mercado Pago > Tus integraciones > la aplicación >
+   Credenciales de producción. Empieza con `APP_USR-`.
+3. `MP_WEBHOOK_SECRET` — en el mismo panel, Webhooks:
+   - URL: `https://harperar.vercel.app/api/mercadopago/webhook`
+   - Evento: **Pagos** (`payment`), nada más.
+   - Al guardar aparece la **clave secreta**, una sola vez. Esa va acá.
+
+Después hay que hacer un **redeploy**: las variables no se aplican solas a un
+deploy ya hecho. Se comprueba en `/api/health`, que tiene que devolver
+`mercadopago: true` y la lista `avisos` vacía.
+
+> Las dos variables de Mercado Pago son obligatorias. Con el token pero sin el
+> secreto se cobra la plata y el webhook rechaza todas las notificaciones con
+> 401: ningún pedido pasa a `pagado`, no baja el stock y no sale ningún mail.
+
+**Cuotas:** en el panel de Mercado Pago existe la opción *"Cuotas sin interés"*.
+Si está activada, el interés lo paga el vendedor. Por defecto lo paga el
+comprador.
+
 ## Antes de salir a producción
 
-- [ ] Compra completa end-to-end con las credenciales de **prueba** de Mercado Pago
-- [ ] Webhook probado con el simulador del panel de MP
+- [x] Compra completa end-to-end verificada contra el código (firma, preferencia
+      y casos borde del checkout)
+- [ ] Las tres variables cargadas en Vercel y `/api/health` sin avisos
+- [ ] Webhook probado con el simulador del panel de MP (tiene que dar 200, no 401)
+- [ ] Compra real por un monto chico: pedido en Airtable → `pagado` → stock -1 →
+      mail al cliente → aviso interno → plata acreditada
+- [ ] `RESEND_API_KEY` cargada y dominio verificado, o no sale ningún mail
 - [ ] Mail de confirmación recibido y sin caer en spam
 - [ ] Subir una foto en Airtable y verificar que aparece en el sitio
 - [ ] Completar `domicilio` y `razon_social` en `Config` (obligatorio por ley)
 - [ ] Confirmar `costo_envio` y `envio_gratis_desde` en `Config`
-- [ ] Compra real de prueba por un monto chico
+- [ ] Cargar el stock real de los paños (hoy son valores provisorios)
