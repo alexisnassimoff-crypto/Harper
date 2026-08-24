@@ -16,6 +16,8 @@ export type ConfigTienda = {
   cuit: string;
   domicilio: string;
   plazoEntrega: string;
+  /** Código postal desde el que se despacha. Correo Argentino cotiza desde acá. */
+  cpOrigen: string;
 };
 
 /** Valores usados si Airtable no responde. La tienda nunca se cae por esto. */
@@ -30,6 +32,7 @@ const POR_DEFECTO: ConfigTienda = {
   cuit: "30-71802316-1",
   domicilio: "",
   plazoEntrega: "3 a 7 días hábiles",
+  cpOrigen: "1429",
 };
 
 type FilaConfig = { Clave?: string; Valor?: string };
@@ -67,13 +70,28 @@ export async function getConfig(): Promise<ConfigTienda> {
     cuit: texto("cuit", POR_DEFECTO.cuit),
     domicilio: texto("domicilio", POR_DEFECTO.domicilio),
     plazoEntrega: texto("plazo_entrega", POR_DEFECTO.plazoEntrega),
+    cpOrigen: texto("cp_origen", POR_DEFECTO.cpOrigen).replace(/\D/g, ""),
   };
 }
 
-/** Calcula el costo de envío para un subtotal dado. */
+/**
+ * Costo de envío de respaldo, plano.
+ *
+ * Es lo que se cobra cuando Correo Argentino no puede cotizar: sin credenciales,
+ * con la API caída, o con un pedido que excede sus límites. Nunca deja a la
+ * tienda sin poder vender.
+ */
 export function calcularEnvio(subtotal: number, config: ConfigTienda) {
-  if (config.envioGratisDesde > 0 && subtotal >= config.envioGratisDesde) {
-    return 0;
-  }
+  if (envioBonificado(subtotal, config)) return 0;
   return config.costoEnvio;
+}
+
+/**
+ * Verdadero si el pedido llega al mínimo para envío gratis.
+ *
+ * Es una promoción, no un cálculo: cuando aplica, Harper se hace cargo del costo
+ * real que cobre Correo Argentino.
+ */
+export function envioBonificado(subtotal: number, config: ConfigTienda) {
+  return config.envioGratisDesde > 0 && subtotal >= config.envioGratisDesde;
 }

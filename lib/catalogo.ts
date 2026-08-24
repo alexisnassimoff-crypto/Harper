@@ -6,7 +6,7 @@ import {
   TABLAS,
 } from "./airtable";
 import { aNumero } from "./formato";
-import type { Categoria, Producto, Variante } from "./tipos";
+import type { Categoria, Envase, Producto, Variante } from "./tipos";
 
 /** Cada cuántos segundos se refresca el catálogo cacheado. */
 const REVALIDATE = 60;
@@ -38,6 +38,10 @@ type FilaProducto = {
   Orden?: number;
   Video?: Attachment[];
   Video_url?: string;
+  Peso_g?: number;
+  Largo_cm?: number;
+  Ancho_cm?: number;
+  Alto_cm?: number;
 };
 
 type FilaVariante = {
@@ -158,11 +162,30 @@ async function leerProductos(
         variantes: misVariantes,
         fotoPrincipal: misVariantes.find((v) => v.fotos.length > 0)?.fotos[0] ?? null,
         agotado: misVariantes.length > 0 && misVariantes.every((v) => v.agotada),
+        envase: armarEnvase(f),
       };
     })
     .filter((p) => (categoria ? p.categoria === categoria : true))
     // Sin variantes cargadas no hay nada que vender.
     .filter((p) => p.variantes.length > 0);
+}
+
+/**
+ * Peso y medidas del producto, o `null` si falta alguno.
+ *
+ * Se exige que estén los cuatro: con un dato incompleto Correo Argentino
+ * cotizaría cualquier cosa, y es preferible caer al precio plano de Config
+ * antes que cobrarle al cliente un envío calculado sobre datos a medias.
+ */
+function armarEnvase(f: FilaProducto): Envase | null {
+  const pesoG = aNumero(f.Peso_g, 0);
+  const largoCm = aNumero(f.Largo_cm, 0);
+  const anchoCm = aNumero(f.Ancho_cm, 0);
+  const altoCm = aNumero(f.Alto_cm, 0);
+
+  if (pesoG <= 0 || largoCm <= 0 || anchoCm <= 0 || altoCm <= 0) return null;
+
+  return { pesoG, largoCm, anchoCm, altoCm };
 }
 
 /** Trae un producto por su slug, o null si no existe o está inactivo. */
@@ -208,6 +231,7 @@ async function leerProducto(slug: string): Promise<Producto | null> {
     variantes: misVariantes,
     fotoPrincipal: misVariantes.find((v) => v.fotos.length > 0)?.fotos[0] ?? null,
     agotado: misVariantes.every((v) => v.agotada),
+    envase: armarEnvase(f),
   };
 }
 

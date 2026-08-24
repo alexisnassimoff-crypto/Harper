@@ -6,9 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { precio as formatearPrecio } from "@/lib/formato";
-import type { DatosCliente } from "@/lib/tipos";
+import type { DatosCliente, EleccionEnvio, OpcionEnvio } from "@/lib/tipos";
 import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
 import { PROVINCIAS } from "./provincias";
+import { useCotizacionEnvio, useSucursales } from "./useEnvio";
 
 const CLAVE_DATOS = "harper.datos.v1";
 
@@ -20,6 +21,11 @@ type RespuestaCheckout = {
   errores?: ErroresCliente;
   descartados?: { varianteId: string; motivo: string }[];
 };
+
+/** Identifica una opción de envío en el grupo de radios. */
+function claveOpcion(o: OpcionEnvio) {
+  return `${o.modo}-${o.servicio}`;
+}
 
 const VACIO: DatosCliente = {
   email: "",
@@ -41,6 +47,46 @@ export default function FormularioCheckout() {
   const [errores, setErrores] = useState<ErroresCliente>({});
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
+
+  // Envío: se cotiza contra Correo Argentino apenas hay código postal.
+  const { cotizacion, cargando: cotizando } = useCotizacionEnvio(form.cp);
+  const [elegido, setElegido] = useState<string | null>(null);
+  const [sucursal, setSucursal] = useState("");
+
+  const opciones = cotizacion?.opciones ?? [];
+  const opcion = opciones.find((o) => claveOpcion(o) === elegido) ?? opciones[0] ?? null;
+  const necesitaSucursal = opcion?.modo === "S";
+
+  const { sucursales } = useSucursales(form.provincia, necesitaSucursal);
+
+  // Cuando cambian las opciones (otro CP, otro carrito), se preselecciona la
+  // más barata: es la que más gente elegiría y evita una decisión de más.
+  useEffect(() => {
+    if (opciones.length === 0) {
+      setElegido(null);
+      return;
+    }
+
+    setElegido((actual) => {
+      if (actual && opciones.some((o) => claveOpcion(o) === actual)) return actual;
+      const barata = opciones.reduce((a, b) => (b.precio < a.precio ? b : a));
+      return claveOpcion(barata);
+    });
+  }, [opciones]);
+
+  // Al dejar de retirar en sucursal, la sucursal elegida deja de tener sentido.
+  useEffect(() => {
+    if (!necesitaSucursal) setSucursal("");
+  }, [necesitaSucursal]);
+
+  // El envío bonificado gana sobre cualquier cotización: el pedido llegó al
+  // mínimo y lo paga Harper.
+  const envio = cotizacion?.bonificado
+    ? 0
+    : (opcion?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
+
+  const subtotal = carrito?.subtotal ?? 0;
+  const total = subtotal + envio;
 
   // Pre-carga los datos de una compra anterior: la comodidad de tener
   // cuenta, sin la fricción de crearla.
@@ -87,6 +133,16 @@ export default function FormularioCheckout() {
     setErrores((e) => ({ ...e, [campo]: undefined }));
   }
 
+  function eleccion(): EleccionEnvio | undefined {
+    if (!opcion) return undefined;
+
+    return {
+      modo: opcion.modo,
+      servicio: opcion.servicio,
+      ...(opcion.modo === "S" && sucursal ? { sucursal } : {}),
+    };
+  }
+
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
     setFallo(null);
@@ -98,6 +154,12 @@ export default function FormularioCheckout() {
       document
         .querySelector<HTMLElement>('[data-error="true"] input, [data-error="true"] select')
         ?.focus();
+      return;
+    }
+
+    // Sin sucursal elegida no hay dónde mandar el paquete.
+    if (necesitaSucursal && sucursales.length > 0 && !sucursal) {
+      setFallo("Elegí en qué sucursal querés retirar.");
       return;
     }
 
@@ -113,7 +175,9 @@ export default function FormularioCheckout() {
       const respuesta = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cliente: form, items }),
+        // Solo QUÉ eligió. El precio lo vuelve a cotizar el servidor: si acá
+        // viajara un monto, cualquiera podría pagar $0 de envío.
+        body: JSON.stringify({ cliente: form, items, envio: eleccion() }),
       });
 
       // Un 500 puede volver como página de error en HTML. Sin esta guarda,
@@ -313,16 +377,83 @@ export default function FormularioCheckout() {
 
         <div className="fila">
           <span className="apagado">Subtotal</span>
-          <span>{formatearPrecio(carrito.subtotal)}</span>
+          <span>{formatearPrecio(subtotal)}</span>
         </div>
-        <div className="fila">
-          <span className="apagado">Envío por Correo Argentino</span>
-          <span>{carrito.envio === 0 ? "Gratis" : formatearPrecio(carrito.envio)}</span>
-        </div>
+
+        {/* Envío. Hasta que no hay código postal no se puede cotizar, así que
+            se muestra el precio de referencia y se aclara por qué. */}
+        {opciones.length > 0 ? (
+          <fieldset
+            style={{ border: 0, margin: 0, padding: "0.25rem 0 0", display: "grid", gap: "0.5rem" }}
+          >
+            <legend className="label" style={{ padding: 0, marginBottom: "0.35rem" }}>
+              Cómo lo recibís
+            </legend>
+
+            {opciones.map((o) => {
+              const clave = claveOpcion(o);
+
+              return (
+                <label
+                  key={clave}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                    fontSize: "0.8125rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="envio"
+                    value={clave}
+                    checked={elegido === clave}
+                    onChange={() => setElegido(clave)}
+                    style={{ width: "1rem", height: "1rem", flexShrink: 0 }}
+                  />
+                  <span style={{ flex: 1 }}>{o.nombre}</span>
+                  <span>
+                    {cotizacion?.bonificado ? "Gratis" : formatearPrecio(o.precio)}
+                  </span>
+                </label>
+              );
+            })}
+
+            {necesitaSucursal && sucursales.length > 0 ? (
+              <label className="campo" style={{ marginTop: "0.35rem" }}>
+                <span>Sucursal donde retirás</span>
+                <select value={sucursal} onChange={(e) => setSucursal(e.target.value)}>
+                  <option value="">Elegí una sucursal</option>
+                  {sucursales.map((s) => (
+                    <option key={s.id} value={`${s.nombre} — ${s.direccion}`}>
+                      {s.nombre} — {s.direccion}
+                      {s.localidad ? `, ${s.localidad}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </fieldset>
+        ) : (
+          <div className="fila">
+            <span className="apagado">
+              Envío por Correo Argentino
+              {cotizando ? " · calculando…" : ""}
+            </span>
+            <span>{envio === 0 ? "Gratis" : formatearPrecio(envio)}</span>
+          </div>
+        )}
+
+        {opciones.length === 0 && !cotizando && form.cp.replace(/\D/g, "").length < 4 ? (
+          <p className="apagado" style={{ fontSize: "0.75rem", marginTop: "-0.25rem" }}>
+            Poné tu código postal y calculamos el envío exacto.
+          </p>
+        ) : null}
 
         <div className="fila fila--total">
           <span>Total</span>
-          <strong style={{ fontWeight: 500 }}>{formatearPrecio(carrito.total)}</strong>
+          <strong style={{ fontWeight: 500 }}>{formatearPrecio(total)}</strong>
         </div>
 
         {fallo ? (

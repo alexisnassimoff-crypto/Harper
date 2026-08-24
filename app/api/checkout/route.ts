@@ -3,6 +3,7 @@ import { createRecord, esErrorPermanente, TABLAS, updateRecord } from "@/lib/air
 import { guardarCliente } from "@/lib/clientes";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
+import { leerEleccionEnvio, nombreModo, nombreServicio } from "@/lib/envio-elegido";
 import { urlDelSitio } from "@/lib/sitio";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
 
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let cuerpo: { cliente?: unknown; items?: unknown };
+  let cuerpo: { cliente?: unknown; items?: unknown; envio?: unknown };
 
   try {
     cuerpo = await request.json();
@@ -48,9 +49,17 @@ export async function POST(request: Request) {
   // que el formulario le mostraba al cliente como "Unexpected token '<'".
   let pedidoId: string | null = null;
 
+  // Del navegador viene QUÉ eligió, nunca CUÁNTO sale. El precio del envío lo
+  // vuelve a cotizar el servidor unas líneas más abajo.
+  const eleccion = leerEleccionEnvio(cuerpo.envio);
+
   try {
     // Para cobrar se lee el catálogo sin cache y sin red de contención.
-    const carrito = await resolverCarrito(items, { paraCobrar: true });
+    const carrito = await resolverCarrito(items, {
+      paraCobrar: true,
+      cpDestino: cliente.cp,
+      eleccion,
+    });
 
     if (carrito.items.length === 0) {
       return NextResponse.json(
@@ -89,6 +98,10 @@ export async function POST(request: Request) {
       Ciudad: cliente.ciudad,
       Provincia: cliente.provincia,
       CP: cliente.cp,
+      // Cómo pidió recibirlo, para saber qué despachar sin tener que preguntar.
+      Envio_modo: nombreModo(eleccion),
+      Envio_servicio: nombreServicio(eleccion),
+      Envio_sucursal: eleccion?.sucursal ?? "",
       Fecha: ahora.toISOString(),
     });
 

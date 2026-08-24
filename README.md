@@ -157,6 +157,8 @@ Un producto sin variantes activas no aparece en la web.
 |---|---|
 | `GET /api/health` | Muestra qué integraciones están conectadas |
 | `POST /api/carrito/resolver` | Devuelve el carrito con precios y stock reales |
+| `POST /api/envio/cotizar` | Precios reales de Correo Argentino para un código postal |
+| `GET /api/envio/sucursales` | Sucursales donde retirar, por provincia |
 | `POST /api/lead` | Guarda el mail apenas se escribe en el checkout |
 | `POST /api/checkout` | Crea el pedido y la preferencia de Mercado Pago |
 | `POST /api/mercadopago/webhook` | Confirma el pago, descuenta stock y manda mails |
@@ -215,3 +217,29 @@ comprador.
 - [ ] Completar `domicilio` y `razon_social` en `Config` (obligatorio por ley)
 - [ ] Confirmar `costo_envio` y `envio_gratis_desde` en `Config`
 - [ ] Cargar el stock real de los paños (hoy son valores provisorios)
+- [ ] Cargar `Peso_g`, `Largo_cm`, `Ancho_cm` y `Alto_cm` de cada producto
+- [ ] Credenciales de la API de MiCorreo, para cotizar el envío real
+
+## Envíos
+
+El envío se cotiza contra la API de **MiCorreo** de Correo Argentino según el código
+postal del comprador, con entrega a domicilio o retiro en sucursal, en servicio
+Clásico o Expreso.
+
+**Si Correo Argentino no puede cotizar, la tienda cobra el `costo_envio` plano de la
+tabla `Config` y sigue vendiendo.** Eso pasa cuando faltan las credenciales, cuando a
+un producto le faltan el peso o las medidas, cuando el pedido no entra en un solo bulto
+(más de 25 kg, o algún lado de más de 150 cm), o cuando la API no responde. Es a
+propósito: una caída de Correo Argentino puede costar unos pesos de diferencia en un
+envío, nunca la venta entera.
+
+**El precio del envío lo calcula el servidor.** El navegador manda solo *qué* eligió el
+comprador —domicilio o sucursal, Clásico o Expreso—, nunca cuánto sale.
+`/api/checkout` vuelve a cotizar antes de crear la preferencia de pago.
+
+El peso y las medidas se cargan en `Productos` y son **de una unidad**, con packaging.
+`Alto_cm` es el lado que se apila: para un pedido de varias unidades la web suma los
+altos y deja largo y ancho en el mayor de los productos.
+
+El envío gratis desde `envio_gratis_desde` sigue siendo una promoción: cuando aplica,
+el costo real lo absorbe Harper.

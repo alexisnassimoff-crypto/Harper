@@ -1,7 +1,15 @@
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { getProductos, getProductosParaCobrar } from "./catalogo";
-import { calcularEnvio, getConfig, type ConfigTienda } from "./config";
-import type { ItemCarrito, ItemResuelto } from "./tipos";
+import { calcularEnvio, envioBonificado, getConfig, type ConfigTienda } from "./config";
+import { buscarOpcion, correoConfigurado, cotizar } from "./correo";
+import { armarPaquete, type ItemAEmpacar } from "./paquete";
+import type {
+  EleccionEnvio,
+  ItemCarrito,
+  ItemResuelto,
+  OpcionEnvio,
+  Paquete,
+} from "./tipos";
 
 export type CarritoResuelto = {
   items: ItemResuelto[];
@@ -11,6 +19,12 @@ export type CarritoResuelto = {
   envio: number;
   total: number;
   config: ConfigTienda;
+  /** Opciones reales de Correo Argentino. Vacío si no se pudo cotizar. */
+  opcionesEnvio: OpcionEnvio[];
+  /** Falso cuando `envio` es el precio plano de respaldo, no una cotización. */
+  envioCotizado: boolean;
+  /** La caja a despachar. `null` si falta peso o medidas, o si no entra en un bulto. */
+  paquete: Paquete | null;
 };
 
 /** Tope por variante: evita que un bug o un curioso pida 9999 unidades. */
@@ -45,10 +59,18 @@ export function limpiarItems(crudos: unknown): ItemCarrito[] {
  *
  * El cliente solo manda IDs y cantidades: los precios SIEMPRE salen de Airtable.
  * Nunca se confía en un precio que venga del navegador.
+ *
+ * Con `cpDestino` además cotiza el envío contra Correo Argentino. El precio del
+ * envío se resuelve acá, en el servidor, exactamente igual que los precios de
+ * los productos: del navegador viene QUÉ eligió el comprador, nunca CUÁNTO sale.
  */
 export async function resolverCarrito(
   itemsCrudos: ItemCarrito[],
-  opciones: { paraCobrar?: boolean } = {}
+  opciones: {
+    paraCobrar?: boolean;
+    cpDestino?: string;
+    eleccion?: EleccionEnvio;
+  } = {}
 ): Promise<CarritoResuelto> {
   const [productos, config] = await Promise.all([
     opciones.paraCobrar ? getProductosParaCobrar() : getProductos(),
@@ -57,6 +79,7 @@ export async function resolverCarrito(
 
   const items: ItemResuelto[] = [];
   const descartados: CarritoResuelto["descartados"] = [];
+  const aEmpacar: ItemAEmpacar[] = [];
 
   for (const crudo of itemsCrudos) {
     const producto = productos.find((p) =>
@@ -77,11 +100,7 @@ export async function resolverCarrito(
     // La cantidad se recorta al stock real y al tope por ítem.
     const cantidad = Math.max(
       1,
-      Math.min(
-        Math.floor(crudo.cantidad) || 1,
-        variante.stock,
-        MAX_POR_ITEM
-      )
+      Math.min(Math.floor(crudo.cantidad) || 1, variante.stock, MAX_POR_ITEM)
     );
 
     items.push({
@@ -97,12 +116,95 @@ export async function resolverCarrito(
       subtotal: producto.precio * cantidad,
       stockDisponible: variante.stock,
     });
+
+    aEmpacar.push({ envase: producto.envase, cantidad });
   }
 
   const subtotal = items.reduce((total, i) => total + i.subtotal, 0);
-  const envio = items.length > 0 ? calcularEnvio(subtotal, config) : 0;
+  const paquete = items.length > 0 ? armarPaquete(aEmpacar) : null;
 
-  return { items, descartados, subtotal, envio, total: subtotal + envio, config };
+  const { envio, opcionesEnvio, envioCotizado } = await resolverEnvio({
+    items: items.length,
+    subtotal,
+    config,
+    paquete,
+    cpDestino: opciones.cpDestino,
+    eleccion: opciones.eleccion,
+  });
+
+  return {
+    items,
+    descartados,
+    subtotal,
+    envio,
+    total: subtotal + envio,
+    config,
+    opcionesEnvio,
+    envioCotizado,
+    paquete,
+  };
+}
+
+/**
+ * Decide cuánto sale el envío.
+ *
+ * El orden importa:
+ *  1. Sin ítems no hay envío.
+ *  2. La promoción de envío gratis gana sobre todo lo demás. Igual se cotiza,
+ *     porque el comprador tiene que poder elegir entre domicilio y sucursal
+ *     aunque no pague: de eso depende cómo se despacha.
+ *  3. Con código postal, paquete y credenciales, manda Correo Argentino.
+ *  4. Cualquier otra cosa —falta el peso en Airtable, no hay credenciales,
+ *     la API no responde, el pedido no entra en un bulto— cae al precio plano.
+ */
+async function resolverEnvio(datos: {
+  items: number;
+  subtotal: number;
+  config: ConfigTienda;
+  paquete: Paquete | null;
+  cpDestino?: string;
+  eleccion?: EleccionEnvio;
+}) {
+  const vacio = { opcionesEnvio: [] as OpcionEnvio[], envioCotizado: false };
+
+  if (datos.items === 0) return { envio: 0, ...vacio };
+
+  const cp = datos.cpDestino?.replace(/\D/g, "") ?? "";
+  const gratis = envioBonificado(datos.subtotal, datos.config);
+
+  const puedeCotizar = cp.length >= 4 && datos.paquete !== null && correoConfigurado();
+
+  if (!puedeCotizar) {
+    return { envio: calcularEnvio(datos.subtotal, datos.config), ...vacio };
+  }
+
+  const cotizacion = await cotizar({
+    cpOrigen: datos.config.cpOrigen,
+    cpDestino: cp,
+    paquete: datos.paquete!,
+  });
+
+  if (!cotizacion) {
+    return { envio: calcularEnvio(datos.subtotal, datos.config), ...vacio };
+  }
+
+  if (gratis) {
+    return { envio: 0, opcionesEnvio: cotizacion, envioCotizado: true };
+  }
+
+  const elegida = datos.eleccion
+    ? buscarOpcion(cotizacion, datos.eleccion.modo, datos.eleccion.servicio)
+    : null;
+
+  // Si el navegador pidió una combinación que Correo Argentino no ofrece para
+  // ese destino, se cobra la más barata: nunca de más, y nunca se frena la venta.
+  const opcion = elegida ?? masBarata(cotizacion);
+
+  return { envio: opcion.precio, opcionesEnvio: cotizacion, envioCotizado: true };
+}
+
+function masBarata(opciones: OpcionEnvio[]) {
+  return opciones.reduce((a, b) => (b.precio < a.precio ? b : a));
 }
 
 /** Texto corto del pedido, para leerlo de un vistazo en Airtable y en los mails. */
