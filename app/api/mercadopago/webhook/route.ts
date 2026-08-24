@@ -50,6 +50,9 @@ const enVuelo = new Set<string>();
 /** Diferencia máxima tolerada entre lo cobrado y el total del pedido. */
 const TOLERANCIA_MONTO = 1;
 
+/** Prefijo con el que se marca un pago que tiene que mirar una persona. */
+const MARCA_REVISAR = "revisar:";
+
 type FilaPedido = {
   Numero?: string;
   Estado?: string;
@@ -157,7 +160,16 @@ async function procesar(dataId: string, request: Request) {
   // ---- Idempotencia ----
   // Mercado Pago reintenta las notificaciones: sin esto se descontaría
   // el stock dos veces y se mandaría el mail duplicado.
-  if (YA_PROCESADO.has(estadoActual) && pedido.fields.MP_payment_id === String(pago.id)) {
+  const mismoPago = pedido.fields.MP_payment_id === String(pago.id);
+
+  if (YA_PROCESADO.has(estadoActual) && mismoPago) {
+    return NextResponse.json({ ok: true, duplicado: true });
+  }
+
+  // Un pago marcado para revisar se queda en "pendiente", así que no lo frena
+  // el control de arriba. Sin esto, cada reintento de Mercado Pago vuelve a
+  // mandar el mail de alerta.
+  if (mismoPago && pedido.fields.MP_status?.startsWith(MARCA_REVISAR)) {
     return NextResponse.json({ ok: true, duplicado: true });
   }
 
@@ -222,7 +234,7 @@ async function procesar(dataId: string, request: Request) {
 
       await updateRecord<FilaPedido>(TABLAS.pedidos, pedidoId, {
         MP_payment_id: String(pago.id),
-        MP_status: `revisar: se cobró ${cobrado} y el pedido dice ${total}`,
+        MP_status: `${MARCA_REVISAR} se cobró ${cobrado} y el pedido dice ${total}`,
       });
 
       const aviso = mailAvisoInterno({ ...datosMail, pedidoUrl });
