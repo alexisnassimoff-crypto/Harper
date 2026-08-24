@@ -8,6 +8,13 @@ export const metadata: Metadata = {
   title: "Paños",
   description:
     "Paños de microfibra Harper para limpieza de cristales. No rayan ni dejan pelusa.",
+  alternates: { canonical: "/panos" },
+  openGraph: {
+    title: "Paños · Harper",
+    description:
+      "Paños de microfibra Harper para limpieza de cristales. No rayan ni dejan pelusa.",
+    type: "website",
+  },
 };
 
 export default async function Panos() {

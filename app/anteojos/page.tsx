@@ -6,7 +6,15 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Anteojos",
-  description: "Todos los modelos de anteojos Harper.",
+  description:
+    "Los cuatro modelos de anteojos Harper, con filtro de luz azul y cristales fotocromáticos.",
+  alternates: { canonical: "/anteojos" },
+  openGraph: {
+    title: "Anteojos · Harper",
+    description:
+      "Los cuatro modelos de anteojos Harper, con filtro de luz azul y cristales fotocromáticos.",
+    type: "website",
+  },
 };
 
 export default async function Anteojos() {

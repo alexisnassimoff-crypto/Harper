@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import Logo from "@/components/Logo";
@@ -6,6 +7,17 @@ import Revelar from "@/components/Revelar";
 import { getProductos } from "@/lib/catalogo";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "Harper — Cases & Eyewear",
+    description:
+      "Anteojos y estuches rígidos de ecocuero premium. Entrega por Correo Argentino a todo el país.",
+    type: "website",
+    // Sin `images`: las pone app/opengraph-image.jpg.
+  },
+};
 
 export default async function Home() {
   const productos = await getProductos();

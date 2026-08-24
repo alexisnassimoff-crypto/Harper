@@ -6,7 +6,15 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Estuches",
-  description: "Estuches rígidos de ecocuero premium con paño de microfibra. Modelos R100, O300 y M500.",
+  description:
+    "Estuches rígidos de ecocuero premium con paño de microfibra. Modelos R100, O300 y M500.",
+  alternates: { canonical: "/estuches" },
+  openGraph: {
+    title: "Estuches · Harper",
+    description:
+      "Estuches rígidos de ecocuero premium con paño de microfibra. Modelos R100, O300 y M500.",
+    type: "website",
+  },
 };
 
 export default async function Estuches() {
