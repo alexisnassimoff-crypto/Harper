@@ -266,7 +266,7 @@ export default function FormularioCheckout() {
                 style={{ width: "3rem", aspectRatio: "1 / 1", flexShrink: 0 }}
               >
                 {item.foto ? (
-                  <Image src={item.foto} alt="" fill sizes="48px" style={{ objectFit: "cover" }} />
+                  <Image src={item.foto} alt="" fill sizes="48px" style={{ objectFit: "contain", padding: "4px" }} />
                 ) : null}
               </div>
               <div style={{ flex: 1, fontSize: "0.8125rem" }}>

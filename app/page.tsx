@@ -19,7 +19,10 @@ export default async function Home() {
           position: "relative",
           minHeight: "min(82svh, 46rem)",
           display: "grid",
-          placeItems: "center",
+          // El contenido baja al tercio inferior: arriba está la cara de la
+          // modelo y el texto se le superponía.
+          alignItems: "end",
+          justifyItems: "center",
           overflow: "hidden",
           background: "var(--tinta)",
         }}
@@ -50,13 +53,13 @@ export default async function Home() {
             gap: "1.75rem",
             alignItems: "center",
             textAlign: "center",
-            paddingBlock: "5rem",
+            paddingBlock: "5rem 3.5rem",
             color: "#fff",
             textShadow: "0 1px 24px rgb(0 0 0 / 0.35)",
           }}
         >
           <h1 style={{ margin: 0 }}>
-            <Logo alto={120} lockup claro />
+            <Logo alto="clamp(3.25rem, 9.5vw, 7.5rem)" lockup claro />
             <span className="solo-lectores">Harper — cases &amp; eyewear</span>
           </h1>
           <p style={{ fontSize: "1.0625rem", maxWidth: "30rem" }}>

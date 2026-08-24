@@ -23,7 +23,7 @@ export default function GrillaProductos({
       }}
     >
       {productos.map((p, i) => (
-        <ProductoCard key={p.id} producto={p} prioridad={i < 4} />
+        <ProductoCard key={p.id} producto={p} prioridad={i < 4} tinte={i} />
       ))}
     </div>
   );

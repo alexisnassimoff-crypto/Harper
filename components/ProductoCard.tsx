@@ -1,107 +1,126 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
+import { useCarrito } from "./carrito/CarritoContexto";
 import { precio as formatearPrecio } from "@/lib/formato";
 import type { Producto } from "@/lib/tipos";
+
+/** Cinco tintes de la paleta de marca. La grilla los rota para que no sea monótona. */
+const TINTES = 5;
 
 export default function ProductoCard({
   producto,
   prioridad = false,
+  tinte = 0,
 }: {
   producto: Producto;
   /** Solo para las primeras tarjetas visibles: precarga la imagen. */
   prioridad?: boolean;
+  /** Índice del tinte de fondo; la grilla lo va rotando. */
+  tinte?: number;
 }) {
-  const colores = producto.variantes.length;
+  const { agregar } = useCarrito();
+
+  // Arranca en el primer color con stock; si están todos agotados, el primero.
+  const inicial = Math.max(
+    0,
+    producto.variantes.findIndex((v) => !v.agotada)
+  );
+  const [indice, setIndice] = useState(inicial);
+  const [agregado, setAgregado] = useState(false);
+
+  const variante = producto.variantes[indice];
+  const foto = variante?.fotos[0] ?? producto.fotoPrincipal;
+
+  function elegirColor(i: number) {
+    setIndice(i);
+    setAgregado(false);
+  }
+
+  function agregarAlCarrito() {
+    if (!variante || variante.agotada) return;
+    agregar({
+      productoSlug: producto.slug,
+      varianteId: variante.id,
+      cantidad: 1,
+    });
+    setAgregado(true);
+  }
 
   return (
-    <Link
-      href={`/producto/${producto.slug}`}
-      className="pila tarjeta"
-      style={{ gap: "0.85rem" }}
-    >
-      <div className="tarjeta__marco" style={{ aspectRatio: "1 / 1" }}>
-        {producto.fotoPrincipal ? (
+    <article className="ficha" data-tinte={tinte % TINTES}>
+      <Link
+        href={`/producto/${producto.slug}`}
+        className="ficha__foto"
+        aria-label={producto.nombre}
+      >
+        {foto ? (
           <Image
-            src={producto.fotoPrincipal}
+            src={foto}
             alt={producto.nombre}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            style={{ objectFit: "cover" }}
+            style={{ objectFit: "contain" }}
             priority={prioridad}
           />
         ) : (
-          <div
-            className="label"
-            style={{ display: "grid", placeItems: "center", height: "100%" }}
-          >
-            Sin foto
-          </div>
+          <span className="label ficha__sinfoto">Sin foto</span>
         )}
 
-        {producto.agotado ? (
-          <span
-            className="label"
-            style={{
-              position: "absolute",
-              top: "0.75rem",
-              left: "0.75rem",
-              background: "var(--fondo)",
-              color: "var(--texto)",
-              padding: "0.3rem 0.6rem",
-            }}
-          >
-            Agotado
-          </span>
-        ) : null}
-      </div>
+        {producto.agotado ? <span className="ficha__cinta">Agotado</span> : null}
+      </Link>
 
-      <div className="pila" style={{ gap: "0.15rem" }}>
-        <h3 className="tarjeta__nombre" style={{ fontSize: "1rem", letterSpacing: "0.06em" }}>
+      <div className="ficha__cuerpo">
+        <Link href={`/producto/${producto.slug}`} className="ficha__titulo">
           {producto.nombre}
-        </h3>
+        </Link>
 
-        <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.9375rem" }}>
-            {formatearPrecio(producto.precio)}
-          </span>
+        <div className="ficha__precio">
+          <span>{formatearPrecio(producto.precio)}</span>
           {producto.precioAnterior ? (
-            <span
-              className="apagado"
-              style={{ fontSize: "0.8125rem", textDecoration: "line-through" }}
-            >
-              {formatearPrecio(producto.precioAnterior)}
-            </span>
+            <s className="apagado">{formatearPrecio(producto.precioAnterior)}</s>
           ) : null}
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.6rem",
-            minHeight: "1.1rem",
-          }}
-        >
-          <span className="apagado" style={{ fontSize: "0.75rem" }}>
-            {colores === 1 ? "1 color" : `${colores} colores`}
-          </span>
-
-          <span className="tarjeta__colores" aria-hidden="true">
-            {producto.variantes.slice(0, 5).map((v) => (
-              <span
+        {producto.variantes.length > 1 ? (
+          <div
+            className="ficha__colores"
+            role="radiogroup"
+            aria-label={`Color de ${producto.nombre}`}
+          >
+            {producto.variantes.map((v, i) => (
+              <button
                 key={v.id}
-                style={{
-                  width: "0.5rem",
-                  height: "0.5rem",
-                  borderRadius: "50%",
-                  background: v.colorHex,
-                  border: "1px solid color-mix(in srgb, var(--texto) 18%, transparent)",
-                }}
+                type="button"
+                role="radio"
+                aria-checked={i === indice}
+                aria-label={v.color}
+                title={v.color + (v.agotada ? " — agotado" : "")}
+                className="ficha__swatch"
+                data-elegido={i === indice ? "" : undefined}
+                data-agotada={v.agotada ? "" : undefined}
+                style={{ background: v.colorHex }}
+                onClick={() => elegirColor(i)}
               />
             ))}
-          </span>
-        </div>
+          </div>
+        ) : null}
+
+        <p className="ficha__color-nombre">
+          {variante ? variante.color : " "}
+        </p>
+
+        <button
+          type="button"
+          className="boton boton--contorno boton--chico boton--bloque"
+          onClick={agregarAlCarrito}
+          disabled={!variante || variante.agotada}
+        >
+          {variante?.agotada ? "Sin stock" : agregado ? "Agregado ✓" : "Agregar"}
+        </button>
       </div>
-    </Link>
+    </article>
   );
 }

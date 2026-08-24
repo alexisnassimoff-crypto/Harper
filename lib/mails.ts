@@ -116,8 +116,12 @@ function envoltorio(contenido: string, config: ConfigTienda) {
 function filasDeItems(items: ItemResuelto[], sitio: string) {
   return items
     .map((item) => {
+      // El catálogo usa WebP con transparencia, pero Outlook de escritorio no
+      // renderiza WebP: en el mail se manda el JPEG equivalente, que siempre
+      // existe al lado del WebP y trae el fondo blanco ya incorporado.
+      const relativa = (item.foto ?? "").replace(/\.webp$/, ".jpg");
       // Las imágenes en mail necesitan URL absoluta; una relativa no carga.
-      const foto = item.foto?.startsWith("http") ? item.foto : `${sitio}${item.foto ?? ""}`;
+      const foto = relativa.startsWith("http") ? relativa : `${sitio}${relativa}`;
 
       return `<tr>
   <td width="64" style="padding:10px 12px 10px 0;vertical-align:top;">

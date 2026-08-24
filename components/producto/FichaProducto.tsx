@@ -68,14 +68,17 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
     >
       {/* ---------- Galería ---------- */}
       <div className="pila surge" style={{ gap: "0.75rem" }}>
-        <div className="tarjeta__marco" style={{ aspectRatio: "1 / 1" }}>
+        <div
+          className="tarjeta__marco"
+          style={{ aspectRatio: "1 / 1", padding: "2rem" }}
+        >
           {fotoActual ? (
             <Image
               src={fotoActual}
               alt={`${producto.nombre} — ${variante.color}`}
               fill
               sizes="(max-width: 1024px) 100vw, 50vw"
-              style={{ objectFit: "cover" }}
+              style={{ objectFit: "contain", padding: "inherit" }}
               priority
             />
           ) : (
@@ -104,7 +107,7 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
                   alt=""
                   fill
                   sizes="72px"
-                  style={{ objectFit: "cover" }}
+                  style={{ objectFit: "contain", padding: "6px" }}
                 />
               </button>
             ))}

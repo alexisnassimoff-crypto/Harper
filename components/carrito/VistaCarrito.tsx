@@ -60,7 +60,7 @@ export default function VistaCarrito() {
                   alt={item.nombre}
                   fill
                   sizes="88px"
-                  style={{ objectFit: "cover" }}
+                  style={{ objectFit: "contain", padding: "5px" }}
                 />
               ) : null}
             </div>

@@ -397,9 +397,6 @@ p {
 
 /* ---------- Tarjeta de producto ---------- */
 
-.tarjeta {
-  transition: transform var(--medio) var(--curva);
-}
 
 .tarjeta__marco {
   position: relative;
@@ -413,38 +410,12 @@ p {
   transition: transform var(--lento) var(--curva);
 }
 
-.tarjeta:hover .tarjeta__marco {
-  box-shadow: var(--sombra-alta);
-}
 
-.tarjeta:hover .tarjeta__marco img {
-  transform: scale(1.06);
-}
 
-.tarjeta:hover .tarjeta__nombre {
-  color: var(--verde);
-}
 
-.tarjeta__nombre {
-  transition: color var(--rapido) var(--curva);
-}
 
 /* Los puntitos de color asoman al pasar el mouse. */
-.tarjeta__colores {
-  display: flex;
-  gap: 0.3rem;
-  opacity: 0;
-  transform: translateY(4px);
-  transition:
-    opacity var(--medio) var(--curva),
-    transform var(--medio) var(--curva);
-}
 
-.tarjeta:hover .tarjeta__colores,
-.tarjeta:focus-within .tarjeta__colores {
-  opacity: 1;
-  transform: translateY(0);
-}
 
 /* ---------- Selector de color y miniaturas ---------- */
 
@@ -629,4 +600,150 @@ p {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Ficha de producto en la grilla
+
+   Cada ficha es una tarjeta con marco y un tinte de fondo; la grilla rota
+   cinco tintes de la paleta para que un listado largo no se vea monótono.
+   Las fotos son WebP con fondo transparente, así el tinte se ve detrás del
+   producto en vez de un rectángulo blanco recortado.
+--------------------------------------------------------------------------- */
+
+.ficha {
+  --tinte: var(--hueso-hundido);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--tinta) 13%, var(--tinte));
+  border-radius: var(--radio-tarjeta);
+  background: var(--tinte);
+  overflow: hidden;
+  transition:
+    transform var(--medio) var(--curva),
+    box-shadow var(--medio) var(--curva),
+    border-color var(--medio) var(--curva);
+}
+.ficha[data-tinte="0"] { --tinte: #f1eee6; }  /* lino    */
+.ficha[data-tinte="1"] { --tinte: #e8efe9; }  /* salvia  */
+.ficha[data-tinte="2"] { --tinte: #efeae6; }  /* arena   */
+.ficha[data-tinte="3"] { --tinte: #e9edf0; }  /* niebla  */
+.ficha[data-tinte="4"] { --tinte: #f0ecef; }  /* malva   */
+
+.ficha:hover,
+.ficha:focus-within {
+  transform: translateY(-4px);
+  box-shadow: var(--sombra-alta);
+  border-color: var(--verde);
+}
+
+.ficha__foto {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1;
+  padding: 1.25rem;
+}
+.ficha__foto img {
+  padding: inherit;
+  transition: transform var(--lento) var(--curva);
+}
+.ficha:hover .ficha__foto img {
+  transform: scale(1.05);
+}
+.ficha__sinfoto {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--texto-suave);
+}
+.ficha__cinta {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: var(--radio-pill);
+  background: var(--fondo);
+  color: var(--texto);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.ficha__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 1.1rem 1.1rem;
+}
+.ficha__titulo {
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  transition: color var(--rapido) var(--curva);
+}
+.ficha:hover .ficha__titulo {
+  color: var(--verde);
+}
+.ficha__precio {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+}
+.ficha__precio s {
+  font-size: 0.8125rem;
+}
+
+.ficha__colores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+.ficha__swatch {
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--texto) 22%, transparent);
+  border-radius: 50%;
+  outline-offset: 3px;
+  transition:
+    transform var(--rapido) var(--curva),
+    box-shadow var(--rapido) var(--curva);
+}
+.ficha__swatch:hover {
+  transform: scale(1.15);
+}
+.ficha__swatch[data-elegido] {
+  box-shadow: 0 0 0 2px var(--tinte), 0 0 0 3.5px var(--verde);
+}
+.ficha__swatch[data-agotada] {
+  opacity: 0.4;
+}
+.ficha__color-nombre {
+  min-height: 1rem;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+/* Botón compacto, para que entre cómodo dentro de la ficha. */
+.boton--chico {
+  min-height: 2.6rem;
+  padding: 0 1.25rem;
+  font-size: 0.75rem;
+}
+
+/* Contorno sobre fondo claro. En la grilla evita cuatro botones macizos
+   seguidos, y al pasar el mouse se rellena de verde. */
+.boton--contorno {
+  background: transparent;
+  color: var(--verde);
+}
+.boton--contorno::before {
+  background: var(--verde);
+}
+.boton--contorno:hover:not(:disabled),
+.boton--contorno:focus-visible:not(:disabled) {
+  color: var(--sobre-acento);
 }
