@@ -121,7 +121,13 @@ export async function resolverCarrito(
   }
 
   const subtotal = items.reduce((total, i) => total + i.subtotal, 0);
-  const paquete = items.length > 0 ? armarPaquete(aEmpacar) : null;
+  const paquete =
+    items.length > 0
+      ? armarPaquete(aEmpacar, {
+          margenCm: config.embalajeMargenCm,
+          pesoG: config.embalajePesoG,
+        })
+      : null;
 
   const { envio, opcionesEnvio, envioCotizado } = await resolverEnvio({
     items: items.length,

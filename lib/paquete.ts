@@ -16,6 +16,11 @@ import type { Envase, Paquete } from "./tipos";
  * poco de más. Ese error va a favor de Harper: cobrar de menos significa poner
  * plata de su bolsillo en cada envío, y eso no se descubre hasta el cierre del
  * mes.
+ *
+ * Al final se suma el embalaje. Lo que viaja nunca es el producto desnudo: va
+ * dentro de un sobre o una caja, y Correo Argentino cobra por peso volumétrico
+ * —el espacio que ocupa el bulto, no lo que pesa—, así que ignorar el embalaje
+ * es cobrarle al cliente menos de lo que después paga Harper.
  */
 
 /** Límites que impone la API de MiCorreo. */
@@ -30,6 +35,14 @@ export type ItemAEmpacar = {
   cantidad: number;
 };
 
+/** Lo que agrega el embalaje al bulto. Sale de la tabla Config. */
+export type Embalaje = {
+  margenCm: number;
+  pesoG: number;
+};
+
+const SIN_EMBALAJE: Embalaje = { margenCm: 0, pesoG: 0 };
+
 /**
  * Arma el paquete, o `null` si no se puede cotizar.
  *
@@ -40,7 +53,10 @@ export type ItemAEmpacar = {
  * Repartir un pedido en varios bultos es otro problema, y no vale la pena
  * resolverlo antes de que exista un pedido que lo necesite.
  */
-export function armarPaquete(items: ItemAEmpacar[]): Paquete | null {
+export function armarPaquete(
+  items: ItemAEmpacar[],
+  embalaje: Embalaje = SIN_EMBALAJE
+): Paquete | null {
   if (items.length === 0) return null;
 
   let pesoG = 0;
@@ -60,14 +76,20 @@ export function armarPaquete(items: ItemAEmpacar[]): Paquete | null {
     altoCm += item.envase.altoCm * cantidad;
   }
 
+  // El embalaje se suma UNA sola vez: el sobre es uno solo, lleve una unidad o
+  // cinco. Sumarlo por producto inflaría el bulto de cada pedido múltiple.
+  const margen = Math.max(0, embalaje.margenCm);
+
   const paquete: Paquete = {
     // La API trabaja en gramos enteros y centímetros con un decimal.
-    pesoG: Math.max(LIMITES.pesoMinG, Math.round(pesoG)),
-    largoCm: redondear(largoCm),
-    anchoCm: redondear(anchoCm),
-    altoCm: redondear(altoCm),
+    pesoG: Math.max(LIMITES.pesoMinG, Math.round(pesoG + Math.max(0, embalaje.pesoG))),
+    largoCm: redondear(largoCm + margen),
+    anchoCm: redondear(anchoCm + margen),
+    altoCm: redondear(altoCm + margen),
   };
 
+  // Los límites se validan sobre el bulto FINAL, no sobre los productos pelados:
+  // un pedido al borde de los 150 cm pasaría este control y lo rechazaría la API.
   return dentroDeLimites(paquete) ? paquete : null;
 }
 

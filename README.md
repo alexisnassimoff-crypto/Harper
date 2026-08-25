@@ -259,7 +259,15 @@ envío, nunca la venta entera.
 comprador —domicilio o sucursal, Clásico o Expreso—, nunca cuánto sale.
 `/api/checkout` vuelve a cotizar antes de crear la preferencia de pago.
 
-El peso y las medidas se cargan en `Productos` y son **de una unidad**, con packaging.
+**El embalaje se suma aparte.** Lo que viaja nunca es el producto desnudo: va dentro de
+un sobre o una caja. Como Correo Argentino cobra por peso volumétrico —el espacio que
+ocupa el bulto, no lo que pesa—, ignorarlo sería cobrarle al cliente menos de lo que
+después paga Harper. Se configura en `Config` con `embalaje_margen_cm` (cm que se suman
+a cada lado) y `embalaje_peso_g`. Los valores por defecto, `1` y `30`, corresponden a
+un sobre de burbuja; con caja van en `2` y `80`. El margen se suma **una sola vez** al
+bulto final, no por producto: el sobre es uno solo lleve una unidad o cinco.
+
+El peso y las medidas se cargan en `Productos` y son **de una unidad**, sin embalaje.
 `Alto_cm` es el lado que se apila: para un pedido de varias unidades la web suma los
 altos y deja largo y ancho en el mayor de los productos.
 

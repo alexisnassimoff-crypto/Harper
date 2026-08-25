@@ -18,6 +18,10 @@ export type ConfigTienda = {
   plazoEntrega: string;
   /** Código postal desde el que se despacha. Correo Argentino cotiza desde acá. */
   cpOrigen: string;
+  /** Centímetros que suma el embalaje a cada lado del bulto. */
+  embalajeMargenCm: number;
+  /** Gramos que suman el sobre o la caja, el relleno y la etiqueta. */
+  embalajePesoG: number;
 };
 
 /** Valores usados si Airtable no responde. La tienda nunca se cae por esto. */
@@ -33,6 +37,9 @@ const POR_DEFECTO: ConfigTienda = {
   domicilio: "",
   plazoEntrega: "3 a 7 días hábiles",
   cpOrigen: "1429",
+  // Valores de sobre de burbuja. Con caja serían 2 y 80.
+  embalajeMargenCm: 1,
+  embalajePesoG: 30,
 };
 
 type FilaConfig = { Clave?: string; Valor?: string };
@@ -71,6 +78,11 @@ export async function getConfig(): Promise<ConfigTienda> {
     domicilio: texto("domicilio", POR_DEFECTO.domicilio),
     plazoEntrega: texto("plazo_entrega", POR_DEFECTO.plazoEntrega),
     cpOrigen: texto("cp_origen", POR_DEFECTO.cpOrigen).replace(/\D/g, ""),
+    embalajeMargenCm: aNumero(
+      mapa.get("embalaje_margen_cm"),
+      POR_DEFECTO.embalajeMargenCm
+    ),
+    embalajePesoG: aNumero(mapa.get("embalaje_peso_g"), POR_DEFECTO.embalajePesoG),
   };
 }
 
