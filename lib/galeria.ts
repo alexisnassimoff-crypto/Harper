@@ -21,7 +21,9 @@ export const POSICION_VIDEO = 3;
  * navegador lo abre. En Chrome, Brave o Android el visitante ve un recuadro
  * negro roto, que es peor que no mostrar nada.
  */
-const TIPOS_WEB = ["video/mp4", "video/webm"];
+// `video/x-m4v` es lo que declara Airtable para los .m4v que salen del
+// conversor de Finder: es un MP4 con otro nombre y se reproduce igual.
+const TIPOS_WEB = ["video/mp4", "video/x-m4v", "video/webm"];
 const EXTENSIONES_WEB = [".mp4", ".m4v", ".webm"];
 
 /**
