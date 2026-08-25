@@ -54,8 +54,8 @@ export default function FichaProducto({
   // El video es del producto y las fotos son de la variante: la lista se arma
   // acá, con el video en tercer lugar.
   const medios = useMemo(
-    () => armarGaleria(fotos, producto.video, producto.fotoPrincipal),
-    [fotos, producto.video, producto.fotoPrincipal]
+    () => armarGaleria(fotos, producto.videos, producto.fotoPrincipal),
+    [fotos, producto.videos, producto.fotoPrincipal]
   );
 
   const medioActual = medios[Math.min(indiceMedio, medios.length - 1)] ?? null;

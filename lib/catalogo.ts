@@ -38,7 +38,7 @@ type FilaProducto = {
   Activo?: boolean;
   Orden?: number;
   Video?: Attachment[];
-  Video_url?: string;
+  Videos_url?: string;
   Peso_g?: number;
   Largo_cm?: number;
   Ancho_cm?: number;
@@ -76,25 +76,31 @@ function resolverFotos(fila: FilaVariante): string[] {
 }
 
 /**
- * Resuelve el video del producto, si se puede reproducir.
+ * Resuelve los videos del producto, quedándose con los que se pueden reproducir.
  *
  * Un `.mov` solo lo abre Safari: en Chrome, Brave o Android el visitante ve un
  * recuadro negro roto. Preferimos no mostrar nada —el sync lo reporta como
  * aviso— antes que ensuciar la ficha con un reproductor que no anda.
+ *
+ * Igual que con las fotos, manda `Videos_url` (el espejo permanente en Blob) y
+ * los attachments quedan de respaldo: esas URLs vencen a las ~2 horas.
  */
-function resolverVideo(fila: FilaProducto): string | null {
-  const adjunto = fila.Video?.[0];
-  const espejado = fila.Video_url?.trim();
-  const url = espejado || adjunto?.url;
+function resolverVideos(fila: FilaProducto): string[] {
+  const adjuntos = fila.Video ?? [];
 
-  if (!url) return null;
+  const espejados = (fila.Videos_url ?? "")
+    .split(/[\n,]/)
+    .map((u) => u.trim())
+    .filter(Boolean);
 
-  const reproducible = videoReproducible({
-    url: espejado || adjunto?.filename,
-    tipo: adjunto?.type,
-  });
+  // El espejo conserva la extensión original, así que alcanza para juzgarlo.
+  if (espejados.length > 0) {
+    return espejados.filter((url) => videoReproducible({ url }));
+  }
 
-  return reproducible ? url : null;
+  return adjuntos
+    .filter((a) => videoReproducible({ url: a.filename, tipo: a.type }))
+    .map((a) => a.url);
 }
 
 function armarVariante(registro: AirtableRecord<FilaVariante>): Variante {
@@ -175,7 +181,7 @@ async function leerProductos(
         precio,
         // Solo tiene sentido mostrarlo tachado si es mayor al precio actual.
         precioAnterior: precioAnterior > precio ? precioAnterior : null,
-        video: resolverVideo(f),
+        videos: resolverVideos(f),
         variantes: misVariantes,
         fotoPrincipal: misVariantes.find((v) => v.fotos.length > 0)?.fotos[0] ?? null,
         agotado: misVariantes.length > 0 && misVariantes.every((v) => v.agotada),
@@ -244,7 +250,7 @@ async function leerProducto(slug: string): Promise<Producto | null> {
     descripcion: f.Descripcion?.trim() ?? "",
     precio,
     precioAnterior: precioAnterior > precio ? precioAnterior : null,
-    video: resolverVideo(f),
+    videos: resolverVideos(f),
     variantes: misVariantes,
     fotoPrincipal: misVariantes.find((v) => v.fotos.length > 0)?.fotos[0] ?? null,
     agotado: misVariantes.every((v) => v.agotada),

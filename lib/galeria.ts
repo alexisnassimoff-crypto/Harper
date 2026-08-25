@@ -47,21 +47,28 @@ export function videoReproducible(datos: { url?: string | null; tipo?: string | 
  *
  * Con menos de dos fotos no existe un tercer lugar, así que el video va al
  * final: nunca antes de la primera foto, que es la que vende.
+ *
+ * Con varios videos van todos seguidos desde el tercer lugar, en el orden en
+ * que estén cargados en Airtable.
  */
 export function armarGaleria(
   fotos: string[],
-  video: string | null,
+  videos: string[],
   poster: string | null = null
 ): Medio[] {
   const medios: Medio[] = fotos.map((src) => ({ tipo: "foto", src }));
 
-  if (!video) return medios;
+  if (videos.length === 0) return medios;
 
-  medios.splice(Math.min(POSICION_VIDEO - 1, medios.length), 0, {
-    tipo: "video",
-    src: video,
-    poster: poster ?? fotos[0] ?? null,
-  });
+  medios.splice(
+    Math.min(POSICION_VIDEO - 1, medios.length),
+    0,
+    ...videos.map((src): Medio => ({
+      tipo: "video",
+      src,
+      poster: poster ?? fotos[0] ?? null,
+    }))
+  );
 
   return medios;
 }

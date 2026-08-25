@@ -77,7 +77,7 @@ export type ResultadoSync = {
 };
 
 type FilaVariante = { Fotos?: Attachment[]; Fotos_url?: string; SKU?: string };
-type FilaProducto = { Video?: Attachment[]; Video_url?: string; Nombre?: string };
+type FilaProducto = { Video?: Attachment[]; Videos_url?: string; Nombre?: string };
 
 export async function sincronizarMedia(): Promise<ResultadoSync> {
   const resultado: ResultadoSync = {
@@ -132,33 +132,49 @@ export async function sincronizarMedia(): Promise<ResultadoSync> {
   const productos = await listRecords<FilaProducto>(TABLAS.productos);
 
   for (const registro of productos) {
-    const adjunto = registro.fields.Video?.[0];
-    if (!adjunto) continue;
+    const adjuntos = registro.fields.Video ?? [];
+    if (adjuntos.length === 0) continue;
 
-    // Se espeja igual —así queda subido si algún día lo convertimos— pero se
-    // avisa fuerte: la ficha no lo va a mostrar, y sin este aviso el video
+    const etiqueta = registro.fields.Nombre ?? registro.id;
+
+    // Se espejan igual —así quedan subidos si algún día los convertimos— pero
+    // se avisa fuerte: la ficha no los va a mostrar, y sin este aviso el video
     // desaparecería sin explicación.
-    if (!videoReproducible({ url: adjunto.filename, tipo: adjunto.type })) {
-      const etiqueta = registro.fields.Nombre ?? registro.id;
+    for (const adjunto of adjuntos) {
+      if (videoReproducible({ url: adjunto.filename, tipo: adjunto.type })) continue;
       resultado.errores.push(
         `Producto ${etiqueta}: ${adjunto.filename} no lo reproduce Chrome ni Android. Convertilo a MP4 (H.264) y volvé a subirlo.`
       );
     }
 
-    const actual = registro.fields.Video_url?.trim() ?? "";
-    if (actual.includes(adjunto.id)) continue;
+    const urlsActuales = (registro.fields.Videos_url ?? "")
+      .split("\n")
+      .map((u) => u.trim())
+      .filter(Boolean);
+
+    if (yaEspejado(adjuntos, urlsActuales)) continue;
 
     try {
-      const url = await subir("videos", registro.id, adjunto);
+      const nuevas: string[] = [];
+
+      for (const adjunto of adjuntos) {
+        const existente = urlsActuales.find((u) => u.includes(adjunto.id));
+
+        if (existente) {
+          nuevas.push(existente);
+          continue;
+        }
+
+        nuevas.push(await subir("videos", registro.id, adjunto));
+        resultado.archivosSubidos += 1;
+      }
 
       await updateRecord<FilaProducto>(TABLAS.productos, registro.id, {
-        Video_url: url,
+        Videos_url: nuevas.join("\n"),
       });
 
-      resultado.archivosSubidos += 1;
       resultado.productosActualizados += 1;
     } catch (error) {
-      const etiqueta = registro.fields.Nombre ?? registro.id;
       resultado.errores.push(`Producto ${etiqueta}: ${(error as Error).message}`);
     }
   }

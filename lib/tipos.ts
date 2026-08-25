@@ -36,7 +36,8 @@ export type Producto = {
   descripcion: string;
   precio: number;
   precioAnterior: number | null;
-  video: string | null;
+  /** Los videos del producto, ya filtrados a los que el navegador reproduce. */
+  videos: string[];
   variantes: Variante[];
   /** Primera foto disponible entre todas las variantes. */
   fotoPrincipal: string | null;
