@@ -1103,10 +1103,9 @@ p {
 
 /* Flechas sobre la foto: el gesto de deslizar existe, pero nada lo anuncia.
 
-   En el teléfono la foto llena el marco, así que centradas caían justo sobre
-   el producto. Van abajo, chicas, donde las fotos tienen fondo libre. En
-   desktop quedan centradas pero aparecen recién al pasar el mouse: es el
-   patrón de siempre en e-commerce, y con el marco quieto no tapan nada. */
+   Sin círculo ni fondo, a pedido de Ale: la flecha pura. En el teléfono van
+   abajo, donde las fotos tienen fondo libre y no tapan el producto; en
+   desktop quedan centradas a los costados, siempre visibles. */
 .galeria__flecha {
   position: absolute;
   top: auto;
@@ -1116,27 +1115,23 @@ p {
   place-items: center;
   width: 2.25rem;
   height: 2.25rem;
-  border: 1px solid var(--borde);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--fondo) 65%, transparent);
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--verde);
-  backdrop-filter: blur(8px);
   transition:
-    background var(--rapido) var(--curva),
-    border-color var(--rapido) var(--curva),
-    opacity var(--rapido) var(--curva),
+    color var(--rapido) var(--curva),
     transform var(--rapido) var(--curva);
 }
 .galeria__flecha:hover {
-  background: color-mix(in srgb, var(--verde) 10%, var(--fondo));
-  border-color: var(--verde);
-  transform: scale(1.06);
+  color: var(--verde-claro);
+  transform: scale(1.15);
 }
 .galeria__flecha--izq {
-  left: 0.75rem;
+  left: 0.5rem;
 }
 .galeria__flecha--der {
-  right: 0.75rem;
+  right: 0.5rem;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1146,13 +1141,6 @@ p {
     width: 2.5rem;
     height: 2.5rem;
     margin-top: -1.25rem;
-    background: color-mix(in srgb, var(--fondo) 80%, transparent);
-    opacity: 0;
-  }
-
-  .tarjeta__marco:hover .galeria__flecha,
-  .galeria__flecha:focus-visible {
-    opacity: 1;
   }
 }
 .galeria__puntos {
