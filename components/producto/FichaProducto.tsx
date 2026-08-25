@@ -5,7 +5,7 @@ import FotoCruzada from "@/components/FotoCruzada";
 import VisorFoto from "@/components/VisorFoto";
 import { useDeslizar } from "@/components/useDeslizar";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { precio as formatearPrecio } from "@/lib/formato";
 import {
@@ -65,6 +65,25 @@ export default function FichaProducto({
     if (medios.length < 2) return;
     setIndiceMedio((n) => (n + paso + medios.length) % medios.length);
   }
+
+  // Las flechas del teclado funcionan en toda la página, sin tener que hacer
+  // click en la galería primero. Con el visor abierto se apaga: el visor tiene
+  // sus propias flechas y las dos escuchas juntas pasarían dos fotos por tecla.
+  useEffect(() => {
+    if (visorAbierto || medios.length < 2) return;
+
+    function alTeclear(e: KeyboardEvent) {
+      const objetivo = e.target as HTMLElement | null;
+      if (objetivo && /^(INPUT|TEXTAREA|SELECT)$/.test(objetivo.tagName)) return;
+
+      if (e.key === "ArrowRight") pasarMedio(1);
+      else if (e.key === "ArrowLeft") pasarMedio(-1);
+    }
+
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visorAbierto, medios.length]);
 
   // El estilo del gesto se combina con el del marco; el resto son manejadores.
   const { style: estiloDeslizar, ...gestos } = useDeslizar({
@@ -129,18 +148,20 @@ export default function FichaProducto({
           {...gestos}
         >
           {medioActual?.tipo === "video" ? (
-            // Sin `preload` no se descarga nada hasta que lo tocan: el poster
-            // alcanza para que se vea lleno, y son megabytes de datos móviles
-            // que la mayoría de los visitantes no va a usar.
+            // Arranca solo, sin sonido —la única forma en que los navegadores
+            // permiten el autoplay—. Como el video recién se monta cuando el
+            // visitante llega a su lugar en la galería, la descarga también
+            // empieza ahí y no antes: la ficha sigue sin gastarle datos a
+            // quien nunca pasa de las fotos.
             <video
               key={medioActual.src}
               src={medioActual.src}
               poster={medioActual.poster ?? undefined}
+              autoPlay
               controls
               muted
               loop
               playsInline
-              preload="none"
               style={{
                 width: "100%",
                 height: "100%",
@@ -163,6 +184,38 @@ export default function FichaProducto({
               Sin foto
             </div>
           )}
+
+          {medios.length > 1 ? (
+            <>
+              {/* El stopPropagation evita que el click abra el visor de zoom. */}
+              <button
+                type="button"
+                className="galeria__flecha galeria__flecha--izq"
+                aria-label="Anterior"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  pasarMedio(-1);
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M15 5l-7 7 7 7" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="galeria__flecha galeria__flecha--der"
+                aria-label="Siguiente"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  pasarMedio(1);
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </>
+          ) : null}
         </div>
 
         {medios.length > 1 ? (

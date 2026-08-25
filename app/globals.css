@@ -1100,6 +1100,38 @@ p {
 .galeria {
   cursor: zoom-in;
 }
+
+/* Flechas sobre la foto: el gesto de deslizar existe, pero nada lo anuncia. */
+.galeria__flecha {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-top: -1.25rem;
+  border: 1px solid var(--borde);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fondo) 80%, transparent);
+  color: var(--verde);
+  backdrop-filter: blur(8px);
+  transition:
+    background var(--rapido) var(--curva),
+    border-color var(--rapido) var(--curva),
+    transform var(--rapido) var(--curva);
+}
+.galeria__flecha:hover {
+  background: color-mix(in srgb, var(--verde) 10%, var(--fondo));
+  border-color: var(--verde);
+  transform: scale(1.06);
+}
+.galeria__flecha--izq {
+  left: 0.75rem;
+}
+.galeria__flecha--der {
+  right: 0.75rem;
+}
 .galeria__puntos {
   display: flex;
   justify-content: center;
