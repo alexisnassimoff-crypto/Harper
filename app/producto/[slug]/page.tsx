@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import FichaProducto from "@/components/producto/FichaProducto";
+import { getTramos } from "@/lib/descuentos";
 import { getProducto, getSlugs } from "@/lib/catalogo";
 
 export const revalidate = 60;
@@ -45,6 +46,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function PaginaProducto({ params }: Params) {
   const { slug } = await params;
   const producto = await getProducto(slug);
+  const tramos = await getTramos();
 
   if (!producto) notFound();
 
@@ -117,7 +119,7 @@ export default async function PaginaProducto({ params }: Params) {
           __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
         }}
       />
-      <FichaProducto producto={producto} />
+      <FichaProducto producto={producto} tramos={tramos} />
     </>
   );
 }

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { precio as formatearPrecio } from "@/lib/formato";
+import { proximoTramo } from "@/lib/descuentos";
 import { useCarrito } from "./CarritoContexto";
 import { useCarritoResuelto } from "./useCarritoResuelto";
 
@@ -34,6 +35,16 @@ export default function VistaCarrito() {
   }
 
   const faltaParaGratis = datos.envioGratisDesde - datos.subtotal;
+
+  // Cuántos estuches lleva, para ofrecerle el próximo tramo de descuento.
+  const estuchesEnCarrito = datos.items
+    .filter((i) => i.categoria === "Estuches")
+    .reduce((total, i) => total + i.cantidad, 0);
+
+  const empujon =
+    estuchesEnCarrito > 0
+      ? proximoTramo(datos.tramos, "Estuches", estuchesEnCarrito)
+      : null;
 
   return (
     <div
@@ -119,9 +130,22 @@ export default function VistaCarrito() {
               </div>
             </div>
 
-            <span style={{ fontSize: "0.9375rem" }}>
-              {formatearPrecio(item.subtotal)}
-            </span>
+            <div style={{ textAlign: "right", fontSize: "0.9375rem" }}>
+              {item.descuento > 0 ? (
+                <div
+                  className="apagado"
+                  style={{ fontSize: "0.8125rem", textDecoration: "line-through" }}
+                >
+                  {formatearPrecio(item.precioLista * item.cantidad)}
+                </div>
+              ) : null}
+              <span>{formatearPrecio(item.subtotal)}</span>
+              {item.descuento > 0 ? (
+                <div style={{ fontSize: "0.75rem", color: "var(--verde)" }}>
+                  −{item.descuento}%
+                </div>
+              ) : null}
+            </div>
           </li>
         ))}
       </ul>
@@ -130,10 +154,24 @@ export default function VistaCarrito() {
         <h2 className="label">Resumen</h2>
 
         <Fila etiqueta="Subtotal" valor={formatearPrecio(datos.subtotal)} />
+
+        {datos.ahorro > 0 ? (
+          <div className="fila" style={{ color: "var(--verde)" }}>
+            <span>Descuento por cantidad</span>
+            <span>−{formatearPrecio(datos.ahorro)}</span>
+          </div>
+        ) : null}
         <Fila
           etiqueta="Envío por Correo Argentino"
           valor={datos.envio === 0 ? "Gratis" : formatearPrecio(datos.envio)}
         />
+
+        {empujon ? (
+          <p style={{ fontSize: "0.8125rem", color: "var(--verde)" }}>
+            Sumá {empujon.faltan} {empujon.faltan === 1 ? "estuche" : "estuches"} más y
+            te llevás {empujon.porcentaje}% off.
+          </p>
+        ) : null}
 
         {datos.envio > 0 && faltaParaGratis > 0 ? (
           <p className="apagado" style={{ fontSize: "0.8125rem" }}>

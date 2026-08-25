@@ -2,8 +2,15 @@ import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { getProductos, getProductosParaCobrar } from "./catalogo";
 import { calcularEnvio, envioBonificado, getConfig, type ConfigTienda } from "./config";
 import { buscarOpcion, correoConfigurado, cotizar } from "./correo";
+import {
+  conDescuento,
+  getTramos,
+  porcentajeParaCantidad,
+  type Tramo,
+} from "./descuentos";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import type {
+  Categoria,
   EleccionEnvio,
   ItemCarrito,
   ItemResuelto,
@@ -25,6 +32,10 @@ export type CarritoResuelto = {
   envioCotizado: boolean;
   /** La caja a despachar. `null` si falta peso o medidas, o si no entra en un bulto. */
   paquete: Paquete | null;
+  /** Lo que se ahorró por volumen. 0 si no llegó a ningún tramo. */
+  ahorro: number;
+  /** Los tramos vigentes, para poder empujar al siguiente desde el carrito. */
+  tramos: Tramo[];
 };
 
 /** Tope por variante: evita que un bug o un curioso pida 9999 unidades. */
@@ -72,14 +83,16 @@ export async function resolverCarrito(
     eleccion?: EleccionEnvio;
   } = {}
 ): Promise<CarritoResuelto> {
-  const [productos, config] = await Promise.all([
+  const [productos, config, tramos] = await Promise.all([
     opciones.paraCobrar ? getProductosParaCobrar() : getProductos(),
     getConfig(),
+    getTramos(),
   ]);
 
   const items: ItemResuelto[] = [];
   const descartados: CarritoResuelto["descartados"] = [];
   const aEmpacar: ItemAEmpacar[] = [];
+  const porCategoria = new Map<Categoria, number>();
 
   for (const crudo of itemsCrudos) {
     const producto = productos.find((p) =>
@@ -107,17 +120,45 @@ export async function resolverCarrito(
       productoId: producto.id,
       productoSlug: producto.slug,
       nombre: producto.nombre,
+      categoria: producto.categoria,
       varianteId: variante.id,
       sku: variante.sku,
       color: variante.color,
       foto: variante.fotos[0] ?? producto.fotoPrincipal,
+      precioLista: producto.precio,
+      // Se completa abajo, cuando ya se sepa cuántas unidades hay por categoría.
       precioUnitario: producto.precio,
+      descuento: 0,
       cantidad,
       subtotal: producto.precio * cantidad,
       stockDisponible: variante.stock,
     });
 
     aEmpacar.push({ envase: producto.envase, cantidad });
+    porCategoria.set(
+      producto.categoria,
+      (porCategoria.get(producto.categoria) ?? 0) + cantidad
+    );
+  }
+
+  // El descuento se calcula recién acá porque depende del TOTAL de unidades de
+  // la categoría: tres estuches de modelos distintos suman tres. Contarlo por
+  // línea mataría justo la venta variada que queremos.
+  let ahorro = 0;
+
+  for (const item of items) {
+    const porcentaje = porcentajeParaCantidad(
+      tramos,
+      item.categoria,
+      porCategoria.get(item.categoria) ?? 0
+    );
+
+    if (porcentaje <= 0) continue;
+
+    item.descuento = porcentaje;
+    item.precioUnitario = conDescuento(item.precioLista, porcentaje);
+    item.subtotal = item.precioUnitario * item.cantidad;
+    ahorro += (item.precioLista - item.precioUnitario) * item.cantidad;
   }
 
   const subtotal = items.reduce((total, i) => total + i.subtotal, 0);
@@ -148,6 +189,8 @@ export async function resolverCarrito(
     opcionesEnvio,
     envioCotizado,
     paquete,
+    ahorro,
+    tramos,
   };
 }
 

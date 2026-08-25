@@ -34,5 +34,7 @@ export async function POST(request: Request) {
     total: resuelto.total,
     envioGratisDesde: resuelto.config.envioGratisDesde,
     plazoEntrega: resuelto.config.plazoEntrega,
+    ahorro: resuelto.ahorro,
+    tramos: resuelto.tramos,
   });
 }

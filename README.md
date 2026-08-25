@@ -43,6 +43,7 @@ cliente no tiene efecto.
 | `Pedidos` | Se crean solos. Filtrá por `Estado = pagado` para despachar |
 | `Clientes` | Lista de compradores y de mails capturados sin compra |
 | `Config` | Costo de envío, textos y datos legales, sin tocar código |
+| `Descuentos` | Tramos de descuento por cantidad. Cambiar un valor acá cambia la web |
 
 ## Puesta en marcha
 
@@ -241,6 +242,28 @@ comprador.
 - [ ] Generar la etiqueta de despacho (`POST /shipping/import`) desde Airtable
 - [ ] Conectar `harper.ar` a Vercel: `NEXT_PUBLIC_SITE_URL`, la URL del webhook en
       Mercado Pago y redeploy, los tres juntos
+
+## Descuentos por cantidad
+
+Los tramos viven en la tabla `Descuentos`: categoría, unidades mínimas y porcentaje.
+Aplica el más alto que alcance el pedido.
+
+**Las unidades se cuentan por categoría, no por producto ni por color.** Alguien que
+lleva un M500 negro, un O300 rojo y un R100 marrón está comprando tres estuches. Exigir
+que sean iguales mataría justo la venta variada que interesa.
+
+Existen por una razón concreta: **el envío se paga por paquete, no por unidad.** Cuatro
+estuches entran en el mismo sobre que uno y cuestan lo mismo de despachar, así que cada
+unidad extra amortiza un costo ya pagado. Sin eso, un estuche de $6.990 con $10.100 de
+envío no lo compra nadie.
+
+El descuento se calcula **en el servidor**, en `resolverCarrito()`, igual que los
+precios: del navegador vienen IDs y cantidades, nunca montos. Y viaja a Mercado Pago
+como `unit_price` ya descontado, porque MP no acepta importes negativos.
+
+Si la tabla está vacía o Airtable no responde, se cobra el precio de lista. Degradar
+hacia el precio completo es lo correcto: cobrar de más se reclama, cobrar de menos no
+se descubre nunca.
 
 ## Envíos
 

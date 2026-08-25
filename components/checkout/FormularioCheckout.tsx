@@ -380,6 +380,13 @@ export default function FormularioCheckout() {
           <span>{formatearPrecio(subtotal)}</span>
         </div>
 
+        {carrito.ahorro > 0 ? (
+          <div className="fila" style={{ color: "var(--verde)" }}>
+            <span>Descuento por cantidad</span>
+            <span>−{formatearPrecio(carrito.ahorro)}</span>
+          </div>
+        ) : null}
+
         {/* Envío. Hasta que no hay código postal no se puede cotizar, así que
             se muestra el precio de referencia y se aclara por qué. */}
         {opciones.length > 0 ? (

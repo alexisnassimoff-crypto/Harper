@@ -15,6 +15,7 @@ export const TABLAS = {
   pedidos: "tbl4HkvPUGzjbdWAe",
   clientes: "tblsaNGzIXaeK8aJM",
   config: "tblMyAedM5pvVijLf",
+  descuentos: "tblYkgJW6Bi0Fx048",
 } as const;
 
 export type Attachment = {

@@ -58,11 +58,18 @@ export type ItemResuelto = {
   productoId: string;
   productoSlug: string;
   nombre: string;
+  /** Para contar unidades por categoría al aplicar el descuento por volumen. */
+  categoria: Categoria;
   varianteId: string;
   sku: string;
   color: string;
   foto: string | null;
+  /** Precio de lista, sin descuento por volumen. */
+  precioLista: number;
+  /** Lo que realmente se cobra por unidad. Es lo que viaja a Mercado Pago. */
   precioUnitario: number;
+  /** Porcentaje aplicado, 0 si no llegó a ningún tramo. */
+  descuento: number;
   cantidad: number;
   subtotal: number;
   stockDisponible: number;

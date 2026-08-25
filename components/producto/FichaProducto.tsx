@@ -9,8 +9,15 @@ import { useMemo, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { precio as formatearPrecio } from "@/lib/formato";
 import type { Producto } from "@/lib/tipos";
+import type { Tramo } from "@/lib/descuentos";
 
-export default function FichaProducto({ producto }: { producto: Producto }) {
+export default function FichaProducto({
+  producto,
+  tramos = [],
+}: {
+  producto: Producto;
+  tramos?: Tramo[];
+}) {
   const router = useRouter();
   const { agregar } = useCarrito();
   const [enTransicion, iniciarTransicion] = useTransition();
@@ -27,6 +34,12 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
   const [visorAbierto, setVisorAbierto] = useState(false);
 
   const variante = producto.variantes[indiceVariante];
+
+  // El escalón más bajo de la categoría: es el que engancha, porque es el que
+  // está a una unidad de distancia.
+  const primerTramo = tramos
+    .filter((t) => t.categoria === producto.categoria)
+    .sort((a, b) => a.desdeUnidades - b.desdeUnidades)[0];
 
   const fotos = useMemo(
     () => (variante.fotos.length > 0 ? variante.fotos : []),
@@ -190,6 +203,21 @@ export default function FichaProducto({ producto }: { producto: Producto }) {
               </span>
             ) : null}
           </div>
+
+          {/* El descuento por cantidad se muestra acá y no recién en el carrito:
+              si la idea aparece después de decidir, ya es tarde. */}
+          {primerTramo ? (
+            <p style={{ fontSize: "0.875rem", color: "var(--verde)", margin: 0 }}>
+              Llevando {primerTramo.desdeUnidades} o más, {primerTramo.porcentaje}% off
+              {" · "}
+              <span className="apagado">
+                {formatearPrecio(
+                  Math.round(producto.precio * (1 - primerTramo.porcentaje / 100))
+                )}{" "}
+                cada uno
+              </span>
+            </p>
+          ) : null}
         </div>
 
         {producto.descripcion ? (

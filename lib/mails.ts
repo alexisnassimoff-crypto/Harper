@@ -129,10 +129,18 @@ function filasDeItems(items: ItemResuelto[], sitio: string) {
   </td>
   <td style="padding:10px 0;vertical-align:top;font-size:14px;line-height:1.5;">
     <strong style="font-weight:500;">${escaparHtml(item.nombre)}</strong><br>
-    <span style="color:#78756c;">${escaparHtml(item.color)} · ${item.cantidad} ${item.cantidad === 1 ? "unidad" : "unidades"}</span>
+    <span style="color:#78756c;">${escaparHtml(item.color)} · ${item.cantidad} ${item.cantidad === 1 ? "unidad" : "unidades"}</span>${
+      item.descuento > 0
+        ? `<br><span style="color:#004226;">${item.descuento}% de descuento por cantidad</span>`
+        : ""
+    }
   </td>
   <td align="right" style="padding:10px 0;vertical-align:top;font-size:14px;white-space:nowrap;">
-    ${formatearPrecio(item.subtotal)}
+    ${
+      item.descuento > 0
+        ? `<span style="color:#78756c;text-decoration:line-through;font-size:12px;">${formatearPrecio(item.precioLista * item.cantidad)}</span><br>`
+        : ""
+    }${formatearPrecio(item.subtotal)}
   </td>
 </tr>`;
     })
@@ -196,7 +204,7 @@ ${totales(d.subtotal, d.envio, d.total)}
   const texto = `Gracias por tu compra.
 
 Pedido ${d.numero}
-${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color}: ${formatearPrecio(i.subtotal)}`).join("\n")}
+${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color}: ${formatearPrecio(i.subtotal)}${i.descuento > 0 ? ` (${i.descuento}% off)` : ""}`).join("\n")}
 
 Subtotal: ${formatearPrecio(d.subtotal)}
 Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
