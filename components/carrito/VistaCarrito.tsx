@@ -162,7 +162,7 @@ export default function VistaCarrito() {
           </div>
         ) : null}
         <Fila
-          etiqueta="Envío por Correo Argentino"
+          etiqueta="Envío"
           valor={datos.envio === 0 ? "Gratis" : formatearPrecio(datos.envio)}
         />
 
@@ -189,7 +189,7 @@ export default function VistaCarrito() {
         </Link>
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
-          Entrega por Correo Argentino en {datos.plazoEntrega}.
+          Entrega en {datos.plazoEntrega}.
         </p>
       </aside>
     </div>

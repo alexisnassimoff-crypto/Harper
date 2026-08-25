@@ -12,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Harper — Cases & Eyewear",
     short_name: "Harper",
     description:
-      "Anteojos y estuches rígidos de ecocuero premium. Entrega por Correo Argentino a todo el país.",
+      "Anteojos y estuches rígidos de ecocuero premium.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

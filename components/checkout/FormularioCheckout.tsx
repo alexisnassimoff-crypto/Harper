@@ -445,7 +445,7 @@ export default function FormularioCheckout() {
         ) : (
           <div className="fila">
             <span className="apagado">
-              Envío por Correo Argentino
+              Envío
               {cotizando ? " · calculando…" : ""}
             </span>
             <span>{envio === 0 ? "Gratis" : formatearPrecio(envio)}</span>
@@ -475,7 +475,7 @@ export default function FormularioCheckout() {
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
           Pagás con Mercado Pago. Aceptamos tarjetas en cuotas, débito y
-          transferencia. Entrega por Correo Argentino en {carrito.plazoEntrega}.
+          transferencia. Entrega en {carrito.plazoEntrega}.
         </p>
       </aside>
     </form>

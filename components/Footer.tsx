@@ -30,7 +30,7 @@ export default function Footer({ config }: { config: ConfigTienda }) {
         <div className="pila" style={{ gap: "1rem" }}>
           <Logo alto={54} lockup />
           <p className="apagado" style={{ fontSize: "0.875rem", maxWidth: "22rem" }}>
-            Anteojos y estuches. Entrega por Correo Argentino a todo el país.
+            Anteojos y estuches.
           </p>
         </div>
 

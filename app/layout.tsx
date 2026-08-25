@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: "%s · Harper",
   },
   description:
-    "Estuches rígidos de ecocuero premium y anteojos Harper. Comprá online con envíos a todo el país.",
+    "Estuches rígidos de ecocuero premium y anteojos Harper. Comprá online.",
   applicationName: "Harper",
   keywords: [
     "anteojos",
@@ -71,7 +71,7 @@ export default async function RootLayout({
       logo: `${SITIO}/icono-512.png`,
       image: `${SITIO}/opengraph-image.jpg`,
       description:
-        "Anteojos y estuches rígidos de ecocuero premium. Entrega por Correo Argentino a todo el país.",
+        "Anteojos y estuches rígidos de ecocuero premium.",
       taxID: config.cuit,
       address: {
         "@type": "PostalAddress",

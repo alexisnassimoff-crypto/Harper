@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!producto) return { title: "Producto no encontrado" };
 
   const descripcion =
-    producto.descripcion || `${producto.nombre} — Harper. Envíos a todo el país.`;
+    producto.descripcion || `${producto.nombre} — Harper.`;
 
   return {
     title: producto.nombre,

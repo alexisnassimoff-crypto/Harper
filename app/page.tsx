@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Harper — Cases & Eyewear",
     description:
-      "Anteojos y estuches rígidos de ecocuero premium. Entrega por Correo Argentino a todo el país.",
+      "Anteojos y estuches rígidos de ecocuero premium.",
     type: "website",
     // Sin `images`: las pone app/opengraph-image.jpg.
   },
