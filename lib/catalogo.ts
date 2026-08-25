@@ -6,6 +6,7 @@ import {
   TABLAS,
 } from "./airtable";
 import { aNumero } from "./formato";
+import { videoReproducible } from "./galeria";
 import type { Categoria, Envase, Producto, Variante } from "./tipos";
 
 /** Cada cuántos segundos se refresca el catálogo cacheado. */
@@ -74,10 +75,26 @@ function resolverFotos(fila: FilaVariante): string[] {
   return (fila.Fotos ?? []).map((a) => a.url);
 }
 
+/**
+ * Resuelve el video del producto, si se puede reproducir.
+ *
+ * Un `.mov` solo lo abre Safari: en Chrome, Brave o Android el visitante ve un
+ * recuadro negro roto. Preferimos no mostrar nada —el sync lo reporta como
+ * aviso— antes que ensuciar la ficha con un reproductor que no anda.
+ */
 function resolverVideo(fila: FilaProducto): string | null {
+  const adjunto = fila.Video?.[0];
   const espejado = fila.Video_url?.trim();
-  if (espejado) return espejado;
-  return fila.Video?.[0]?.url ?? null;
+  const url = espejado || adjunto?.url;
+
+  if (!url) return null;
+
+  const reproducible = videoReproducible({
+    url: espejado || adjunto?.filename,
+    tipo: adjunto?.type,
+  });
+
+  return reproducible ? url : null;
 }
 
 function armarVariante(registro: AirtableRecord<FilaVariante>): Variante {

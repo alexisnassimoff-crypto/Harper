@@ -465,6 +465,23 @@ p {
   box-shadow: 0 0 0 1px var(--verde);
 }
 
+/* Distingue de un vistazo la miniatura del video de las de foto. */
+.mini__play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--fondo);
+  background: color-mix(in srgb, var(--tinta) 18%, transparent);
+}
+
+.mini__play svg {
+  padding: 0.35rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tinta) 72%, transparent);
+  box-sizing: content-box;
+}
+
 /* ---------- Aparición al cargar ---------- */
 
 @keyframes surgir {

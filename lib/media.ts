@@ -6,6 +6,7 @@ import {
   TABLAS,
   updateRecord,
 } from "./airtable";
+import { videoReproducible } from "./galeria";
 
 /**
  * Espejo permanente de las imágenes y videos de Airtable.
@@ -133,6 +134,16 @@ export async function sincronizarMedia(): Promise<ResultadoSync> {
   for (const registro of productos) {
     const adjunto = registro.fields.Video?.[0];
     if (!adjunto) continue;
+
+    // Se espeja igual —así queda subido si algún día lo convertimos— pero se
+    // avisa fuerte: la ficha no lo va a mostrar, y sin este aviso el video
+    // desaparecería sin explicación.
+    if (!videoReproducible({ url: adjunto.filename, tipo: adjunto.type })) {
+      const etiqueta = registro.fields.Nombre ?? registro.id;
+      resultado.errores.push(
+        `Producto ${etiqueta}: ${adjunto.filename} no lo reproduce Chrome ni Android. Convertilo a MP4 (H.264) y volvé a subirlo.`
+      );
+    }
 
     const actual = registro.fields.Video_url?.trim() ?? "";
     if (actual.includes(adjunto.id)) continue;

@@ -8,6 +8,11 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { precio as formatearPrecio } from "@/lib/formato";
+import {
+  armarGaleria,
+  indiceEntreFotos,
+  posicionDeFoto,
+} from "@/lib/galeria";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 
@@ -29,7 +34,7 @@ export default function FichaProducto({
   );
 
   const [indiceVariante, setIndiceVariante] = useState(indiceInicial);
-  const [indiceFoto, setIndiceFoto] = useState(0);
+  const [indiceMedio, setIndiceMedio] = useState(0);
   const [agregado, setAgregado] = useState(false);
   const [visorAbierto, setVisorAbierto] = useState(false);
 
@@ -46,22 +51,30 @@ export default function FichaProducto({
     [variante]
   );
 
-  const fotoActual = fotos[Math.min(indiceFoto, fotos.length - 1)] ?? null;
+  // El video es del producto y las fotos son de la variante: la lista se arma
+  // acá, con el video en tercer lugar.
+  const medios = useMemo(
+    () => armarGaleria(fotos, producto.video, producto.fotoPrincipal),
+    [fotos, producto.video, producto.fotoPrincipal]
+  );
 
-  function pasarFoto(paso: number) {
-    if (fotos.length < 2) return;
-    setIndiceFoto((n) => (n + paso + fotos.length) % fotos.length);
+  const medioActual = medios[Math.min(indiceMedio, medios.length - 1)] ?? null;
+  const esFoto = medioActual?.tipo === "foto";
+
+  function pasarMedio(paso: number) {
+    if (medios.length < 2) return;
+    setIndiceMedio((n) => (n + paso + medios.length) % medios.length);
   }
 
   // El estilo del gesto se combina con el del marco; el resto son manejadores.
   const { style: estiloDeslizar, ...gestos } = useDeslizar({
-    alSiguiente: () => pasarFoto(1),
-    alAnterior: () => pasarFoto(-1),
+    alSiguiente: () => pasarMedio(1),
+    alAnterior: () => pasarMedio(-1),
   });
 
   function elegirColor(indice: number) {
     setIndiceVariante(indice);
-    setIndiceFoto(0);
+    setIndiceMedio(0);
     setAgregado(false);
   }
 
@@ -97,25 +110,47 @@ export default function FichaProducto({
       {/* ---------- Galería ---------- */}
       <div className="pila surge" style={{ gap: "0.75rem" }}>
         <div
-          className="tarjeta__marco galeria"
+          // El cursor de lupa solo corresponde sobre una foto: el video no se
+          // amplía, se reproduce donde está.
+          className={esFoto ? "tarjeta__marco galeria" : "tarjeta__marco"}
           style={{ aspectRatio: "1 / 1", ...estiloDeslizar }}
-          role={fotoActual ? "button" : undefined}
-          tabIndex={fotoActual ? 0 : undefined}
-          aria-label={fotoActual ? "Ampliar la foto" : undefined}
-          onClick={() => fotoActual && setVisorAbierto(true)}
+          role={esFoto ? "button" : undefined}
+          tabIndex={medioActual ? 0 : undefined}
+          aria-label={esFoto ? "Ampliar la foto" : undefined}
+          onClick={() => esFoto && setVisorAbierto(true)}
           onKeyDown={(e) => {
-            if (!fotoActual) return;
-            if (e.key === "Enter" || e.key === " ") {
+            if (!medioActual) return;
+            if (esFoto && (e.key === "Enter" || e.key === " ")) {
               e.preventDefault();
               setVisorAbierto(true);
-            } else if (e.key === "ArrowRight") pasarFoto(1);
-            else if (e.key === "ArrowLeft") pasarFoto(-1);
+            } else if (e.key === "ArrowRight") pasarMedio(1);
+            else if (e.key === "ArrowLeft") pasarMedio(-1);
           }}
           {...gestos}
         >
-          {fotoActual ? (
+          {medioActual?.tipo === "video" ? (
+            // Sin `preload` no se descarga nada hasta que lo tocan: el poster
+            // alcanza para que se vea lleno, y son megabytes de datos móviles
+            // que la mayoría de los visitantes no va a usar.
+            <video
+              key={medioActual.src}
+              src={medioActual.src}
+              poster={medioActual.poster ?? undefined}
+              controls
+              muted
+              loop
+              playsInline
+              preload="none"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                background: "var(--fondo)",
+              }}
+            />
+          ) : medioActual ? (
             <FotoCruzada
-              src={fotoActual}
+              src={medioActual.src}
               alt={`${producto.nombre} — ${variante.color}`}
               sizes="(max-width: 1024px) 100vw, 50vw"
               prioridad
@@ -130,55 +165,62 @@ export default function FichaProducto({
           )}
         </div>
 
-        {fotos.length > 1 ? (
+        {medios.length > 1 ? (
           <span className="galeria__puntos" aria-hidden="true">
-            {fotos.map((f, i) => (
+            {medios.map((m, i) => (
               <span
-                key={f}
+                key={m.src}
                 className="ficha__punto"
-                data-activo={i === indiceFoto || undefined}
+                data-activo={i === indiceMedio || undefined}
               />
             ))}
           </span>
         ) : null}
 
-        {fotos.length > 1 ? (
+        {medios.length > 1 ? (
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            {fotos.map((foto, i) => (
+            {medios.map((medio, i) => (
               <button
-                key={foto}
+                key={medio.src}
                 type="button"
-                onClick={() => setIndiceFoto(i)}
-                aria-label={`Ver foto ${i + 1} de ${fotos.length}`}
-                aria-current={i === indiceFoto}
+                onClick={() => setIndiceMedio(i)}
+                aria-label={
+                  medio.tipo === "video"
+                    ? "Ver el video"
+                    : `Ver foto ${indiceEntreFotos(medios, i) + 1} de ${fotos.length}`
+                }
+                aria-current={i === indiceMedio}
                 className="mini"
               >
-                <Image
-                  src={foto}
-                  alt=""
-                  fill
-                  sizes="72px"
-                  style={{ objectFit: "contain", padding: "6px" }}
-                />
+                {medio.tipo === "video" ? (
+                  <>
+                    {medio.poster ? (
+                      <Image
+                        src={medio.poster}
+                        alt=""
+                        fill
+                        sizes="72px"
+                        style={{ objectFit: "contain", padding: "6px" }}
+                      />
+                    ) : null}
+                    <span className="mini__play" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                        <path d="M8 5.5v13l11-6.5z" />
+                      </svg>
+                    </span>
+                  </>
+                ) : (
+                  <Image
+                    src={medio.src}
+                    alt=""
+                    fill
+                    sizes="72px"
+                    style={{ objectFit: "contain", padding: "6px" }}
+                  />
+                )}
               </button>
             ))}
           </div>
-        ) : null}
-
-        {producto.video ? (
-          <video
-            src={producto.video}
-            controls
-            muted
-            loop
-            playsInline
-            preload="none"
-            style={{
-              width: "100%",
-              borderRadius: "var(--radio-tarjeta)",
-              background: "var(--fondo-alt)",
-            }}
-          />
         ) : null}
       </div>
 
@@ -299,12 +341,13 @@ export default function FichaProducto({
         )}
       </div>
 
-      {visorAbierto && fotoActual ? (
+      {visorAbierto && esFoto ? (
         <VisorFoto
           fotos={fotos}
-          indice={Math.min(indiceFoto, fotos.length - 1)}
+          // El visor cuenta solo fotos; la galería cuenta también el video.
+          indice={indiceEntreFotos(medios, indiceMedio)}
           alt={`${producto.nombre} — ${variante.color}`}
-          alCambiar={setIndiceFoto}
+          alCambiar={(i) => setIndiceMedio(posicionDeFoto(medios, i))}
           alCerrar={() => setVisorAbierto(false)}
         />
       ) : null}
