@@ -269,6 +269,141 @@ export async function sucursales(provincia: string): Promise<Sucursal[] | null> 
 }
 
 // ---------------------------------------------------------------------------
+// Importar un envío (la "etiqueta")
+// ---------------------------------------------------------------------------
+
+export type EnvioAImportar = {
+  /** Identificador externo único: el record ID del pedido en Airtable. */
+  extOrderId: string;
+  /** El número que ve el cliente (HARPER-XXXXX). */
+  orderNumber: string;
+  destinatario: {
+    nombre: string;
+    email: string;
+    telefono: string;
+  };
+  modo: ModoEnvio;
+  /** Código de sucursal, solo cuando `modo` es "S". */
+  sucursal?: string;
+  direccion: {
+    calle: string;
+    numero: string;
+    ciudad: string;
+    provinciaCodigo: string;
+    cp: string;
+  };
+  remitente: {
+    nombre: string;
+    email: string;
+    cpOrigen: string;
+  };
+  paquete: Paquete;
+  /** Lo que vale la mercadería, para el seguro de Correo Argentino. */
+  valorDeclarado: number;
+};
+
+export type ResultadoImportar =
+  | { ok: true; id: string | null; tracking: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Carga el envío en MiCorreo con todos los datos del pedido.
+ *
+ * Es la "etiqueta automática": después de esto el envío aparece en el panel
+ * de MiCorreo listo para imprimir, sin tipear nada. La etiqueta en sí se
+ * imprime desde el panel: la API no devuelve el PDF.
+ *
+ * A diferencia del resto del módulo, acá los errores SE INFORMAN en lugar de
+ * degradar en silencio: quien despacha necesita saber por qué no salió.
+ *
+ * OJO: los nombres de campo del payload siguen la documentación pública de
+ * MiCorreo y todavía no se validaron contra la API real (faltan las
+ * credenciales). El primer uso va con CORREO_MODO=test y un pedido de prueba.
+ */
+export async function importarEnvio(envio: EnvioAImportar): Promise<ResultadoImportar> {
+  if (!correoConfigurado()) {
+    return { ok: false, error: "Faltan las credenciales de MiCorreo en Vercel" };
+  }
+
+  const activa = await obtenerSesion();
+  if (!activa) {
+    return { ok: false, error: "No se pudo abrir sesión con MiCorreo" };
+  }
+
+  const domicilio = {
+    streetName: envio.direccion.calle,
+    streetNumber: envio.direccion.numero,
+    city: envio.direccion.ciudad,
+    provinceCode: envio.direccion.provinciaCodigo,
+    postalCode: envio.direccion.cp,
+  };
+
+  const cuerpo = {
+    customerId: activa.customerId,
+    extOrderId: envio.extOrderId,
+    orderNumber: envio.orderNumber,
+    sender: {
+      name: envio.remitente.nombre,
+      email: envio.remitente.email,
+      originAddress: {
+        streetName: "Núñez",
+        streetNumber: "2422",
+        city: "Ciudad Autónoma de Buenos Aires",
+        provinceCode: "C",
+        postalCode: envio.remitente.cpOrigen,
+      },
+    },
+    recipient: {
+      name: envio.destinatario.nombre,
+      email: envio.destinatario.email,
+      phone: envio.destinatario.telefono,
+      cellPhone: envio.destinatario.telefono,
+    },
+    shipping: {
+      deliveryType: envio.modo,
+      ...(envio.modo === "S" && envio.sucursal ? { agency: envio.sucursal } : {}),
+      address: domicilio,
+      weight: envio.paquete.pesoG,
+      declaredValue: envio.valorDeclarado,
+      height: envio.paquete.altoCm,
+      length: envio.paquete.largoCm,
+      width: envio.paquete.anchoCm,
+    },
+  };
+
+  try {
+    const respuesta = await pedir(`${base()}/shipping/import`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${activa.jwt}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(cuerpo),
+    });
+
+    if (!respuesta) {
+      return { ok: false, error: "MiCorreo no aceptó el envío (revisar logs de Vercel)" };
+    }
+
+    const datos = (await respuesta.json().catch(() => ({}))) as {
+      id?: string | number;
+      shipmentId?: string | number;
+      trackingNumber?: string;
+      tracking?: string;
+    };
+
+    return {
+      ok: true,
+      id: String(datos.id ?? datos.shipmentId ?? "") || null,
+      tracking: datos.trackingNumber ?? datos.tracking ?? null,
+    };
+  } catch (error) {
+    console.error("[correo] falló la importación del envío:", error);
+    return { ok: false, error: "Error inesperado importando el envío" };
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 /**
  * `fetch` con timeout que devuelve `null` en vez de tirar.
