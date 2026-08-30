@@ -482,6 +482,50 @@ p {
   box-sizing: content-box;
 }
 
+/* ---------- Contador de cantidad (+ / −) ---------- */
+
+.contador {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-pill);
+  background: #fff;
+  overflow: hidden;
+}
+
+.contador__boton {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--verde);
+  font-size: 1.125rem;
+  line-height: 1;
+  transition:
+    background var(--rapido) var(--curva),
+    color var(--rapido) var(--curva);
+}
+
+.contador__boton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--verde) 10%, #fff);
+}
+
+.contador__boton:disabled {
+  color: var(--texto-suave);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.contador__valor {
+  min-width: 2rem;
+  text-align: center;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Escalera de descuentos por cantidad ---------- */
 
 .escalera {

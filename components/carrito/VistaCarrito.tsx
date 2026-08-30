@@ -97,33 +97,33 @@ export default function VistaCarrito() {
               </span>
 
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <label className="solo-lectores" htmlFor={`cant-${item.varianteId}`}>
-                  Cantidad de {item.nombre}
-                </label>
-                <select
-                  id={`cant-${item.varianteId}`}
-                  value={item.cantidad}
-                  onChange={(e) =>
-                    cambiarCantidad(item.varianteId, Number(e.target.value))
-                  }
-                  style={{
-                    minHeight: "2.25rem",
-                    padding: "0 0.75rem",
-                    border: "1px solid var(--borde)",
-                    borderRadius: "var(--radio-pill)",
-                    background: "#fff",
-                    font: "inherit",
-                  }}
-                >
-                  {Array.from(
-                    { length: Math.min(item.stockDisponible, 20) },
-                    (_, i) => i + 1
-                  ).map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+                {/* Un +/− en vez del desplegable: sumar una unidad es un solo
+                    toque, y con los descuentos por cantidad queremos que
+                    agrandar el pedido cueste lo menos posible. */}
+                <div className="contador">
+                  <button
+                    type="button"
+                    className="contador__boton"
+                    onClick={() => cambiarCantidad(item.varianteId, item.cantidad - 1)}
+                    disabled={item.cantidad <= 1}
+                    aria-label={`Quitar una unidad de ${item.nombre}`}
+                  >
+                    −
+                  </button>
+                  <span className="contador__valor" aria-live="polite">
+                    <span className="solo-lectores">Cantidad de {item.nombre}: </span>
+                    {item.cantidad}
+                  </span>
+                  <button
+                    type="button"
+                    className="contador__boton"
+                    onClick={() => cambiarCantidad(item.varianteId, item.cantidad + 1)}
+                    disabled={item.cantidad >= Math.min(item.stockDisponible, 20)}
+                    aria-label={`Sumar una unidad de ${item.nombre}`}
+                  >
+                    +
+                  </button>
+                </div>
 
                 <button
                   type="button"
