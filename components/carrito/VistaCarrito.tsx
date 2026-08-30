@@ -8,6 +8,7 @@ import EscaleraPrecios from "@/components/EscaleraPrecios";
 import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 import { useCarritoResuelto } from "./useCarritoResuelto";
+import SugerenciasCarrito from "./SugerenciasCarrito";
 
 export default function VistaCarrito() {
   const { cambiarCantidad, quitar } = useCarrito();
@@ -67,6 +68,10 @@ export default function VistaCarrito() {
         alignItems: "start",
       }}
     >
+      {/* Los ítems y las sugerencias van en la misma columna: la grilla reparte
+          columnas entre sus hijos directos, y el resumen tiene que quedar solo
+          en la suya. */}
+      <div className="pila" style={{ gap: "2rem" }}>
       <ul className="pila" style={{ gap: "1.5rem", listStyle: "none", margin: 0, padding: 0 }}>
         {datos.items.map((item) => (
           <li
@@ -161,6 +166,9 @@ export default function VistaCarrito() {
           </li>
         ))}
       </ul>
+
+        <SugerenciasCarrito sugerencias={datos.sugerencias ?? []} />
+      </div>
 
       <aside className="panel">
         <h2 className="label">Resumen</h2>

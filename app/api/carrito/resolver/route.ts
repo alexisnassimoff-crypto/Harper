@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { limpiarItems, resolverCarrito } from "@/lib/pedidos";
+import { sugerirParaCarrito } from "@/lib/sugerencias";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,12 @@ export async function POST(request: Request) {
 
   const resuelto = await resolverCarrito(limpiarItems(items));
 
+  // Las sugerencias no pueden romper el carrito: si fallan, se muestra igual.
+  const sugerencias = await sugerirParaCarrito(resuelto.items).catch((error) => {
+    console.error("[carrito] no se pudieron armar las sugerencias:", error);
+    return [];
+  });
+
   return NextResponse.json({
     items: resuelto.items,
     descartados: resuelto.descartados,
@@ -36,5 +43,6 @@ export async function POST(request: Request) {
     plazoEntrega: resuelto.config.plazoEntrega,
     ahorro: resuelto.ahorro,
     tramos: resuelto.tramos,
+    sugerencias,
   });
 }

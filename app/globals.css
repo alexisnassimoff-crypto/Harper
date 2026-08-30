@@ -482,6 +482,87 @@ p {
   box-sizing: content-box;
 }
 
+/* ---------- Sugerencias del carrito ---------- */
+
+.sugerencias {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--borde);
+}
+
+.sugerencias__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sugerencia {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.6rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  transition:
+    border-color var(--rapido) var(--curva),
+    box-shadow var(--medio) var(--curva);
+}
+
+.sugerencia:hover {
+  border-color: color-mix(in srgb, var(--verde) 45%, var(--borde));
+  box-shadow: var(--sombra-baja);
+}
+
+.sugerencia__foto {
+  position: relative;
+  flex: 0 0 auto;
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: 14px;
+  background: var(--fondo-alt);
+  overflow: hidden;
+}
+
+.sugerencia__datos {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.sugerencia__motivo {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--verde);
+}
+
+.sugerencia__nombre {
+  font-size: 0.9375rem;
+}
+
+.sugerencia__precio {
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+}
+
+@media (max-width: 26rem) {
+  .sugerencia {
+    flex-wrap: wrap;
+  }
+  .sugerencia .boton {
+    width: 100%;
+  }
+}
+
 /* ---------- Contador de cantidad (+ / −) ---------- */
 
 .contador {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ItemResuelto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
+import type { Sugerencia } from "@/lib/sugerencias";
 import { useCarrito } from "./CarritoContexto";
 
 export type CarritoResueltoCliente = {
@@ -17,6 +18,8 @@ export type CarritoResueltoCliente = {
   ahorro: number;
   /** Los tramos vigentes, para poder empujar al siguiente. */
   tramos: Tramo[];
+  /** Lo que le falta al carrito, según lo que ya eligió. */
+  sugerencias: Sugerencia[];
 };
 
 /**
