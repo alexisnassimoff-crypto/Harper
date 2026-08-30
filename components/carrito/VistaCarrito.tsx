@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { proximoTramo } from "@/lib/descuentos";
+import EscaleraPrecios from "@/components/EscaleraPrecios";
+import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 import { useCarritoResuelto } from "./useCarritoResuelto";
 
@@ -36,10 +38,20 @@ export default function VistaCarrito() {
 
   const faltaParaGratis = datos.envioGratisDesde - datos.subtotal;
 
-  // Cuántos estuches lleva, para ofrecerle el próximo tramo de descuento.
-  const estuchesEnCarrito = datos.items
-    .filter((i) => i.categoria === "Estuches")
-    .reduce((total, i) => total + i.cantidad, 0);
+  // Unidades por categoría, para la escalera y el empujón al próximo tramo.
+  const porCategoria = new Map<Categoria, { unidades: number; precioLista: number }>();
+  for (const item of datos.items) {
+    const actual = porCategoria.get(item.categoria) ?? {
+      unidades: 0,
+      precioLista: item.precioLista,
+    };
+    actual.unidades += item.cantidad;
+    // El precio de referencia de la escalera: el más barato de la categoría.
+    actual.precioLista = Math.min(actual.precioLista, item.precioLista);
+    porCategoria.set(item.categoria, actual);
+  }
+
+  const estuchesEnCarrito = porCategoria.get("Estuches")?.unidades ?? 0;
 
   const empujon =
     estuchesEnCarrito > 0
@@ -166,12 +178,15 @@ export default function VistaCarrito() {
           valor={datos.envio === 0 ? "Gratis" : formatearPrecio(datos.envio)}
         />
 
-        {empujon ? (
-          <p style={{ fontSize: "0.8125rem", color: "var(--verde)" }}>
-            Sumá {empujon.faltan} {empujon.faltan === 1 ? "estuche" : "estuches"} más y
-            te llevás {empujon.porcentaje}% off.
-          </p>
-        ) : null}
+        {[...porCategoria.entries()].map(([categoria, info]) => (
+          <EscaleraPrecios
+            key={categoria}
+            tramos={datos.tramos}
+            categoria={categoria}
+            precioLista={info.precioLista}
+            cantidadActual={info.unidades}
+          />
+        ))}
 
         {datos.envio > 0 && faltaParaGratis > 0 ? (
           <p className="apagado" style={{ fontSize: "0.8125rem" }}>

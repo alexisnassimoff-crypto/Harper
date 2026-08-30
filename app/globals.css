@@ -482,6 +482,104 @@ p {
   box-sizing: content-box;
 }
 
+/* ---------- Escalera de descuentos por cantidad ---------- */
+
+.escalera {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem 1.1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo-alt);
+}
+
+.escalera__titulo {
+  font-size: 0.875rem;
+  color: var(--verde);
+}
+
+.escalera__titulo strong {
+  font-weight: 600;
+}
+
+.escalera__tramos {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.escalera__pieza {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.5rem 0.2rem 0.45rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--fondo);
+  transition:
+    background var(--medio) var(--curva),
+    border-color var(--medio) var(--curva),
+    color var(--medio) var(--curva);
+}
+
+.escalera__pieza[data-alcanzado] {
+  background: var(--verde);
+  border-color: var(--verde);
+}
+
+.escalera__pieza[data-alcanzado] .escalera__cantidad,
+.escalera__pieza[data-alcanzado] .escalera__precio,
+.escalera__pieza[data-alcanzado] .escalera__off {
+  color: var(--sobre-acento);
+}
+
+.escalera__pieza[data-proximo]:not([data-alcanzado]) {
+  border-style: dashed;
+  border-color: var(--verde);
+}
+
+.escalera__cantidad {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--texto-suave);
+}
+
+.escalera__precio {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--texto);
+  white-space: nowrap;
+}
+
+.escalera__off {
+  font-size: 0.6875rem;
+  color: var(--verde);
+}
+
+.escalera__barra {
+  height: 0.375rem;
+  border-radius: var(--radio-pill);
+  background: color-mix(in srgb, var(--tinta) 10%, var(--fondo));
+  overflow: hidden;
+}
+
+.escalera__relleno {
+  height: 100%;
+  border-radius: var(--radio-pill);
+  background: var(--verde);
+  transition: width var(--lento) var(--curva);
+}
+
+@media (max-width: 26rem) {
+  .escalera__precio {
+    font-size: 0.75rem;
+  }
+}
+
 /* ---------- Aparición al cargar ---------- */
 
 @keyframes surgir {

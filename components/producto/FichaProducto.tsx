@@ -7,6 +7,8 @@ import { useDeslizar } from "@/components/useDeslizar";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
+import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
+import EscaleraPrecios from "@/components/EscaleraPrecios";
 import { precio as formatearPrecio } from "@/lib/formato";
 import {
   armarGaleria,
@@ -40,11 +42,12 @@ export default function FichaProducto({
 
   const variante = producto.variantes[indiceVariante];
 
-  // El escalón más bajo de la categoría: es el que engancha, porque es el que
-  // está a una unidad de distancia.
-  const primerTramo = tramos
-    .filter((t) => t.categoria === producto.categoria)
-    .sort((a, b) => a.desdeUnidades - b.desdeUnidades)[0];
+  // Lo que ya hay en el carrito de esta categoría: la escalera de precios se
+  // va llenando a medida que el visitante agrega, que es todo el chiste.
+  const { datos: carritoResuelto } = useCarritoResuelto();
+  const unidadesEnCategoria = (carritoResuelto?.items ?? [])
+    .filter((i) => i.categoria === producto.categoria)
+    .reduce((total, i) => total + i.cantidad, 0);
 
   const fotos = useMemo(
     () => (variante.fotos.length > 0 ? variante.fotos : []),
@@ -301,18 +304,12 @@ export default function FichaProducto({
 
           {/* El descuento por cantidad se muestra acá y no recién en el carrito:
               si la idea aparece después de decidir, ya es tarde. */}
-          {primerTramo ? (
-            <p style={{ fontSize: "0.875rem", color: "var(--verde)", margin: 0 }}>
-              Llevando {primerTramo.desdeUnidades} o más, {primerTramo.porcentaje}% off
-              {" · "}
-              <span className="apagado">
-                {formatearPrecio(
-                  Math.round(producto.precio * (1 - primerTramo.porcentaje / 100))
-                )}{" "}
-                cada uno
-              </span>
-            </p>
-          ) : null}
+          <EscaleraPrecios
+            tramos={tramos}
+            categoria={producto.categoria}
+            precioLista={producto.precio}
+            cantidadActual={unidadesEnCategoria}
+          />
         </div>
 
         {producto.descripcion ? (
