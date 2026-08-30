@@ -134,7 +134,7 @@ export default function ProductoCard({
           onClick={agregarAlCarrito}
           disabled={!variante || variante.agotada}
         >
-          {variante?.agotada ? "Sin stock" : agregado ? "Agregado ✓" : "Agregar"}
+          {variante?.agotada ? "Sin stock" : agregado ? "Agregado" : "Agregar"}
         </button>
       </div>
     </article>

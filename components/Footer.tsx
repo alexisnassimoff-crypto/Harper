@@ -9,13 +9,18 @@ const LEGALES = [
   { href: "/legales/arrepentimiento", texto: "Botón de arrepentimiento" },
 ];
 
+/* El pie va en el verde de la marca, como pidió Ale: cierra la página con la
+   identidad en lugar de apagarse en gris. Todo el texto pasa a claro. */
+const SUAVE = "rgb(255 255 255 / 0.72)";
+const LINEA_CLARA = "rgb(255 255 255 / 0.18)";
+
 export default function Footer({ config }: { config: ConfigTienda }) {
   return (
     <footer
       style={{
         marginTop: "6rem",
-        borderTop: "1px solid var(--borde)",
-        background: "var(--fondo-alt)",
+        background: "var(--verde)",
+        color: "#fff",
       }}
     >
       <div
@@ -28,27 +33,37 @@ export default function Footer({ config }: { config: ConfigTienda }) {
         }}
       >
         <div className="pila" style={{ gap: "1rem" }}>
-          <Logo alto={54} lockup />
-          <p className="apagado" style={{ fontSize: "0.875rem", maxWidth: "22rem" }}>
-            Anteojos y estuches.
+          <Logo alto={54} lockup claro />
+          <p style={{ fontSize: "0.875rem", maxWidth: "22rem", color: SUAVE }}>
+            Estuches rígidos de ecocuero premium y anteojos con filtro de luz
+            azul. Comprá online y pagá con Mercado Pago.
           </p>
         </div>
 
         <nav className="pila" style={{ gap: "0.6rem" }} aria-label="Legales">
-          <span className="label">Legales</span>
+          <span className="label" style={{ color: SUAVE }}>
+            Legales
+          </span>
           {LEGALES.map((l) => (
-            <Link key={l.href} href={l.href} className="enlace-suave" style={{ fontSize: "0.875rem" }}>
+            <Link
+              key={l.href}
+              href={l.href}
+              className="enlace-suave"
+              style={{ fontSize: "0.875rem", color: "#fff" }}
+            >
               {l.texto}
             </Link>
           ))}
         </nav>
 
         <div className="pila" style={{ gap: "0.6rem" }}>
-          <span className="label">Contacto</span>
+          <span className="label" style={{ color: SUAVE }}>
+            Contacto
+          </span>
           <a
             href={`mailto:${config.emailContacto}`}
             className="enlace-suave"
-            style={{ fontSize: "0.875rem" }}
+            style={{ fontSize: "0.875rem", color: "#fff" }}
           >
             {config.emailContacto}
           </a>
@@ -58,7 +73,7 @@ export default function Footer({ config }: { config: ConfigTienda }) {
               target="_blank"
               rel="noopener noreferrer"
               className="enlace-suave"
-              style={{ fontSize: "0.875rem" }}
+              style={{ fontSize: "0.875rem", color: "#fff" }}
             >
               WhatsApp
             </a>
@@ -70,10 +85,10 @@ export default function Footer({ config }: { config: ConfigTienda }) {
       <div
         className="contenedor"
         style={{
-          borderTop: "1px solid var(--borde)",
+          borderTop: `1px solid ${LINEA_CLARA}`,
           paddingBlock: "1.5rem",
           fontSize: "0.75rem",
-          color: "var(--texto-suave)",
+          color: SUAVE,
           display: "flex",
           flexWrap: "wrap",
           gap: "0.5rem 1.5rem",
@@ -88,6 +103,7 @@ export default function Footer({ config }: { config: ConfigTienda }) {
           target="_blank"
           rel="noopener noreferrer"
           className="enlace-suave"
+          style={{ color: SUAVE }}
         >
           Defensa de las y los Consumidores
         </a>
