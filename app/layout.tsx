@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
 import { ProveedorCarrito } from "@/components/carrito/CarritoContexto";
 import TransicionDePagina from "@/components/TransicionDePagina";
+import MetaPixel from "@/components/MetaPixel";
 import { getConfig } from "@/lib/config";
 import "./globals.css";
 
@@ -112,6 +113,7 @@ export default async function RootLayout({
       </head>
       <body>
         <ProveedorCarrito>
+        <MetaPixel />
           <a className="saltar-al-contenido" href="#contenido">
             Saltar al contenido
           </a>

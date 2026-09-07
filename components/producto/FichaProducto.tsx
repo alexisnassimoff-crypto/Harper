@@ -302,6 +302,12 @@ export default function FichaProducto({
             ) : null}
           </div>
 
+          {process.env.NEXT_PUBLIC_CUOTAS ? (
+            <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--acento, #1a7a4a)" }}>
+              {process.env.NEXT_PUBLIC_CUOTAS} cuotas sin interés
+            </span>
+          ) : null}
+
           {/* El descuento por cantidad se muestra acá y no recién en el carrito:
               si la idea aparece después de decidir, ya es tarde. */}
           <EscaleraPrecios

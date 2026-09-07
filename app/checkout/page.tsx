@@ -1,3 +1,4 @@
+import EventoPixel from "@/components/EventoPixel";
 import type { Metadata } from "next";
 import FormularioCheckout from "@/components/checkout/FormularioCheckout";
 
@@ -14,6 +15,8 @@ export default async function PaginaCheckout({
   const { error } = await searchParams;
 
   return (
+    <>
+    <EventoPixel evento="InitiateCheckout" />
     <section className="contenedor" style={{ paddingBlock: "3.5rem" }}>
       <h1 className="titulo" style={{ marginBottom: "2.5rem" }}>
         Finalizar compra
@@ -39,5 +42,6 @@ export default async function PaginaCheckout({
 
       <FormularioCheckout />
     </section>
+  </>
   );
 }

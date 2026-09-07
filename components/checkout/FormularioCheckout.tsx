@@ -474,7 +474,10 @@ export default function FormularioCheckout() {
         </button>
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
-          Pagás con Mercado Pago. Aceptamos tarjetas en cuotas, débito y
+          Pagás con Mercado Pago.{" "}
+          {process.env.NEXT_PUBLIC_CUOTAS
+            ? `${process.env.NEXT_PUBLIC_CUOTAS} cuotas sin interés con tarjeta, o débito y`
+            : "Aceptamos tarjetas en cuotas, débito y"}{" "}
           transferencia. Entrega en {carrito.plazoEntrega}.
         </p>
       </aside>

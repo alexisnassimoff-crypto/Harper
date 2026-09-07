@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import VaciarCarrito from "@/components/carrito/VaciarCarrito";
+import EventoPixel from "@/components/EventoPixel";
 import { getConfig } from "@/lib/config";
 import { buscarPedido } from "@/lib/pedidos";
 
@@ -49,6 +50,10 @@ export default async function Gracias({
       : "Estamos confirmando tu pago";
 
   return (
+    <>
+    {confirmado && pedido ? (
+      <EventoPixel evento="Purchase" data={{ value: pedido.total, currency: "ARS", content_type: "product" }} />
+    ) : null}
     <section
       className="contenedor pila"
       style={{
@@ -102,5 +107,6 @@ export default async function Gracias({
         </>
       )}
     </section>
+  </>
   );
 }

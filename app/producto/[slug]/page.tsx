@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import FichaProducto from "@/components/producto/FichaProducto";
+import EventoPixel from "@/components/EventoPixel";
 import { getTramos } from "@/lib/descuentos";
 import { getProducto, getSlugs } from "@/lib/catalogo";
 
@@ -119,6 +120,10 @@ export default async function PaginaProducto({ params }: Params) {
           __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
         }}
       />
+      <EventoPixel evento="ViewContent" data={{
+        content_ids: [producto.slug], content_type: "product",
+        content_name: producto.nombre, value: producto.precio, currency: "ARS",
+      }} />
       <FichaProducto producto={producto} tramos={tramos} />
     </>
   );
