@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { getConfig } from "@/lib/config";
 
-export const metadata: Metadata = { title: "Términos y condiciones" };
+export const metadata: Metadata = {
+  title: "Términos y condiciones",
+  alternates: { canonical: "/legales/terminos" },
+};
 
 export default async function Terminos() {
   const config = await getConfig();

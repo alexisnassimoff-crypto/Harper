@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { getConfig } from "@/lib/config";
 
-export const metadata: Metadata = { title: "Política de privacidad" };
+export const metadata: Metadata = {
+  title: "Política de privacidad",
+  alternates: { canonical: "/legales/privacidad" },
+};
 
 export default async function Privacidad() {
   const config = await getConfig();

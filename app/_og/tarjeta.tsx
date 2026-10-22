@@ -113,7 +113,7 @@ export function TarjetaMarca() {
     <div style={{ ...BASE, justifyContent: "center" }}>
       <Marca tamano={72} />
       <div style={{ marginTop: 26, fontSize: 30, color: APAGADO, letterSpacing: 2 }}>
-        ~ cases &amp; eyewear ~
+        anteojos · estuches · paños
       </div>
       <div style={{ marginTop: 46, fontSize: 24, color: VERDE, letterSpacing: 3 }}>harper.ar</div>
       <div style={Filete()} />

@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { getConfig } from "@/lib/config";
 
-export const metadata: Metadata = { title: "Botón de arrepentimiento" };
+export const metadata: Metadata = {
+  title: "Botón de arrepentimiento",
+  alternates: { canonical: "/legales/arrepentimiento" },
+};
 
 /**
  * Obligatorio por la Resolución 424/2020 de la Secretaría de Comercio Interior.

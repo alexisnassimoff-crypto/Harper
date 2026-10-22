@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.pruebas.json && node --test \".pruebas/tests/**/*.test.js\"",
+    "dev:fixtures": "HARPER_FIXTURES=1 next dev"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.0",

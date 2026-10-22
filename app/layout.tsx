@@ -7,6 +7,7 @@ import { ProveedorCarrito } from "@/components/carrito/CarritoContexto";
 import TransicionDePagina from "@/components/TransicionDePagina";
 import MetaPixel from "@/components/MetaPixel";
 import { getConfig } from "@/lib/config";
+import { DESCRIPCION_SITIO, TITULO_SITIO } from "@/lib/portada";
 import "./globals.css";
 
 const raleway = Raleway({
@@ -20,21 +21,22 @@ const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";
 export const metadata: Metadata = {
   metadataBase: new URL(SITIO),
   title: {
-    default: "Harper — Cases & Eyewear",
+    default: TITULO_SITIO,
     template: "%s · Harper",
   },
-  description:
-    "Estuches rígidos de ecocuero premium y anteojos Harper. Comprá online.",
+  description: DESCRIPCION_SITIO,
   applicationName: "Harper",
   keywords: [
     "anteojos",
+    "anteojos Harper",
+    "comprar anteojos online",
     "estuches para anteojos",
     "paños de microfibra",
-    "ecocuero",
     "Harper",
     "Argentina",
   ],
-  alternates: { canonical: "/" },
+  // Sin canonical acá: cada página declara el suyo. Heredar "/" hacía que
+  // legales, carrito y checkout se presentaran como la portada.
   openGraph: {
     type: "website",
     locale: "es_AR",
@@ -71,8 +73,7 @@ export default async function RootLayout({
       url: SITIO,
       logo: `${SITIO}/icono-512.png`,
       image: `${SITIO}/opengraph-image.jpg`,
-      description:
-        "Anteojos y estuches rígidos de ecocuero premium.",
+      description: DESCRIPCION_SITIO,
       taxID: config.cuit,
       address: {
         "@type": "PostalAddress",

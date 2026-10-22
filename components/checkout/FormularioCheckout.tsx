@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
+import { cuotasActivas } from "@/lib/cuotas";
 import { precio as formatearPrecio } from "@/lib/formato";
 import type { DatosCliente, EleccionEnvio, OpcionEnvio } from "@/lib/tipos";
 import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
@@ -475,8 +476,8 @@ export default function FormularioCheckout() {
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
           Pagás con Mercado Pago.{" "}
-          {process.env.NEXT_PUBLIC_CUOTAS
-            ? `${process.env.NEXT_PUBLIC_CUOTAS} cuotas sin interés con tarjeta, o débito y`
+          {cuotasActivas()
+            ? `${cuotasActivas()} cuotas sin interés con tarjeta, o débito y`
             : "Aceptamos tarjetas en cuotas, débito y"}{" "}
           transferencia. Entrega en {carrito.plazoEntrega}.
         </p>

@@ -9,10 +9,10 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Harper — Cases & Eyewear",
+    name: "Harper — Anteojos",
     short_name: "Harper",
     description:
-      "Anteojos y estuches rígidos de ecocuero premium.",
+      "Anteojos Harper en varios modelos y colores. También estuches rígidos y paños de microfibra.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

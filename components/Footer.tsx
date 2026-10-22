@@ -35,8 +35,8 @@ export default function Footer({ config }: { config: ConfigTienda }) {
         <div className="pila" style={{ gap: "1rem" }}>
           <Logo alto={54} lockup claro />
           <p style={{ fontSize: "0.875rem", maxWidth: "22rem", color: SUAVE }}>
-            Estuches rígidos de ecocuero premium y anteojos con filtro de luz
-            azul. Comprá online y pagá con Mercado Pago.
+            Anteojos, estuches rígidos y paños de microfibra. Comprá online y
+            pagá con Mercado Pago.
           </p>
         </div>
 

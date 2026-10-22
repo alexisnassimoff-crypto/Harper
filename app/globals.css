@@ -1372,3 +1372,472 @@ p {
   gap: 0.35rem;
   padding-block: 0.25rem;
 }
+
+/* Las miniaturas: en celular una sola fila que se desliza, para que seis
+   fotos no empujen el precio y el botón otra media pantalla hacia abajo. */
+.galeria__minis {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+@media (max-width: 47.99rem) {
+  .galeria__minis {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .galeria__minis::-webkit-scrollbar {
+    display: none;
+  }
+  .galeria__minis .mini {
+    flex: 0 0 auto;
+    width: 4rem;
+  }
+}
+
+/* Sin JavaScript (o antes de que cargue) el contenido se ve igual: la
+   animación de aparición es un adorno, no una condición. */
+@media (scripting: none) {
+  .revelar {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Portada: hero compacto
+
+   En celular ocupa menos de media pantalla para que el catálogo asome sin
+   scrollear; en escritorio crece, pero nunca pasa de 36rem.
+--------------------------------------------------------------------------- */
+
+.hero {
+  position: relative;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  min-height: clamp(16rem, 40svh, 26rem);
+  overflow: hidden;
+  background: var(--tinta);
+  color: #fff;
+}
+.hero__velo {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgb(12 12 8 / 0.7) 0%,
+    rgb(12 12 8 / 0.28) 55%,
+    rgb(12 12 8 / 0.18) 100%
+  );
+}
+.hero__contenido {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  padding-block: 2.5rem 1.75rem;
+  text-align: center;
+  text-shadow: 0 1px 24px rgb(0 0 0 / 0.35);
+}
+.hero__titulo {
+  font-size: clamp(2rem, 7vw, 3.75rem);
+  font-weight: 400;
+  color: #fff;
+}
+.hero__texto {
+  max-width: 34rem;
+  font-size: clamp(0.9375rem, 2.6vw, 1.125rem);
+  line-height: 1.5;
+  color: rgb(255 255 255 / 0.9);
+}
+.hero__contenido .boton {
+  margin-top: 0.35rem;
+}
+
+@media (min-width: 48rem) {
+  .hero {
+    min-height: min(62svh, 36rem);
+  }
+  .hero__contenido {
+    gap: 1.1rem;
+    padding-block: 4rem 3rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Mensajes de confianza
+--------------------------------------------------------------------------- */
+
+.confianza {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.confianza__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.confianza__enlace {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.confianza__enlace:hover .confianza__texto > span:first-child,
+.confianza__enlace:focus-visible .confianza__texto > span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.confianza__icono {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--verde);
+}
+.confianza__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+.confianza__texto small {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+/* La franja de la portada: una fila en escritorio. En celular es una sola
+   línea que se desliza de costado, sin el detalle: ocupa 60px en vez de 200 y
+   el catálogo sube a la primera pantalla. */
+.confianza--tira {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--borde);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.confianza--tira::-webkit-scrollbar {
+  display: none;
+}
+.confianza--tira .confianza__item {
+  flex: 0 0 auto;
+  align-items: center;
+  scroll-snap-align: start;
+  white-space: nowrap;
+}
+.confianza--tira .confianza__texto small {
+  display: none;
+}
+@media (min-width: 48rem) {
+  .confianza--tira {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1rem 2rem;
+    padding: 1.35rem 0;
+    overflow: visible;
+  }
+  .confianza--tira .confianza__item {
+    align-items: flex-start;
+    white-space: normal;
+  }
+  .confianza--tira .confianza__texto small {
+    display: block;
+  }
+}
+
+/* La lista de la ficha: debajo de los botones, con un filete arriba. */
+.confianza--lista {
+  gap: 0.7rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--borde);
+}
+
+/* ---------------------------------------------------------------------------
+   Secciones de catálogo
+--------------------------------------------------------------------------- */
+
+.seccion {
+  padding-block: 1.5rem 0;
+  /* Al llegar por #anteojos, el título no queda debajo del header fijo. */
+  scroll-margin-top: 5.5rem;
+}
+.seccion--pagina {
+  padding-block: 2rem 3rem;
+}
+.seccion--secundaria {
+  padding-top: 3.5rem;
+}
+.seccion__cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.titulo--chico {
+  font-size: clamp(1.375rem, 3.5vw, 1.875rem);
+}
+
+@media (min-width: 48rem) {
+  .seccion {
+    padding-block: 3.5rem 0;
+  }
+  .seccion--pagina {
+    padding-block: 3.5rem 4rem;
+  }
+  .seccion--secundaria {
+    padding-top: 5rem;
+  }
+  .seccion__cabecera {
+    margin-bottom: 2rem;
+  }
+}
+
+.seccion--pagina .confianza--tira {
+  margin-top: 3rem;
+  border-top: 1px solid var(--borde);
+  border-bottom: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Grilla de productos
+
+   Dos columnas en celular: antes era una, y cada ficha medía ~500px.
+--------------------------------------------------------------------------- */
+
+.grilla {
+  display: grid;
+  gap: 1.5rem 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.grilla__celda,
+.grilla__celda > .ficha {
+  height: 100%;
+}
+
+@media (min-width: 48rem) {
+  .grilla {
+    gap: 2rem 1.25rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+  }
+  .grilla--compacta {
+    grid-template-columns: repeat(auto-fill, minmax(min(12.5rem, 100%), 1fr));
+  }
+}
+
+/* En celdas angostas la ficha se aprieta un poco. */
+@media (max-width: 47.99rem) {
+  .ficha__cuerpo {
+    gap: 0.4rem;
+    padding: 0 0.8rem 0.8rem;
+  }
+  .ficha__titulo {
+    font-size: 0.9375rem;
+  }
+  .ficha__precio {
+    font-size: 0.875rem;
+  }
+  .grilla--compacta .ficha__color-nombre {
+    display: none;
+  }
+}
+
+/* En pantallas táctiles los círculos de color crecen y su área de toque más:
+   con 18px era fácil tocar el color de al lado o abrir la ficha sin querer. */
+.ficha__swatch {
+  position: relative;
+}
+@media (pointer: coarse) {
+  .ficha__colores {
+    gap: 0.6rem;
+  }
+  .ficha__swatch {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+  .ficha__swatch::after {
+    content: "";
+    position: absolute;
+    inset: -0.55rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Ficha de producto: disposición y bloques de información
+--------------------------------------------------------------------------- */
+
+.ficha-producto {
+  display: grid;
+  gap: 2rem 3.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  padding-block: 1.25rem 4rem;
+  align-items: start;
+}
+.ficha-producto__datos {
+  gap: 1.5rem;
+}
+@media (min-width: 48rem) {
+  .ficha-producto {
+    padding-block: 2.5rem 4rem;
+  }
+  .ficha-producto__datos {
+    position: sticky;
+    top: 6rem;
+    gap: 1.75rem;
+  }
+}
+
+.ficha-producto__bloque {
+  gap: 0.6rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--borde);
+}
+
+.lista-incluye {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9375rem;
+}
+.lista-incluye li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.lista-incluye li::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--verde);
+  transform: translateY(-0.1rem);
+}
+
+.medidas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.medidas__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 5.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--fondo-alt);
+}
+.medidas__nombre {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.medidas__valor {
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.detalles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.9375rem;
+}
+.detalles__fila {
+  display: flex;
+  gap: 0.75rem;
+}
+.detalles dt {
+  flex: 0 0 5.5rem;
+  color: var(--texto-suave);
+}
+.detalles dd {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Barra de compra fija (solo celular)
+--------------------------------------------------------------------------- */
+
+.cta-fija {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 55;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem var(--gutter) calc(0.7rem + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--fondo) 92%, transparent);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-top: 1px solid color-mix(in srgb, var(--borde) 80%, transparent);
+  transform: translateY(100%);
+  transition: transform var(--medio) var(--curva);
+}
+.cta-fija[data-visible] {
+  transform: none;
+}
+.cta-fija__datos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.cta-fija__nombre {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cta-fija__precio {
+  font-size: 1rem;
+}
+.cta-fija__precio small {
+  font-size: 0.75rem;
+  color: var(--verde);
+}
+.cta-fija .boton {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 46rem) {
+  .cta-fija {
+    display: flex;
+  }
+  /* Mientras la barra está visible, el botón de WhatsApp sube para no
+     taparla y el pie recibe aire para que la barra no lo cubra. */
+  body[data-cta-fija] .wsp {
+    bottom: calc(1.25rem + 4.75rem + env(safe-area-inset-bottom));
+  }
+  body[data-cta-fija] footer {
+    padding-bottom: 4.75rem;
+  }
+}

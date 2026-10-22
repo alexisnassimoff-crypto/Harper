@@ -21,11 +21,11 @@ export default async function Estuches() {
   const productos = await getProductos("Estuches");
 
   return (
-    <section className="contenedor" style={{ paddingBlock: "3.5rem" }}>
-      <h1 className="titulo" style={{ marginBottom: "2.5rem" }}>
-        Estuches
-      </h1>
-      <GrillaProductos productos={productos} />
+    <section className="contenedor seccion seccion--pagina">
+      <div className="seccion__cabecera">
+        <h1 className="titulo">Estuches</h1>
+      </div>
+      <GrillaProductos productos={productos} precargar={4} />
     </section>
   );
 }

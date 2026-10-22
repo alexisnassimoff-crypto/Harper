@@ -28,6 +28,17 @@ export type Envase = {
   altoCm: number;
 };
 
+/**
+ * Medidas del anteojo, en milímetros, tal como se leen en la patilla.
+ *
+ * Cada una es opcional: se muestra la que esté cargada y ninguna se inventa.
+ */
+export type Medidas = {
+  frenteMm: number | null;
+  puenteMm: number | null;
+  patillaMm: number | null;
+};
+
 export type Producto = {
   id: string;
   nombre: string;
@@ -45,6 +56,17 @@ export type Producto = {
   agotado: boolean;
   /** `null` mientras no estén cargados el peso y las medidas en Airtable. */
   envase: Envase | null;
+  /**
+   * Qué viene en la caja, un renglón por ítem ("Estuche rígido", "Paño").
+   * Vacío si no está cargado: la ficha no muestra nada.
+   */
+  incluye: string[];
+  /** `null` mientras no haya ninguna medida cargada. */
+  medidas: Medidas | null;
+  /** Material del armazón, si está cargado. */
+  material: string | null;
+  /** Tipo de lentes, si está cargado. */
+  lentes: string | null;
 };
 
 /** Un ítem tal como vive en el carrito del navegador. */

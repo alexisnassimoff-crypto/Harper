@@ -6,6 +6,7 @@ import FotoCruzada from "./FotoCruzada";
 import { useDeslizar } from "./useDeslizar";
 import { useCarrito } from "./carrito/CarritoContexto";
 import { precio as formatearPrecio } from "@/lib/formato";
+import { rutaDeVariante } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 
 export default function ProductoCard({
@@ -27,6 +28,11 @@ export default function ProductoCard({
   const variante = producto.variantes[indice];
   const fotos = variante?.fotos.length ? variante.fotos : [];
   const foto = fotos[indiceFoto] ?? fotos[0] ?? producto.fotoPrincipal;
+
+  // El enlace lleva el color que se está viendo: antes la ficha abría siempre
+  // en el primer color con stock, y el visitante que tocaba unos carey
+  // aterrizaba en unos negros.
+  const enlace = rutaDeVariante(producto, indice);
 
   const deslizar = useDeslizar({
     alSiguiente: () => pasarFoto(1),
@@ -57,9 +63,9 @@ export default function ProductoCard({
   return (
     <article className="ficha">
       <Link
-        href={`/producto/${producto.slug}`}
+        href={enlace}
         className="ficha__foto"
-        aria-label={producto.nombre}
+        aria-label={`${producto.nombre}${variante ? ` — ${variante.color}` : ""}`}
         {...deslizar}
       >
         {foto ? (
@@ -89,7 +95,7 @@ export default function ProductoCard({
       </Link>
 
       <div className="ficha__cuerpo">
-        <Link href={`/producto/${producto.slug}`} className="ficha__titulo">
+        <Link href={enlace} className="ficha__titulo">
           {producto.nombre}
         </Link>
 
