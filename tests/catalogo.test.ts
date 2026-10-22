@@ -3,12 +3,19 @@ import assert from "node:assert/strict";
 
 // El catálogo se lee contra el Airtable en memoria: sin red ni credenciales.
 process.env.HARPER_FIXTURES = "1";
-delete process.env.VERCEL_ENV;
+delete process.env.VERCEL;
 
 import { getProducto, getProductos, getSlugs } from "../lib/catalogo";
 import { modoFixtures } from "../lib/airtable";
 
 before(() => {
+  assert.equal(modoFixtures(), true);
+});
+
+test("en Vercel el modo de prueba queda apagado aunque la variable esté cargada", () => {
+  process.env.VERCEL = "1";
+  assert.equal(modoFixtures(), false);
+  delete process.env.VERCEL;
   assert.equal(modoFixtures(), true);
 });
 

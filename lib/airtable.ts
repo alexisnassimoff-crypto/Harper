@@ -83,12 +83,13 @@ export function isAirtableConfigured() {
  * Modo de datos de prueba: la tienda corre contra un catálogo en memoria.
  *
  * Se activa con `HARPER_FIXTURES=1` y sirve para desarrollar, sacar capturas y
- * probar el recorrido completo sin red ni credenciales. En producción está
- * apagado a la fuerza, aunque alguien cargue la variable por error: la tienda
- * real nunca va a mostrar el catálogo de ejemplo.
+ * probar el recorrido completo sin red ni credenciales. En Vercel —preview o
+ * producción— está apagado a la fuerza, aunque alguien cargue la variable por
+ * error: ningún deploy muestra nunca el catálogo de ejemplo. `/api/health`
+ * informa cuál de los dos está activo.
  */
 export function modoFixtures() {
-  return process.env.HARPER_FIXTURES === "1" && process.env.VERCEL_ENV !== "production";
+  return process.env.HARPER_FIXTURES === "1" && !process.env.VERCEL;
 }
 
 type RequestInitConQuery = RequestInit & {

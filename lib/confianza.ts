@@ -10,6 +10,9 @@ import { precio as formatearPrecio } from "./formato";
  * plazos de cambio y devolución que ya figuran en /legales. No hay
  * certificaciones, reseñas ni urgencias: si no está en el código o en Airtable,
  * no se dice.
+ *
+ * Tampoco hay plazos de entrega: hasta que el operador logístico esté
+ * contratado y confirmado, no se promete ningún tiempo.
  */
 
 /**
@@ -30,7 +33,7 @@ export type Confianza = {
   href?: string;
 };
 
-export type DatosConfianza = Pick<ConfigTienda, "envioGratisDesde" | "plazoEntrega">;
+export type DatosConfianza = Pick<ConfigTienda, "envioGratisDesde">;
 
 export function mensajesDeConfianza(config: DatosConfianza): Confianza[] {
   const mensajes: Confianza[] = [];
@@ -56,7 +59,7 @@ export function mensajesDeConfianza(config: DatosConfianza): Confianza[] {
       config.envioGratisDesde > 0
         ? `Envío gratis desde ${formatearPrecio(config.envioGratisDesde)}`
         : "Envío a domicilio",
-    detalle: config.plazoEntrega ? `Entrega en ${config.plazoEntrega}` : undefined,
+    detalle: config.envioGratisDesde > 0 ? "A domicilio" : undefined,
   });
 
   mensajes.push({

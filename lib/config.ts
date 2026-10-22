@@ -15,6 +15,11 @@ export type ConfigTienda = {
   razonSocial: string;
   cuit: string;
   domicilio: string;
+  /**
+   * Plazo de entrega. Se lee pero NO se le muestra al comprador en ningún
+   * lado: hasta que haya un operador logístico contratado y confirmado no se
+   * publica un plazo concreto. Cuando lo haya, se vuelve a mostrar desde acá.
+   */
   plazoEntrega: string;
   /** Código postal desde el que se despacha. Correo Argentino cotiza desde acá. */
   cpOrigen: string;
@@ -29,7 +34,10 @@ export type ConfigTienda = {
    */
   portadaTitulo: string;
   portadaSubtitulo: string;
-  /** Ruta o URL de la foto grande. Vacío = /hero.webp. */
+  /**
+   * Ruta o URL de una foto editorial aprobada para el hero. Vacío = la
+   * portada muestra una foto del catálogo (el primer anteojo publicado).
+   */
   portadaImagen: string;
 };
 

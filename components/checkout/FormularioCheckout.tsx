@@ -479,7 +479,7 @@ export default function FormularioCheckout() {
           {cuotasActivas()
             ? `${cuotasActivas()} cuotas sin interés con tarjeta, o débito y`
             : "Aceptamos tarjetas en cuotas, débito y"}{" "}
-          transferencia. Entrega en {carrito.plazoEntrega}.
+          transferencia.
         </p>
       </aside>
     </form>

@@ -8,6 +8,7 @@ import { getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
 import { DESCRIPCION_SITIO, TITULO_SITIO, subtituloPorDefecto } from "@/lib/portada";
+import { indiceVarianteInicial, rutaDeVariante } from "@/lib/variantes";
 
 export const revalidate = 60;
 
@@ -32,33 +33,71 @@ export default async function Home() {
   const titulo = config.portadaTitulo || "Anteojos Harper";
   const subtitulo =
     config.portadaSubtitulo || subtituloPorDefecto(anteojos.length, coloresMaximo);
-  const imagen = config.portadaImagen || "/hero.webp";
 
   const confianza = mensajesDeConfianza(config);
+
+  // El producto que protagoniza el hero cuando no hay una foto aprobada en
+  // Config: el primer anteojo del catálogo, en su primer color con stock, con
+  // la foto en tres cuartos si la tiene. Es una foto del catálogo —ya
+  // publicada— así que muestra exactamente lo que se vende.
+  const protagonista = anteojos[0] ?? null;
+  const varianteHero = protagonista
+    ? protagonista.variantes[indiceVarianteInicial(protagonista)]
+    : null;
+  const fotoHero = varianteHero?.fotos[1] ?? varianteHero?.fotos[0] ?? null;
+
+  const texto = (
+    <div className="hero__contenido surge">
+      <h1 className="hero__titulo">{titulo}</h1>
+      <p className="hero__texto">{subtitulo}</p>
+      <a href="#anteojos" className="boton hero__boton">
+        Ver anteojos
+      </a>
+    </div>
+  );
 
   return (
     <>
       {/* Hero compacto: en celular ocupa menos de media pantalla, así el
           catálogo asoma sin scrollear. Un solo botón, que lleva a la grilla. */}
-      <section className="hero">
-        <Image
-          src={imagen}
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          style={{ objectFit: "cover", objectPosition: "center 30%" }}
-        />
-        <div className="hero__velo" aria-hidden="true" />
-
-        <div className="contenedor hero__contenido surge">
-          <h1 className="hero__titulo">{titulo}</h1>
-          <p className="hero__texto">{subtitulo}</p>
-          <a href="#anteojos" className="boton boton--claro">
-            Ver anteojos
-          </a>
-        </div>
-      </section>
+      {config.portadaImagen ? (
+        // Foto editorial aprobada y cargada en Config: a sangre, con velo.
+        <section className="hero hero--foto">
+          <Image
+            src={config.portadaImagen}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            style={{ objectFit: "cover", objectPosition: "center 30%" }}
+          />
+          <div className="hero__velo" aria-hidden="true" />
+          <div className="contenedor hero__cuerpo">{texto}</div>
+        </section>
+      ) : (
+        // Sin foto aprobada: el producto real sobre el fondo de la marca.
+        <section className="hero hero--producto">
+          <div className="contenedor hero__grilla">
+            {texto}
+            {protagonista && varianteHero && fotoHero ? (
+              <Link
+                href={rutaDeVariante(protagonista, indiceVarianteInicial(protagonista))}
+                className="hero__producto surge surge-1"
+                aria-label={`Ver ${protagonista.nombre}`}
+              >
+                <Image
+                  src={fotoHero}
+                  alt={`${protagonista.nombre} — ${varianteHero.color}`}
+                  fill
+                  priority
+                  sizes="(max-width: 48rem) 92vw, 44vw"
+                  style={{ objectFit: "contain" }}
+                />
+              </Link>
+            ) : null}
+          </div>
+        </section>
+      )}
 
       <div className="contenedor">
         <MensajesConfianza mensajes={confianza} variante="tira" />

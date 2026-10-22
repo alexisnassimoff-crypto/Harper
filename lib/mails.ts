@@ -183,7 +183,7 @@ export function mailConfirmacion(d: DatosMail): Envio {
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Gracias por tu compra</h1>
 <p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">
   Recibimos tu pago. Tu pedido <strong style="color:#16150f;">${escaparHtml(d.numero)}</strong>
-  ya está en preparación y llega en ${escaparHtml(d.config.plazoEntrega)}.
+  ya está en preparación.
 </p>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -211,7 +211,6 @@ Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
 Total: ${formatearPrecio(d.total)}
 
 Envio a: ${d.cliente.nombre}, ${direccion}
-Entrega estimada: ${d.config.plazoEntrega}
 
 Consultas: ${d.config.emailContacto}`;
 

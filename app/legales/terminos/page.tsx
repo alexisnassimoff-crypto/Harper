@@ -37,11 +37,12 @@ export default async function Terminos() {
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Envíos</h2>
       <p>
-        Realizamos envíos a todo el territorio argentino. El plazo
-        estimado de entrega es de {config.plazoEntrega} desde la acreditación del
-        pago, y puede variar por demoras del correo ajenas a nuestra gestión. El costo de
-        envío se informa antes de finalizar la compra. Es responsabilidad del
-        comprador aportar una dirección de entrega correcta y completa.
+        Realizamos envíos a domicilio dentro de la República Argentina. El
+        pedido se despacha una vez acreditado el pago; el plazo de entrega
+        depende del operador logístico y puede variar por demoras ajenas a
+        nuestra gestión. El costo de envío se informa antes de finalizar la
+        compra. Es responsabilidad del comprador aportar una dirección de
+        entrega correcta y completa.
       </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Disponibilidad</h2>

@@ -1415,13 +1415,90 @@ p {
 
 .hero {
   position: relative;
+  overflow: hidden;
+}
+.hero__contenido {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+.hero__titulo {
+  font-size: clamp(2rem, 7vw, 3.75rem);
+  font-weight: 400;
+}
+.hero__texto {
+  max-width: 34rem;
+  font-size: clamp(0.9375rem, 2.6vw, 1.125rem);
+  line-height: 1.5;
+}
+.hero__boton {
+  margin-top: 0.35rem;
+}
+
+/* Variante con el producto real: la foto del catálogo —ya publicada— sobre
+   el fondo de la marca. En celular la foto va arriba, chica; en escritorio,
+   texto a la izquierda y producto a la derecha. */
+.hero--producto {
+  background: var(--fondo-alt);
+  color: var(--texto);
+}
+.hero--producto .hero__texto {
+  color: var(--texto-suave);
+}
+.hero__grilla {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-block: 1.25rem 1.5rem;
+}
+.hero__producto {
+  position: relative;
+  display: block;
+  order: -1;
+  height: 9.5rem;
+  transition: transform var(--medio) var(--curva);
+}
+.hero__producto:hover {
+  transform: translateY(-3px);
+}
+
+/* Variante con foto editorial aprobada (Config.portada_imagen): a sangre. */
+.hero--foto {
   display: grid;
   align-items: end;
   justify-items: center;
   min-height: clamp(16rem, 40svh, 26rem);
-  overflow: hidden;
   background: var(--tinta);
   color: #fff;
+}
+.hero--foto .hero__cuerpo {
+  position: relative;
+  padding-block: 2.5rem 1.75rem;
+}
+.hero--foto .hero__contenido {
+  text-shadow: 0 1px 24px rgb(0 0 0 / 0.35);
+}
+.hero--foto .hero__titulo {
+  color: #fff;
+}
+.hero--foto .hero__texto {
+  color: rgb(255 255 255 / 0.9);
+}
+.hero--foto .hero__boton {
+  background: #fff;
+  border-color: #fff;
+  color: var(--verde);
+}
+.hero--foto .hero__boton::before {
+  background: var(--verde);
+}
+.hero--foto .hero__boton:hover:not(:disabled),
+.hero--foto .hero__boton:focus-visible:not(:disabled) {
+  color: #fff;
+  border-color: var(--verde);
 }
 .hero__velo {
   position: absolute;
@@ -1433,37 +1510,29 @@ p {
     rgb(12 12 8 / 0.18) 100%
   );
 }
-.hero__contenido {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.9rem;
-  padding-block: 2.5rem 1.75rem;
-  text-align: center;
-  text-shadow: 0 1px 24px rgb(0 0 0 / 0.35);
-}
-.hero__titulo {
-  font-size: clamp(2rem, 7vw, 3.75rem);
-  font-weight: 400;
-  color: #fff;
-}
-.hero__texto {
-  max-width: 34rem;
-  font-size: clamp(0.9375rem, 2.6vw, 1.125rem);
-  line-height: 1.5;
-  color: rgb(255 255 255 / 0.9);
-}
-.hero__contenido .boton {
-  margin-top: 0.35rem;
-}
 
 @media (min-width: 48rem) {
-  .hero {
-    min-height: min(62svh, 36rem);
-  }
   .hero__contenido {
     gap: 1.1rem;
+  }
+  .hero__grilla {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 2rem;
+    padding-block: 3rem;
+  }
+  .hero--producto .hero__contenido {
+    align-items: flex-start;
+    text-align: left;
+  }
+  .hero__producto {
+    order: 0;
+    height: 22rem;
+  }
+  .hero--foto {
+    min-height: min(62svh, 36rem);
+  }
+  .hero--foto .hero__cuerpo {
     padding-block: 4rem 3rem;
   }
 }

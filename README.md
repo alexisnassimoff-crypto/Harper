@@ -179,9 +179,13 @@ Campos opcionales de `Productos` que la ficha muestra solo si están cargados
 | `Lentes` | Tipo de lentes | `Fotocromáticos` |
 
 En `Config`, tres claves opcionales cambian la portada sin tocar código:
-`portada_titulo`, `portada_subtitulo` y `portada_imagen` (ruta o URL de la
-foto grande). Vacías, la portada usa sus textos por defecto, que se arman con
-lo que hay publicado.
+`portada_titulo`, `portada_subtitulo` y `portada_imagen` (ruta o URL de una
+foto editorial aprobada). Vacías, la portada usa sus textos por defecto, que
+se arman con lo que hay publicado, y muestra la foto de catálogo del primer
+anteojo.
+
+`plazo_entrega` se guarda pero no se le muestra al comprador en ningún lado
+hasta que haya un operador logístico contratado y confirmado.
 
 ## Rutas
 

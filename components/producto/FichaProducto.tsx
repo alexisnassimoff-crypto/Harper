@@ -19,7 +19,7 @@ import {
   indiceEntreFotos,
   posicionDeFoto,
 } from "@/lib/galeria";
-import { indiceVarianteInicial, rutaDeVariante } from "@/lib/variantes";
+import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 
@@ -122,16 +122,14 @@ export default function FichaProducto({
     alAnterior: () => pasarMedio(-1),
   });
 
+  // Al cambiar de color NO se toca la URL. Se probó sincronizarla con
+  // `history.replaceState` y el cambio de pathname remonta la página entera
+  // (la transición de página se reinicia por ruta), lo que devolvía la ficha
+  // al color inicial y mandaba al carrito un color distinto del elegido.
   function elegirColor(indice: number) {
     setIndiceVariante(indice);
     setIndiceMedio(0);
     setAgregado(false);
-
-    // La URL acompaña al color elegido: el link que se comparte o la pestaña
-    // que se recarga abren el mismo color. Sin navegar ni recargar nada.
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", rutaDeVariante(producto, indice));
-    }
   }
 
   function agregarAlCarrito() {
