@@ -240,7 +240,7 @@ ${totales(d.subtotal, d.envio, d.total)}
   ${escaparHtml(d.cliente.nombre)}<br>
   ${escaparHtml(d.cliente.direccion)}<br>
   ${escaparHtml(d.cliente.ciudad)}, ${escaparHtml(d.cliente.provincia)} — CP ${escaparHtml(d.cliente.cp)}<br>
-  DNI ${escaparHtml(d.cliente.dni)} · Tel ${escaparHtml(d.cliente.telefono)}<br>
+  ${d.cliente.dni ? `DNI ${escaparHtml(d.cliente.dni)} · ` : ""}Tel ${escaparHtml(d.cliente.telefono)}<br>
   ${escaparHtml(d.cliente.email)}
 </div>
 
@@ -256,7 +256,7 @@ ${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join(
 
 ${d.cliente.nombre}
 ${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} - CP ${d.cliente.cp}
-DNI ${d.cliente.dni} - Tel ${d.cliente.telefono} - ${d.cliente.email}
+${d.cliente.dni ? `DNI ${d.cliente.dni} - ` : ""}Tel ${d.cliente.telefono} - ${d.cliente.email}
 
 Airtable: ${d.pedidoUrl}`;
 
@@ -274,8 +274,8 @@ export function mailPagoRechazado(d: DatosMail): Envio {
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">No pudimos procesar tu pago</h1>
 <p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">
-  El pago del pedido ${escaparHtml(d.numero)} fue rechazado y todavía no te cobramos nada.
-  Guardamos tus productos: podés intentar con otro medio de pago.
+  El pago del pedido ${escaparHtml(d.numero)} fue rechazado y no te cobramos nada.
+  Podés volver a la tienda e intentar con otro medio de pago.
 </p>
 <p style="margin:0;">
   <a href="${escaparHtml(d.sitio)}/checkout" style="display:inline-block;background:#16150f;color:#faf9f6;text-decoration:none;padding:14px 24px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;">Reintentar el pago</a>

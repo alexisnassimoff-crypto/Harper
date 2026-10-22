@@ -34,12 +34,11 @@ async function buscarPorEmail(email: string) {
  *
  * Si abandona a mitad, el contacto igual queda guardado y se lo puede recuperar.
  * Nunca pisa datos de un cliente que ya compró.
+ *
+ * El consentimiento para promociones NO se toca acá: el comprador todavía no
+ * vio ni marcó la casilla. Se guarda recién en el checkout, con lo que eligió.
  */
-export async function registrarLead(datos: {
-  email: string;
-  nombre?: string;
-  aceptaPromos?: boolean;
-}) {
+export async function registrarLead(datos: { email: string; nombre?: string }) {
   const existente = await buscarPorEmail(datos.email);
 
   if (existente) {
@@ -48,7 +47,6 @@ export async function registrarLead(datos: {
 
     await updateRecord<FilaCliente>(TABLAS.clientes, existente.id, {
       Nombre: datos.nombre?.trim() || existente.fields.Nombre,
-      Acepta_promos: datos.aceptaPromos ?? existente.fields.Acepta_promos,
       Carrito_abandonado: true,
     });
 
@@ -58,7 +56,6 @@ export async function registrarLead(datos: {
   const creado = await createRecord<FilaCliente>(TABLAS.clientes, {
     Email: datos.email.toLowerCase(),
     Nombre: datos.nombre?.trim() || undefined,
-    Acepta_promos: Boolean(datos.aceptaPromos),
     Carrito_abandonado: true,
   });
 

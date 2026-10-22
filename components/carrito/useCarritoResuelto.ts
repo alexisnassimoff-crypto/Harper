@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ItemResuelto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import type { Sugerencia } from "@/lib/sugerencias";
@@ -13,7 +13,8 @@ export type CarritoResueltoCliente = {
   envio: number;
   total: number;
   envioGratisDesde: number;
-  plazoEntrega: string;
+  /** Falso cuando `envio` es la tarifa plana de respaldo, no una cotización. */
+  envioCotizado: boolean;
   /** Lo que se ahorró por volumen. 0 si no llegó a ningún tramo. */
   ahorro: number;
   /** Los tramos vigentes, para poder empujar al siguiente. */
@@ -27,12 +28,30 @@ export type CarritoResueltoCliente = {
  *
  * Los precios y el stock que se muestran salen siempre de acá, nunca de
  * localStorage: si cambió un precio o se acabó el stock, el carrito se corrige solo.
+ *
+ * Dos reglas que antes no se cumplían:
+ *
+ *  - Mientras se vuelve a consultar (un toque en +/−), la vista anterior se
+ *    mantiene: `actualizando` avisa, pero nada se desmonta.
+ *  - Si el servidor falla, el carrito del comprador queda intacto. Un fallo
+ *    transitorio de Airtable no puede borrarle nada ni decirle que no tiene
+ *    nada para comprar: se muestra lo último que se sabía y un botón para
+ *    reintentar.
  */
 export function useCarritoResuelto() {
   const { items, listo, quitar } = useCarrito();
   const [datos, setDatos] = useState<CarritoResueltoCliente | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [actualizando, setActualizando] = useState(false);
   const [error, setError] = useState(false);
+  const [intento, setIntento] = useState(0);
+
+  // Para distinguir "primera carga" de "actualización" sin meter `datos` en
+  // las dependencias del efecto (volvería a disparar la consulta).
+  const tieneDatos = useRef(false);
+  tieneDatos.current = datos !== null;
+
+  const recargar = useCallback(() => setIntento((n) => n + 1), []);
 
   useEffect(() => {
     if (!listo) return;
@@ -40,12 +59,14 @@ export function useCarritoResuelto() {
     if (items.length === 0) {
       setDatos(null);
       setCargando(false);
+      setActualizando(false);
+      setError(false);
       return;
     }
 
     const controlador = new AbortController();
-    setCargando(true);
-    setError(false);
+    if (tieneDatos.current) setActualizando(true);
+    else setCargando(true);
 
     fetch("/api/carrito/resolver", {
       method: "POST",
@@ -59,17 +80,22 @@ export function useCarritoResuelto() {
       })
       .then((resuelto) => {
         setDatos(resuelto);
-        // Limpia del carrito lo que ya no se puede comprar.
+        setError(false);
+        // Limpia del carrito lo que ya no se puede comprar. Solo con respuesta
+        // buena: un error del servidor no es "este producto no existe".
         for (const d of resuelto.descartados) quitar(d.varianteId);
       })
       .catch((e) => {
         if (e.name !== "AbortError") setError(true);
       })
-      .finally(() => setCargando(false));
+      .finally(() => {
+        setCargando(false);
+        setActualizando(false);
+      });
 
     return () => controlador.abort();
     // `quitar` es estable (useCallback) y `items` cambia por contenido.
-  }, [items, listo, quitar]);
+  }, [items, listo, quitar, intento]);
 
-  return { datos, cargando: cargando || !listo, error };
+  return { datos, cargando: cargando || !listo, actualizando, error, recargar };
 }

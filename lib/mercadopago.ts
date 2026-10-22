@@ -80,7 +80,11 @@ export async function crearPreferencia(opciones: {
       name: opciones.cliente.nombre,
       email: opciones.cliente.email,
       phone: { number: opciones.cliente.telefono },
-      identification: { type: "DNI", number: opciones.cliente.dni },
+      // El DNI es opcional en el checkout: Mercado Pago no lo exige para crear
+      // la preferencia y lo pide él mismo si el medio de pago lo necesita.
+      ...(opciones.cliente.dni
+        ? { identification: { type: "DNI", number: opciones.cliente.dni } }
+        : {}),
       address: {
         street_name: opciones.cliente.direccion,
         zip_code: opciones.cliente.cp,

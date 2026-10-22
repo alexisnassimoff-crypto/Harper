@@ -23,8 +23,11 @@ export function validarCliente(datos: Partial<DatosCliente>): ErroresCliente {
   if (texto(datos.telefono).replace(/\D/g, "").length < 8) {
     errores.telefono = "Ingresá un teléfono de contacto";
   }
-  if (texto(datos.dni).replace(/\D/g, "").length < 7) {
-    errores.dni = "Ingresá tu DNI";
+  // El DNI es opcional: ni Mercado Pago ni el envío lo necesitan. Si lo
+  // escribe, al menos que tenga forma de DNI.
+  const dni = texto(datos.dni).replace(/\D/g, "");
+  if (dni.length > 0 && (dni.length < 7 || dni.length > 9)) {
+    errores.dni = "Revisá el DNI: son 7 u 8 números";
   }
   if (texto(datos.direccion).length < 5) {
     errores.direccion = "Ingresá calle y número";

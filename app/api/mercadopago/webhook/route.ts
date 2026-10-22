@@ -12,6 +12,7 @@ import {
 import { firmaValida, obtenerPago } from "@/lib/mercadopago";
 import { urlDelSitio } from "@/lib/sitio";
 import { descontarStock } from "@/lib/stock";
+import { decidirNotificacion, MARCA_REVISAR } from "@/lib/webhook-decision";
 import type { DatosCliente, ItemResuelto } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
@@ -22,16 +23,6 @@ export const dynamic = "force-dynamic";
 // a la mitad y dejaba la venta marcada como pagada pero sin descontar stock ni
 // avisarle a nadie.
 export const maxDuration = 60;
-
-/** Estados en los que el pedido ya fue procesado y no hay que volver a tocarlo. */
-const YA_PROCESADO = new Set([
-  "pagado",
-  "preparando",
-  "enviado",
-  "entregado",
-  "cancelado",
-  "rechazado",
-]);
 
 /**
  * Pagos que se están procesando en este mismo instante.
@@ -49,9 +40,6 @@ const enVuelo = new Set<string>();
 
 /** Diferencia máxima tolerada entre lo cobrado y el total del pedido. */
 const TOLERANCIA_MONTO = 1;
-
-/** Prefijo con el que se marca un pago que tiene que mirar una persona. */
-const MARCA_REVISAR = "revisar:";
 
 type FilaPedido = {
   Numero?: string;
@@ -156,21 +144,29 @@ async function procesar(dataId: string, request: Request) {
 
   const pedido = await getRecord<FilaPedido>(TABLAS.pedidos, pedidoId);
   const estadoActual = pedido.fields.Estado ?? "pendiente";
+  const pagoId = String(pago.id);
 
-  // ---- Idempotencia ----
-  // Mercado Pago reintenta las notificaciones: sin esto se descontaría
-  // el stock dos veces y se mandaría el mail duplicado.
-  const mismoPago = pedido.fields.MP_payment_id === String(pago.id);
+  // ---- Idempotencia y protección del pedido ----
+  // Mercado Pago reintenta las notificaciones, y un mismo pedido puede recibir
+  // más de un pago (un intento rechazado y otro aprobado, o dos aprobados).
+  // La decisión está en lib/webhook-decision.ts, con sus pruebas.
+  const accion = decidirNotificacion({
+    estadoActual,
+    pagoRegistrado: pedido.fields.MP_payment_id,
+    mpStatusActual: pedido.fields.MP_status,
+    pagoId,
+    statusPago: pago.status,
+  });
 
-  if (YA_PROCESADO.has(estadoActual) && mismoPago) {
+  if (accion === "duplicado") {
     return NextResponse.json({ ok: true, duplicado: true });
   }
 
-  // Un pago marcado para revisar se queda en "pendiente", así que no lo frena
-  // el control de arriba. Sin esto, cada reintento de Mercado Pago vuelve a
-  // mandar el mail de alerta.
-  if (mismoPago && pedido.fields.MP_status?.startsWith(MARCA_REVISAR)) {
-    return NextResponse.json({ ok: true, duplicado: true });
+  if (accion === "ignorar") {
+    console.warn(
+      `[webhook] el pago ${pagoId} (${pago.status}) llegó sobre el pedido ${pedidoId} ya ${estadoActual}: no se toca`
+    );
+    return NextResponse.json({ ok: true, ignorado: true });
   }
 
   const clienteId = pedido.fields.Cliente?.[0];
@@ -206,7 +202,6 @@ async function procesar(dataId: string, request: Request) {
   };
 
   const sitio = urlDelSitio(request);
-
   const total = pedido.fields.Total ?? 0;
 
   const datosMail: DatosMail = {
@@ -222,7 +217,30 @@ async function procesar(dataId: string, request: Request) {
 
   const pedidoUrl = `https://airtable.com/${process.env.AIRTABLE_BASE_ID}/${TABLAS.pedidos}/${pedidoId}`;
 
-  if (pago.status === "approved") {
+  if (accion === "revisar_segundo_pago") {
+    // Un pedido ya cobrado (o cancelado) recibió OTRO pago aprobado. No se toca
+    // el estado ni el stock: se deja constancia y se avisa, porque lo más
+    // probable es que haya que devolverle la plata al cliente.
+    const anterior = pedido.fields.MP_payment_id ?? "sin pago registrado";
+
+    console.error(
+      `[webhook] segundo pago aprobado ${pagoId} sobre el pedido ${pedidoId} (${estadoActual}, pago anterior ${anterior})`
+    );
+
+    await updateRecord<FilaPedido>(TABLAS.pedidos, pedidoId, {
+      MP_status: `${MARCA_REVISAR} segundo pago aprobado ${pagoId} sobre un pedido ${estadoActual} (pago anterior ${anterior}); posible doble cobro`,
+    });
+
+    const aviso = mailAvisoInterno({ ...datosMail, pedidoUrl });
+    await enviarMail({
+      ...aviso,
+      asunto: `REVISAR ${datosMail.numero} — segundo pago aprobado (${pagoId}), posible doble cobro`,
+    });
+
+    return NextResponse.json({ ok: true, estado: "revisar" });
+  }
+
+  if (accion === "aprobar") {
     // Lo cobrado tiene que ser lo que dice el pedido. Si no coincide, la venta
     // NO se da por buena: se registra, se avisa, y lo mira una persona.
     const cobrado = pago.transaction_amount;
@@ -233,7 +251,7 @@ async function procesar(dataId: string, request: Request) {
       );
 
       await updateRecord<FilaPedido>(TABLAS.pedidos, pedidoId, {
-        MP_payment_id: String(pago.id),
+        MP_payment_id: pagoId,
         MP_status: `${MARCA_REVISAR} se cobró ${cobrado} y el pedido dice ${total}`,
       });
 
@@ -250,7 +268,7 @@ async function procesar(dataId: string, request: Request) {
     // la venta ya quedó registrada igual.
     await updateRecord<FilaPedido>(TABLAS.pedidos, pedidoId, {
       Estado: "pagado",
-      MP_payment_id: String(pago.id),
+      MP_payment_id: pagoId,
       MP_status: pago.status,
     });
 
@@ -269,10 +287,10 @@ async function procesar(dataId: string, request: Request) {
     return NextResponse.json({ ok: true, estado: "pagado" });
   }
 
-  if (pago.status === "rejected" || pago.status === "cancelled") {
+  if (accion === "rechazar") {
     await updateRecord<FilaPedido>(TABLAS.pedidos, pedidoId, {
       Estado: "rechazado",
-      MP_payment_id: String(pago.id),
+      MP_payment_id: pagoId,
       MP_status: `${pago.status}${pago.status_detail ? ` (${pago.status_detail})` : ""}`,
     });
 
@@ -286,7 +304,7 @@ async function procesar(dataId: string, request: Request) {
   // Pagos en revisión (in_process, pending): se registra y se espera
   // la próxima notificación, sin tocar stock ni mandar mails.
   await updateRecord<FilaPedido>(TABLAS.pedidos, pedidoId, {
-    MP_payment_id: String(pago.id),
+    MP_payment_id: pagoId,
     MP_status: pago.status,
   });
 
