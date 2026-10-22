@@ -27,6 +27,9 @@ export const ESTADOS_PROCESADOS = new Set([...ESTADOS_CONFIRMADOS, "cancelado", 
 /** Prefijo con el que se marca un pago que tiene que mirar una persona. */
 export const MARCA_REVISAR = "revisar:";
 
+/** Estados de un pago en Mercado Pago que todavía no son finales. */
+export const ESTADOS_MP_ABIERTOS = new Set(["pending", "in_process", "authorized", "in_mediation"]);
+
 /**
  * Cuánto vale una marca de reclamo. Pasado este tiempo se la considera de una
  * instancia muerta y el próximo reintento retoma el pedido.
@@ -152,6 +155,18 @@ export function decidirNotificacion(datos: {
   }
 
   // ---- Sin reclamo: decisión por el estado del pedido ----
+
+  // Pagado pero sin cerrar: el MP_status quedó vacío o en un estado intermedio
+  // del pago (otra instancia pisó la marca de la que aprobaba, y la soltó sin
+  // cerrar nada). La que aprobaba se retiró; se completa lo que falte.
+  if (
+    mismoPago &&
+    aprobado &&
+    ESTADOS_CONFIRMADOS.has(estadoActual) &&
+    (mpStatusActual === "" || ESTADOS_MP_ABIERTOS.has(mpStatusActual))
+  ) {
+    return "aprobar";
+  }
 
   // Exactamente este pago ya se procesó (o ya quedó marcado para revisar):
   // Mercado Pago reintenta y manda duplicados, y no hay nada nuevo que hacer.

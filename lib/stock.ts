@@ -23,6 +23,8 @@ export type ResultadoStock = {
   descontadas: string[];
   /** Variantes que ya tenían la marca de este pedido: no se tocaron. */
   omitidas: string[];
+  /** Variantes que ya no existen en Airtable (borradas a mano): no hay qué descontar. */
+  noEncontradas: string[];
   /**
    * Verdadero si Airtable no tiene el campo de marcas y hubo que escribir el
    * stock solo. Se vende igual, pero sin la protección contra el doble
@@ -61,49 +63,63 @@ export async function descontarStock(items: ItemResuelto[], numeroPedido: string
 
   const actualizaciones: { id: string; fields: FilaVariante }[] = [];
   const omitidas: string[] = [];
+  const noEncontradas: string[] = [];
 
   for (const [varianteId, cantidad] of porVariante) {
-    try {
-      const actual = await getRecord<FilaVariante>(TABLAS.variantes, varianteId);
-      const marcas = leerMarcas(actual.fields.Stock_pedidos);
+    let actual;
 
-      if (marcas.includes(numeroPedido)) {
-        omitidas.push(varianteId);
+    try {
+      actual = await getRecord<FilaVariante>(TABLAS.variantes, varianteId);
+    } catch (error) {
+      // Una variante borrada a mano (404) no puede frenar la confirmación de
+      // una venta ya cobrada: se la salta y se deja constancia. Cualquier otro
+      // error (429, 5xx, red) SUBE: el stock es el primer paso del webhook y la
+      // marca de reclamo sigue puesta, así que el reintento de Mercado Pago
+      // retoma y descuenta lo que faltó. Tragarlo dejaba el pedido cerrado con
+      // una variante sin descontar y sin que nadie se enterara.
+      if (error instanceof ErrorAirtable && error.status === 404) {
+        console.error(`[stock] la variante ${varianteId} del pedido ${numeroPedido} no existe: no se descuenta`);
+        noEncontradas.push(varianteId);
         continue;
       }
-
-      const stockActual = aNumero(actual.fields.Stock, 0);
-
-      actualizaciones.push({
-        id: varianteId,
-        fields: {
-          Stock: Math.max(0, stockActual - cantidad),
-          Stock_pedidos: [numeroPedido, ...marcas].slice(0, MAXIMO_MARCAS).join(", "),
-        },
-      });
-    } catch (error) {
-      // Una variante borrada no puede frenar la confirmación de una venta.
-      console.error(`[stock] no se pudo leer la variante ${varianteId}:`, error);
+      throw error;
     }
+
+    const marcas = leerMarcas(actual.fields.Stock_pedidos);
+
+    if (marcas.includes(numeroPedido)) {
+      omitidas.push(varianteId);
+      continue;
+    }
+
+    const stockActual = aNumero(actual.fields.Stock, 0);
+
+    actualizaciones.push({
+      id: varianteId,
+      fields: {
+        Stock: Math.max(0, stockActual - cantidad),
+        Stock_pedidos: [numeroPedido, ...marcas].slice(0, MAXIMO_MARCAS).join(", "),
+      },
+    });
   }
 
   const descontadas = actualizaciones.map((a) => a.id);
 
   if (actualizaciones.length === 0) {
-    return { descontadas, omitidas, sinMarca: false };
+    return { descontadas, omitidas, noEncontradas, sinMarca: false };
   }
 
   try {
     await updateRecords<FilaVariante>(TABLAS.variantes, actualizaciones);
-    return { descontadas, omitidas, sinMarca: false };
+    return { descontadas, omitidas, noEncontradas, sinMarca: false };
   } catch (error) {
-    if (!esCampoDeMarcasDesconocido(error)) throw error;
+    if (!esProblemaDelCampoDeMarcas(error)) throw error;
 
-    // La base todavía no tiene el campo: se descuenta igual (la venta ya está
-    // cobrada) y se avisa fuerte. Sin la marca, un reintento podría volver a
-    // descontar este pedido.
+    // La base no tiene el campo, o lo tiene con otro tipo: se descuenta igual
+    // (la venta ya está cobrada) y se avisa fuerte. Sin la marca, un reintento
+    // podría volver a descontar este pedido.
     console.error(
-      `[stock] la tabla Variantes no tiene el campo "${CAMPO_MARCAS}": el descuento del pedido ${numeroPedido} queda sin marcar. Crear el campo (texto largo) para que un reintento no lo repita.`
+      `[stock] Airtable rechazó el campo "${CAMPO_MARCAS}" (${error instanceof Error ? error.message : error}): el descuento del pedido ${numeroPedido} queda sin marcar. Crear el campo como texto largo para que un reintento no lo repita.`
     );
 
     await updateRecords<FilaVariante>(
@@ -111,16 +127,16 @@ export async function descontarStock(items: ItemResuelto[], numeroPedido: string
       actualizaciones.map((a) => ({ id: a.id, fields: { Stock: a.fields.Stock } }))
     );
 
-    return { descontadas, omitidas, sinMarca: true };
+    return { descontadas, omitidas, noEncontradas, sinMarca: true };
   }
 }
 
-/** Airtable contesta 422 UNKNOWN_FIELD_NAME cuando se escribe un campo que no existe. */
-function esCampoDeMarcasDesconocido(error: unknown) {
-  return (
-    error instanceof ErrorAirtable &&
-    error.status === 422 &&
-    /unknown field name/i.test(error.message) &&
-    error.message.includes(CAMPO_MARCAS)
-  );
+/**
+ * Airtable contesta 422 cuando se escribe un campo que no existe
+ * (UNKNOWN_FIELD_NAME) o con un valor que el campo no acepta
+ * (INVALID_VALUE_FOR_COLUMN, p. ej. si lo crearon como número). En los dos
+ * casos el mensaje nombra al campo.
+ */
+function esProblemaDelCampoDeMarcas(error: unknown) {
+  return error instanceof ErrorAirtable && error.status === 422 && error.message.includes(CAMPO_MARCAS);
 }

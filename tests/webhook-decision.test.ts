@@ -22,8 +22,18 @@ test("pedido pendiente: aprobado confirma, rechazado rechaza, el resto espera", 
   assert.equal(decidirNotificacion({ estadoActual: "pendiente", pagoId: PAGO_A, statusPago: "pending" }), "esperar");
 });
 
-test("el reintento del mismo pago sobre un pedido ya procesado es un duplicado", () => {
-  for (const estado of ["pagado", "preparando", "enviado", "entregado", "rechazado", "cancelado"]) {
+test("el reintento del mismo pago sobre un pedido ya procesado y cerrado es un duplicado", () => {
+  // Cerrado = el MP_status quedó en el estado final del pago (lo escribe el
+  // cierre del webhook). Con el MP_status vacío o intermedio, un pedido
+  // confirmado se considera sin terminar (ver la prueba de más abajo).
+  for (const estado of ["pagado", "preparando", "enviado", "entregado"]) {
+    assert.equal(
+      decidirNotificacion({ estadoActual: estado, pagoRegistrado: PAGO_A, mpStatusActual: "approved", pagoId: PAGO_A, statusPago: "approved" }),
+      "duplicado",
+      estado
+    );
+  }
+  for (const estado of ["rechazado", "cancelado"]) {
     assert.equal(
       decidirNotificacion({ estadoActual: estado, pagoRegistrado: PAGO_A, pagoId: PAGO_A, statusPago: "approved" }),
       "duplicado",
@@ -193,6 +203,28 @@ test("con la marca vencida, si una persona cerró el pedido a mano se respeta", 
       estado
     );
   }
+});
+
+test("pagado pero con el MP_status en un estado intermedio del mismo pago: no es duplicado, se completa", () => {
+  // Una instancia registró "in_process" después de que otra marcó pagado y
+  // la hizo retirarse: el reintento del pago aprobado tiene que terminar.
+  for (const abierto of ["in_process", "pending", "authorized", ""]) {
+    assert.equal(
+      decidirNotificacion({ estadoActual: "pagado", pagoRegistrado: PAGO_A, mpStatusActual: abierto, pagoId: PAGO_A, statusPago: "approved" }),
+      "aprobar",
+      abierto
+    );
+  }
+  // Cerrado de verdad: duplicado.
+  assert.equal(
+    decidirNotificacion({ estadoActual: "pagado", pagoRegistrado: PAGO_A, mpStatusActual: "approved", pagoId: PAGO_A, statusPago: "approved" }),
+    "duplicado"
+  );
+  // Otro pago, aunque el MP_status esté abierto: no se toca.
+  assert.equal(
+    decidirNotificacion({ estadoActual: "pagado", pagoRegistrado: PAGO_A, mpStatusActual: "in_process", pagoId: PAGO_B, statusPago: "approved" }),
+    "revisar_segundo_pago"
+  );
 });
 
 test("la marca vencida de OTRO pago no manda: se decide por el estado del pedido", () => {

@@ -107,8 +107,10 @@ function armarDeps(pagos: Record<string, PagoMP>, extra: Partial<Dependencias> =
   const reloj = relojFalso();
   const mails: { quien: string; mail: Mail }[] = [];
   const deps: Dependencias = {
+    // Mercado Pago puede contestarle distinto a cada instancia (el pago pasó
+    // de in_process a approved entre una consulta y otra): "111@A" gana a "111".
     obtenerPago: async (id) => {
-      const p = pagos[id];
+      const p = pagos[`${id}@${quien()}`] ?? pagos[id];
       if (!p) throw new Error(`pago ${id} desconocido`);
       return p;
     },
@@ -116,6 +118,7 @@ function armarDeps(pagos: Record<string, PagoMP>, extra: Partial<Dependencias> =
       mails.push({ quien: quien(), mail });
       return true;
     },
+    mailsConfigurados: () => true,
     reloj,
     esperaReclamoMs: 50,
     esperaOcupadoMs: 5_000,
@@ -205,7 +208,7 @@ test("ESCALONADA: la segunda llega mientras la primera procesa; espera a que ter
   const depsA: Dependencias = {
     ...deps,
     antesDelPaso: async (paso) => {
-      if (paso === "mails") {
+      if (paso === "mail_cliente") {
         await hasta(() => reloj.dormidas.filter((d) => d.quien === "B").length >= 2);
       }
     },
@@ -233,7 +236,7 @@ test("ESCALONADA: si la primera tarda más que la espera, la segunda pide reinte
   const depsA: Dependencias = {
     ...deps,
     antesDelPaso: async (paso) => {
-      if (paso === "mails") await frenoA.esperar();
+      if (paso === "mail_cliente") await frenoA.esperar();
     },
   };
 
@@ -289,8 +292,9 @@ test("VENTANA DEL RECLAMO: B leyó antes de que A escribiera y escribió despué
   const a = await como("A", () => procesarNotificacion("111", depsA));
   const rb = await b;
 
-  // A se retira al ver que la marca ya no es suya; B termina el pedido.
-  assert.deepEqual(a, { status: 200, cuerpo: { ok: true, cedido: true } });
+  // A se retira al ver que la marca ya no es suya, espera a que B termine y,
+  // como su pago quedó resuelto, contesta 200. B termina el pedido.
+  assert.deepEqual(a, { status: 200, cuerpo: { ok: true, duplicado: true, cedido: true } });
   assert.equal(rb.status, 200);
   assert.equal(rb.cuerpo.estado, "pagado");
   // B no volvió a descontar: las variantes ya tenían la marca de A.
@@ -328,7 +332,7 @@ test("VENTANA DEL RECLAMO, tarde: B pisa la marca cuando A ya mandó los mails; 
   const a = await como("A", () => procesarNotificacion("111", depsA));
   const rb = await b;
 
-  assert.deepEqual(a, { status: 200, cuerpo: { ok: true, cedido: true } });
+  assert.deepEqual(a, { status: 200, cuerpo: { ok: true, duplicado: true, cedido: true } });
   // B encontró el pedido ya "pagado" pero sin cerrar: no lo da por duplicado
   // (A pudo haber cedido a mitad de camino), lo completa.
   assert.equal(rb.cuerpo.estado, "pagado");
@@ -344,6 +348,257 @@ test("VENTANA DEL RECLAMO, tarde: B pisa la marca cuando A ya mandó los mails; 
   assert.deepEqual(await estadoDe(pedidoId), { estado: "pagado", mpStatus: "approved", pagoId: "111" });
   assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 11, marcas: ["HARPER-T1"] });
   assert.deepEqual(await stockDe(OBSIDIANA_NEGRO), { stock: 11, marcas: ["HARPER-T1"] });
+});
+
+// ---- Cruces entre notificaciones distintas (lo que destapó la verificación) ----
+
+/** Frena la escritura de la marca de `quienFrena` hasta que se abra la puerta. */
+function frenarReclamoDe(quienFrena: string, pedidoId: string) {
+  const p = puerta();
+  let frenada = false;
+  interceptar(async (path, llamada) => {
+    if (quien() === quienFrena && llamada.method === "PATCH" && path.endsWith(pedidoId) && llamada.body?.includes("procesando") && !frenada) {
+      frenada = true;
+      await p.esperar();
+    }
+  });
+  return { abrir: p.abrir, llego: () => frenada };
+}
+
+/** En el paso dado, deja pasar la marca frenada y espera a que aterrice. */
+function dejarPasarEn(paso: string, pedidoId: string, freno: { abrir(): void }) {
+  return async (p: string) => {
+    if (p !== paso) return;
+    const antes = (await estadoDe(pedidoId)).mpStatus;
+    freno.abrir();
+    await hasta(async () => (await estadoDe(pedidoId)).mpStatus !== antes);
+  };
+}
+
+test("CRUCE: un 'in_process' tardío (otra instancia) pisa la marca de la que aprueba antes del stock: la que aprueba pide reintento y el reintento completa", async () => {
+  const { pedidoId } = await crearPedido();
+  // Al mismo pago 111, Mercado Pago le contestó in_process a A y approved a B y C.
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId), "111@A": pago(pedidoId, { status: "in_process" }) });
+
+  const freno = frenarReclamoDe("A", pedidoId);
+  const a = como("A", () => procesarNotificacion("111", deps));
+  await hasta(freno.llego);
+
+  const b = await como("B", () => procesarNotificacion("111", { ...deps, antesDelPaso: dejarPasarEn("stock", pedidoId, freno) }));
+  const ra = await a;
+
+  // A registró el pago pendiente; B, al ver la marca pisada, NO contestó 200:
+  // su pago aprobado no quedó resuelto, así que pide reintento.
+  assert.equal(ra.cuerpo.estado, "in_process");
+  assert.equal(b.status, 503);
+  assert.deepEqual(await estadoDe(pedidoId), { estado: "pendiente", mpStatus: "in_process", pagoId: "111" });
+  assert.equal((await stockDe(AMATISTA_NEGRO)).stock, 12);
+  assert.equal(mails.length, 0);
+
+  // El reintento de Mercado Pago completa la venta.
+  const c = await como("C", () => procesarNotificacion("111", deps));
+  assert.equal(c.cuerpo.estado, "pagado");
+  await verificarVentaUnica(pedidoId, mails);
+});
+
+test("CRUCE: el 'in_process' tardío pisa la marca cuando el pedido ya está pagado: el reintento manda lo que faltaba", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId), "111@A": pago(pedidoId, { status: "in_process" }) });
+
+  const freno = frenarReclamoDe("A", pedidoId);
+  const a = como("A", () => procesarNotificacion("111", deps));
+  await hasta(freno.llego);
+
+  // B ya descontó, marcó pagado y mandó el mail al cliente; cede antes del interno.
+  const b = await como("B", () => procesarNotificacion("111", { ...deps, antesDelPaso: dejarPasarEn("mail_interno", pedidoId, freno) }));
+  await a;
+
+  assert.equal(b.status, 503);
+  assert.deepEqual(await estadoDe(pedidoId), { estado: "pagado", mpStatus: "in_process", pagoId: "111" });
+  assert.equal(mails.length, 1);
+
+  // Pagado pero con MP_status intermedio: el reintento no lo da por duplicado.
+  const c = await como("C", () => procesarNotificacion("111", deps));
+  assert.equal(c.cuerpo.estado, "pagado");
+  assert.equal(c.cuerpo.retomado, true);
+  assert.deepEqual(await estadoDe(pedidoId), { estado: "pagado", mpStatus: "approved", pagoId: "111" });
+  assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 11, marcas: ["HARPER-T1"] });
+  // C no sabe qué mails mandó B (B escribió sus pasos en una marca que A pisó):
+  // los manda de nuevo. Un mail repetido, ninguno perdido.
+  assert.equal(mails.length, 3);
+  assert.ok(mails.some((m) => m.quien === "C" && /REVISAR/.test(m.mail.asunto) === false));
+});
+
+test("CRUCE: un pago RECHAZADO que llega tarde se cruza con el APROBADO de otro intento: el aprobado pide reintento y termina pagado", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, mails } = armarDeps({
+    "111": pago(pedidoId, { status: "rejected", status_detail: "cc_rejected_other_reason" }),
+    "222": pago(pedidoId, { id: 222 }),
+  });
+
+  const freno = frenarReclamoDe("A", pedidoId);
+  const a = como("A", () => procesarNotificacion("111", deps));
+  await hasta(freno.llego);
+
+  const b = await como("B", () => procesarNotificacion("222", { ...deps, antesDelPaso: dejarPasarEn("stock", pedidoId, freno) }));
+  const ra = await a;
+
+  // A rechazó (y le avisó al cliente); B no da su pago aprobado por perdido.
+  assert.equal(ra.cuerpo.estado, "rechazado");
+  assert.equal(b.status, 503);
+  assert.equal((await estadoDe(pedidoId)).estado, "rechazado");
+  assert.equal(mails.length, 1);
+
+  // El reintento del 222 confirma la venta: un pedido rechazado sí se aprueba.
+  const c = await como("C", () => procesarNotificacion("222", deps));
+  assert.equal(c.cuerpo.estado, "pagado");
+  assert.deepEqual(await estadoDe(pedidoId), { estado: "pagado", mpStatus: "approved", pagoId: "222" });
+  assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 11, marcas: ["HARPER-T1"] });
+  assert.equal(mails.length, 3); // rechazo (residuo: le llegó antes) + confirmación + interno
+});
+
+test("CRUCE: dos pagos APROBADOS distintos a la vez: el que cede pide reintento y el reintento deja la alerta de doble cobro", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId), "222": pago(pedidoId, { id: 222 }) });
+
+  const freno = frenarReclamoDe("B", pedidoId);
+  const b = como("B", () => procesarNotificacion("222", deps));
+  await hasta(freno.llego);
+
+  // A ya descontó el stock por el 111 cuando B le pisa la marca.
+  const a = await como("A", () => procesarNotificacion("111", { ...deps, antesDelPaso: dejarPasarEn("pagado", pedidoId, freno) }));
+  const rb = await b;
+
+  assert.equal(rb.cuerpo.estado, "pagado");
+  assert.equal(a.status, 503, JSON.stringify(a));
+  assert.deepEqual(await estadoDe(pedidoId), { estado: "pagado", mpStatus: "approved", pagoId: "222" });
+  assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 11, marcas: ["HARPER-T1"] });
+
+  // El reintento del 111: segundo pago aprobado sobre un pedido pagado → revisar.
+  const c = await como("C", () => procesarNotificacion("111", deps));
+  assert.equal(c.cuerpo.estado, "revisar");
+  assert.match((await estadoDe(pedidoId)).mpStatus ?? "", /^revisar: segundo pago aprobado 111/);
+  assert.equal(mails.length, 3);
+  assert.match(mails[2].mail.asunto, /^REVISAR/);
+});
+
+// ---- Fallos de Airtable y de los mails con la marca puesta ----
+
+test("FALLO PERMANENTE después del reclamo (422 en el stock): no se da por procesado, queda 'revisar:' con el paso y sale la alerta", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId) });
+
+  // Un 422 que NO es del campo de marcas: p. ej. Stock creado como texto.
+  interceptar((path, llamada) => {
+    if (llamada.method === "PATCH" && path.startsWith(encodeURIComponent(TABLAS.variantes))) {
+      throw new RespuestaFixture(422, '{"error":{"type":"INVALID_VALUE_FOR_COLUMN","message":"Field \\"Stock\\" cannot accept the provided value"}}');
+    }
+  });
+
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.status, 200);
+  assert.equal(r.cuerpo.estado, "revisar");
+  assert.equal(r.cuerpo.fallo, "stock");
+
+  const e = await estadoDe(pedidoId);
+  assert.equal(e.estado, "pendiente");
+  assert.match(e.mpStatus ?? "", /^revisar: falló el paso "stock" del pago 111: .*422/);
+  assert.equal((await stockDe(AMATISTA_NEGRO)).stock, 12);
+  assert.equal(mails.length, 1);
+  assert.match(mails[0].mail.asunto, /^REVISAR .* falló "stock"/);
+
+  // Los reintentos no insisten (una persona ya tiene que mirarlo).
+  const otra = await como("B", () => procesarNotificacion("111", deps));
+  assert.deepEqual(otra, { status: 200, cuerpo: { ok: true, duplicado: true } });
+  assert.equal(mails.length, 1);
+});
+
+test("FALLO TRANSITORIO después del reclamo (503 leyendo una variante): nada se escribe, el webhook da 500 y el reintento completa", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, reloj, mails } = armarDeps({ "111": pago(pedidoId) });
+
+  interceptar((path, llamada) => {
+    if (quien() === "A" && llamada.method === "GET" && path.endsWith(OBSIDIANA_NEGRO)) throw new RespuestaFixture(503, "Airtable caído");
+  });
+
+  await assert.rejects(como("A", () => procesarNotificacion("111", deps)), (e: Error) => e.name === "ErrorTrasReclamo" && /503/.test(e.message));
+  assert.equal((await stockDe(AMATISTA_NEGRO)).stock, 12);
+  assert.equal((await estadoDe(pedidoId)).estado, "pendiente");
+  assert.ok(esMarcaDeReclamo((await estadoDe(pedidoId)).mpStatus));
+
+  reloj.avanzar(VIGENCIA_RECLAMO_MS);
+  const r = await como("B", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "pagado");
+  await verificarVentaUnica(pedidoId, mails);
+});
+
+test("el cliente borrado a mano (404) no frena la venta: sigue con el mail del pago", async () => {
+  const { pedidoId } = await crearPedido({ Cliente: ["recBORRADO00000001"] });
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId) });
+
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "pagado");
+  assert.deepEqual(await estadoDe(pedidoId), { estado: "pagado", mpStatus: "approved", pagoId: "111" });
+  assert.equal(mails.length, 2);
+});
+
+test("RESEND CAÍDO (enviarMail devuelve false, sin lanzar): no se anota el paso, el webhook da 500 y el reintento manda los mails", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, reloj, mails } = armarDeps({ "111": pago(pedidoId) });
+
+  const depsCaido: Dependencias = { ...deps, enviarMail: async () => false };
+  await assert.rejects(como("A", () => procesarNotificacion("111", depsCaido)), (e: Error) => e.name === "ErrorTrasReclamo" && /no salió el mail/.test(e.message));
+
+  // Stock y Estado ya están; la marca sigue, sin el paso de los mails.
+  const roto = await estadoDe(pedidoId);
+  assert.equal(roto.estado, "pagado");
+  assert.ok(esMarcaDeReclamo(roto.mpStatus));
+  assert.ok(!/mail/.test(roto.mpStatus ?? ""));
+
+  reloj.avanzar(VIGENCIA_RECLAMO_MS);
+  const r = await como("B", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "pagado");
+  await verificarVentaUnica(pedidoId, mails);
+});
+
+test("con los mails apagados a propósito (sin Resend), un false no es un fallo: la venta se cierra", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps } = armarDeps({ "111": pago(pedidoId) }, { enviarMail: async () => false, mailsConfigurados: () => false });
+
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "pagado");
+  assert.deepEqual(await estadoDe(pedidoId), { estado: "pagado", mpStatus: "approved", pagoId: "111" });
+});
+
+test("RESEND CAÍDO en una alerta de revisión (monto distinto): no se escribe 'revisar:' hasta que la alerta sale", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, reloj, mails } = armarDeps({ "111": pago(pedidoId, { transaction_amount: 1000 }) });
+
+  await assert.rejects(como("A", () => procesarNotificacion("111", { ...deps, enviarMail: async () => false })));
+  const roto = await estadoDe(pedidoId);
+  assert.ok(esMarcaDeReclamo(roto.mpStatus), "la marca tiene que seguir para que el reintento vuelva a intentar la alerta");
+  assert.equal((await stockDe(AMATISTA_NEGRO)).stock, 12);
+
+  reloj.avanzar(VIGENCIA_RECLAMO_MS);
+  const r = await como("B", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "revisar");
+  assert.match((await estadoDe(pedidoId)).mpStatus ?? "", /^revisar: se cobró 1000/);
+  assert.equal(mails.length, 1);
+  assert.match(mails[0].mail.asunto, /no coincide/);
+});
+
+test("RESEND CAÍDO en un rechazo: el Estado no se cierra hasta que el mail sale", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, reloj, mails } = armarDeps({ "111": pago(pedidoId, { status: "rejected" }) });
+
+  await assert.rejects(como("A", () => procesarNotificacion("111", { ...deps, enviarMail: async () => false })));
+  assert.equal((await estadoDe(pedidoId)).estado, "pendiente");
+
+  reloj.avanzar(VIGENCIA_RECLAMO_MS);
+  const r = await como("B", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "rechazado");
+  assert.equal((await estadoDe(pedidoId)).estado, "rechazado");
+  assert.equal(mails.length, 1);
 });
 
 // ---- Caídas a mitad de camino ----
