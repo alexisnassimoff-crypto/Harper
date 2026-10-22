@@ -2,7 +2,12 @@ import crypto from "node:crypto";
 import type { ItemResuelto, DatosCliente } from "./tipos";
 import { esUrlPublica } from "./sitio";
 
-const API = "https://api.mercadopago.com";
+/**
+ * La API real. `MP_API_URL` la reemplaza SOLO fuera de Vercel: es para la
+ * prueba de punta a punta local contra un Mercado Pago de mentira. En
+ * cualquier deploy se ignora aunque esté cargada.
+ */
+const API = (!process.env.VERCEL && process.env.MP_API_URL?.replace(/\/$/, "")) || "https://api.mercadopago.com";
 
 /** Horas que sigue viva una preferencia antes de vencer. */
 const HORAS_DE_VIDA = 24;

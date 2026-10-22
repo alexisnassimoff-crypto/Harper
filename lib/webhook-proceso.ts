@@ -1,4 +1,12 @@
 import { ErrorAirtable, esErrorPermanente, getRecord, TABLAS, updateRecord, type AirtableRecord } from "./airtable";
+import {
+  cerrojoDesdeEntorno,
+  clavePedido,
+  soltarSinFallar,
+  tomarConEspera,
+  TTL_PEDIDO_MS,
+  type Cerrojo,
+} from "./cerrojo";
 import { marcarCompra } from "./clientes";
 import { getConfig } from "./config";
 import {
@@ -111,6 +119,13 @@ export type VentaConfirmada = {
 
 export type Dependencias = {
   obtenerPago: (pagoId: string) => Promise<PagoMP>;
+  /**
+   * Cerrojo con escritura condicional (Redis), o null si no está configurado.
+   * Con cerrojo, una sola instancia trabaja sobre el pedido a la vez y el
+   * stock de cada variante se toca de a un pedido por vez; las marcas de
+   * Airtable siguen protegiendo contra repeticiones tras una caída.
+   */
+  cerrojo: Cerrojo | null;
   /** Devuelve `false` si el mail no salió (lib/mails.ts no lanza). */
   enviarMail: typeof enviarMailReal;
   /** Si los mails están apagados a propósito, un `false` no es un fallo. */
@@ -137,6 +152,7 @@ export type Resultado = {
 export function dependenciasReales(sitio: string, extra: Partial<Dependencias> = {}): Dependencias {
   return {
     obtenerPago: obtenerPagoReal,
+    cerrojo: cerrojoDesdeEntorno(),
     enviarMail: enviarMailReal,
     mailsConfigurados: mailsConfiguradosReal,
     reloj: RELOJ_REAL,
@@ -294,6 +310,34 @@ export async function procesarNotificacion(dataId: string, deps: Dependencias): 
     return ok({ ignorado: true });
   }
 
+  // ---- Cerrojo por pedido (Redis) ----
+  // Con Redis configurado, una sola instancia trabaja sobre el pedido a la
+  // vez: la segunda notificación espera a que la primera termine y después
+  // decide con el pedido ya resuelto. Si la primera no terminó en la espera,
+  // 503 y Mercado Pago reintenta. Si la instancia muere con la llave tomada,
+  // vence sola (TTL_PEDIDO_MS). Un fallo de Redis sube como transitorio.
+  if (!deps.cerrojo) {
+    return procesarConPedido(pago, pedidoId, deps);
+  }
+
+  const llave = await tomarConEspera(deps.cerrojo, clavePedido(pedidoId), TTL_PEDIDO_MS, {
+    esperaMaxMs: deps.esperaOcupadoMs,
+    reloj: deps.reloj,
+  });
+
+  if (!llave) {
+    console.warn(`[webhook] el pedido ${pedidoId} sigue tomado en Redis por otra instancia: se pide reintento`);
+    return OCUPADO;
+  }
+
+  try {
+    return await procesarConPedido(pago, pedidoId, deps);
+  } finally {
+    await soltarSinFallar(deps.cerrojo, clavePedido(pedidoId), llave);
+  }
+}
+
+async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependencias): Promise<Resultado> {
   const pagoId = String(pago.id);
 
   // ---- Decisión sobre el pedido como está ----
@@ -522,9 +566,10 @@ export async function procesarNotificacion(dataId: string, deps: Dependencias): 
       return ok({ estado: "revisar" });
     }
 
-    // 1. Stock. Idempotente por la marca en cada variante.
+    // 1. Stock. Idempotente por la marca en cada variante; con cerrojo por
+    // variante para que otro pedido no pise la lectura.
     await verificar("stock");
-    const stock = await descontarStock(items, numero);
+    const stock = await descontarStock(items, numero, { cerrojo: deps.cerrojo, reloj: deps.reloj });
 
     // 2. Estado pagado, con la marca todavía puesta (el cierre va al final).
     // Si al retomar el pedido ya avanzó a mano ("preparando", "enviado"), no
@@ -593,7 +638,6 @@ export async function procesarNotificacion(dataId: string, deps: Dependencias): 
       stockDescontado: stock.descontadas.length,
       stockOmitido: stock.omitidas.length,
       ...(stock.noEncontradas.length > 0 ? { stockNoEncontrado: stock.noEncontradas.length } : {}),
-      ...(stock.sinMarca ? { stockSinMarca: true } : {}),
     });
   } catch (error) {
     if (error instanceof Cedido) {

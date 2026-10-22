@@ -10,6 +10,8 @@ process.env.HARPER_FIXTURES = "1";
 delete process.env.VERCEL;
 
 import { createRecord, getRecord, TABLAS, updateRecord } from "../lib/airtable";
+import { clavePedido, ErrorCerrojo, TTL_PEDIDO_MS, type Cerrojo } from "../lib/cerrojo";
+import { cerrojoEnMemoria, reiniciarRedis } from "../lib/fixtures/redis";
 import { interceptar, reiniciar, RespuestaFixture } from "../lib/fixtures/servidor";
 import type { PagoMP } from "../lib/mercadopago";
 import { leerMarcas } from "../lib/stock";
@@ -119,6 +121,9 @@ function armarDeps(pagos: Record<string, PagoMP>, extra: Partial<Dependencias> =
       return true;
     },
     mailsConfigurados: () => true,
+    // Sin Redis por defecto: estas pruebas ejercitan la protección de Airtable
+    // sola. Las que dicen "CON CERROJO" lo agregan.
+    cerrojo: null,
     reloj,
     esperaReclamoMs: 50,
     esperaOcupadoMs: 5_000,
@@ -148,6 +153,7 @@ async function verificarVentaUnica(pedidoId: string, mails: { mail: Mail }[]) {
 
 beforeEach(() => {
   reiniciar();
+  reiniciarRedis();
   interceptar(null);
 });
 
@@ -823,7 +829,7 @@ test("pago pendiente: solo se registra, sin reclamo; cuando se aprueba, se proce
   await verificarVentaUnica(pedidoId, mails);
 });
 
-test("sin el campo de marcas en Airtable, la venta se confirma igual y el resultado lo avisa", async () => {
+test("sin el campo de marcas en Airtable (422), NUNCA se descuenta a ciegas: queda 'revisar' con el paso y la alerta", async () => {
   const { pedidoId } = await crearPedido();
   const { deps, mails } = armarDeps({ "111": pago(pedidoId) });
 
@@ -834,11 +840,125 @@ test("sin el campo de marcas en Airtable, la venta se confirma igual y el result
   });
 
   const r = await como("A", () => procesarNotificacion("111", deps));
-  assert.equal(r.cuerpo.estado, "pagado");
-  assert.equal(r.cuerpo.stockSinMarca, true);
-  assert.deepEqual(await estadoDe(pedidoId), { estado: "pagado", mpStatus: "approved", pagoId: "111" });
-  assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 11, marcas: [] });
-  assert.equal(mails.length, 2);
+  assert.equal(r.status, 200);
+  assert.equal(r.cuerpo.estado, "revisar");
+  assert.equal(r.cuerpo.fallo, "stock");
+
+  const e = await estadoDe(pedidoId);
+  assert.equal(e.estado, "pendiente");
+  assert.match(e.mpStatus ?? "", /^revisar: falló el paso "stock" del pago 111: .*UNKNOWN_FIELD_NAME/);
+  assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 12, marcas: [] });
+  assert.equal(mails.length, 1);
+  assert.match(mails[0].mail.asunto, /^REVISAR .* falló "stock"/);
+
+  const otra = await como("B", () => procesarNotificacion("111", deps));
+  assert.deepEqual(otra, { status: 200, cuerpo: { ok: true, duplicado: true } });
+  assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 12, marcas: [] });
+});
+
+// ---- Con cerrojo Redis ----
+
+test("CON CERROJO: dos notificaciones a la vez: la segunda espera la llave, ve el pedido resuelto y contesta duplicado (sin 503)", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, reloj, mails } = armarDeps({ "111": pago(pedidoId) });
+  const cerrojo = cerrojoEnMemoria(reloj);
+  const d: Dependencias = { ...deps, cerrojo };
+
+  const [a, b] = await Promise.all([
+    como("A", () => procesarNotificacion("111", d)),
+    como("B", () => procesarNotificacion("111", d)),
+  ]);
+
+  assert.equal([a, b].filter((r) => r.cuerpo.estado === "pagado").length, 1, JSON.stringify([a, b]));
+  assert.deepEqual([a, b].find((r) => r.cuerpo.estado !== "pagado"), { status: 200, cuerpo: { ok: true, duplicado: true } });
+  // La segunda tuvo que esperar la llave del pedido (más las llaves de las variantes de la primera).
+  assert.ok(cerrojo.intentos >= 4, `intentos=${cerrojo.intentos}`);
+  // Todo quedó suelto.
+  assert.equal(await cerrojo.tomar(clavePedido(pedidoId), "x", 1000), true);
+  await verificarVentaUnica(pedidoId, mails);
+});
+
+test("CON CERROJO: el cruce in_process / approved se serializa: una sola venta, sin reintentos", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, reloj, mails } = armarDeps({ "111": pago(pedidoId), "111@A": pago(pedidoId, { status: "in_process" }) });
+  const d: Dependencias = { ...deps, cerrojo: cerrojoEnMemoria(reloj) };
+
+  const [a, b] = await Promise.all([
+    como("A", () => procesarNotificacion("111", d)),
+    como("B", () => procesarNotificacion("111", d)),
+  ]);
+
+  assert.ok([a, b].every((r) => r.status === 200), JSON.stringify([a, b]));
+  assert.equal(b.cuerpo.estado, "pagado");
+  // A llegó primero (registró in_process) o después (vio el pedido ya cerrado).
+  assert.ok(a.cuerpo.estado === "in_process" || a.cuerpo.duplicado === true, JSON.stringify(a));
+  await verificarVentaUnica(pedidoId, mails);
+});
+
+test("CON CERROJO: dos pedidos DISTINTOS aprobados a la vez sobre las mismas variantes: el stock baja las dos unidades", async () => {
+  const p1 = await crearPedido();
+  const p2 = await crearPedido({ Numero: "HARPER-T2" });
+  const { deps, reloj, mails } = armarDeps({ "111": pago(p1.pedidoId), "222": pago(p2.pedidoId, { id: 222 }) });
+  const d: Dependencias = { ...deps, cerrojo: cerrojoEnMemoria(reloj) };
+
+  const [a, b] = await Promise.all([
+    como("A", () => procesarNotificacion("111", d)),
+    como("B", () => procesarNotificacion("222", d)),
+  ]);
+
+  assert.equal(a.cuerpo.estado, "pagado", JSON.stringify(a));
+  assert.equal(b.cuerpo.estado, "pagado", JSON.stringify(b));
+  const am = await stockDe(AMATISTA_NEGRO);
+  const ob = await stockDe(OBSIDIANA_NEGRO);
+  assert.equal(am.stock, 10);
+  assert.equal(ob.stock, 10);
+  assert.deepEqual([...am.marcas].sort(), ["HARPER-T1", "HARPER-T2"]);
+  assert.equal(mails.length, 4);
+});
+
+test("CON CERROJO: la instancia muere con la llave tomada: la llave vence sola y el reintento completa sin repetir stock", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, reloj, mails } = armarDeps({ "111": pago(pedidoId) });
+  const cerrojo = cerrojoEnMemoria(reloj);
+
+  // A se cae después del stock y "muere" sin soltar la llave (el finally no corre en una instancia muerta).
+  interceptar((path, llamada) => {
+    if (quien() === "A" && llamada.method === "PATCH" && path.endsWith(pedidoId) && llamada.body?.includes('"Estado":"pagado"')) {
+      throw new Error("caída simulada");
+    }
+  });
+  const sinSoltar: Cerrojo = { tomar: cerrojo.tomar, soltar: async () => { throw new Error("instancia muerta"); } };
+  await assert.rejects(como("A", () => procesarNotificacion("111", { ...deps, cerrojo: sinSoltar })));
+  interceptar(null);
+  assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 11, marcas: ["HARPER-T1"] });
+
+  // Reintento temprano: la llave sigue tomada → 503, sin tocar Airtable.
+  const temprano = await como("B", () => procesarNotificacion("111", { ...deps, cerrojo, esperaOcupadoMs: 1_000 }));
+  assert.equal(temprano.status, 503);
+  assert.equal((await estadoDe(pedidoId)).estado, "pendiente");
+
+  // Vencen la llave y la marca: el reintento retoma.
+  reloj.avanzar(Math.max(TTL_PEDIDO_MS, VIGENCIA_RECLAMO_MS) + 1);
+  const tarde = await como("C", () => procesarNotificacion("111", { ...deps, cerrojo }));
+  assert.equal(tarde.cuerpo.estado, "pagado");
+  assert.equal(tarde.cuerpo.stockDescontado, 0);
+  await verificarVentaUnica(pedidoId, mails);
+});
+
+test("CON CERROJO: si Redis no contesta, no se toca Airtable y el webhook reintenta (falla cerrado)", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId) });
+  const roto: Cerrojo = {
+    tomar: async () => {
+      throw new ErrorCerrojo("Redis no contestó");
+    },
+    soltar: async () => {},
+  };
+
+  await assert.rejects(como("A", () => procesarNotificacion("111", { ...deps, cerrojo: roto })), ErrorCerrojo);
+  assert.deepEqual(await estadoDe(pedidoId), { estado: "pendiente", mpStatus: undefined, pagoId: undefined });
+  assert.equal((await stockDe(AMATISTA_NEGRO)).stock, 12);
+  assert.equal(mails.length, 0);
 });
 
 test("el gancho de venta confirmada recibe el pedido y, si falla, no toca la venta", async () => {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAirtableConfigured, modoFixtures } from "@/lib/airtable";
+import { redisConfigurado } from "@/lib/cerrojo";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
 import { mercadoPagoListo } from "@/lib/mercadopago";
@@ -65,9 +66,15 @@ export function GET() {
       // con el píxel solo, las compras que no vuelven a /gracias se pierden.
       metaPixel: Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID),
       metaCapi: metaCapiConfigurada(),
+      // El cerrojo del webhook (Upstash Redis). Sin él, dos notificaciones o
+      // dos pedidos a la vez solo tienen la protección de Airtable.
+      redis: redisConfigurado(),
     },
     variables,
     avisos: [
+      redisConfigurado()
+        ? null
+        : "Sin Upstash Redis (KV_REST_API_URL/KV_REST_API_TOKEN): el webhook corre sin cerrojo entre instancias",
       variables.MP_ACCESS_TOKEN ? null : "Falta MP_ACCESS_TOKEN",
       variables.MP_WEBHOOK_SECRET
         ? null
