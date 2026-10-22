@@ -139,9 +139,14 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
           __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
         }}
       />
+      {/* El mismo identificador que AddToCart y Purchase: el SKU de la
+          variante con la que abre la ficha. */}
       <EventoPixel evento="ViewContent" data={{
-        content_ids: [producto.slug], content_type: "product",
-        content_name: producto.nombre, value: producto.precio, currency: "ARS",
+        content_ids: [producto.variantes[varianteInicial]?.sku ?? producto.slug],
+        content_type: "product",
+        content_name: producto.nombre,
+        value: producto.precio,
+        currency: "ARS",
       }} />
       <FichaProducto
         producto={producto}

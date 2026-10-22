@@ -71,6 +71,11 @@ test("reiniciar vuelve al catálogo inicial", () => {
   });
   reiniciar();
 
+  // Queda solo el pedido de prueba que viene de fábrica (HARPER-PRUEBA, ya
+  // pagado, para ver /gracias confirmada sin cobrar); el creado acá se fue.
   const pedidos = atender<Lista>(encodeURIComponent(TABLAS.pedidos), { method: "GET", query: {} });
-  assert.equal(pedidos.records.length, 0);
+  assert.deepEqual(
+    pedidos.records.map((r) => r.fields.Numero),
+    ["HARPER-PRUEBA"]
+  );
 });

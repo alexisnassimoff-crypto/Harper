@@ -14,6 +14,7 @@ import CtaFija from "./CtaFija";
 import type { Confianza } from "@/lib/confianza";
 import { importeCuota } from "@/lib/cuotas";
 import { precio as formatearPrecio } from "@/lib/formato";
+import { trackAgregarAlCarrito } from "@/lib/pixel";
 import {
   armarGaleria,
   indiceEntreFotos,
@@ -132,25 +133,26 @@ export default function FichaProducto({
     setAgregado(false);
   }
 
-  function agregarAlCarrito() {
+  // Una sola función suma al carrito y avisa al píxel: así AddToCart se
+  // dispara exactamente cuando el producto entra, desde cualquier botón.
+  function sumarAlCarrito() {
     agregar({
       productoSlug: producto.slug,
       varianteId: variante.id,
       cantidad: 1,
     });
+    trackAgregarAlCarrito({ sku: variante.sku, nombre: producto.nombre, precio: producto.precio });
+  }
+
+  function agregarAlCarrito() {
+    sumarAlCarrito();
     setAgregado(true);
   }
 
   function comprarAhora() {
     // Si este color ya está en el carrito —porque tocó "Agregar" primero— no
     // se suma otra unidad: antes llegaba al checkout con dos pares sin querer.
-    if (!yaEnCarrito) {
-      agregar({
-        productoSlug: producto.slug,
-        varianteId: variante.id,
-        cantidad: 1,
-      });
-    }
+    if (!yaEnCarrito) sumarAlCarrito();
     iniciarTransicion(() => router.push("/checkout"));
   }
 

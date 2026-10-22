@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+// El tipo global de `window.fbq` vive en lib/pixel.ts, junto con los eventos.
+import "@/lib/pixel";
 
 /**
  * Píxel de Meta para la pauta de Harper.
@@ -14,13 +16,6 @@ import { usePathname } from "next/navigation";
  * todo lo que necesitan para optimizar a compra.
  */
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
-
-declare global {
-  interface Window {
-    fbq?: (...args: unknown[]) => void;
-    _fbq?: unknown;
-  }
-}
 
 export default function MetaPixel() {
   const pathname = usePathname();

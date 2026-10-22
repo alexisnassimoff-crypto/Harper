@@ -301,6 +301,10 @@ export type PedidoPublico = {
   numero: string;
   estado: string;
   total: number;
+  /** Productos sin envío: el valor de la venta para el píxel. */
+  subtotal: number;
+  /** Solo SKU, cantidad y precio: lo que el píxel manda como `contents`. */
+  items: { sku: string; cantidad: number; precioUnitario: number }[];
 };
 
 /**
@@ -309,11 +313,11 @@ export type PedidoPublico = {
  * Antes la página de gracias felicitaba a cualquiera que abriera la URL, sin
  * consultar nada: un pago rechazado terminaba en un "Gracias por tu compra".
  *
- * Solo devuelve estado y total. El número es semiadivinable, así que acá no
- * puede salir ningún dato personal.
+ * Solo devuelve estado, montos y productos. El número es semiadivinable, así
+ * que acá no puede salir ningún dato personal.
  */
 export async function buscarPedido(numero: string): Promise<PedidoPublico | null> {
-  type Fila = { Numero?: string; Estado?: string; Total?: number };
+  type Fila = { Numero?: string; Estado?: string; Total?: number; Subtotal?: number; Items?: string };
 
   try {
     const registros = await listRecords<Fila>(TABLAS.pedidos, {
@@ -324,10 +328,24 @@ export async function buscarPedido(numero: string): Promise<PedidoPublico | null
     const fila = registros[0]?.fields;
     if (!fila) return null;
 
+    let items: PedidoPublico["items"] = [];
+    try {
+      const parseado: unknown = JSON.parse(fila.Items ?? "[]");
+      if (Array.isArray(parseado)) {
+        items = (parseado as ItemResuelto[])
+          .filter((i) => typeof i?.sku === "string")
+          .map((i) => ({ sku: i.sku, cantidad: i.cantidad, precioUnitario: i.precioUnitario }));
+      }
+    } catch {
+      // Un Items ilegible no rompe la página: el evento sale sin detalle.
+    }
+
     return {
       numero: fila.Numero ?? numero,
       estado: fila.Estado ?? "pendiente",
       total: fila.Total ?? 0,
+      subtotal: fila.Subtotal ?? fila.Total ?? 0,
+      items,
     };
   } catch (error) {
     // Airtable caído no puede romper la vuelta del cliente desde el pago.

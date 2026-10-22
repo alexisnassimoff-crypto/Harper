@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { precio as formatearPrecio } from "@/lib/formato";
+import { trackAgregarAlCarrito } from "@/lib/pixel";
 import type { Sugerencia } from "@/lib/sugerencias";
 import { useCarrito } from "./CarritoContexto";
 
@@ -25,6 +26,7 @@ export default function SugerenciasCarrito({
 
   function sumar(s: Sugerencia) {
     agregar({ productoSlug: s.slug, varianteId: s.varianteId, cantidad: 1 });
+    trackAgregarAlCarrito({ sku: s.sku, nombre: s.nombre, precio: s.precio });
     setAgregados((previos) => new Set(previos).add(s.varianteId));
   }
 

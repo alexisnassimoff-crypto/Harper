@@ -26,6 +26,8 @@ export type Sugerencia = {
   categoria: Categoria;
   color: string;
   varianteId: string;
+  /** Para identificar el producto en el píxel igual que en la ficha. */
+  sku: string;
   precio: number;
   foto: string | null;
   /** Por qué se la ofrecemos. Es lo que se muestra arriba de la tarjeta. */
@@ -137,6 +139,7 @@ export function elegirSugerencias(
         categoria: producto.categoria,
         color: variante.color,
         varianteId: variante.id,
+        sku: variante.sku,
         precio: producto.precio,
         foto: variante.fotos[0] ?? producto.fotoPrincipal,
         motivo,

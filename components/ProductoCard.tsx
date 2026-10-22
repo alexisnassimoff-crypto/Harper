@@ -6,6 +6,7 @@ import FotoCruzada from "./FotoCruzada";
 import { useDeslizar } from "./useDeslizar";
 import { useCarrito } from "./carrito/CarritoContexto";
 import { precio as formatearPrecio } from "@/lib/formato";
+import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { rutaDeVariante } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 
@@ -57,6 +58,7 @@ export default function ProductoCard({
       varianteId: variante.id,
       cantidad: 1,
     });
+    trackAgregarAlCarrito({ sku: variante.sku, nombre: producto.nombre, precio: producto.precio });
     setAgregado(true);
   }
 

@@ -4,6 +4,7 @@ import { guardarCliente } from "@/lib/clientes";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
 import { leerEleccionEnvio, nombreModo, nombreServicio } from "@/lib/envio-elegido";
+import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
 
@@ -19,7 +20,13 @@ export async function POST(request: Request) {
     );
   }
 
-  let cuerpo: { cliente?: unknown; items?: unknown; envio?: unknown; totalVisto?: unknown };
+  let cuerpo: {
+    cliente?: unknown;
+    items?: unknown;
+    envio?: unknown;
+    totalVisto?: unknown;
+    origen?: unknown;
+  };
 
   try {
     cuerpo = await request.json();
@@ -100,6 +107,9 @@ export async function POST(request: Request) {
     const numero = numeroDePedido(ahora);
     const clienteId = await guardarCliente(cliente);
 
+    // De qué anuncio vino: solo las claves conocidas, recortadas.
+    const origen = normalizarOrigen(cuerpo.origen);
+
     // El pedido nace en "pendiente". Solo el webhook lo pasa a "pagado".
     const pedido = await createRecord<FilaPedido>(TABLAS.pedidos, {
       Numero: numero,
@@ -119,6 +129,7 @@ export async function POST(request: Request) {
       Envio_servicio: nombreServicio(eleccion),
       Envio_sucursal: eleccion?.sucursal ?? "",
       Fecha: ahora.toISOString(),
+      ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     });
 
     pedidoId = pedido.id;

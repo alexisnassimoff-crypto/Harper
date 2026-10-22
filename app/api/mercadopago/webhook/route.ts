@@ -10,6 +10,8 @@ import {
   type DatosMail,
 } from "@/lib/mails";
 import { firmaValida, obtenerPago } from "@/lib/mercadopago";
+import { armarEventoCompra, enviarEventosAMeta, metaCapiConfigurada } from "@/lib/meta";
+import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
 import { descontarStock } from "@/lib/stock";
 import { decidirNotificacion, MARCA_REVISAR } from "@/lib/webhook-decision";
@@ -52,6 +54,8 @@ type FilaPedido = {
   CP?: string;
   MP_payment_id?: string;
   MP_status?: string;
+  /** JSON con UTM, fbclid y cookies del píxel, escrito por el checkout. */
+  Origen?: string;
 };
 
 type FilaCliente = {
@@ -126,6 +130,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   } finally {
     enVuelo.delete(dataId);
+  }
+}
+
+async function avisarCompraAMeta(datos: {
+  numero: string;
+  items: ItemResuelto[];
+  subtotal: number;
+  cliente: DatosCliente;
+  clienteId?: string;
+  origenCrudo?: string;
+  sitio: string;
+}) {
+  if (!metaCapiConfigurada()) return;
+
+  try {
+    let origen = null;
+    try {
+      origen = datos.origenCrudo ? normalizarOrigen(JSON.parse(datos.origenCrudo)) : null;
+    } catch {
+      // Un Origen ilegible no impide mandar la compra.
+    }
+
+    const evento = armarEventoCompra({
+      numero: datos.numero,
+      items: datos.items,
+      subtotal: datos.subtotal,
+      cliente: datos.cliente,
+      clienteId: datos.clienteId,
+      origen,
+      sitio: datos.sitio,
+      ahora: Date.now(),
+    });
+
+    const respuesta = await enviarEventosAMeta([evento]);
+
+    if (!respuesta.ok) {
+      console.error(`[meta] no se pudo mandar la compra ${datos.numero}: ${respuesta.status} ${respuesta.cuerpo}`);
+    }
+  } catch (error) {
+    console.error("[meta] error armando el evento de compra", datos.numero, error);
   }
 }
 
@@ -312,6 +356,19 @@ async function procesar(dataId: string, request: Request) {
     }
 
     await enviarMail(mailAvisoInterno({ ...datosMail, pedidoUrl }));
+
+    // La compra confirmada, a Meta por la Conversions API. Mismo event_id
+    // que el píxel de /gracias: Meta se queda con uno. Best-effort: un fallo
+    // acá se loguea y no toca la venta.
+    await avisarCompraAMeta({
+      numero: datosMail.numero,
+      items,
+      subtotal: datosMail.subtotal,
+      cliente,
+      clienteId,
+      origenCrudo: pedido.fields.Origen,
+      sitio,
+    });
 
     return NextResponse.json({ ok: true, estado: "pagado" });
   }
