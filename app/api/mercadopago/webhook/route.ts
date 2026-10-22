@@ -13,6 +13,7 @@ import { firmaValida, obtenerPago } from "@/lib/mercadopago";
 import { urlDelSitio } from "@/lib/sitio";
 import { descontarStock } from "@/lib/stock";
 import { decidirNotificacion, MARCA_REVISAR } from "@/lib/webhook-decision";
+import { reclamarPedido } from "@/lib/webhook-lock";
 import type { DatosCliente, ItemResuelto } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
@@ -25,16 +26,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Pagos que se están procesando en este mismo instante.
+ * Pagos que se están procesando en este mismo instante, en esta instancia.
  *
- * Mercado Pago reintenta rápido y entrega notificaciones en paralelo. La
- * idempotencia contra Airtable es leer-y-después-escribir, así que dos
- * notificaciones simultáneas del mismo pago pasaban las dos el control y
- * descontaban el stock dos veces.
- *
- * OJO: esto cubre una sola instancia de la función, no todas. Airtable no
- * tiene transacciones y no hay forma de hacerlo atómico de verdad; con el
- * volumen de esta tienda alcanza, pero no es una garantía.
+ * Es el atajo barato para los duplicados que caen en la misma instancia. Los
+ * que caen en instancias distintas los frena el reclamo del pedido en
+ * Airtable (lib/webhook-lock.ts), que es el que garantiza que cada pago se
+ * procese una sola vez.
  */
 const enVuelo = new Set<string>();
 
@@ -132,6 +129,17 @@ export async function POST(request: Request) {
   }
 }
 
+/** Qué decide el webhook a partir del pedido tal como está en Airtable. */
+function decidir(pedido: { fields: FilaPedido }, pagoId: string, statusPago: string) {
+  return decidirNotificacion({
+    estadoActual: pedido.fields.Estado ?? "pendiente",
+    pagoRegistrado: pedido.fields.MP_payment_id,
+    mpStatusActual: pedido.fields.MP_status,
+    pagoId,
+    statusPago,
+  });
+}
+
 async function procesar(dataId: string, request: Request) {
   // El estado real se pregunta a Mercado Pago; nunca se toma del cuerpo.
   const pago = await obtenerPago(dataId);
@@ -142,21 +150,14 @@ async function procesar(dataId: string, request: Request) {
     return NextResponse.json({ ok: true, ignorado: true });
   }
 
-  const pedido = await getRecord<FilaPedido>(TABLAS.pedidos, pedidoId);
-  const estadoActual = pedido.fields.Estado ?? "pendiente";
+  let pedido = await getRecord<FilaPedido>(TABLAS.pedidos, pedidoId);
   const pagoId = String(pago.id);
 
   // ---- Idempotencia y protección del pedido ----
   // Mercado Pago reintenta las notificaciones, y un mismo pedido puede recibir
   // más de un pago (un intento rechazado y otro aprobado, o dos aprobados).
   // La decisión está en lib/webhook-decision.ts, con sus pruebas.
-  const accion = decidirNotificacion({
-    estadoActual,
-    pagoRegistrado: pedido.fields.MP_payment_id,
-    mpStatusActual: pedido.fields.MP_status,
-    pagoId,
-    statusPago: pago.status,
-  });
+  let accion = decidir(pedido, pagoId, pago.status);
 
   if (accion === "duplicado") {
     return NextResponse.json({ ok: true, duplicado: true });
@@ -164,10 +165,38 @@ async function procesar(dataId: string, request: Request) {
 
   if (accion === "ignorar") {
     console.warn(
-      `[webhook] el pago ${pagoId} (${pago.status}) llegó sobre el pedido ${pedidoId} ya ${estadoActual}: no se toca`
+      `[webhook] el pago ${pagoId} (${pago.status}) llegó sobre el pedido ${pedidoId} ya ${pedido.fields.Estado}: no se toca`
     );
     return NextResponse.json({ ok: true, ignorado: true });
   }
+
+  // ---- Reclamo entre instancias ----
+  // Las acciones que cambian el pedido (confirmar, rechazar, marcar para
+  // revisar) las ejecuta una sola instancia. Si otra escribió su marca después
+  // de la nuestra, es ella la que sigue; nosotros contestamos 200 y listo.
+  // "esperar" solo anota el estado y no necesita reclamo.
+  if (accion !== "esperar") {
+    const reclamo = await reclamarPedido<FilaPedido>(pedidoId, pagoId);
+
+    if (!reclamo.gano) {
+      console.warn(`[webhook] el pago ${pagoId} lo está procesando otra instancia: me retiro`);
+      return NextResponse.json({ ok: true, duplicado: true });
+    }
+
+    // Entre la primera lectura y el reclamo, otra instancia pudo haber
+    // terminado: se vuelve a decidir con el pedido fresco.
+    pedido = reclamo.pedido;
+    accion = decidir(pedido, pagoId, pago.status);
+
+    if (accion === "duplicado" || accion === "ignorar" || accion === "esperar") {
+      // Nuestra marca pisó el MP_status final que dejó la otra instancia:
+      // se restaura, sin tocar nada más.
+      await updateRecord<FilaPedido>(TABLAS.pedidos, pedidoId, { MP_status: pago.status });
+      return NextResponse.json({ ok: true, duplicado: true });
+    }
+  }
+
+  const estadoActual = pedido.fields.Estado ?? "pendiente";
 
   const clienteId = pedido.fields.Cliente?.[0];
 
