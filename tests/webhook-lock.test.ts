@@ -77,13 +77,14 @@ test("una instancia que reclama tarde, con el pedido ya pagado y cerrado, decide
   await updateRecord<Fila>(TABLAS.pedidos, id, { Estado: "pagado", MP_payment_id: "111", MP_status: "approved" });
 
   // La segunda llega después: reclama, "gana" la marca, pero al releer ve el
-  // pedido pagado y la decisión (sin su propia marca) es no hacer nada.
+  // pedido pagado y cerrado ("approved", que pisó con su marca) y la decisión
+  // es no hacer nada.
   const segunda = await reclamarPedido<Fila>(id, "111", { esperaMs: 50, reloj });
   assert.equal(segunda.gano, true);
   const accion = decidirNotificacion({
     estadoActual: segunda.pedido.fields.Estado ?? "pendiente",
     pagoRegistrado: segunda.pedido.fields.MP_payment_id,
-    mpStatusActual: "",
+    mpStatusActual: "approved",
     pagoId: "111",
     statusPago: "approved",
     ahora: reloj.ahora(),

@@ -37,11 +37,20 @@ import { leerReclamo, marcaDeReclamo, type Reclamo } from "./webhook-decision";
  *     escribir dos veces sin daño; los mails quedan anotados como paso
  *     cumplido en la marca; la Conversions API deduplica por event_id.
  *
+ *  4. Nunca un 200 a ciegas. Una instancia que se retira (perdió el reclamo o
+ *     le pisaron la marca) vuelve a mirar el pedido y contesta 200 solo si SU
+ *     pago quedó resuelto; si no, 503, y Mercado Pago reintenta esa
+ *     notificación. Si algo falla con la marca puesta, 500, y Mercado Pago
+ *     reintenta. Así, lo que una instancia no termina lo termina otra.
+ *
  * El residuo honesto: si dos instancias pasan la capa 1 a la vez (la segunda
  * leyó antes de que la primera escribiera y escribió después de que la primera
  * releyó, es decir, más de `ESPERA_RECLAMO_MS` entre su lectura y su
- * escritura) y además ambas pasan la capa 2 en el mismo paso, el único efecto
- * que puede repetirse es un mail. Ni el cobro, ni el stock, ni el Estado.
+ * escritura), puede repetirse un mail, o puede salirle al cliente un mail de
+ * "pago rechazado" (por un intento anterior que llegó tarde) antes del de
+ * confirmación. Ni el cobro, ni el stock, ni el Estado final se pierden ni se
+ * duplican, siempre que Mercado Pago reintente lo que recibe 503 o 500 (lo
+ * hace cada 15 minutos).
  *
  * Si se quiere exclusión mutua real hace falta un almacenamiento con
  * escritura condicional (p. ej. Redis `SET NX`); ver la propuesta en el PR.
