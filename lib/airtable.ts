@@ -142,16 +142,21 @@ async function request<T>(
  * código los trate igual que a los reales.
  */
 async function requestFixtures<T>(path: string, init: RequestInitConQuery): Promise<T> {
-  const { atender, RespuestaFixture } = await import("./fixtures/servidor");
+  const servidor = await import("./fixtures/servidor");
+  const body = typeof init.body === "string" ? init.body : null;
 
   try {
-    return atender<T>(path, {
+    // Las pruebas pueden demorar, ordenar o hacer fallar cada llamada.
+    const interceptor = servidor.interceptorActual();
+    if (interceptor) await interceptor(path, { method: (init.method ?? "GET").toUpperCase(), body });
+
+    return servidor.atender<T>(path, {
       method: init.method,
-      body: typeof init.body === "string" ? init.body : null,
+      body,
       query: init.query,
     });
   } catch (error) {
-    if (error instanceof RespuestaFixture) {
+    if (error instanceof servidor.RespuestaFixture) {
       throw new ErrorAirtable(error.status, path, error.message);
     }
     throw error;

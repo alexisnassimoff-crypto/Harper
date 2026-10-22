@@ -106,6 +106,29 @@ function respuesta(status: number, mensaje: string) {
   return new RespuestaFixture(status, mensaje);
 }
 
+/**
+ * Gancho para las pruebas: se llama antes de atender cada llamada.
+ *
+ * Sirve para ordenar carreras (demorar una escritura hasta que otra
+ * "instancia" haya leído), para simular caídas (tirar un error justo antes de
+ * una escritura) y para simular respuestas de Airtable (tirar una
+ * `RespuestaFixture`). Fuera de las pruebas es `null` y no hace nada.
+ */
+export type Interceptor = (
+  path: string,
+  llamada: { method: string; body: string | null }
+) => Promise<void> | void;
+
+let interceptor: Interceptor | null = null;
+
+export function interceptar(fn: Interceptor | null) {
+  interceptor = fn;
+}
+
+export function interceptorActual() {
+  return interceptor;
+}
+
 /** Atiende una llamada tal como la haría la API. `path` viene ya codificado. */
 export function atender<T>(path: string, init: Init): T {
   const [tablaCodificada, recordId] = path.split("/");
