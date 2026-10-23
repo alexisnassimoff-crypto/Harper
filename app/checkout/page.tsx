@@ -1,4 +1,3 @@
-import EventoPixel from "@/components/EventoPixel";
 import type { Metadata } from "next";
 import FormularioCheckout from "@/components/checkout/FormularioCheckout";
 
@@ -14,9 +13,11 @@ export default async function PaginaCheckout({
 }) {
   const { error } = await searchParams;
 
+  // InitiateCheckout lo dispara el formulario, cuando el carrito ya está
+  // resuelto (con valor e ítems) y solo si de verdad hay algo para comprar y
+  // no es la vuelta de un pago rechazado.
   return (
     <>
-    <EventoPixel evento="InitiateCheckout" />
     <section className="contenedor" style={{ paddingBlock: "3.5rem" }}>
       <h1 className="titulo" style={{ marginBottom: "2.5rem" }}>
         Finalizar compra
@@ -40,7 +41,7 @@ export default async function PaginaCheckout({
         </p>
       ) : null}
 
-      <FormularioCheckout />
+      <FormularioCheckout reintento={error === "pago"} />
     </section>
   </>
   );

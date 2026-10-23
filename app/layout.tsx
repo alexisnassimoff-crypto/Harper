@@ -6,6 +6,7 @@ import WhatsApp from "@/components/WhatsApp";
 import { ProveedorCarrito } from "@/components/carrito/CarritoContexto";
 import TransicionDePagina from "@/components/TransicionDePagina";
 import MetaPixel from "@/components/MetaPixel";
+import CapturaOrigen from "@/components/CapturaOrigen";
 import { getConfig } from "@/lib/config";
 import { DESCRIPCION_SITIO, TITULO_SITIO } from "@/lib/portada";
 import "./globals.css";
@@ -115,6 +116,7 @@ export default async function RootLayout({
       <body>
         <ProveedorCarrito>
         <MetaPixel />
+        <CapturaOrigen />
           <a className="saltar-al-contenido" href="#contenido">
             Saltar al contenido
           </a>

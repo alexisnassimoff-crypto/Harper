@@ -5,6 +5,7 @@ import EsperarPago from "@/components/EsperarPago";
 import EventoPixel from "@/components/EventoPixel";
 import { getConfig } from "@/lib/config";
 import { buscarPedido } from "@/lib/pedidos";
+import { datosDeCompra, idEventoCompra } from "@/lib/pixel";
 import { ESTADOS_CONFIRMADOS } from "@/lib/webhook-decision";
 
 export const metadata: Metadata = {
@@ -45,8 +46,16 @@ export default async function Gracias({
 
   return (
     <>
+    {/* Purchase solo con el pago confirmado en Airtable. Mismo event_id que
+        manda el webhook por la Conversions API, y una sola vez por pedido en
+        este navegador: recargar no es otra compra. */}
     {confirmado && pedido ? (
-      <EventoPixel evento="Purchase" data={{ value: pedido.total, currency: "ARS", content_type: "product" }} />
+      <EventoPixel
+        evento="Purchase"
+        data={datosDeCompra({ items: pedido.items, valor: pedido.subtotal })}
+        eventID={idEventoCompra(pedido.numero)}
+        unaVez={`harper.compra.${pedido.numero}`}
+      />
     ) : null}
     <section
       className="contenedor pila"

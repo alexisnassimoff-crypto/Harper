@@ -7,6 +7,7 @@ import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { cuotasActivas } from "@/lib/cuotas";
 import { precio as formatearPrecio } from "@/lib/formato";
+import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, EleccionEnvio, OpcionEnvio } from "@/lib/tipos";
 import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
@@ -45,7 +46,12 @@ const VACIO: DatosCliente = {
   aceptaPromos: false,
 };
 
-export default function FormularioCheckout() {
+export default function FormularioCheckout({
+  reintento = false,
+}: {
+  /** Verdadero cuando vuelve de un pago rechazado: no es un checkout nuevo. */
+  reintento?: boolean;
+}) {
   const { items, quitar } = useCarrito();
   const {
     datos: carrito,
@@ -156,6 +162,19 @@ export default function FormularioCheckout() {
     return () => window.clearTimeout(id);
   }, [form.email, form.nombre]);
 
+  // InitiateCheckout: una vez por visita al checkout, con el carrito ya
+  // resuelto (valor e ítems reales). Ni con carrito vacío ni al volver de un
+  // pago rechazado, que no es un checkout nuevo.
+  const checkoutAvisado = useRef(false);
+
+  useEffect(() => {
+    if (checkoutAvisado.current || reintento) return;
+    if (!carrito || carrito.items.length === 0) return;
+
+    checkoutAvisado.current = true;
+    trackPixel("InitiateCheckout", datosDeCompra({ items: carrito.items, valor: carrito.subtotal }));
+  }, [carrito, reintento]);
+
   // La barra fija de pagar aparece cuando el botón real sale de pantalla.
   const botonPagar = useRef<HTMLButtonElement>(null);
   const [botonEnPantalla, setBotonEnPantalla] = useState(true);
@@ -232,6 +251,8 @@ export default function FormularioCheckout() {
           items,
           envio: eleccion(),
           totalVisto: resumen.total,
+          // De qué anuncio vino, para el pedido y para la Conversions API.
+          origen: origenParaElPedido(),
         }),
       });
 

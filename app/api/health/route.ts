@@ -4,6 +4,7 @@ import { verificarRedis } from "@/lib/cerrojo";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
 import { mercadoPagoListo } from "@/lib/mercadopago";
+import { metaCapiConfigurada } from "@/lib/meta";
 import { esUrlPublica, urlDelSitio } from "@/lib/sitio";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +67,10 @@ export async function GET() {
       mercadopago: mercadoPagoListo(),
       resend: mailsConfigurados(),
       blob: blobConfigurado(),
+      // El píxel del navegador y la Conversions API del servidor, por separado:
+      // con el píxel solo, las compras que no vuelven a /gracias se pierden.
+      metaPixel: Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID),
+      metaCapi: metaCapiConfigurada(),
       // El cerrojo del webhook (Upstash Redis): verdadero solo si Redis contesta
       // Y el ciclo tomar/ocupado/soltar funcionó. Sin él, el webhook NO confirma
       // pagos: contesta 503 y Mercado Pago reintenta.

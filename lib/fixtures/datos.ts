@@ -254,6 +254,31 @@ export const DESCUENTOS: RegistroFixture[] = ["Anteojos", "Estuches", "Paños"].
   descuento(c, 15, 20),
 ]);
 
+/**
+ * Un pedido ya pagado, para ver la página de gracias confirmada (y el evento
+ * Purchase) sin pagar nada. Dos anteojos con el 5%, envío gratis.
+ */
+export const PEDIDOS: RegistroFixture[] = [
+  {
+    id: "recPEDIDOPRUEBA01",
+    createdTime: CREADO,
+    fields: {
+      Numero: "HARPER-PRUEBA",
+      Estado: "pagado",
+      Items: JSON.stringify([
+        { productoId: "recywEhXkR8g53yDD", productoSlug: "citrino", nombre: "CITRINO", categoria: "Anteojos", varianteId: "recOVWC0S1rbDJADU", sku: "CITRINO-CAREY", color: "Carey", foto: "/productos/anteojos/citrino-carey-1.webp", precioLista: 89900, precioUnitario: 85405, descuento: 5, cantidad: 1, subtotal: 85405, stockDisponible: 3 },
+        { productoId: "recPJzzJFhyEF0DMw", productoSlug: "amatista", nombre: "AMATISTA", categoria: "Anteojos", varianteId: "recLvS1Rce368QVeX", sku: "AMATISTA-NEGRO", color: "Negro", foto: "/productos/anteojos/amatista-negro-1.webp", precioLista: 89900, precioUnitario: 85405, descuento: 5, cantidad: 1, subtotal: 85405, stockDisponible: 12 },
+      ]),
+      Subtotal: 170810,
+      Envio: 0,
+      Total: 170810,
+      MP_payment_id: "999999",
+      MP_status: "approved",
+      Origen: JSON.stringify({ utm_source: "ig", utm_medium: "paid", utm_campaign: "prueba", fbclid: "abc123", landing: "/anteojos", ts: 1761000000000 }),
+    },
+  },
+];
+
 /** Las tablas tal como las espera `lib/airtable.ts`, por su ID. */
 export function tablasIniciales(): Map<string, RegistroFixture[]> {
   return new Map<string, RegistroFixture[]>([
@@ -261,7 +286,7 @@ export function tablasIniciales(): Map<string, RegistroFixture[]> {
     [TABLAS.variantes, estructurar(VARIANTES)],
     [TABLAS.config, estructurar(CONFIG)],
     [TABLAS.descuentos, estructurar(DESCUENTOS)],
-    [TABLAS.pedidos, []],
+    [TABLAS.pedidos, estructurar(PEDIDOS)],
     [TABLAS.clientes, []],
   ]);
 }
