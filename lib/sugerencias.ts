@@ -1,14 +1,18 @@
 import { getProductos } from "./catalogo";
+import { getTramos, porcentajeParaCantidad, type Tramo } from "./descuentos";
 import type { Categoria, ItemResuelto, Producto } from "./tipos";
 
 /**
  * Qué ofrecerle a alguien que ya tiene el carrito armado.
  *
  * La venta cruzada acá no es "productos relacionados" al azar: el catálogo es
- * chico y todo se complementa de una forma concreta y honesta. Los anteojos
- * necesitan estuche, el estuche viene mejor con paño. Cada sugerencia dice por
- * qué aparece, porque una razón real convierte más que un "también te puede
- * interesar".
+ * chico y todo se complementa de una forma concreta y honesta. Cada sugerencia
+ * dice por qué aparece, porque una razón real convierte más que un "también te
+ * puede interesar".
+ *
+ * La regla más valiosa es la del segundo par: quien lleva un anteojo ve otros
+ * modelos con el descuento que se desbloquea al sumar dos. Al anteojo NO se le
+ * ofrece un estuche: ya viene incluido, y ofrecérselo contradice la ficha.
  *
  * Es dinámico en dos sentidos: cambia según lo que ya hay en el carrito —así
  * nunca ofrece algo que el comprador ya tiene— y rota entre los candidatos
@@ -36,22 +40,35 @@ const MAXIMO = 3;
  *
  * `si` es lo que el comprador ya lleva y `entonces` lo que le falta. El orden
  * importa: la primera regla que aplique manda, porque es la más valiosa.
+ * `mismaCategoria` marca las reglas que ofrecen más de lo mismo (otro modelo
+ * de anteojo): no se saltean aunque la categoría ya esté en el carrito.
  */
-const REGLAS: { si: Categoria; entonces: Categoria; motivo: string }[] = [
+type Regla = {
+  si: Categoria;
+  entonces: Categoria;
+  motivo: (contexto: { porcentaje: number }) => string;
+  mismaCategoria?: boolean;
+};
+
+const REGLAS: Regla[] = [
   {
     si: "Anteojos",
-    entonces: "Estuches",
-    motivo: "Protegé tus anteojos",
+    entonces: "Anteojos",
+    mismaCategoria: true,
+    motivo: ({ porcentaje }) =>
+      porcentaje > 0
+        ? `Segundo par: ${porcentaje}% off en los dos`
+        : "Sumá un segundo par",
   },
   {
     si: "Estuches",
     entonces: "Paños",
-    motivo: "Sumale un paño de microfibra",
+    motivo: () => "Sumale un paño de microfibra",
   },
   {
     si: "Paños",
     entonces: "Estuches",
-    motivo: "Completá con un estuche rígido",
+    motivo: () => "Completá con un estuche rígido",
   },
 ];
 
@@ -67,22 +84,31 @@ export async function sugerirParaCarrito(
 ): Promise<Sugerencia[]> {
   if (items.length === 0) return [];
 
-  const productos = await getProductos();
+  const [productos, tramos] = await Promise.all([getProductos(), getTramos()]);
 
   // Cambia cada día: una misma persona que vuelve mañana ve otra cosa.
-  return elegirSugerencias(items, productos, Math.floor(Date.now() / 86_400_000));
+  return elegirSugerencias(items, productos, Math.floor(Date.now() / 86_400_000), tramos);
 }
 
 /** La decisión, sin Airtable de por medio, para poder probarla. */
 export function elegirSugerencias(
   items: ItemResuelto[],
   productos: Producto[],
-  semilla: number
+  semilla: number,
+  tramos: Tramo[] = []
 ): Sugerencia[] {
   if (items.length === 0 || productos.length === 0) return [];
 
   const categoriasEnCarrito = new Set(items.map((i) => i.categoria));
   const productosEnCarrito = new Set(items.map((i) => i.productoId));
+
+  const unidadesPorCategoria = new Map<Categoria, number>();
+  for (const item of items) {
+    unidadesPorCategoria.set(
+      item.categoria,
+      (unidadesPorCategoria.get(item.categoria) ?? 0) + item.cantidad
+    );
+  }
 
   const disponibles = productos.filter(
     (p) => !productosEnCarrito.has(p.id) && !p.agotado
@@ -121,8 +147,13 @@ export function elegirSugerencias(
   // 1. Lo que le falta para completar el uso de lo que ya eligió.
   for (const regla of REGLAS) {
     if (!categoriasEnCarrito.has(regla.si)) continue;
-    if (categoriasEnCarrito.has(regla.entonces)) continue;
-    sumar(regla.entonces, regla.motivo);
+    if (!regla.mismaCategoria && categoriasEnCarrito.has(regla.entonces)) continue;
+
+    // El porcentaje que se desbloquea con una unidad más de esa categoría.
+    const unidades = unidadesPorCategoria.get(regla.entonces) ?? 0;
+    const porcentaje = porcentajeParaCantidad(tramos, regla.entonces, unidades + 1);
+
+    sumar(regla.entonces, regla.motivo({ porcentaje }));
   }
 
   // 2. Si ya tiene de todo, se le ofrece más de lo mismo: sumar unidades de la

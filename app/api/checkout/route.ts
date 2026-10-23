@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let cuerpo: { cliente?: unknown; items?: unknown; envio?: unknown };
+  let cuerpo: { cliente?: unknown; items?: unknown; envio?: unknown; totalVisto?: unknown };
 
   try {
     cuerpo = await request.json();
@@ -75,6 +75,22 @@ export async function POST(request: Request) {
         {
           error: "Tu carrito cambió: revisalo antes de pagar.",
           descartados: carrito.descartados,
+        },
+        { status: 409 }
+      );
+    }
+
+    // El comprador tiene que pagar exactamente lo que vio. Si el servidor
+    // calcula otro total —cambió un precio, un tramo de descuento o la
+    // cotización del envío mientras completaba los datos— no se lo manda a
+    // pagar: se le muestra el total nuevo y decide.
+    const totalVisto = typeof cuerpo.totalVisto === "number" ? cuerpo.totalVisto : null;
+
+    if (totalVisto !== null && Math.abs(carrito.total - totalVisto) > 1) {
+      return NextResponse.json(
+        {
+          error: "El total cambió mientras completabas los datos. Revisalo antes de pagar.",
+          totalNuevo: carrito.total,
         },
         { status: 409 }
       );

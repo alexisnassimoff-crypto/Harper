@@ -41,9 +41,15 @@ export type ConfigTienda = {
   portadaImagen: string;
 };
 
-/** Valores usados si Airtable no responde. La tienda nunca se cae por esto. */
+/**
+ * Valores usados si Airtable no responde. La tienda nunca se cae por esto.
+ *
+ * Solo para MOSTRAR: al cobrar se usa `getConfigParaCobrar`, que no degrada.
+ * El costo de envío de respaldo es el mismo que está cargado en Airtable, para
+ * que una caída momentánea no muestre un número distinto del que se cobra.
+ */
 const POR_DEFECTO: ConfigTienda = {
-  costoEnvio: 8000,
+  costoEnvio: 10100,
   envioGratisDesde: 80000,
   bannerTexto: "",
   whatsapp: "",
@@ -65,15 +71,26 @@ const POR_DEFECTO: ConfigTienda = {
 type FilaConfig = { Clave?: string; Valor?: string };
 
 export async function getConfig(): Promise<ConfigTienda> {
-  let filas;
-
   try {
-    filas = await listRecords<FilaConfig>(TABLAS.config, { revalidate: 60 });
+    return armarConfig(await listRecords<FilaConfig>(TABLAS.config, { revalidate: 60 }));
   } catch (error) {
     console.error("No se pudo leer Config de Airtable:", error);
     return POR_DEFECTO;
   }
+}
 
+/**
+ * La config para cobrar: sin cache y sin valores de respaldo.
+ *
+ * Si Airtable no responde en el momento de pagar, esto explota a propósito:
+ * cobrar un envío "por defecto" distinto del que el comprador vio es peor que
+ * pedirle que reintente en un minuto.
+ */
+export async function getConfigParaCobrar(): Promise<ConfigTienda> {
+  return armarConfig(await listRecords<FilaConfig>(TABLAS.config, { revalidate: 0 }));
+}
+
+function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
   const mapa = new Map<string, string>();
   for (const fila of filas) {
     const clave = fila.fields.Clave?.trim();

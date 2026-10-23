@@ -699,9 +699,70 @@ p {
   transition: width var(--lento) var(--curva);
 }
 
+/* La oferta del primer escalón, dicha completa: total, y ahorro al lado. */
+.escalera__oferta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  font-size: 0.9375rem;
+}
+.escalera__oferta strong {
+  font-weight: 600;
+}
+.escalera__ahorro {
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radio-pill);
+  background: var(--verde);
+  color: var(--sobre-acento);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 26rem) {
   .escalera__precio {
     font-size: 0.75rem;
+  }
+}
+
+/* ---------- Carrito: actualización y errores ---------- */
+
+/* Mientras se vuelve a consultar el servidor, lo que ya se veía sigue ahí,
+   apenas atenuado: nada se desmonta ni parpadea. */
+[data-actualizando] {
+  opacity: 0.6;
+  transition: opacity var(--rapido) var(--curva);
+}
+
+.aviso-carrito {
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--alerta) 35%, var(--borde));
+  border-radius: var(--radio);
+  background: color-mix(in srgb, var(--alerta) 6%, var(--fondo));
+  font-size: 0.875rem;
+}
+.aviso-carrito__accion {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+}
+
+/* La línea que adelanta el total antes de los campos, solo en celular. */
+.checkout__adelanto {
+  font-size: 0.9375rem;
+  color: var(--texto-suave);
+}
+.checkout__adelanto strong {
+  font-weight: 600;
+  color: var(--texto);
+}
+@media (min-width: 60rem) {
+  .checkout__adelanto {
+    display: none;
   }
 }
 

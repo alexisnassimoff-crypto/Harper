@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAirtableConfigured, modoFixtures } from "@/lib/airtable";
+import { verificarRedis } from "@/lib/cerrojo";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
 import { mercadoPagoListo } from "@/lib/mercadopago";
@@ -27,8 +28,13 @@ const VARIABLES = [
 ] as const;
 
 /** Smoke test del deploy: muestra qué integraciones están conectadas. */
-export function GET() {
+export async function GET() {
   const sitio = urlDelSitio();
+
+  // Un PING real más un ciclo completo del cerrojo (tomar, ver ocupado,
+  // soltar): distingue "faltan las variables", "están pero no sirven" y
+  // "contesta pero el cerrojo no se comporta como se espera".
+  const redis = await verificarRedis();
 
   const variables: Record<string, boolean> = {};
   for (const v of VARIABLES) {
@@ -60,9 +66,21 @@ export function GET() {
       mercadopago: mercadoPagoListo(),
       resend: mailsConfigurados(),
       blob: blobConfigurado(),
+      // El cerrojo del webhook (Upstash Redis): verdadero solo si Redis contesta
+      // Y el ciclo tomar/ocupado/soltar funcionó. Sin él, el webhook NO confirma
+      // pagos: contesta 503 y Mercado Pago reintenta.
+      redis: redis.responde && redis.cerrojo,
     },
+    redis,
     variables,
     avisos: [
+      !redis.configurado
+        ? "FALTA Upstash Redis (KV_REST_API_URL/KV_REST_API_TOKEN): el webhook contesta 503 y NO confirma ningún pago hasta conectarlo (Vercel > Storage > Upstash, plan Free)"
+        : !redis.responde
+          ? `Redis está configurado pero no contesta (${redis.detalle}): el webhook contesta 500 y Mercado Pago reintenta`
+          : !redis.cerrojo
+            ? `Redis contesta pero el cerrojo no funciona como se espera (${redis.detalle}): el webhook contesta 500 y Mercado Pago reintenta`
+            : null,
       variables.MP_ACCESS_TOKEN ? null : "Falta MP_ACCESS_TOKEN",
       variables.MP_WEBHOOK_SECRET
         ? null

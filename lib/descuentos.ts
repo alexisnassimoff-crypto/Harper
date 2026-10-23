@@ -40,28 +40,42 @@ type FilaDescuento = {
  */
 export async function getTramos(): Promise<Tramo[]> {
   try {
-    const filas = await listRecords<FilaDescuento>(TABLAS.descuentos, {
-      revalidate: REVALIDATE,
-    });
-
-    return filas
-      .filter((f) => f.fields.Activo)
-      .flatMap((f): Tramo[] => {
-        const categoria = f.fields.Categoria?.trim() as Categoria | undefined;
-        const desdeUnidades = aNumero(f.fields.Desde_unidades, 0);
-        const porcentaje = aNumero(f.fields.Porcentaje, 0);
-
-        if (!categoria || desdeUnidades < 1) return [];
-        // Un 0 no descuenta nada y un 100 regalaría el producto.
-        if (porcentaje <= 0 || porcentaje >= 100) return [];
-
-        return [{ categoria, desdeUnidades, porcentaje }];
-      })
-      .sort((a, b) => a.desdeUnidades - b.desdeUnidades);
+    return await leerTramos(REVALIDATE);
   } catch (error) {
     console.error("[descuentos] no se pudieron leer los tramos:", error);
     return [];
   }
+}
+
+/**
+ * Los tramos para cobrar: sin cache y sin red de contención.
+ *
+ * Al cobrar, degradar al precio de lista NO es lo correcto: el comprador vio
+ * $170.810 en el carrito y Mercado Pago le cobraría $179.800. Si Airtable no
+ * responde, esto explota, el checkout contesta "problema momentáneo" y el
+ * comprador reintenta en un minuto con el precio que vio.
+ */
+export async function getTramosParaCobrar(): Promise<Tramo[]> {
+  return leerTramos(0);
+}
+
+async function leerTramos(revalidate: number): Promise<Tramo[]> {
+  const filas = await listRecords<FilaDescuento>(TABLAS.descuentos, { revalidate });
+
+  return filas
+    .filter((f) => f.fields.Activo)
+    .flatMap((f): Tramo[] => {
+      const categoria = f.fields.Categoria?.trim() as Categoria | undefined;
+      const desdeUnidades = aNumero(f.fields.Desde_unidades, 0);
+      const porcentaje = aNumero(f.fields.Porcentaje, 0);
+
+      if (!categoria || desdeUnidades < 1) return [];
+      // Un 0 no descuenta nada y un 100 regalaría el producto.
+      if (porcentaje <= 0 || porcentaje >= 100) return [];
+
+      return [{ categoria, desdeUnidades, porcentaje }];
+    })
+    .sort((a, b) => a.desdeUnidades - b.desdeUnidades);
 }
 
 /**

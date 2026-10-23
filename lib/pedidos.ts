@@ -1,10 +1,17 @@
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { getProductos, getProductosParaCobrar } from "./catalogo";
-import { calcularEnvio, envioBonificado, getConfig, type ConfigTienda } from "./config";
+import {
+  calcularEnvio,
+  envioBonificado,
+  getConfig,
+  getConfigParaCobrar,
+  type ConfigTienda,
+} from "./config";
 import { buscarOpcion, correoConfigurado, cotizar } from "./correo";
 import {
   conDescuento,
   getTramos,
+  getTramosParaCobrar,
   porcentajeParaCantidad,
   type Tramo,
 } from "./descuentos";
@@ -83,10 +90,14 @@ export async function resolverCarrito(
     eleccion?: EleccionEnvio;
   } = {}
 ): Promise<CarritoResuelto> {
+  // Para cobrar, las tres lecturas van sin cache y sin red de contención: si
+  // alguna falla, explota y el checkout pide reintentar. Antes, con la tabla
+  // de descuentos caída, se cobraba el precio de lista sin avisar; con Config
+  // caída, un envío de respaldo distinto del que el comprador había visto.
   const [productos, config, tramos] = await Promise.all([
     opciones.paraCobrar ? getProductosParaCobrar() : getProductos(),
-    getConfig(),
-    getTramos(),
+    opciones.paraCobrar ? getConfigParaCobrar() : getConfig(),
+    opciones.paraCobrar ? getTramosParaCobrar() : getTramos(),
   ]);
 
   const items: ItemResuelto[] = [];

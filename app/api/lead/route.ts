@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * devuelve 200 salvo que el pedido esté mal formado.
  */
 export async function POST(request: Request) {
-  let cuerpo: { email?: string; nombre?: string; aceptaPromos?: boolean };
+  let cuerpo: { email?: string; nombre?: string };
 
   try {
     cuerpo = await request.json();
@@ -26,10 +26,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Sin consentimiento de promociones: eso se decide y se guarda al comprar.
     await registrarLead({
       email,
       nombre: typeof cuerpo.nombre === "string" ? cuerpo.nombre.slice(0, 120) : undefined,
-      aceptaPromos: Boolean(cuerpo.aceptaPromos),
     });
   } catch (error) {
     console.error("[lead] no se pudo registrar:", error);

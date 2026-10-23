@@ -40,7 +40,8 @@ export async function POST(request: Request) {
     envio: resuelto.envio,
     total: resuelto.total,
     envioGratisDesde: resuelto.config.envioGratisDesde,
-    plazoEntrega: resuelto.config.plazoEntrega,
+    // Si el envío es el precio plano de respaldo, el carrito lo dice.
+    envioCotizado: resuelto.envioCotizado,
     ahorro: resuelto.ahorro,
     tramos: resuelto.tramos,
     sugerencias,
