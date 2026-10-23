@@ -286,8 +286,8 @@ p {
 .campo select,
 .campo textarea {
   width: 100%;
-  min-height: 3.25rem;
-  padding: 0.85rem 1.15rem;
+  min-height: 3rem;
+  padding: 0.7rem 1.1rem;
   border: 1px solid var(--borde);
   border-radius: var(--radio-pill);
   background: #fff;
@@ -751,17 +751,285 @@ p {
   font-weight: 600;
 }
 
-/* La línea que adelanta el total antes de los campos, solo en celular. */
-.checkout__adelanto {
-  font-size: 0.9375rem;
+/* ---------- Checkout compacto ----------
+   En celular: título chico, el pedido resumido en una línea desplegable
+   arriba, campos de a pares y sin textos de ayuda, y la barra fija de pagar.
+   En escritorio: formulario a la izquierda, resumen fijo a la derecha. */
+
+.checkout {
+  padding-block: 1.5rem 3rem;
+}
+.checkout__titulo {
+  margin-bottom: 1.1rem;
+}
+.checkout__aviso {
+  margin-bottom: 1.25rem;
+  max-width: 38rem;
+  color: var(--alerta);
+  font-size: 0.875rem;
+}
+.checkout__form {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+.checkout__campos {
+  display: grid;
+  gap: 0.85rem;
+}
+.checkout__par {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: 1fr 1fr;
+}
+.checkout__par--localidad {
+  grid-template-columns: 1.6fr 1fr;
+}
+.checkout__promos {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
   color: var(--texto-suave);
 }
-.checkout__adelanto strong {
-  font-weight: 600;
-  color: var(--texto);
+.checkout__promos input {
+  margin-top: 0.15rem;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
 }
+/* En celular el botón de WhatsApp flota a la derecha: el texto no se mete debajo. */
+@media (max-width: 46rem) {
+  .checkout__promos {
+    padding-right: 4.5rem;
+  }
+}
+
+/* ---------- Dirección en un solo casillero (Google Places) ----------
+   Un combobox: el casillero, la lista de sugerencias debajo y, elegida una,
+   una tarjeta con la dirección resuelta y el enlace "Cambiar". */
+
+.domicilio input {
+  scroll-margin-top: 5.5rem;
+}
+.combobox {
+  position: relative;
+}
+/* El panel va por encima del header (50), la barra fija de pagar (55) y el
+   globo de WhatsApp (60): la última opción y la atribución nunca quedan tapadas.
+   El alto máximo lo pone el componente según lo que deja el teclado. */
+.combobox__panel {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
+}
+.combobox__panel[hidden] {
+  display: none;
+}
+.combobox__lista {
+  margin: 0;
+  padding: 0.3rem 0 0;
+  list-style: none;
+}
+.combobox__opcion {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.7rem 1.1rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+}
+.combobox__opcion[aria-selected="true"] {
+  background: color-mix(in srgb, var(--verde) 9%, #fff);
+}
+.combobox__principal {
+  font-weight: 500;
+}
+.combobox__secundario {
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+}
+.combobox__vacio {
+  margin: 0;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+}
+/* La atribución de Google va siempre abajo de la lista, con su espacio libre. */
+.combobox__pie {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0.75rem 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--borde) 60%, transparent);
+}
+.atribucion-google {
+  display: inline-flex;
+  align-items: center;
+  height: 1.125rem;
+  margin: 0.125rem 0.6rem 0;
+  font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #5e5e5e;
+  white-space: nowrap;
+}
+.atribucion-google img {
+  display: block;
+  height: 1.125rem;
+  width: auto;
+}
+.domicilio__elegida {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.8rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--verde) 45%, var(--borde));
+  border-radius: var(--radio);
+  background: color-mix(in srgb, var(--verde) 5%, #fff);
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+.domicilio__elegida:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: 2px;
+}
+.domicilio__elegida > div {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.domicilio__elegida strong {
+  font-weight: 600;
+}
+.domicilio__elegida .apagado {
+  font-size: 0.8125rem;
+}
+.domicilio__tilde {
+  color: var(--verde);
+  font-weight: 700;
+  line-height: 1.35;
+}
+.domicilio__ayuda {
+  margin: -0.1rem 0 0;
+  font-size: 0.75rem;
+}
+/* Enlace con forma de texto, para acciones chicas dentro de un campo. */
+.enlace-accion {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--verde);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.combobox__vacio .enlace-accion,
+.domicilio__ayuda .enlace-accion {
+  margin-left: 0;
+  font-size: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: underline;
+  white-space: normal;
+}
+.checkout__par--piso {
+  grid-template-columns: 1fr 1.4fr;
+}
+
+/* El pedido en una línea, desplegable, solo en celular. */
+.checkout__resumen-movil {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo-alt);
+}
+.checkout__resumen-movil summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.9375rem;
+}
+.checkout__resumen-movil summary::-webkit-details-marker {
+  display: none;
+}
+.checkout__resumen-movil strong {
+  font-weight: 600;
+}
+.checkout__ver {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--verde);
+}
+.checkout__resumen-movil[open] .checkout__ver {
+  display: none;
+}
+.checkout__resumen-movil ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+.checkout__resumen-movil li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.checkout__resumen-movil .fila {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+.checkout__envio-nota {
+  margin-top: -0.4rem;
+  font-size: 0.75rem;
+}
+/* En celular, los productos ya se ven arriba (resumen desplegable). */
+@media (max-width: 59.99rem) {
+  .checkout__panel-titulo,
+  .checkout__panel-lista {
+    display: none;
+  }
+}
+
 @media (min-width: 60rem) {
-  .checkout__adelanto {
+  .checkout {
+    padding-block: 3.5rem;
+  }
+  .checkout__titulo {
+    margin-bottom: 2.25rem;
+  }
+  .checkout__form {
+    grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+    gap: 3rem;
+  }
+  .checkout__campos {
+    gap: 1.1rem;
+  }
+  .checkout__par {
+    gap: 1.1rem;
+  }
+  .checkout__resumen-movil {
     display: none;
   }
 }
@@ -1468,15 +1736,28 @@ p {
 }
 
 /* ---------------------------------------------------------------------------
-   Portada: hero compacto
+   Portada: hero editorial
 
-   En celular ocupa menos de media pantalla para que el catálogo asome sin
-   scrollear; en escritorio crece, pero nunca pasa de 36rem.
+   La foto de la marca (public/hero.webp, o Config.portada_imagen) a sangre,
+   con el texto y el botón apoyados en el tercio inferior: la cara está en el
+   centro, arriba, y queda siempre libre. En celular ocupa unas tres cuartas
+   partes de la pantalla; en escritorio crece hasta 46rem.
 --------------------------------------------------------------------------- */
 
 .hero {
   position: relative;
   overflow: hidden;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  min-height: min(74svh, 40rem);
+  background: var(--tinta);
+  color: #fff;
+}
+.hero__cuerpo {
+  position: relative;
+  width: 100%;
+  padding-block: 3rem 1.75rem;
 }
 .hero__contenido {
   position: relative;
@@ -1485,116 +1766,56 @@ p {
   align-items: center;
   gap: 0.75rem;
   text-align: center;
+  text-shadow: 0 1px 24px rgb(0 0 0 / 0.4);
 }
 .hero__titulo {
-  font-size: clamp(2rem, 7vw, 3.75rem);
+  font-size: clamp(2.125rem, 8vw, 4rem);
   font-weight: 400;
+  line-height: 1.05;
+  color: #fff;
 }
 .hero__texto {
-  max-width: 34rem;
+  max-width: 32rem;
   font-size: clamp(0.9375rem, 2.6vw, 1.125rem);
   line-height: 1.5;
-}
-.hero__boton {
-  margin-top: 0.35rem;
-}
-
-/* Variante con el producto real: la foto del catálogo —ya publicada— sobre
-   el fondo de la marca. En celular la foto va arriba, chica; en escritorio,
-   texto a la izquierda y producto a la derecha. */
-.hero--producto {
-  background: var(--fondo-alt);
-  color: var(--texto);
-}
-.hero--producto .hero__texto {
-  color: var(--texto-suave);
-}
-.hero__grilla {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  padding-block: 1.25rem 1.5rem;
-}
-.hero__producto {
-  position: relative;
-  display: block;
-  order: -1;
-  height: 9.5rem;
-  transition: transform var(--medio) var(--curva);
-}
-.hero__producto:hover {
-  transform: translateY(-3px);
-}
-
-/* Variante con foto editorial aprobada (Config.portada_imagen): a sangre. */
-.hero--foto {
-  display: grid;
-  align-items: end;
-  justify-items: center;
-  min-height: clamp(16rem, 40svh, 26rem);
-  background: var(--tinta);
-  color: #fff;
-}
-.hero--foto .hero__cuerpo {
-  position: relative;
-  padding-block: 2.5rem 1.75rem;
-}
-.hero--foto .hero__contenido {
-  text-shadow: 0 1px 24px rgb(0 0 0 / 0.35);
-}
-.hero--foto .hero__titulo {
-  color: #fff;
-}
-.hero--foto .hero__texto {
   color: rgb(255 255 255 / 0.9);
 }
-.hero--foto .hero__boton {
+.hero__boton {
+  margin-top: 0.5rem;
   background: #fff;
   border-color: #fff;
   color: var(--verde);
 }
-.hero--foto .hero__boton::before {
+.hero__boton::before {
   background: var(--verde);
 }
-.hero--foto .hero__boton:hover:not(:disabled),
-.hero--foto .hero__boton:focus-visible:not(:disabled) {
+.hero__boton:hover:not(:disabled),
+.hero__boton:focus-visible:not(:disabled) {
   color: #fff;
   border-color: var(--verde);
 }
+/* Velo para que el texto lea sobre la parte baja de la foto; arriba, donde
+   está la cara, casi no oscurece. */
 .hero__velo {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     to top,
-    rgb(12 12 8 / 0.7) 0%,
-    rgb(12 12 8 / 0.28) 55%,
-    rgb(12 12 8 / 0.18) 100%
+    rgb(12 12 8 / 0.72) 0%,
+    rgb(12 12 8 / 0.3) 45%,
+    rgb(12 12 8 / 0.12) 100%
   );
 }
 
 @media (min-width: 48rem) {
-  .hero__contenido {
-    gap: 1.1rem;
+  .hero {
+    min-height: min(80svh, 46rem);
   }
-  .hero__grilla {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: center;
-    gap: 2rem;
-    padding-block: 3rem;
-  }
-  .hero--producto .hero__contenido {
-    align-items: flex-start;
-    text-align: left;
-  }
-  .hero__producto {
-    order: 0;
-    height: 22rem;
-  }
-  .hero--foto {
-    min-height: min(62svh, 36rem);
-  }
-  .hero--foto .hero__cuerpo {
+  .hero__cuerpo {
     padding-block: 4rem 3rem;
+  }
+  .hero__contenido {
+    gap: 1rem;
   }
 }
 

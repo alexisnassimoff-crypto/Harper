@@ -6,17 +6,42 @@ import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { cuotasActivas } from "@/lib/cuotas";
+import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
-import type { DatosCliente, EleccionEnvio, OpcionEnvio } from "@/lib/tipos";
+import type { DatosCliente, EleccionEnvio } from "@/lib/tipos";
 import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
 import BarraPagar from "./BarraPagar";
+import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import { PROVINCIAS } from "./provincias";
-import { useCotizacionEnvio, useSucursales } from "./useEnvio";
+import { useCotizacionEnvio } from "./useEnvio";
 
 const CLAVE_DATOS = "harper.datos.v1";
+/** La dirección elegida en el buscador, con su piso: no hace falta buscarla otra vez. */
+const CLAVE_DOMICILIO = "harper.domicilio.v1";
 const ID_FORMULARIO = "formulario-checkout";
+
+/** Lo que se guarda de la dirección elegida para la próxima compra. */
+type DomicilioGuardado = { elegida: DireccionElegida; piso: string; numero: string };
+
+/** Los errores del cliente, más el del casillero de dirección (que no es un dato en sí). */
+type Errores = ErroresCliente & { domicilio?: string };
+
+/** El orden en que aparecen los campos, por id, para llevar el foco al primer error. */
+const ORDEN_CAMPOS = [
+  "email",
+  "nombre",
+  "telefono",
+  "dni",
+  "domicilio",
+  "numero",
+  "piso",
+  "direccion",
+  "ciudad",
+  "cp",
+  "provincia",
+] as const;
 
 /** Lo que puede contestar /api/checkout. */
 type RespuestaCheckout = {
@@ -27,11 +52,6 @@ type RespuestaCheckout = {
   descartados?: { varianteId: string; motivo: string }[];
   totalNuevo?: number;
 };
-
-/** Identifica una opción de envío en el grupo de radios. */
-function claveOpcion(o: OpcionEnvio) {
-  return `${o.modo}-${o.servicio}`;
-}
 
 const VACIO: DatosCliente = {
   email: "",
@@ -46,11 +66,30 @@ const VACIO: DatosCliente = {
   aceptaPromos: false,
 };
 
+/**
+ * El checkout, pensado para el celular: los datos que la logística necesita
+ * para entregar (y ninguno más), autocompletado del navegador en cada campo,
+ * los datos guardados para la próxima compra, el pedido resumido en una
+ * línea arriba y el botón de pagar siempre a mano.
+ *
+ * La dirección es un solo casillero con sugerencias de Google: el comprador
+ * elige una de la lista y de ahí salen calle, número, localidad, provincia y
+ * código postal. Si Google no trae alguno (pasa con el CP en pueblos chicos, o
+ * con una avenida elegida sin número), se pide solo ese dato. Sin Google
+ * configurado, o si el comprador no encuentra su dirección, están los campos
+ * de siempre.
+ *
+ * Solo hay envío a domicilio, a tarifa fija (o gratis desde el mínimo): no se
+ * ofrecen sucursales ni servicios que todavía no existen.
+ */
 export default function FormularioCheckout({
   reintento = false,
+  buscador = false,
 }: {
   /** Verdadero cuando vuelve de un pago rechazado: no es un checkout nuevo. */
   reintento?: boolean;
+  /** Verdadero si el servidor tiene Google Places: la dirección se busca. */
+  buscador?: boolean;
 }) {
   const { items, quitar } = useCarrito();
   const {
@@ -62,46 +101,33 @@ export default function FormularioCheckout({
   } = useCarritoResuelto();
 
   const [form, setForm] = useState<DatosCliente>(VACIO);
-  const [errores, setErrores] = useState<ErroresCliente>({});
+  const [errores, setErrores] = useState<Errores>({});
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
 
-  // Envío: se cotiza contra Correo Argentino apenas hay código postal.
-  const { cotizacion, cargando: cotizando } = useCotizacionEnvio(form.cp);
-  const [elegido, setElegido] = useState<string | null>(null);
-  const [sucursal, setSucursal] = useState("");
+  // La dirección: con el buscador de Google o con los campos manuales.
+  const [modoDireccion, setModoDireccion] = useState<"buscador" | "manual">(buscador ? "buscador" : "manual");
+  const [elegida, setElegida] = useState<DireccionElegida | null>(null);
+  // Lo que Google no trae y se pide aparte: el número de la calle, y el piso o
+  // depto, que nunca forma parte de la sugerencia.
+  const [numero, setNumero] = useState("");
+  const [piso, setPiso] = useState("");
+  const faltan: Faltante[] = elegida ? faltantes(elegida) : [];
 
-  const opciones = cotizacion?.opciones ?? [];
-  const opcion = opciones.find((o) => claveOpcion(o) === elegido) ?? opciones[0] ?? null;
-  const necesitaSucursal = opcion?.modo === "S";
-
-  const { sucursales } = useSucursales(form.provincia, necesitaSucursal);
-
-  // Cuando cambian las opciones (otro CP, otro carrito), se preselecciona la
-  // más barata: es la que más gente elegiría y evita una decisión de más.
-  useEffect(() => {
-    if (opciones.length === 0) {
-      setElegido(null);
-      return;
-    }
-
-    setElegido((actual) => {
-      if (actual && opciones.some((o) => claveOpcion(o) === actual)) return actual;
-      const barata = opciones.reduce((a, b) => (b.precio < a.precio ? b : a));
-      return claveOpcion(barata);
-    });
-  }, [opciones]);
-
-  // Al dejar de retirar en sucursal, la sucursal elegida deja de tener sentido.
-  useEffect(() => {
-    if (!necesitaSucursal) setSucursal("");
-  }, [necesitaSucursal]);
+  // Envío a domicilio. Si Correo Argentino cotiza (cuando esté configurado),
+  // se toma la opción a domicilio más barata sin preguntar nada; si no, la
+  // tarifa fija del carrito. Nunca se ofrecen sucursales ni servicios.
+  const { cotizacion } = useCotizacionEnvio(form.cp);
+  const opcionDomicilio =
+    (cotizacion?.opciones ?? [])
+      .filter((o) => o.modo === "D")
+      .sort((a, b) => a.precio - b.precio)[0] ?? null;
 
   // El envío bonificado gana sobre cualquier cotización: el pedido llegó al
   // mínimo y lo paga Harper.
   const envio = cotizacion?.bonificado
     ? 0
-    : (opcion?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
+    : (opcionDomicilio?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
 
   const resumen = desglosar({
     subtotal: carrito?.subtotal ?? 0,
@@ -111,19 +137,77 @@ export default function FormularioCheckout({
 
   // Pre-carga los datos de una compra anterior: la comodidad de tener
   // cuenta, sin la fricción de crearla.
+  const restaurado = useRef(false);
+
   useEffect(() => {
     try {
       const guardado = window.localStorage.getItem(CLAVE_DATOS);
-      if (guardado) {
-        const previos = JSON.parse(guardado) as Partial<DatosCliente>;
+      const previos = guardado ? (JSON.parse(guardado) as Partial<DatosCliente>) : null;
+      if (previos) {
         // El consentimiento no se recuerda: se vuelve a preguntar cada vez.
         delete previos.aceptaPromos;
         setForm((f) => ({ ...f, ...previos }));
       }
+
+      if (buscador) {
+        const domicilio = window.localStorage.getItem(CLAVE_DOMICILIO);
+        const previo = domicilio ? (JSON.parse(domicilio) as Partial<DomicilioGuardado>) : null;
+
+        if (previo?.elegida?.id && previo.elegida.calle) {
+          // La dirección ya elegida vuelve resuelta: ni se busca ni se paga otra vez.
+          aplicarDireccion(previo.elegida, previo.numero ?? "");
+          setPiso(previo.piso ?? "");
+        } else if (previos?.direccion || previos?.ciudad) {
+          // Una compra anterior con los campos manuales: se respeta tal cual.
+          setModoDireccion("manual");
+        }
+      }
     } catch {
       // Sin datos guardados se arranca en blanco, que es lo normal.
+    } finally {
+      restaurado.current = true;
     }
+    // Solo al montar: `buscador` no cambia en vida del formulario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // La dirección elegida también se recuerda, con su piso y su número.
+  useEffect(() => {
+    if (!restaurado.current || modoDireccion !== "buscador") return;
+    try {
+      if (elegida) {
+        const guardado: DomicilioGuardado = { elegida, piso, numero };
+        window.localStorage.setItem(CLAVE_DOMICILIO, JSON.stringify(guardado));
+      } else {
+        window.localStorage.removeItem(CLAVE_DOMICILIO);
+      }
+    } catch {
+      // Si no se puede guardar, la compra sigue igual.
+    }
+  }, [elegida, piso, numero, modoDireccion]);
+
+  // Y se van guardando mientras escribe: si abandona y vuelve, no empieza de
+  // cero. Sin el consentimiento, que no se recuerda.
+  useEffect(() => {
+    if (!restaurado.current) return;
+
+    const id = window.setTimeout(() => {
+      try {
+        // La dirección se guarda como viaja, con el piso: si otro día el
+        // buscador no está, el campo manual la muestra completa.
+        const { aceptaPromos: _consentimiento, ...datos } = clienteAEnviar();
+        if (Object.values(datos).some((v) => v.trim() !== "")) {
+          window.localStorage.setItem(CLAVE_DATOS, JSON.stringify(datos));
+        }
+      } catch {
+        // Si no se puede guardar, la compra sigue igual.
+      }
+    }, 400);
+
+    return () => window.clearTimeout(id);
+    // `clienteAEnviar` lee form, piso y modoDireccion: son las dependencias reales.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, piso, modoDireccion]);
 
   // Al volver de Mercado Pago con el botón "atrás", iOS Safari restaura la
   // página desde el cache con el estado anterior: el botón quedaba trabado en
@@ -197,44 +281,123 @@ export default function FormularioCheckout({
     setErrores((e) => ({ ...e, [campo]: undefined }));
   }
 
-  function eleccion(): EleccionEnvio | undefined {
-    if (!opcion) return undefined;
-
-    return {
-      modo: opcion.modo,
-      servicio: opcion.servicio,
-      ...(opcion.modo === "S" && sucursal ? { sucursal } : {}),
-    };
+  /**
+   * Vuelca la dirección elegida en los datos del pedido. El número viene de la
+   * sugerencia o, si Google no lo trajo, de lo que escribió el comprador.
+   */
+  function aplicarDireccion(d: DireccionElegida, numeroEscrito: string) {
+    setElegida(d);
+    setNumero(numeroEscrito);
+    setForm((f) => ({
+      ...f,
+      direccion: componerDireccion({ calle: d.calle, numero: d.numero || numeroEscrito.trim() }),
+      // Lo que Google no trajo no pisa lo que el comprador ya cargó a mano
+      // (al restaurar, o al volver a aplicar la misma dirección). Después de
+      // "Cambiar" esos campos están vacíos, así que nada viejo se arrastra.
+      ciudad: d.localidad || f.ciudad,
+      provincia: d.provincia || f.provincia,
+      cp: d.cp || f.cp,
+    }));
+    setErrores((e) => ({ ...e, domicilio: undefined, direccion: undefined, ciudad: undefined, provincia: undefined, cp: undefined }));
   }
 
-  function enfocarPrimerError() {
-    document
-      .querySelector<HTMLElement>('[data-error="true"] input, [data-error="true"] select')
-      ?.focus();
+  /** El número que Google no trajo: solo cambia la calle y número del pedido. */
+  function cambiarNumero(valor: string) {
+    if (!elegida) return;
+    setNumero(valor);
+    setForm((f) => ({ ...f, direccion: componerDireccion({ calle: elegida.calle, numero: valor.trim() }) }));
+    setErrores((e) => ({ ...e, direccion: undefined }));
+  }
+
+  /** Descarta la dirección elegida para buscar otra. */
+  function cambiarDireccion() {
+    setElegida(null);
+    setNumero("");
+    setForm((f) => ({ ...f, direccion: "", ciudad: "", provincia: "", cp: "" }));
+  }
+
+  /**
+   * A los campos manuales, por decisión del comprador o porque Google no está.
+   * Se lleva lo que ya tenía: la dirección resuelta con su piso, o lo que
+   * venía tipeando en el casillero.
+   */
+  function cargarAMano(tipeado = "") {
+    setModoDireccion("manual");
+    setForm((f) => ({
+      ...f,
+      direccion: elegida ? (piso.trim() ? `${f.direccion}, ${piso.trim()}` : f.direccion) : tipeado.trim(),
+    }));
+    setElegida(null);
+    setErrores((e) => ({ ...e, domicilio: undefined }));
+    try {
+      window.localStorage.removeItem(CLAVE_DOMICILIO);
+    } catch {
+      // Sin almacenamiento no hay nada que borrar.
+    }
+    window.setTimeout(() => document.getElementById("direccion")?.focus(), 0);
+  }
+
+  function eleccion(): EleccionEnvio | undefined {
+    if (!opcionDomicilio) return undefined;
+    return { modo: opcionDomicilio.modo, servicio: opcionDomicilio.servicio };
+  }
+
+  /**
+   * Lleva el foco al primer campo con error, en el orden del formulario. Con
+   * el buscador, los errores de calle, localidad, provincia o CP caen en el
+   * casillero de dirección, salvo que ese dato se esté pidiendo aparte.
+   */
+  function enfocarPrimerError(encontrados: Errores) {
+    const porCampo = encontrados as Partial<Record<(typeof ORDEN_CAMPOS)[number], string>>;
+    for (const campo of ORDEN_CAMPOS) {
+      if (!porCampo[campo]) continue;
+      const id = campo === "direccion" && !document.getElementById("direccion") ? "numero" : campo;
+      const nodo = document.getElementById(id) ?? document.getElementById("domicilio");
+      if (nodo) {
+        nodo.focus();
+        return;
+      }
+    }
+  }
+
+  /** Los datos del pedido tal como viajan: con el piso o depto en la dirección. */
+  function clienteAEnviar(): DatosCliente {
+    if (modoDireccion !== "buscador") return form;
+    const extra = piso.trim();
+    return { ...form, direccion: extra ? `${form.direccion}, ${extra}` : form.direccion };
   }
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
     setFallo(null);
 
-    const encontrados = validarCliente(form);
+    const cliente = clienteAEnviar();
+    const encontrados: Errores = validarCliente(cliente);
+
+    if (modoDireccion === "buscador") {
+      if (!elegida) {
+        // Sin una dirección elegida, los errores de sus partes son uno solo.
+        delete encontrados.direccion;
+        delete encontrados.ciudad;
+        delete encontrados.provincia;
+        delete encontrados.cp;
+        encontrados.domicilio = "Elegí tu dirección de la lista";
+      } else if (!elegida.numero && !numero.trim()) {
+        encontrados.direccion = "Ingresá el número de la calle";
+      }
+    }
 
     if (Object.keys(encontrados).length > 0) {
       setErrores(encontrados);
-      enfocarPrimerError();
-      return;
-    }
-
-    // Sin sucursal elegida no hay dónde mandar el paquete.
-    if (necesitaSucursal && sucursales.length > 0 && !sucursal) {
-      setFallo("Elegí en qué sucursal querés retirar.");
+      enfocarPrimerError(encontrados);
       return;
     }
 
     setEnviando(true);
 
     try {
-      window.localStorage.setItem(CLAVE_DATOS, JSON.stringify(form));
+      const { aceptaPromos: _consentimiento, ...datos } = form;
+      window.localStorage.setItem(CLAVE_DATOS, JSON.stringify(datos));
     } catch {
       // Si no se puede guardar, la compra sigue igual.
     }
@@ -247,7 +410,7 @@ export default function FormularioCheckout({
         // viajara un monto, cualquiera podría pagar $0 de envío. `totalVisto`
         // es lo que se le mostró: si el servidor calcula otra cosa, frena.
         body: JSON.stringify({
-          cliente: form,
+          cliente,
           items,
           envio: eleccion(),
           totalVisto: resumen.total,
@@ -265,7 +428,7 @@ export default function FormularioCheckout({
       if (respuesta.status === 400 && cuerpo.errores) {
         setErrores(cuerpo.errores);
         setEnviando(false);
-        enfocarPrimerError();
+        enfocarPrimerError(cuerpo.errores);
         return;
       }
 
@@ -330,28 +493,53 @@ export default function FormularioCheckout({
   }
 
   const cantidadTotal = carrito.items.reduce((n, i) => n + i.cantidad, 0);
-  const sinCotizacion = opciones.length === 0;
+  const productos = `${cantidadTotal} ${cantidadTotal === 1 ? "producto" : "productos"}`;
+  const envioTexto = resumen.envio === 0 ? "Gratis" : formatearPrecio(resumen.envio);
+  const notaEnvio =
+    carrito.envioGratisDesde > 0
+      ? `Correo Argentino a domicilio. Gratis desde ${formatearPrecio(carrito.envioGratisDesde)}.`
+      : "Correo Argentino a domicilio.";
+
+  const listaItems = (
+    <>
+      {carrito.items.map((item) => (
+        <li key={item.varianteId} style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          <div className="tarjeta__marco" style={{ width: "2.75rem", aspectRatio: "1 / 1", flexShrink: 0 }}>
+            {item.foto ? (
+              <Image src={item.foto} alt="" fill sizes="44px" style={{ objectFit: "contain", padding: "4px" }} />
+            ) : null}
+          </div>
+          <div style={{ flex: 1, fontSize: "0.8125rem" }}>
+            <div>
+              {item.cantidad}× {item.nombre}
+            </div>
+            <div className="apagado">{item.color}</div>
+          </div>
+          <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal)}</span>
+        </li>
+      ))}
+    </>
+  );
 
   return (
-    <form
-      id={ID_FORMULARIO}
-      onSubmit={enviar}
-      noValidate
-      style={{
-        display: "grid",
-        gap: "3rem",
-        gridTemplateColumns: "repeat(auto-fit, minmax(min(19rem, 100%), 1fr))",
-        alignItems: "start",
-      }}
-    >
-      <div className="pila" style={{ gap: "1.25rem" }}>
+    <form id={ID_FORMULARIO} className="checkout__form" onSubmit={enviar} noValidate>
+      <div className="checkout__campos">
         {/* En celular el resumen queda abajo de todo: esta línea adelanta lo
-            esencial antes de pedir un solo dato. */}
-        <p className="checkout__adelanto">
-          {cantidadTotal} {cantidadTotal === 1 ? "producto" : "productos"} ·{" "}
-          Total <strong>{formatearPrecio(resumen.total)}</strong>
-          {resumen.envio === 0 ? " con envío gratis" : ", envío incluido"}
-        </p>
+            esencial y se despliega para ver el detalle. */}
+        <details className="checkout__resumen-movil">
+          <summary>
+            <span>
+              {productos} · <strong>{formatearPrecio(resumen.total)}</strong>
+              {resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}
+            </span>
+            <span className="checkout__ver">Ver detalle</span>
+          </summary>
+          <ul>{listaItems}</ul>
+          <div className="fila">
+            <span className="apagado">Envío a domicilio</span>
+            <span>{envioTexto}</span>
+          </div>
+        </details>
 
         <Campo
           id="email"
@@ -359,138 +547,188 @@ export default function FormularioCheckout({
           tipo="email"
           autoComplete="email"
           inputMode="email"
+          enterKeyHint="next"
           valor={form.email}
           error={errores.email}
           onChange={(v) => actualizar("email", v)}
-          ayuda="Te mandamos la confirmación de la compra acá."
         />
 
         <Campo
           id="nombre"
           etiqueta="Nombre y apellido"
           autoComplete="name"
+          enterKeyHint="next"
           valor={form.nombre}
           error={errores.nombre}
           onChange={(v) => actualizar("nombre", v)}
         />
 
-        <div style={{ display: "grid", gap: "1.25rem", gridTemplateColumns: "1fr 1fr" }}>
+        <div className="checkout__par">
           <Campo
             id="telefono"
             etiqueta="Teléfono"
             tipo="tel"
             autoComplete="tel"
             inputMode="tel"
+            enterKeyHint="next"
             valor={form.telefono}
             error={errores.telefono}
             onChange={(v) => actualizar("telefono", v)}
-            ayuda="Para el envío."
           />
           <Campo
             id="dni"
-            etiqueta="DNI (opcional)"
+            etiqueta="DNI"
             inputMode="numeric"
+            enterKeyHint="next"
             valor={form.dni}
             error={errores.dni}
             onChange={(v) => actualizar("dni", v)}
           />
         </div>
 
-        <Campo
-          id="direccion"
-          etiqueta="Calle y número"
-          autoComplete="address-line1"
-          valor={form.direccion}
-          error={errores.direccion}
-          onChange={(v) => actualizar("direccion", v)}
-        />
+        {modoDireccion === "buscador" ? (
+          <>
+            <CampoDireccion
+              elegida={elegida}
+              onElegir={(d) => aplicarDireccion(d, "")}
+              onCambiar={cambiarDireccion}
+              onNoDisponible={cargarAMano}
+              onManual={cargarAMano}
+              error={
+                errores.domicilio ??
+                (!faltan.includes("numero") ? errores.direccion : undefined) ??
+                (!faltan.includes("localidad") ? errores.ciudad : undefined) ??
+                (!faltan.includes("provincia") ? errores.provincia : undefined) ??
+                (!faltan.includes("cp") ? errores.cp : undefined)
+              }
+            />
 
-        <div style={{ display: "grid", gap: "1.25rem", gridTemplateColumns: "2fr 1fr" }}>
-          <Campo
-            id="ciudad"
-            etiqueta="Localidad"
-            autoComplete="address-level2"
-            valor={form.ciudad}
-            error={errores.ciudad}
-            onChange={(v) => actualizar("ciudad", v)}
-          />
-          <Campo
-            id="cp"
-            etiqueta="Código postal"
-            autoComplete="postal-code"
-            inputMode="numeric"
-            valor={form.cp}
-            error={errores.cp}
-            onChange={(v) => actualizar("cp", v)}
-          />
-        </div>
+            {elegida ? (
+              // El piso va solo, a todo el ancho; si además falta el número,
+              // los dos van en un par.
+              <div className={faltan.includes("numero") ? "checkout__par checkout__par--piso" : undefined}>
+                {faltan.includes("numero") ? (
+                  <Campo
+                    id="numero"
+                    etiqueta="Número"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    enterKeyHint="next"
+                    valor={numero}
+                    error={errores.direccion}
+                    onChange={cambiarNumero}
+                  />
+                ) : null}
+                <Campo
+                  id="piso"
+                  etiqueta="Piso / depto (opcional)"
+                  autoComplete="off"
+                  placeholder="5° B"
+                  enterKeyHint="next"
+                  valor={piso}
+                  onChange={setPiso}
+                />
+              </div>
+            ) : null}
 
-        <label className="campo" data-error={Boolean(errores.provincia)}>
-          <span>Provincia</span>
-          <select
-            name="provincia"
-            value={form.provincia}
-            onChange={(e) => actualizar("provincia", e.target.value)}
-            autoComplete="address-level1"
-          >
-            <option value="">Elegí una provincia</option>
-            {PROVINCIAS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-          {errores.provincia ? <small>{errores.provincia}</small> : null}
-        </label>
+            {/* Solo lo que Google no trajo. En Argentina suele ser el código postal. */}
+            {elegida && faltan.includes("cp") ? (
+              <Campo
+                id="cp"
+                etiqueta="Código postal"
+                autoComplete="postal-code"
+                inputMode="numeric"
+                enterKeyHint="next"
+                valor={form.cp}
+                error={errores.cp}
+                onChange={(v) => actualizar("cp", v)}
+              />
+            ) : null}
+            {elegida && faltan.includes("localidad") ? (
+              <Campo
+                id="ciudad"
+                etiqueta="Localidad"
+                autoComplete="address-level2"
+                enterKeyHint="next"
+                valor={form.ciudad}
+                error={errores.ciudad}
+                onChange={(v) => actualizar("ciudad", v)}
+              />
+            ) : null}
+            {elegida && faltan.includes("provincia") ? (
+              <SelectorProvincia valor={form.provincia} error={errores.provincia} onChange={(v) => actualizar("provincia", v)} />
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Campo
+              id="direccion"
+              etiqueta="Calle y número"
+              autoComplete="address-line1"
+              placeholder="Av. Cabildo 1234, 5° B"
+              enterKeyHint="next"
+              valor={form.direccion}
+              error={errores.direccion}
+              onChange={(v) => actualizar("direccion", v)}
+            />
 
-        <label
-          style={{
-            display: "flex",
-            gap: "0.65rem",
-            alignItems: "flex-start",
-            fontSize: "0.875rem",
-            color: "var(--texto-suave)",
-          }}
-        >
+            <div className="checkout__par checkout__par--localidad">
+              <Campo
+                id="ciudad"
+                etiqueta="Localidad"
+                autoComplete="address-level2"
+                enterKeyHint="next"
+                valor={form.ciudad}
+                error={errores.ciudad}
+                onChange={(v) => actualizar("ciudad", v)}
+              />
+              <Campo
+                id="cp"
+                etiqueta="Código postal"
+                autoComplete="postal-code"
+                inputMode="numeric"
+                enterKeyHint="done"
+                valor={form.cp}
+                error={errores.cp}
+                onChange={(v) => actualizar("cp", v)}
+              />
+            </div>
+
+            <SelectorProvincia valor={form.provincia} error={errores.provincia} onChange={(v) => actualizar("provincia", v)} />
+
+            {buscador ? (
+              <p className="domicilio__ayuda apagado">
+                <button type="button" className="enlace-accion" onClick={() => setModoDireccion("buscador")}>
+                  Buscar la dirección con Google
+                </button>
+              </p>
+            ) : null}
+          </>
+        )}
+
+        <label className="checkout__promos">
           <input
             type="checkbox"
             name="aceptaPromos"
             checked={form.aceptaPromos}
             onChange={(e) => actualizar("aceptaPromos", e.target.checked)}
-            style={{ marginTop: "0.2rem", width: "1rem", height: "1rem" }}
           />
-          Quiero enterarme de novedades y promociones de Harper.
+          Quiero recibir novedades y promociones de Harper.
         </label>
       </div>
 
       <aside
-        className="panel"
+        className="panel checkout__panel"
         style={{ position: "sticky", top: "6rem" }}
         aria-busy={actualizando}
         data-actualizando={actualizando || undefined}
       >
-        <h2 className="label">Tu pedido</h2>
+        {/* En celular la lista ya está arriba, en el resumen desplegable: acá
+            quedan solo la cuenta y el botón. */}
+        <h2 className="label checkout__panel-titulo">Tu pedido</h2>
 
-        <ul className="pila" style={{ gap: "0.85rem", listStyle: "none", margin: 0, padding: 0 }}>
-          {carrito.items.map((item) => (
-            <li key={item.varianteId} style={{ display: "flex", gap: "0.75rem" }}>
-              <div
-                className="tarjeta__marco"
-                style={{ width: "3rem", aspectRatio: "1 / 1", flexShrink: 0 }}
-              >
-                {item.foto ? (
-                  <Image src={item.foto} alt="" fill sizes="48px" style={{ objectFit: "contain", padding: "4px" }} />
-                ) : null}
-              </div>
-              <div style={{ flex: 1, fontSize: "0.8125rem" }}>
-                <div>
-                  {item.cantidad}× {item.nombre}
-                </div>
-                <div className="apagado">{item.color}</div>
-              </div>
-              <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal)}</span>
-            </li>
-          ))}
+        <ul className="pila checkout__panel-lista" style={{ gap: "0.85rem", listStyle: "none", margin: 0, padding: 0 }}>
+          {listaItems}
         </ul>
 
         {/* La cuenta se lee de arriba abajo: lista − descuento + envío = total. */}
@@ -506,80 +744,11 @@ export default function FormularioCheckout({
           </div>
         ) : null}
 
-        {/* Envío. Con cotización, se elige cómo recibirlo. Sin cotización, se
-            muestra la tarifa única y se dice que es única: nada de prometer
-            un cálculo "exacto" que hoy no existe. */}
-        {opciones.length > 0 ? (
-          <fieldset
-            style={{ border: 0, margin: 0, padding: "0.25rem 0 0", display: "grid", gap: "0.5rem" }}
-          >
-            <legend className="label" style={{ padding: 0, marginBottom: "0.35rem" }}>
-              Cómo lo recibís
-            </legend>
-
-            {opciones.map((o) => {
-              const clave = claveOpcion(o);
-
-              return (
-                <label
-                  key={clave}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.6rem",
-                    fontSize: "0.8125rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="envio"
-                    value={clave}
-                    checked={elegido === clave}
-                    onChange={() => setElegido(clave)}
-                    style={{ width: "1rem", height: "1rem", flexShrink: 0 }}
-                  />
-                  <span style={{ flex: 1 }}>{o.nombre}</span>
-                  <span>
-                    {cotizacion?.bonificado ? "Gratis" : formatearPrecio(o.precio)}
-                  </span>
-                </label>
-              );
-            })}
-
-            {necesitaSucursal && sucursales.length > 0 ? (
-              <label className="campo" style={{ marginTop: "0.35rem" }}>
-                <span>Sucursal donde retirás</span>
-                <select name="sucursal" value={sucursal} onChange={(e) => setSucursal(e.target.value)}>
-                  <option value="">Elegí una sucursal</option>
-                  {sucursales.map((s) => (
-                    <option key={s.id} value={`${s.nombre} — ${s.direccion}`}>
-                      {s.nombre} — {s.direccion}
-                      {s.localidad ? `, ${s.localidad}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-          </fieldset>
-        ) : (
-          <div className="fila">
-            <span className="apagado">
-              Envío a domicilio
-              {cotizando ? " · calculando…" : ""}
-            </span>
-            <span>{envio === 0 ? "Gratis" : formatearPrecio(envio)}</span>
-          </div>
-        )}
-
-        {sinCotizacion && !cotizando && envio > 0 ? (
-          <p className="apagado" style={{ fontSize: "0.75rem", marginTop: "-0.25rem" }}>
-            Tarifa única de envío a domicilio
-            {carrito.envioGratisDesde > 0
-              ? `. Gratis desde ${formatearPrecio(carrito.envioGratisDesde)}.`
-              : "."}
-          </p>
-        ) : null}
+        <div className="fila">
+          <span className="apagado">Envío a domicilio</span>
+          <span>{envioTexto}</span>
+        </div>
+        <p className="apagado checkout__envio-nota">{notaEnvio}</p>
 
         <div className="fila fila--total">
           <span>Total</span>
@@ -597,10 +766,10 @@ export default function FormularioCheckout({
         </button>
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
-          Pagás con Mercado Pago.{" "}
+          Pagás en Mercado Pago:{" "}
           {cuotasActivas()
-            ? `${cuotasActivas()} cuotas sin interés con tarjeta, o débito y`
-            : "Aceptamos tarjetas en cuotas, débito y"}{" "}
+            ? `${cuotasActivas()} cuotas sin interés con tarjeta, débito o`
+            : "tarjeta en cuotas, débito o"}{" "}
           dinero en cuenta.
         </p>
       </aside>
@@ -609,10 +778,42 @@ export default function FormularioCheckout({
         visible={!botonEnPantalla}
         formulario={ID_FORMULARIO}
         total={formatearPrecio(resumen.total)}
-        detalle={`${cantidadTotal} ${cantidadTotal === 1 ? "producto" : "productos"}${resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}`}
+        detalle={`${productos}${resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}`}
         ocupado={enviando}
       />
     </form>
+  );
+}
+
+function SelectorProvincia({
+  valor,
+  error,
+  onChange,
+}: {
+  valor: string;
+  error?: string;
+  onChange: (valor: string) => void;
+}) {
+  return (
+    <label className="campo" data-error={Boolean(error)}>
+      <span>Provincia</span>
+      <select
+        id="provincia"
+        name="provincia"
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete="address-level1"
+        aria-invalid={Boolean(error)}
+      >
+        <option value="">Elegí una provincia</option>
+        {PROVINCIAS.map((p) => (
+          <option key={p} value={p}>
+            {p}
+          </option>
+        ))}
+      </select>
+      {error ? <small>{error}</small> : null}
+    </label>
   );
 }
 
@@ -623,7 +824,6 @@ function Campo({
   onChange,
   error,
   tipo = "text",
-  ayuda,
   ...resto
 }: {
   id: string;
@@ -632,9 +832,10 @@ function Campo({
   onChange: (valor: string) => void;
   error?: string;
   tipo?: string;
-  ayuda?: string;
   autoComplete?: string;
   inputMode?: "numeric" | "text" | "tel" | "email";
+  enterKeyHint?: "next" | "done";
+  placeholder?: string;
 }) {
   return (
     <label className="campo" htmlFor={id} data-error={Boolean(error)}>
@@ -649,9 +850,6 @@ function Campo({
         {...resto}
       />
       {error ? <small>{error}</small> : null}
-      {!error && ayuda ? (
-        <small style={{ color: "var(--texto-suave)" }}>{ayuda}</small>
-      ) : null}
     </label>
   );
 }

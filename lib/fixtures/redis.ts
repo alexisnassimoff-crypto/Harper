@@ -62,6 +62,22 @@ export function atenderRedis(comando: unknown[], ahora: number = Date.now()): { 
     return { result: "OK" };
   }
 
+  // INCR y PEXPIRE: los usa el límite de búsquedas por IP de /api/direcciones.
+  if (op === "INCR") {
+    const entrada = datos.get(args[0]);
+    const actual = vigente(entrada, ahora) ? Number(entrada.valor) : 0;
+    const nuevo = actual + 1;
+    datos.set(args[0], { valor: String(nuevo), vence: vigente(entrada, ahora) ? entrada.vence : null });
+    return { result: nuevo };
+  }
+
+  if (op === "PEXPIRE") {
+    const entrada = datos.get(args[0]);
+    if (!vigente(entrada, ahora)) return { result: 0 };
+    entrada.vence = ahora + Number(args[1]);
+    return { result: 1 };
+  }
+
   if (op === "EVAL") {
     const [script, , clave, argumento] = args;
 
@@ -86,11 +102,19 @@ export function leerRedis(clave: string, ahora: number = Date.now()) {
   return vigente(entrada, ahora) ? entrada.valor : null;
 }
 
-/** Un `fetch` que contesta como la REST API de Upstash, sobre el Redis de prueba. */
+/**
+ * Un `fetch` que contesta como la REST API de Upstash, sobre el Redis de
+ * prueba: un comando por POST, o una lista de comandos en `/pipeline` (que
+ * contesta una lista de resultados, en el mismo orden).
+ */
 export function fetchRedisFalso(reloj?: { ahora(): number }): typeof fetch {
-  return (async (_url: string | URL | Request, init?: RequestInit) => {
-    const comando = JSON.parse(String(init?.body)) as unknown[];
-    return new Response(JSON.stringify(atenderRedis(comando, reloj?.ahora())), { status: 200 });
+  return (async (url: string | URL | Request, init?: RequestInit) => {
+    const cuerpo = JSON.parse(String(init?.body)) as unknown[];
+    const destino = url instanceof Request ? url.url : String(url);
+    const respuesta = destino.endsWith("/pipeline")
+      ? (cuerpo as unknown[][]).map((comando) => atenderRedis(comando, reloj?.ahora()))
+      : atenderRedis(cuerpo, reloj?.ahora());
+    return new Response(JSON.stringify(respuesta), { status: 200 });
   }) as typeof fetch;
 }
 
