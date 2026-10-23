@@ -210,10 +210,6 @@ export default function VistaCarrito() {
         <Link href="/checkout" className="boton boton--bloque">
           Finalizar compra
         </Link>
-
-        <p className="apagado" style={{ fontSize: "0.75rem" }}>
-          Entrega en {datos.plazoEntrega}.
-        </p>
       </aside>
     </div>
   );

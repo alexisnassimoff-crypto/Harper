@@ -21,6 +21,10 @@ const nextConfig: NextConfig = {
       "./public/productos/**/*.jpg",
       "./app/_og/fuentes/*.ttf",
     ],
+    "/producto/[slug]/[color]/opengraph-image": [
+      "./public/productos/**/*.jpg",
+      "./app/_og/fuentes/*.ttf",
+    ],
     "/anteojos/opengraph-image": ["./public/productos/**/*.jpg", "./app/_og/fuentes/*.ttf"],
     "/estuches/opengraph-image": ["./public/productos/**/*.jpg", "./app/_og/fuentes/*.ttf"],
     "/panos/opengraph-image": ["./public/productos/**/*.jpg", "./app/_og/fuentes/*.ttf"],

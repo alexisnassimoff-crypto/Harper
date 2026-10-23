@@ -75,7 +75,21 @@ function config() {
 }
 
 export function isAirtableConfigured() {
+  if (modoFixtures()) return true;
   return Boolean(process.env.AIRTABLE_TOKEN && process.env.AIRTABLE_BASE_ID);
+}
+
+/**
+ * Modo de datos de prueba: la tienda corre contra un catálogo en memoria.
+ *
+ * Se activa con `HARPER_FIXTURES=1` y sirve para desarrollar, sacar capturas y
+ * probar el recorrido completo sin red ni credenciales. En Vercel —preview o
+ * producción— está apagado a la fuerza, aunque alguien cargue la variable por
+ * error: ningún deploy muestra nunca el catálogo de ejemplo. `/api/health`
+ * informa cuál de los dos está activo.
+ */
+export function modoFixtures() {
+  return process.env.HARPER_FIXTURES === "1" && !process.env.VERCEL;
 }
 
 type RequestInitConQuery = RequestInit & {
@@ -88,6 +102,8 @@ async function request<T>(
   path: string,
   init: RequestInitConQuery = {}
 ): Promise<T> {
+  if (modoFixtures()) return requestFixtures<T>(path, init);
+
   const { token, baseId } = config();
   const { query, revalidate, ...rest } = init;
 
@@ -116,6 +132,30 @@ async function request<T>(
   }
 
   return res.json() as Promise<T>;
+}
+
+/**
+ * La misma llamada, contra el Airtable en memoria.
+ *
+ * El import es dinámico para que el catálogo de ejemplo no viaje al bundle de
+ * producción. Los errores se traducen a `ErrorAirtable` para que el resto del
+ * código los trate igual que a los reales.
+ */
+async function requestFixtures<T>(path: string, init: RequestInitConQuery): Promise<T> {
+  const { atender, RespuestaFixture } = await import("./fixtures/servidor");
+
+  try {
+    return atender<T>(path, {
+      method: init.method,
+      body: typeof init.body === "string" ? init.body : null,
+      query: init.query,
+    });
+  } catch (error) {
+    if (error instanceof RespuestaFixture) {
+      throw new ErrorAirtable(error.status, path, error.message);
+    }
+    throw error;
+  }
 }
 
 /**

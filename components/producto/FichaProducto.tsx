@@ -3,44 +3,54 @@
 import Image from "next/image";
 import FotoCruzada from "@/components/FotoCruzada";
 import VisorFoto from "@/components/VisorFoto";
+import MensajesConfianza from "@/components/MensajesConfianza";
 import { useDeslizar } from "@/components/useDeslizar";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import EscaleraPrecios from "@/components/EscaleraPrecios";
+import CtaFija from "./CtaFija";
+import type { Confianza } from "@/lib/confianza";
+import { importeCuota } from "@/lib/cuotas";
 import { precio as formatearPrecio } from "@/lib/formato";
 import {
   armarGaleria,
   indiceEntreFotos,
   posicionDeFoto,
 } from "@/lib/galeria";
+import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 
 export default function FichaProducto({
   producto,
   tramos = [],
+  varianteInicial,
+  confianza = [],
+  cuotas = null,
 }: {
   producto: Producto;
   tramos?: Tramo[];
+  /** Índice del color con el que abre. Lo decide el servidor según la URL. */
+  varianteInicial?: number;
+  confianza?: Confianza[];
+  /** Cuotas sin interés activas en Mercado Pago, o null si no hay. */
+  cuotas?: number | null;
 }) {
   const router = useRouter();
-  const { agregar } = useCarrito();
+  const { items, agregar } = useCarrito();
   const [enTransicion, iniciarTransicion] = useTransition();
 
-  // Arranca en el primer color con stock; si están todos agotados, el primero.
-  const indiceInicial = Math.max(
-    0,
-    producto.variantes.findIndex((v) => !v.agotada)
+  const [indiceVariante, setIndiceVariante] = useState(
+    () => varianteInicial ?? indiceVarianteInicial(producto)
   );
-
-  const [indiceVariante, setIndiceVariante] = useState(indiceInicial);
   const [indiceMedio, setIndiceMedio] = useState(0);
   const [agregado, setAgregado] = useState(false);
   const [visorAbierto, setVisorAbierto] = useState(false);
 
   const variante = producto.variantes[indiceVariante];
+  const yaEnCarrito = items.some((i) => i.varianteId === variante.id);
 
   // Lo que ya hay en el carrito de esta categoría: la escalera de precios se
   // va llenando a medida que el visitante agrega, que es todo el chiste.
@@ -88,12 +98,34 @@ export default function FichaProducto({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visorAbierto, medios.length]);
 
+  // La barra fija de compra aparece cuando el bloque de botones sale de
+  // pantalla, y se va cuando vuelve: nunca hay dos botones a la vista.
+  const bloqueCompra = useRef<HTMLDivElement>(null);
+  const [compraEnPantalla, setCompraEnPantalla] = useState(true);
+
+  useEffect(() => {
+    const nodo = bloqueCompra.current;
+    if (!nodo || typeof IntersectionObserver === "undefined") return;
+
+    const observador = new IntersectionObserver(
+      (entradas) => setCompraEnPantalla(entradas.some((e) => e.isIntersecting)),
+      { threshold: 0.2 }
+    );
+
+    observador.observe(nodo);
+    return () => observador.disconnect();
+  }, []);
+
   // El estilo del gesto se combina con el del marco; el resto son manejadores.
   const { style: estiloDeslizar, ...gestos } = useDeslizar({
     alSiguiente: () => pasarMedio(1),
     alAnterior: () => pasarMedio(-1),
   });
 
+  // Al cambiar de color NO se toca la URL. Se probó sincronizarla con
+  // `history.replaceState` y el cambio de pathname remonta la página entera
+  // (la transición de página se reinicia por ruta), lo que devolvía la ficha
+  // al color inicial y mandaba al carrito un color distinto del elegido.
   function elegirColor(indice: number) {
     setIndiceVariante(indice);
     setIndiceMedio(0);
@@ -110,25 +142,38 @@ export default function FichaProducto({
   }
 
   function comprarAhora() {
-    agregar({
-      productoSlug: producto.slug,
-      varianteId: variante.id,
-      cantidad: 1,
-    });
+    // Si este color ya está en el carrito —porque tocó "Agregar" primero— no
+    // se suma otra unidad: antes llegaba al checkout con dos pares sin querer.
+    if (!yaEnCarrito) {
+      agregar({
+        productoSlug: producto.slug,
+        varianteId: variante.id,
+        cantidad: 1,
+      });
+    }
     iniciarTransicion(() => router.push("/checkout"));
   }
 
+  const cuotaTexto =
+    cuotas && cuotas > 1
+      ? `${cuotas} cuotas sin interés de ${formatearPrecio(importeCuota(producto.precio, cuotas))}`
+      : null;
+
+  const medidas = producto.medidas
+    ? [
+        producto.medidas.frenteMm ? { nombre: "Frente", valor: producto.medidas.frenteMm } : null,
+        producto.medidas.puenteMm ? { nombre: "Puente", valor: producto.medidas.puenteMm } : null,
+        producto.medidas.patillaMm ? { nombre: "Patilla", valor: producto.medidas.patillaMm } : null,
+      ].filter((m): m is { nombre: string; valor: number } => m !== null)
+    : [];
+
+  const detalles = [
+    producto.material ? { nombre: "Armazón", valor: producto.material } : null,
+    producto.lentes ? { nombre: "Lentes", valor: producto.lentes } : null,
+  ].filter((d): d is { nombre: string; valor: string } => d !== null);
+
   return (
-    <div
-      className="contenedor"
-      style={{
-        display: "grid",
-        gap: "2.5rem 3.5rem",
-        gridTemplateColumns: "repeat(auto-fit, minmax(min(20rem, 100%), 1fr))",
-        paddingBlock: "2.5rem 4rem",
-        alignItems: "start",
-      }}
-    >
+    <div className="contenedor ficha-producto">
       {/* ---------- Galería ---------- */}
       <div className="pila surge" style={{ gap: "0.75rem" }}>
         <div
@@ -234,7 +279,7 @@ export default function FichaProducto({
         ) : null}
 
         {medios.length > 1 ? (
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <div className="galeria__minis">
             {medios.map((medio, i) => (
               <button
                 key={medio.src}
@@ -280,8 +325,10 @@ export default function FichaProducto({
         ) : null}
       </div>
 
-      {/* ---------- Datos y compra ---------- */}
-      <div className="pila surge surge-1" style={{ gap: "1.75rem", position: "sticky", top: "6rem" }}>
+      {/* ---------- Datos y compra ----------
+          Orden pensado para el celular: nombre, precio, color, botón; después
+          lo que da confianza; después lo que da más información. */}
+      <div className="pila surge surge-1 ficha-producto__datos">
         <div className="pila" style={{ gap: "0.6rem" }}>
           <span className="label">{producto.categoria}</span>
           <h1 style={{ fontSize: "clamp(2rem, 5vw, 2.75rem)" }}>
@@ -302,27 +349,12 @@ export default function FichaProducto({
             ) : null}
           </div>
 
-          {process.env.NEXT_PUBLIC_CUOTAS ? (
-            <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--acento, #1a7a4a)" }}>
-              {process.env.NEXT_PUBLIC_CUOTAS} cuotas sin interés
+          {cuotaTexto ? (
+            <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--verde)" }}>
+              {cuotaTexto}
             </span>
           ) : null}
-
-          {/* El descuento por cantidad se muestra acá y no recién en el carrito:
-              si la idea aparece después de decidir, ya es tarde. */}
-          <EscaleraPrecios
-            tramos={tramos}
-            categoria={producto.categoria}
-            precioLista={producto.precio}
-            cantidadActual={unidadesEnCategoria}
-          />
         </div>
-
-        {producto.descripcion ? (
-          <p className="apagado" style={{ maxWidth: "34rem" }}>
-            {producto.descripcion}
-          </p>
-        ) : null}
 
         {/* Selector de color */}
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
@@ -364,38 +396,104 @@ export default function FichaProducto({
         </fieldset>
 
         {/* Compra */}
-        {variante.agotada ? (
-          <button type="button" className="boton boton--bloque" disabled>
-            Sin stock en este color
-          </button>
-        ) : (
-          <div className="pila" style={{ gap: "0.75rem" }}>
-            <button
-              type="button"
-              className="boton boton--bloque"
-              onClick={comprarAhora}
-              disabled={enTransicion}
-            >
-              {enTransicion ? "Un momento…" : "Comprar ahora"}
+        <div ref={bloqueCompra} className="pila" style={{ gap: "0.75rem" }}>
+          {variante.agotada ? (
+            <button type="button" className="boton boton--bloque" disabled>
+              Sin stock en este color
             </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="boton boton--bloque"
+                onClick={comprarAhora}
+                disabled={enTransicion}
+              >
+                {enTransicion ? "Un momento…" : "Comprar ahora"}
+              </button>
 
-            <button
-              type="button"
-              className="boton boton--fantasma boton--bloque"
-              onClick={agregarAlCarrito}
-            >
-              {agregado ? "Agregado al carrito" : "Agregar al carrito"}
-            </button>
+              <button
+                type="button"
+                className="boton boton--fantasma boton--bloque"
+                onClick={agregarAlCarrito}
+              >
+                {agregado ? "Agregado al carrito" : "Agregar al carrito"}
+              </button>
 
-            {variante.stock <= 5 ? (
-              <p className="apagado" style={{ fontSize: "0.8125rem" }}>
-                Quedan {variante.stock}{" "}
-                {variante.stock === 1 ? "unidad" : "unidades"} de este color.
-              </p>
+              {variante.stock <= 5 ? (
+                <p className="apagado" style={{ fontSize: "0.8125rem" }}>
+                  Quedan {variante.stock}{" "}
+                  {variante.stock === 1 ? "unidad" : "unidades"} de este color.
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <MensajesConfianza mensajes={confianza} variante="lista" />
+
+        {/* El descuento por cantidad se muestra acá y no recién en el carrito:
+            si la idea aparece después de decidir, ya es tarde. */}
+        <EscaleraPrecios
+          tramos={tramos}
+          categoria={producto.categoria}
+          precioLista={producto.precio}
+          cantidadActual={unidadesEnCategoria}
+        />
+
+        {producto.incluye.length > 0 ? (
+          <section className="pila ficha-producto__bloque">
+            <h2 className="label">Incluye</h2>
+            <ul className="lista-incluye">
+              {producto.incluye.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        {medidas.length > 0 || detalles.length > 0 ? (
+          <section className="pila ficha-producto__bloque">
+            <h2 className="label">Detalles</h2>
+            {medidas.length > 0 ? (
+              <ul className="medidas" aria-label="Medidas en milímetros">
+                {medidas.map((m) => (
+                  <li key={m.nombre} className="medidas__item">
+                    <span className="medidas__nombre">{m.nombre}</span>
+                    <span className="medidas__valor">{m.valor} mm</span>
+                  </li>
+                ))}
+              </ul>
             ) : null}
-          </div>
-        )}
+            {detalles.length > 0 ? (
+              <dl className="detalles">
+                {detalles.map((d) => (
+                  <div key={d.nombre} className="detalles__fila">
+                    <dt>{d.nombre}</dt>
+                    <dd>{d.valor}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+          </section>
+        ) : null}
+
+        {producto.descripcion ? (
+          <section className="pila ficha-producto__bloque">
+            <h2 className="label">Descripción</h2>
+            <p style={{ maxWidth: "34rem", fontSize: "0.9375rem" }}>{producto.descripcion}</p>
+          </section>
+        ) : null}
       </div>
+
+      <CtaFija
+        visible={!compraEnPantalla && !variante.agotada}
+        nombre={`${producto.nombre} · ${variante.color}`}
+        precio={formatearPrecio(producto.precio)}
+        detalle={cuotaTexto}
+        ocupado={enTransicion}
+        alComprar={comprarAhora}
+      />
 
       {visorAbierto && esFoto ? (
         <VisorFoto

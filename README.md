@@ -168,6 +168,25 @@ enlace manual del paso 2 no toca nada.
 
 Un producto sin variantes activas no aparece en la web.
 
+Campos opcionales de `Productos` que la ficha muestra solo si están cargados
+(nada se inventa si faltan):
+
+| Campo | Qué es | Ejemplo |
+|---|---|---|
+| `Incluye` | Qué viene en la caja, un renglón por ítem | `Estuche rígido Harper` ⏎ `Paño de microfibra` |
+| `Frente_mm`, `Puente_mm`, `Patilla_mm` | Medidas del anteojo, en milímetros | `140`, `19`, `145` |
+| `Material` | Material del armazón | `Acetato` |
+| `Lentes` | Tipo de lentes | `Fotocromáticos` |
+
+En `Config`, tres claves opcionales cambian la portada sin tocar código:
+`portada_titulo`, `portada_subtitulo` y `portada_imagen` (ruta o URL de una
+foto editorial aprobada). Vacías, la portada usa sus textos por defecto, que
+se arman con lo que hay publicado, y muestra la foto de catálogo del primer
+anteojo.
+
+`plazo_entrega` se guarda pero no se le muestra al comprador en ningún lado
+hasta que haya un operador logístico contratado y confirmado.
+
 ## Rutas
 
 | Ruta | Qué hace |
@@ -189,6 +208,24 @@ Un producto sin variantes activas no aparece en la web.
 npm install
 cp .env.example .env.local   # completar las credenciales
 npm run dev
+```
+
+Sin credenciales ni red, la tienda corre contra un catálogo de prueba en
+memoria (`lib/fixtures`), que es una copia del catálogo real:
+
+```bash
+npm run dev:fixtures         # HARPER_FIXTURES=1 next dev
+```
+
+Sirve para ver cambios de diseño, sacar capturas y probar el recorrido hasta
+el checkout. Nunca se activa en producción.
+
+Antes de subir cambios:
+
+```bash
+npm run typecheck            # TypeScript
+npm test                     # pruebas de lib/ (node --test)
+npm run build
 ```
 
 ## Activar el cobro

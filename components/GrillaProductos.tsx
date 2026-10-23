@@ -2,10 +2,30 @@ import ProductoCard from "./ProductoCard";
 import Revelar from "./Revelar";
 import type { Producto } from "@/lib/tipos";
 
+/**
+ * La grilla de productos.
+ *
+ * En celular va a dos columnas: con una sola, cada ficha medía ~500px y el
+ * visitante veía un producto por pantalla. A dos, los cuatro anteojos entran
+ * en una pantalla y media, con nombre, colores y precio a la vista.
+ *
+ *  - `compacta`: para las secciones secundarias (estuches y paños en la
+ *    portada, "otros modelos" en la ficha). Celdas más chicas y más por fila.
+ *  - `animar`: envuelve cada celda en <Revelar>. Apagado por defecto, porque
+ *    el contenido principal tiene que verse aunque el JavaScript tarde.
+ *  - `precargar`: cuántas fotos se piden con prioridad. Solo las que quedan
+ *    arriba del fold; el resto compite con ellas y las demora.
+ */
 export default function GrillaProductos({
   productos,
+  compacta = false,
+  animar = false,
+  precargar = 0,
 }: {
   productos: Producto[];
+  compacta?: boolean;
+  animar?: boolean;
+  precargar?: number;
 }) {
   if (productos.length === 0) {
     return (
@@ -18,20 +38,24 @@ export default function GrillaProductos({
   const iniciales = coloresIniciales(productos);
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: "2rem 1.25rem",
-        gridTemplateColumns: "repeat(auto-fill, minmax(min(15rem, 100%), 1fr))",
-      }}
-    >
-      {productos.map((p, i) => (
+    <div className={compacta ? "grilla grilla--compacta" : "grilla"}>
+      {productos.map((p, i) => {
+        const tarjeta = (
+          <ProductoCard producto={p} prioridad={i < precargar} inicial={iniciales[i]} />
+        );
+
         // El retraso se reinicia por fila para que la cascada no se alargue
         // en un listado largo.
-        <Revelar key={p.id} retraso={(i % 4) * 80} className="revelar--celda">
-          <ProductoCard producto={p} prioridad={i < 4} inicial={iniciales[i]} />
-        </Revelar>
-      ))}
+        return animar ? (
+          <Revelar key={p.id} retraso={(i % 4) * 80} className="revelar--celda">
+            {tarjeta}
+          </Revelar>
+        ) : (
+          <div key={p.id} className="grilla__celda">
+            {tarjeta}
+          </div>
+        );
+      })}
     </div>
   );
 }

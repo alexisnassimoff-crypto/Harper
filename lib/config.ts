@@ -15,6 +15,11 @@ export type ConfigTienda = {
   razonSocial: string;
   cuit: string;
   domicilio: string;
+  /**
+   * Plazo de entrega. Se lee pero NO se le muestra al comprador en ningún
+   * lado: hasta que haya un operador logístico contratado y confirmado no se
+   * publica un plazo concreto. Cuando lo haya, se vuelve a mostrar desde acá.
+   */
   plazoEntrega: string;
   /** Código postal desde el que se despacha. Correo Argentino cotiza desde acá. */
   cpOrigen: string;
@@ -22,6 +27,18 @@ export type ConfigTienda = {
   embalajeMargenCm: number;
   /** Gramos que suman el sobre o la caja, el relleno y la etiqueta. */
   embalajePesoG: number;
+  /**
+   * Textos e imagen de la portada. Vacíos = la portada usa los suyos, armados
+   * con datos del catálogo. Están en Config para cambiar el mensaje de una
+   * campaña sin tocar código.
+   */
+  portadaTitulo: string;
+  portadaSubtitulo: string;
+  /**
+   * Ruta o URL de una foto editorial aprobada para el hero. Vacío = la
+   * portada muestra una foto del catálogo (el primer anteojo publicado).
+   */
+  portadaImagen: string;
 };
 
 /** Valores usados si Airtable no responde. La tienda nunca se cae por esto. */
@@ -40,6 +57,9 @@ const POR_DEFECTO: ConfigTienda = {
   // Valores de sobre de burbuja. Con caja serían 2 y 80.
   embalajeMargenCm: 1,
   embalajePesoG: 30,
+  portadaTitulo: "",
+  portadaSubtitulo: "",
+  portadaImagen: "",
 };
 
 type FilaConfig = { Clave?: string; Valor?: string };
@@ -83,6 +103,9 @@ export async function getConfig(): Promise<ConfigTienda> {
       POR_DEFECTO.embalajeMargenCm
     ),
     embalajePesoG: aNumero(mapa.get("embalaje_peso_g"), POR_DEFECTO.embalajePesoG),
+    portadaTitulo: texto("portada_titulo", POR_DEFECTO.portadaTitulo),
+    portadaSubtitulo: texto("portada_subtitulo", POR_DEFECTO.portadaSubtitulo),
+    portadaImagen: texto("portada_imagen", POR_DEFECTO.portadaImagen),
   };
 }
 

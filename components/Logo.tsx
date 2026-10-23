@@ -10,6 +10,7 @@ export default function Logo({
   alto = 22,
   lockup = false,
   claro = false,
+  prioridad = false,
 }: {
   /**
    * Alto en px, o cualquier medida CSS (`clamp(...)`, `10vw`) para que el logo
@@ -19,6 +20,11 @@ export default function Logo({
   lockup?: boolean;
   /** Invierte el logo a blanco, para fondos oscuros. */
   claro?: boolean;
+  /**
+   * Precarga el archivo. Solo para el logo del header, que está arriba del
+   * fold en todas las páginas: el del pie se carga cuando se llega a él.
+   */
+  prioridad?: boolean;
 }) {
   const proporcion = lockup ? 1200 / 443 : 1200 / 260;
   const fijo = typeof alto === "number";
@@ -32,7 +38,7 @@ export default function Logo({
       alt="Harper"
       width={ancho}
       height={altoBase}
-      priority
+      priority={prioridad}
       // El PNG ya está optimizado; reprocesarlo lo reescala a la medida CSS
       // y en pantallas retina se ve borroso.
       unoptimized

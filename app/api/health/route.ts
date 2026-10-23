@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAirtableConfigured } from "@/lib/airtable";
+import { isAirtableConfigured, modoFixtures } from "@/lib/airtable";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
 import { mercadoPagoListo } from "@/lib/mercadopago";
@@ -50,6 +50,9 @@ export function GET() {
     // Con qué commit se armó este deploy: sirve para saber si el redeploy
     // realmente corrió.
     commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+    // De dónde sale el catálogo: "airtable" en cualquier deploy; "fixtures"
+    // solo en una máquina local con HARPER_FIXTURES=1.
+    catalogo: modoFixtures() ? "fixtures" : "airtable",
     integraciones: {
       airtable: isAirtableConfigured(),
       // Exige el token Y el secreto del webhook: con uno solo se cobra la

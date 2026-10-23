@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
+import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO } from "@/lib/confianza";
 
-export const metadata: Metadata = { title: "Cambios y devoluciones" };
+export const metadata: Metadata = {
+  title: "Cambios y devoluciones",
+  alternates: { canonical: "/legales/devoluciones" },
+};
 
 export default async function Devoluciones() {
   const config = await getConfig();
@@ -16,7 +20,7 @@ export default async function Devoluciones() {
       </h2>
       <p>
         Si comprás a distancia, tenés derecho a arrepentirte dentro de los{" "}
-        <strong style={{ fontWeight: 500 }}>10 días corridos</strong> contados a
+        <strong style={{ fontWeight: 500 }}>{DIAS_ARREPENTIMIENTO} días corridos</strong> contados a
         partir de la entrega del producto, sin necesidad de expresar motivo y sin
         costo alguno (art. 34 de la Ley 24.240). El producto debe estar sin uso y
         en su empaque original. El costo de devolución corre por nuestra cuenta.
@@ -31,7 +35,7 @@ export default async function Devoluciones() {
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Cambios</h2>
       <p>
-        Aceptamos cambios por otro color o modelo dentro de los 30 días de
+        Aceptamos cambios por otro color o modelo dentro de los {DIAS_CAMBIO} días de
         recibido el pedido, siempre que el producto esté sin uso y en su empaque
         original. Escribinos a{" "}
         <a href={`mailto:${config.emailContacto}`} style={{ textDecoration: "underline" }}>

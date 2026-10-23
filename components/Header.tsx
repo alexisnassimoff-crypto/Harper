@@ -61,7 +61,7 @@ export default function Header({ banner }: { banner?: string }) {
           </nav>
 
           <Link href="/" aria-label="Harper — Inicio" className="logo-enlace cabecera__marca">
-            <Logo alto={22} />
+            <Logo alto={22} prioridad />
           </Link>
 
           <div className="cabecera__carrito">

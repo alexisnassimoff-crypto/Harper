@@ -88,7 +88,7 @@ export default async function Gracias({
         <>
           <p className="apagado">
             {confirmado
-              ? `Te mandamos la confirmación por mail con el detalle. Preparamos el envío y llega en ${config.plazoEntrega}.`
+              ? "Te mandamos la confirmación por mail con el detalle y ya preparamos el envío."
               : "Estamos esperando que Mercado Pago nos confirme el pago. Apenas se acredite te llega el mail con el detalle y preparamos el envío."}
           </p>
 

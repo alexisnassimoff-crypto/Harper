@@ -4,15 +4,18 @@ import { getProductos } from "@/lib/catalogo";
 
 export const revalidate = 60;
 
+// Lo que cada paño hace o no hace lo dice su descripción en Airtable; el texto
+// fijo de la página no afirma nada que no se pueda verificar.
+const DESCRIPCION =
+  "Paños de microfibra Harper para la limpieza de cristales. Comprá online y pagá con Mercado Pago.";
+
 export const metadata: Metadata = {
   title: "Paños",
-  description:
-    "Paños de microfibra Harper para limpieza de cristales. No rayan ni dejan pelusa.",
+  description: DESCRIPCION,
   alternates: { canonical: "/panos" },
   openGraph: {
     title: "Paños · Harper",
-    description:
-      "Paños de microfibra Harper para limpieza de cristales. No rayan ni dejan pelusa.",
+    description: DESCRIPCION,
     type: "website",
   },
 };
@@ -21,15 +24,11 @@ export default async function Panos() {
   const productos = await getProductos("Paños");
 
   return (
-    <section className="contenedor" style={{ paddingBlock: "3.5rem" }}>
-      <h1 className="titulo" style={{ marginBottom: "0.75rem" }}>
-        Paños
-      </h1>
-      <p className="apagado" style={{ marginBottom: "2.5rem", maxWidth: "34rem" }}>
-        Microfibra que no raya ni deja pelusa. Aptos para cristales con
-        tratamiento antirreflejo, blue cut y polarizados.
-      </p>
-      <GrillaProductos productos={productos} />
+    <section className="contenedor seccion seccion--pagina">
+      <div className="seccion__cabecera">
+        <h1 className="titulo">Paños</h1>
+      </div>
+      <GrillaProductos productos={productos} precargar={3} />
     </section>
   );
 }
