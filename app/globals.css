@@ -274,8 +274,7 @@ p {
   gap: 0.4rem;
 }
 
-.campo > span,
-.campo > label > span {
+.campo > span {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -811,32 +810,35 @@ p {
    Un combobox: el casillero, la lista de sugerencias debajo y, elegida una,
    una tarjeta con la dirección resuelta y el enlace "Cambiar". */
 
-.domicilio label {
-  display: contents;
-}
 .domicilio input {
   scroll-margin-top: 5.5rem;
 }
 .combobox {
   position: relative;
 }
-.combobox__lista {
+/* El panel va por encima del header (50), la barra fija de pagar (55) y el
+   globo de WhatsApp (60): la última opción y la atribución nunca quedan tapadas.
+   El alto máximo lo pone el componente según lo que deja el teclado. */
+.combobox__panel {
   position: absolute;
   inset-inline: 0;
   top: calc(100% + 0.35rem);
-  z-index: 30;
-  margin: 0;
-  padding: 0.3rem 0 0;
-  list-style: none;
-  max-height: min(19rem, 48vh);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   background: #fff;
   border: 1px solid var(--borde);
   border-radius: var(--radio);
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
 }
-.combobox__lista[hidden] {
+.combobox__panel[hidden] {
   display: none;
+}
+.combobox__lista {
+  margin: 0;
+  padding: 0.3rem 0 0;
+  list-style: none;
 }
 .combobox__opcion {
   display: grid;
@@ -857,6 +859,7 @@ p {
   color: var(--texto-suave);
 }
 .combobox__vacio {
+  margin: 0;
   padding: 0.7rem 1.1rem;
   font-size: 0.875rem;
   color: var(--texto-suave);

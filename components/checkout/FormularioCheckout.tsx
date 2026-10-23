@@ -193,7 +193,9 @@ export default function FormularioCheckout({
 
     const id = window.setTimeout(() => {
       try {
-        const { aceptaPromos: _consentimiento, ...datos } = form;
+        // La dirección se guarda como viaja, con el piso: si otro día el
+        // buscador no está, el campo manual la muestra completa.
+        const { aceptaPromos: _consentimiento, ...datos } = clienteAEnviar();
         if (Object.values(datos).some((v) => v.trim() !== "")) {
           window.localStorage.setItem(CLAVE_DATOS, JSON.stringify(datos));
         }
@@ -203,7 +205,9 @@ export default function FormularioCheckout({
     }, 400);
 
     return () => window.clearTimeout(id);
-  }, [form]);
+    // `clienteAEnviar` lee form, piso y modoDireccion: son las dependencias reales.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, piso, modoDireccion]);
 
   // Al volver de Mercado Pago con el botón "atrás", iOS Safari restaura la
   // página desde el cache con el estado anterior: el botón quedaba trabado en
@@ -287,11 +291,22 @@ export default function FormularioCheckout({
     setForm((f) => ({
       ...f,
       direccion: componerDireccion({ calle: d.calle, numero: d.numero || numeroEscrito.trim() }),
-      ciudad: d.localidad,
-      provincia: d.provincia,
-      cp: d.cp,
+      // Lo que Google no trajo no pisa lo que el comprador ya cargó a mano
+      // (al restaurar, o al volver a aplicar la misma dirección). Después de
+      // "Cambiar" esos campos están vacíos, así que nada viejo se arrastra.
+      ciudad: d.localidad || f.ciudad,
+      provincia: d.provincia || f.provincia,
+      cp: d.cp || f.cp,
     }));
     setErrores((e) => ({ ...e, domicilio: undefined, direccion: undefined, ciudad: undefined, provincia: undefined, cp: undefined }));
+  }
+
+  /** El número que Google no trajo: solo cambia la calle y número del pedido. */
+  function cambiarNumero(valor: string) {
+    if (!elegida) return;
+    setNumero(valor);
+    setForm((f) => ({ ...f, direccion: componerDireccion({ calle: elegida.calle, numero: valor.trim() }) }));
+    setErrores((e) => ({ ...e, direccion: undefined }));
   }
 
   /** Descarta la dirección elegida para buscar otra. */
@@ -301,15 +316,24 @@ export default function FormularioCheckout({
     setForm((f) => ({ ...f, direccion: "", ciudad: "", provincia: "", cp: "" }));
   }
 
-  /** A los campos manuales, por decisión del comprador o porque Google no está. */
-  function cargarAMano() {
+  /**
+   * A los campos manuales, por decisión del comprador o porque Google no está.
+   * Se lleva lo que ya tenía: la dirección resuelta con su piso, o lo que
+   * venía tipeando en el casillero.
+   */
+  function cargarAMano(tipeado = "") {
     setModoDireccion("manual");
-    if (elegida) {
-      // Lo que ya tenía resuelto queda escrito en los campos: no empieza de cero.
-      setForm((f) => ({ ...f, direccion: piso.trim() ? `${f.direccion}, ${piso.trim()}` : f.direccion }));
-    }
+    setForm((f) => ({
+      ...f,
+      direccion: elegida ? (piso.trim() ? `${f.direccion}, ${piso.trim()}` : f.direccion) : tipeado.trim(),
+    }));
     setElegida(null);
     setErrores((e) => ({ ...e, domicilio: undefined }));
+    try {
+      window.localStorage.removeItem(CLAVE_DOMICILIO);
+    } catch {
+      // Sin almacenamiento no hay nada que borrar.
+    }
     window.setTimeout(() => document.getElementById("direccion")?.focus(), 0);
   }
 
@@ -592,7 +616,7 @@ export default function FormularioCheckout({
                     enterKeyHint="next"
                     valor={numero}
                     error={errores.direccion}
-                    onChange={(v) => aplicarDireccion(elegida, v)}
+                    onChange={cambiarNumero}
                   />
                 ) : null}
                 <Campo

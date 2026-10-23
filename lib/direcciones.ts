@@ -193,9 +193,7 @@ export function normalizarDireccion(
   });
 
   return {
-    // Sin `route` (pasa con algunos "premise"), lo que va antes de la primera
-    // coma de la dirección completa es lo más parecido a la calle.
-    calle: calle || texto.split(",")[0].replace(/\s+\d+\s*$/, "").trim(),
+    calle: calle || calleDesdeElTexto(texto, numero),
     numero,
     localidad,
     barrio: barrio === localidad ? "" : barrio,
@@ -203,6 +201,21 @@ export function normalizarDireccion(
     cp: cpDesdeGoogle(codigoPostalCrudo),
     texto: texto.trim(),
   };
+}
+
+/**
+ * Sin `route` (pasa con algunos "premise": edificios con nombre), la calle se
+ * saca de la dirección completa: el tramo que termina en el número de la
+ * calle ("Edificio Kavanagh, Florida 1065, …" → "Florida"), o el primero.
+ */
+function calleDesdeElTexto(texto: string, numero: string): string {
+  const tramos = texto.split(",").map((t) => t.trim()).filter(Boolean);
+  if (tramos.length === 0) return "";
+
+  const conNumero = numero ? tramos.find((t) => new RegExp(`\\s${numero}$`).test(t)) : undefined;
+  if (conNumero) return conNumero.replace(/\s+\S+$/, "").trim();
+
+  return tramos[0].replace(/\s+\d+\s*$/, "").trim();
 }
 
 /** "Av. Cabildo 1234" (+ ", 5° B" si cargó piso o depto): el campo Direccion del pedido. */

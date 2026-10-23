@@ -346,9 +346,17 @@ manuales y se vende igual.** `/api/health` lo informa en `integraciones.googlePl
 Cada búsqueda del checkout son unas 6 consultas de autocompletado más 1 detalle, en
 una **sesión** (token que genera el navegador y cierra el detalle): dentro de una
 sesión Google cobra como máximo 12 consultas de autocompletado. Con eso, hasta
-**~1.600 checkouts por mes el costo es USD 0**; 3.000 checkouts rondan USD 23. El
-servidor además limita a 60 consultas por minuto por IP, y la tienda solo consulta
-desde los 4 caracteres y 250 ms después de la última tecla.
+**~1.600 checkouts por mes el costo es USD 0**; 3.000 checkouts rondan USD 23. La
+tienda solo consulta desde los 4 caracteres y 250 ms después de la última tecla.
+
+El servidor pone sus propios topes, por si alguien abusa (`app/api/direcciones/route.ts`):
+60 consultas por minuto por IP (o por /64 en IPv6; pasado, 429 y el comprador espera),
+600 por minuto entre todos y 2.500 por día (pasados, el checkout pide la dirección a
+mano hasta que se renueve la ventana). Solo atiende pedidos del propio sitio
+(`Sec-Fetch-Site`): una página ajena no puede hacer gastar consultas. Los contadores
+viven en memoria y en el mismo Upstash del cerrojo del webhook; pasado un tope ya no
+se gasta ningún comando de Redis, así que una inundación no agota el plan del que
+depende el cobro.
 
 Google exige mostrar su logo junto a las sugerencias cuando no hay un mapa: es el
 `Google Maps` gris al pie de la lista (`public/google-maps-atribucion.svg`, del
