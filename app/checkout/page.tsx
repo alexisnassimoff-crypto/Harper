@@ -17,25 +17,14 @@ export default async function PaginaCheckout({
   // resuelto (con valor e ítems) y solo si de verdad hay algo para comprar y
   // no es la vuelta de un pago rechazado.
   return (
-    <>
-    <section className="contenedor" style={{ paddingBlock: "3.5rem" }}>
-      <h1 className="titulo" style={{ marginBottom: "2.5rem" }}>
-        Finalizar compra
-      </h1>
+    <section className="contenedor checkout">
+      <h1 className="titulo titulo--chico checkout__titulo">Finalizar compra</h1>
 
       {/* Es a donde vuelve el cliente cuando Mercado Pago rechaza el pago.
           Sin este aviso se encontraba con un formulario en blanco y ninguna
           explicación de qué había pasado. */}
       {error === "pago" ? (
-        <p
-          role="alert"
-          style={{
-            marginBottom: "2rem",
-            maxWidth: "38rem",
-            color: "var(--alerta)",
-            fontSize: "0.875rem",
-          }}
-        >
+        <p role="alert" className="checkout__aviso">
           El pago no se pudo completar y no te cobramos nada. Revisá los datos
           de la tarjeta o probá con otro medio de pago.
         </p>
@@ -43,6 +32,5 @@ export default async function PaginaCheckout({
 
       <FormularioCheckout reintento={error === "pago"} />
     </section>
-  </>
   );
 }
