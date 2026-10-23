@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAirtableConfigured, modoFixtures } from "@/lib/airtable";
-import { redisConfigurado } from "@/lib/cerrojo";
+import { verificarRedis } from "@/lib/cerrojo";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
 import { mercadoPagoListo } from "@/lib/mercadopago";
@@ -29,8 +29,11 @@ const VARIABLES = [
 ] as const;
 
 /** Smoke test del deploy: muestra qué integraciones están conectadas. */
-export function GET() {
+export async function GET() {
   const sitio = urlDelSitio();
+
+  // Un PING real: distingue "faltan las variables" de "están pero no sirven".
+  const redis = await verificarRedis();
 
   const variables: Record<string, boolean> = {};
   for (const v of VARIABLES) {
@@ -66,15 +69,18 @@ export function GET() {
       // con el píxel solo, las compras que no vuelven a /gracias se pierden.
       metaPixel: Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID),
       metaCapi: metaCapiConfigurada(),
-      // El cerrojo del webhook (Upstash Redis). Sin él, dos notificaciones o
-      // dos pedidos a la vez solo tienen la protección de Airtable.
-      redis: redisConfigurado(),
+      // El cerrojo del webhook (Upstash Redis). Sin él, o si no contesta, el
+      // webhook NO confirma pagos: contesta 503 y Mercado Pago reintenta.
+      redis: redis.responde,
     },
+    redis,
     variables,
     avisos: [
-      redisConfigurado()
-        ? null
-        : "Sin Upstash Redis (KV_REST_API_URL/KV_REST_API_TOKEN): el webhook corre sin cerrojo entre instancias",
+      !redis.configurado
+        ? "FALTA Upstash Redis (KV_REST_API_URL/KV_REST_API_TOKEN): el webhook contesta 503 y NO confirma ningún pago hasta conectarlo (Vercel > Storage > Upstash, plan Free)"
+        : !redis.responde
+          ? `Redis está configurado pero no contesta (${redis.detalle}): el webhook contesta 500 y Mercado Pago reintenta`
+          : null,
       variables.MP_ACCESS_TOKEN ? null : "Falta MP_ACCESS_TOKEN",
       variables.MP_WEBHOOK_SECRET
         ? null
