@@ -129,6 +129,39 @@ export function cerrojoDesdeEntorno(): Cerrojo | null {
 }
 
 /**
+ * Para /api/health: ¿Redis está configurado y contesta de verdad? Hace un
+ * PING real, así se ve la diferencia entre "faltan las variables" y "las
+ * variables están pero el token o la URL son incorrectos".
+ */
+export async function verificarRedis(fetchImpl: typeof fetch = fetch): Promise<{
+  configurado: boolean;
+  responde: boolean;
+  detalle: string | null;
+}> {
+  const config = configuracionRedis();
+  if (!config) return { configurado: false, responde: false, detalle: "faltan KV_REST_API_URL y KV_REST_API_TOKEN" };
+
+  try {
+    const respuesta = await fetchImpl(config.url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${config.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(["PING"]),
+      signal: AbortSignal.timeout(5_000),
+      cache: "no-store",
+    });
+    const cuerpo = (await respuesta.json().catch(() => null)) as { result?: unknown; error?: string } | null;
+
+    if (!respuesta.ok || !cuerpo || typeof cuerpo.error === "string") {
+      return { configurado: true, responde: false, detalle: `Redis ${respuesta.status}: ${cuerpo?.error ?? "respuesta ilegible"}` };
+    }
+
+    return { configurado: true, responde: cuerpo.result === "PONG", detalle: null };
+  } catch (error) {
+    return { configurado: true, responde: false, detalle: `Redis no contestó: ${error instanceof Error ? error.message : error}` };
+  }
+}
+
+/**
  * Intenta tomar la llave hasta `esperaMaxMs`, de a `pasoMs`. Devuelve el
  * nonce con el que la tomó, o null si siguió ocupada. Un fallo de Redis sube
  * como `ErrorCerrojo`.

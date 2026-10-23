@@ -8,15 +8,46 @@
 
 const API_URL = "https://api.airtable.com/v0";
 
-/** IDs de las tablas de la base Harper. */
-export const TABLAS = {
+/** IDs de las tablas de la base Harper (la real). */
+const TABLAS_HARPER = {
   productos: "tblrhgsHP6oJLa5C2",
   variantes: "tblSgqs3hK8Xk8W8N",
   pedidos: "tbl4HkvPUGzjbdWAe",
   clientes: "tblsaNGzIXaeK8aJM",
   config: "tblMyAedM5pvVijLf",
   descuentos: "tblYkgJW6Bi0Fx048",
-} as const;
+};
+
+export type NombreTabla = keyof typeof TABLAS_HARPER;
+
+/**
+ * Los IDs de las tablas con los que trabaja el sitio.
+ *
+ * Son los de la base real, salvo que `AIRTABLE_TABLAS` traiga otros: un JSON
+ * con las mismas claves (`{"pedidos":"tbl...","variantes":"tbl..."}`), para
+ * apuntar un deploy de prueba a una COPIA de la base (Airtable le da IDs
+ * nuevos a las tablas al duplicar). Así una compra de prueba en sandbox no
+ * toca el stock real ni los pedidos reales. Una clave desconocida o un valor
+ * que no sea un ID de tabla se ignora.
+ */
+export const TABLAS: Record<NombreTabla, string> = leerTablas(process.env.AIRTABLE_TABLAS);
+
+function leerTablas(crudo: string | undefined): Record<NombreTabla, string> {
+  const tablas = { ...TABLAS_HARPER };
+  if (!crudo) return tablas;
+
+  try {
+    const sobreescritas = JSON.parse(crudo) as Record<string, unknown>;
+    for (const nombre of Object.keys(tablas) as NombreTabla[]) {
+      const valor = sobreescritas[nombre];
+      if (typeof valor === "string" && /^tbl[A-Za-z0-9]{14}$/.test(valor)) tablas[nombre] = valor;
+    }
+  } catch {
+    console.error("[airtable] AIRTABLE_TABLAS no es un JSON válido: se usan las tablas de la base real");
+  }
+
+  return tablas;
+}
 
 export type Attachment = {
   id: string;

@@ -17,7 +17,7 @@ import type { PagoMP } from "../lib/mercadopago";
 import { leerMarcas } from "../lib/stock";
 import type { ItemResuelto } from "../lib/tipos";
 import { esMarcaDeReclamo, VIGENCIA_RECLAMO_MS } from "../lib/webhook-decision";
-import { procesarNotificacion, type Dependencias, type FilaPedido } from "../lib/webhook-proceso";
+import { dependenciasReales, procesarNotificacion, type Dependencias, type FilaPedido } from "../lib/webhook-proceso";
 
 type FilaVariante = { Stock?: number; Stock_pedidos?: string };
 type Mail = Parameters<Dependencias["enviarMail"]>[0];
@@ -121,9 +121,13 @@ function armarDeps(pagos: Record<string, PagoMP>, extra: Partial<Dependencias> =
       return true;
     },
     mailsConfigurados: () => true,
-    // Sin Redis por defecto: estas pruebas ejercitan la protección de Airtable
-    // sola. Las que dicen "CON CERROJO" lo agregan.
+    // Sin Redis por defecto y con permiso explícito para seguir sin él: estas
+    // pruebas ejercitan las capas de Airtable solas (marcas, verificación,
+    // recuperación), que siguen corriendo debajo del cerrojo. En producción
+    // ese permiso no existe: sin Redis el webhook no procesa (ver la prueba
+    // "SIN REDIS"). Las que dicen "CON CERROJO" agregan el cerrojo.
     cerrojo: null,
+    sinCerrojo: "permitir",
     reloj,
     esperaReclamoMs: 50,
     esperaOcupadoMs: 5_000,
@@ -854,6 +858,33 @@ test("sin el campo de marcas en Airtable (422), NUNCA se descuenta a ciegas: que
   const otra = await como("B", () => procesarNotificacion("111", deps));
   assert.deepEqual(otra, { status: 200, cuerpo: { ok: true, duplicado: true } });
   assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 12, marcas: [] });
+});
+
+// ---- Sin Redis configurado: no se procesa ----
+
+test("SIN REDIS (lo que pasa en producción si faltan las variables): no se procesa, 503 para que MP reintente, y sale la alerta", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId) }, { cerrojo: null, sinCerrojo: "rechazar" });
+
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.status, 503);
+  assert.equal(r.cuerpo.sinCerrojo, true);
+
+  // Nada se tocó: ni marca, ni stock, ni Estado.
+  assert.deepEqual(await estadoDe(pedidoId), { estado: "pendiente", mpStatus: undefined, pagoId: undefined });
+  assert.equal((await stockDe(AMATISTA_NEGRO)).stock, 12);
+
+  // La alerta interna salió (una sola por instancia, aunque MP reintente).
+  assert.equal(mails.length, 1);
+  assert.match(mails[0].mail.asunto, /^ALERTA Harper/);
+  assert.match(mails[0].mail.asunto, /Redis/);
+  const otra = await como("B", () => procesarNotificacion("111", deps));
+  assert.equal(otra.status, 503);
+  assert.equal(mails.length, 1);
+
+  // Las dependencias reales nunca dan permiso para seguir sin cerrojo.
+  const reales = dependenciasReales("https://harper.ar");
+  assert.notEqual(reales.sinCerrojo, "permitir");
 });
 
 // ---- Con cerrojo Redis ----

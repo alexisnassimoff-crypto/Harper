@@ -126,6 +126,13 @@ export type Dependencias = {
    * Airtable siguen protegiendo contra repeticiones tras una caída.
    */
   cerrojo: Cerrojo | null;
+  /**
+   * Qué hacer si no hay cerrojo. En producción NUNCA se procesa un pago sin
+   * él: se contesta 503 (Mercado Pago reintenta) y se alerta. "permitir" es
+   * solo para las pruebas de las capas de Airtable; `dependenciasReales` no
+   * lo pone jamás.
+   */
+  sinCerrojo?: "rechazar" | "permitir";
   /** Devuelve `false` si el mail no salió (lib/mails.ts no lanza). */
   enviarMail: typeof enviarMailReal;
   /** Si los mails están apagados a propósito, un `false` no es un fallo. */
@@ -311,13 +318,21 @@ export async function procesarNotificacion(dataId: string, deps: Dependencias): 
   }
 
   // ---- Cerrojo por pedido (Redis) ----
-  // Con Redis configurado, una sola instancia trabaja sobre el pedido a la
-  // vez: la segunda notificación espera a que la primera termine y después
-  // decide con el pedido ya resuelto. Si la primera no terminó en la espera,
-  // 503 y Mercado Pago reintenta. Si la instancia muere con la llave tomada,
-  // vence sola (TTL_PEDIDO_MS). Un fallo de Redis sube como transitorio.
+  // Una sola instancia trabaja sobre el pedido a la vez: la segunda
+  // notificación espera a que la primera termine y después decide con el
+  // pedido ya resuelto. Si la primera no terminó en la espera, 503 y Mercado
+  // Pago reintenta. Si la instancia muere con la llave tomada, vence sola
+  // (TTL_PEDIDO_MS). Un fallo de Redis sube como transitorio.
+  //
+  // Sin Redis configurado NO se procesa: 503 para que Mercado Pago reintente
+  // cuando esté conectado, y una alerta interna. Cobrar sin cerrojo era
+  // exactamente el riesgo que se quiso cerrar.
   if (!deps.cerrojo) {
-    return procesarConPedido(pago, pedidoId, deps);
+    if (deps.sinCerrojo === "permitir") {
+      // Solo las pruebas de las capas de Airtable llegan acá.
+      return procesarConPedido(pago, pedidoId, deps);
+    }
+    return rechazarSinCerrojo(pago, pedidoId, deps);
   }
 
   const llave = await tomarConEspera(deps.cerrojo, clavePedido(pedidoId), TTL_PEDIDO_MS, {
@@ -335,6 +350,46 @@ export async function procesarNotificacion(dataId: string, deps: Dependencias): 
   } finally {
     await soltarSinFallar(deps.cerrojo, clavePedido(pedidoId), llave);
   }
+}
+
+/** Cuándo salió la última alerta por falta de cerrojo: una por instancia y hora, no una por reintento. */
+let ultimaAlertaSinCerrojo = 0;
+const CADA_CUANTO_ALERTAR_MS = 60 * 60 * 1000;
+
+async function rechazarSinCerrojo(pago: PagoMP, pedidoId: string, deps: Dependencias): Promise<Resultado> {
+  console.error(
+    `[webhook] Redis (cerrojo) no está configurado: el pago ${pago.id} del pedido ${pedidoId} NO se procesa y se pide reintento. Conectar Upstash Redis en Vercel (Storage) y verificar /api/health.`
+  );
+
+  const ahora = deps.reloj.ahora();
+
+  if (ahora - ultimaAlertaSinCerrojo >= CADA_CUANTO_ALERTAR_MS) {
+    ultimaAlertaSinCerrojo = ahora;
+
+    try {
+      const config = await getConfig();
+      const texto =
+        `El webhook de Mercado Pago recibió el pago ${pago.id} (${pago.status}) del pedido ${pedidoId} pero NO lo procesó: ` +
+        `Redis (el cerrojo entre instancias) no está configurado. Mercado Pago va a reintentar cada 15 minutos; ` +
+        `los pagos se confirman solos cuando Redis esté conectado.\n\n` +
+        `Qué hacer: Vercel > el proyecto > Storage > Upstash Redis (plan Free) > Connect Project > redeploy, ` +
+        `y verificar en /api/health que "redis" responda.`;
+
+      await deps.enviarMail({
+        para: config.emailPedidos,
+        asunto: "ALERTA Harper — el webhook no tiene cerrojo (Redis sin configurar): los pagos no se confirman",
+        html: `<p>${texto.replace(/\n\n/g, "</p><p>")}</p>`,
+        texto,
+      });
+    } catch (error) {
+      console.error("[webhook] no salió la alerta por falta de cerrojo", error);
+    }
+  }
+
+  return {
+    status: 503,
+    cuerpo: { ok: false, sinCerrojo: true, detalle: "Redis (cerrojo) sin configurar: el pago se reintenta cuando esté conectado" },
+  };
 }
 
 async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependencias): Promise<Resultado> {
