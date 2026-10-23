@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAirtableConfigured, modoFixtures } from "@/lib/airtable";
 import { verificarRedis } from "@/lib/cerrojo";
+import { configuracionDirecciones } from "@/lib/direcciones-servidor";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
 import { mercadoPagoListo } from "@/lib/mercadopago";
@@ -75,6 +76,9 @@ export async function GET() {
       // Y el ciclo tomar/ocupado/soltar funcionó. Sin él, el webhook NO confirma
       // pagos: contesta 503 y Mercado Pago reintenta.
       redis: redis.responde && redis.cerrojo,
+      // El buscador de direcciones del checkout (Google Places, clave solo en
+      // el servidor). Sin él la dirección se carga a mano: se vende igual.
+      googlePlaces: configuracionDirecciones() !== null,
     },
     redis,
     variables,
@@ -92,6 +96,9 @@ export async function GET() {
         : "Falta MP_WEBHOOK_SECRET: sin esto se cobra pero ningún pedido se confirma",
       esUrlPublica(sitio) ? null : `El sitio no es una URL pública: ${sitio}`,
       variables.RESEND_API_KEY ? null : "Falta RESEND_API_KEY: no sale ningún mail",
+      configuracionDirecciones()
+        ? null
+        : "Sin GOOGLE_PLACES_API_KEY el checkout pide la dirección con los campos manuales (se vende igual)",
       conBasura.length > 0
         ? `Con espacios o saltos de línea al final: ${conBasura.join(", ")}`
         : null,

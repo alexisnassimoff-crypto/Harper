@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import FormularioCheckout from "@/components/checkout/FormularioCheckout";
+import { direccionesDisponibles } from "@/lib/direcciones-servidor";
 
 export const metadata: Metadata = {
   title: "Finalizar compra",
@@ -30,7 +31,10 @@ export default async function PaginaCheckout({
         </p>
       ) : null}
 
-      <FormularioCheckout reintento={error === "pago"} />
+      {/* Con Google Places configurado, la dirección es un solo casillero con
+          sugerencias; sin él, los campos de siempre. Se decide en el servidor
+          para que el formulario no tenga que averiguarlo con una consulta. */}
+      <FormularioCheckout reintento={error === "pago"} buscador={direccionesDisponibles()} />
     </section>
   );
 }

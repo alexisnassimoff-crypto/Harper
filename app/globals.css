@@ -274,7 +274,8 @@ p {
   gap: 0.4rem;
 }
 
-.campo > span {
+.campo > span,
+.campo > label > span {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -804,6 +805,146 @@ p {
   .checkout__promos {
     padding-right: 4.5rem;
   }
+}
+
+/* ---------- Dirección en un solo casillero (Google Places) ----------
+   Un combobox: el casillero, la lista de sugerencias debajo y, elegida una,
+   una tarjeta con la dirección resuelta y el enlace "Cambiar". */
+
+.domicilio label {
+  display: contents;
+}
+.domicilio input {
+  scroll-margin-top: 5.5rem;
+}
+.combobox {
+  position: relative;
+}
+.combobox__lista {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 30;
+  margin: 0;
+  padding: 0.3rem 0 0;
+  list-style: none;
+  max-height: min(19rem, 48vh);
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
+}
+.combobox__lista[hidden] {
+  display: none;
+}
+.combobox__opcion {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.7rem 1.1rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+}
+.combobox__opcion[aria-selected="true"] {
+  background: color-mix(in srgb, var(--verde) 9%, #fff);
+}
+.combobox__principal {
+  font-weight: 500;
+}
+.combobox__secundario {
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+}
+.combobox__vacio {
+  padding: 0.7rem 1.1rem;
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+}
+/* La atribución de Google va siempre abajo de la lista, con su espacio libre. */
+.combobox__pie {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0.75rem 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--borde) 60%, transparent);
+}
+.atribucion-google {
+  display: inline-flex;
+  align-items: center;
+  height: 1.125rem;
+  margin: 0.125rem 0.6rem 0;
+  font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #5e5e5e;
+  white-space: nowrap;
+}
+.atribucion-google img {
+  display: block;
+  height: 1.125rem;
+  width: auto;
+}
+.domicilio__elegida {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.8rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--verde) 45%, var(--borde));
+  border-radius: var(--radio);
+  background: color-mix(in srgb, var(--verde) 5%, #fff);
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+.domicilio__elegida:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: 2px;
+}
+.domicilio__elegida > div {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.domicilio__elegida strong {
+  font-weight: 600;
+}
+.domicilio__elegida .apagado {
+  font-size: 0.8125rem;
+}
+.domicilio__tilde {
+  color: var(--verde);
+  font-weight: 700;
+  line-height: 1.35;
+}
+.domicilio__ayuda {
+  margin: -0.1rem 0 0;
+  font-size: 0.75rem;
+}
+/* Enlace con forma de texto, para acciones chicas dentro de un campo. */
+.enlace-accion {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--verde);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.combobox__vacio .enlace-accion,
+.domicilio__ayuda .enlace-accion {
+  margin-left: 0;
+  font-size: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: underline;
+  white-space: normal;
+}
+.checkout__par--piso {
+  grid-template-columns: 1fr 1.4fr;
 }
 
 /* El pedido en una línea, desplegable, solo en celular. */

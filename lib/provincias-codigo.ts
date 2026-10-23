@@ -1,4 +1,5 @@
-import { PROVINCIAS } from "@/components/checkout/provincias";
+// Relativo (no "@/…") para que las pruebas, que compilan a CommonJS, lo resuelvan.
+import { PROVINCIAS } from "../components/checkout/provincias";
 
 /**
  * Código ISO 3166-2:AR de cada provincia, que es el que pide MiCorreo.
@@ -56,5 +57,20 @@ export function codigoDeProvincia(nombre: string): string | null {
   // Alias frecuentes que no son el nombre oficial.
   if (buscado === "caba" || buscado === "capital federal") return "C";
 
+  return null;
+}
+
+/**
+ * El nombre oficial de la provincia a partir de su letra, o `null`.
+ *
+ * Es la letra con la que empieza el código postal argentino (CPA): "C1426AAG"
+ * es Ciudad Autónoma de Buenos Aires, "B1636" es Buenos Aires. Sirve para
+ * desempatar cuando el nombre que devuelve un geocodificador es ambiguo.
+ */
+export function provinciaDesdeCodigo(letra: string): (typeof PROVINCIAS)[number] | null {
+  const buscada = letra.trim().toUpperCase();
+  for (const [nombre, codigo] of Object.entries(CODIGOS)) {
+    if (codigo === buscada) return nombre as (typeof PROVINCIAS)[number];
+  }
   return null;
 }

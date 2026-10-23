@@ -302,6 +302,60 @@ Si la tabla está vacía o Airtable no responde, se cobra el precio de lista. De
 hacia el precio completo es lo correcto: cobrar de más se reclama, cobrar de menos no
 se descubre nunca.
 
+## Dirección con Google
+
+En el checkout la dirección es **un solo casillero**: el comprador escribe, Google
+sugiere, elige una de la lista y de ahí salen calle, número, localidad, provincia y
+código postal. La clave de Google vive **solo en el servidor** (`/api/direcciones`):
+el navegador nunca habla con Google y no se carga el JavaScript de Google Maps.
+
+Lo que Google no garantiza en Argentina se pide aparte, y solo eso: el código postal
+(en pueblos chicos a veces no viene) y el número (si eligió una avenida sin altura).
+El piso o depto se pide siempre, opcional, porque nunca forma parte de la sugerencia.
+Si el comprador no encuentra su dirección, "Cargala a mano" muestra los campos de
+siempre. **Sin la clave configurada, el checkout muestra directamente los campos
+manuales y se vende igual.** `/api/health` lo informa en `integraciones.googlePlaces`.
+
+### Configurarlo (una vez)
+
+1. Entrar a [console.cloud.google.com](https://console.cloud.google.com) con la cuenta
+   de Google de Harper y crear un proyecto (p. ej. `harper-web`).
+2. **Facturación**: vincular una cuenta de facturación con tarjeta. Google exige
+   facturación habilitada aunque el uso quede dentro de la cuota gratis (hace una
+   retención de verificación en la tarjeta, no un cobro). Las cuentas nuevas reciben
+   USD 300 de crédito por 90 días.
+3. **APIs y servicios → Biblioteca**: habilitar **Places API (New)**. Solo esa.
+4. **APIs y servicios → Credenciales → Crear credenciales → Clave de API.** En la
+   clave: *Restricciones de API → Restringir clave →* marcar solo **Places API (New)**.
+   No hace falta restricción por sitio ni por IP: la clave no sale del servidor.
+5. **Google Maps Platform → Cuotas → Places API (New)**: ponerle un tope diario a
+   `Autocomplete requests` y a `Place Details requests` (p. ej. 1.000 por día). Es el
+   techo real del gasto: si alguien abusa, Google corta y el checkout cae a los campos
+   manuales hasta el día siguiente.
+6. **Vercel → el proyecto → Settings → Environment Variables**: `GOOGLE_PLACES_API_KEY`
+   con la clave, tildando **Production y Preview**. Redeploy. En `/api/health` tiene que
+   aparecer `googlePlaces: true`.
+
+### Costo (lista de precios de Google, octubre de 2026)
+
+| SKU | Gratis por mes | Después |
+|---|---|---|
+| Autocomplete Requests (cada tecla consultada) | 10.000 | USD 2,83 por 1.000 |
+| Place Details Essentials (la dirección elegida) | 10.000 | USD 5,00 por 1.000 |
+
+Cada búsqueda del checkout son unas 6 consultas de autocompletado más 1 detalle, en
+una **sesión** (token que genera el navegador y cierra el detalle): dentro de una
+sesión Google cobra como máximo 12 consultas de autocompletado. Con eso, hasta
+**~1.600 checkouts por mes el costo es USD 0**; 3.000 checkouts rondan USD 23. El
+servidor además limita a 60 consultas por minuto por IP, y la tienda solo consulta
+desde los 4 caracteres y 250 ms después de la última tecla.
+
+Google exige mostrar su logo junto a las sugerencias cuando no hay un mapa: es el
+`Google Maps` gris al pie de la lista (`public/google-maps-atribucion.svg`, del
+paquete oficial de atribución, sin modificar). Los datos de la dirección se guardan en
+el pedido como siempre (Direccion, Ciudad, Provincia, CP); no se guarda nada más de
+Google.
+
 ## Envíos
 
 El envío se cotiza contra la API de **MiCorreo** de Correo Argentino según el código

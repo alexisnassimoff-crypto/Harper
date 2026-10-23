@@ -62,6 +62,22 @@ export function atenderRedis(comando: unknown[], ahora: number = Date.now()): { 
     return { result: "OK" };
   }
 
+  // INCR y PEXPIRE: los usa el límite de búsquedas por IP de /api/direcciones.
+  if (op === "INCR") {
+    const entrada = datos.get(args[0]);
+    const actual = vigente(entrada, ahora) ? Number(entrada.valor) : 0;
+    const nuevo = actual + 1;
+    datos.set(args[0], { valor: String(nuevo), vence: vigente(entrada, ahora) ? entrada.vence : null });
+    return { result: nuevo };
+  }
+
+  if (op === "PEXPIRE") {
+    const entrada = datos.get(args[0]);
+    if (!vigente(entrada, ahora)) return { result: 0 };
+    entrada.vence = ahora + Number(args[1]);
+    return { result: 1 };
+  }
+
   if (op === "EVAL") {
     const [script, , clave, argumento] = args;
 
