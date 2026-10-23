@@ -7,6 +7,7 @@ import {
   configuracionRedis,
   ErrorCerrojo,
   tomarConEspera,
+  verificarRedis,
 } from "../lib/cerrojo";
 import { contadorRedis, fetchRedisFalso, leerRedis, reiniciarRedis } from "../lib/fixtures/redis";
 import type { Reloj } from "../lib/webhook-lock";
@@ -113,6 +114,41 @@ test("tomarConEspera espera a que la suelten y, si no, devuelve null", async () 
   assert.ok(nonce);
   assert.equal(leerRedis("k", reloj.ahora()), nonce);
   assert.ok((contadorRedis.get("SET") ?? 0) >= 6);
+});
+
+test("verificarRedis: PING más un ciclo completo del cerrojo sobre el Redis configurado", async () => {
+  for (const v of ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"]) delete process.env[v];
+  process.env.KV_REST_API_URL = "https://redis.de.prueba";
+  process.env.KV_REST_API_TOKEN = "t";
+
+  const sano = await verificarRedis(fetchRedisFalso());
+  assert.deepEqual(sano, { configurado: true, responde: true, cerrojo: true, detalle: null });
+  // La comprobación no deja llaves colgadas.
+  assert.equal((contadorRedis.get("EVAL") ?? 0) >= 3, true);
+
+  const caido = await verificarRedis((async () => {
+    throw new Error("ECONNREFUSED");
+  }) as unknown as typeof fetch);
+  assert.equal(caido.configurado, true);
+  assert.equal(caido.responde, false);
+  assert.equal(caido.cerrojo, false);
+  assert.match(caido.detalle ?? "", /no contestó/);
+
+  // Un Redis que contesta PING pero donde SET NX siempre "toma" (sin exclusión): se detecta.
+  const sinExclusion = (async (_url: string | URL | Request, init?: RequestInit) => {
+    const comando = JSON.parse(String(init?.body)) as string[];
+    const result = comando[0] === "PING" ? "PONG" : comando[0] === "SET" ? "OK" : 1;
+    return new Response(JSON.stringify({ result }), { status: 200 });
+  }) as typeof fetch;
+  const roto = await verificarRedis(sinExclusion);
+  assert.equal(roto.responde, true);
+  assert.equal(roto.cerrojo, false);
+  assert.match(roto.detalle ?? "", /no se comporta/);
+
+  delete process.env.KV_REST_API_URL;
+  delete process.env.KV_REST_API_TOKEN;
+  const sinConfig = await verificarRedis(fetchRedisFalso());
+  assert.equal(sinConfig.configurado, false);
 });
 
 test("la configuración sale de las variables de la integración, con cualquiera de los dos nombres", () => {

@@ -32,7 +32,9 @@ const VARIABLES = [
 export async function GET() {
   const sitio = urlDelSitio();
 
-  // Un PING real: distingue "faltan las variables" de "están pero no sirven".
+  // Un PING real más un ciclo completo del cerrojo (tomar, ver ocupado,
+  // soltar): distingue "faltan las variables", "están pero no sirven" y
+  // "contesta pero el cerrojo no se comporta como se espera".
   const redis = await verificarRedis();
 
   const variables: Record<string, boolean> = {};
@@ -69,9 +71,10 @@ export async function GET() {
       // con el píxel solo, las compras que no vuelven a /gracias se pierden.
       metaPixel: Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID),
       metaCapi: metaCapiConfigurada(),
-      // El cerrojo del webhook (Upstash Redis). Sin él, o si no contesta, el
-      // webhook NO confirma pagos: contesta 503 y Mercado Pago reintenta.
-      redis: redis.responde,
+      // El cerrojo del webhook (Upstash Redis): verdadero solo si Redis contesta
+      // Y el ciclo tomar/ocupado/soltar funcionó. Sin él, el webhook NO confirma
+      // pagos: contesta 503 y Mercado Pago reintenta.
+      redis: redis.responde && redis.cerrojo,
     },
     redis,
     variables,
@@ -80,7 +83,9 @@ export async function GET() {
         ? "FALTA Upstash Redis (KV_REST_API_URL/KV_REST_API_TOKEN): el webhook contesta 503 y NO confirma ningún pago hasta conectarlo (Vercel > Storage > Upstash, plan Free)"
         : !redis.responde
           ? `Redis está configurado pero no contesta (${redis.detalle}): el webhook contesta 500 y Mercado Pago reintenta`
-          : null,
+          : !redis.cerrojo
+            ? `Redis contesta pero el cerrojo no funciona como se espera (${redis.detalle}): el webhook contesta 500 y Mercado Pago reintenta`
+            : null,
       variables.MP_ACCESS_TOKEN ? null : "Falta MP_ACCESS_TOKEN",
       variables.MP_WEBHOOK_SECRET
         ? null

@@ -129,17 +129,25 @@ export function cerrojoDesdeEntorno(): Cerrojo | null {
 }
 
 /**
- * Para /api/health: ¿Redis está configurado y contesta de verdad? Hace un
- * PING real, así se ve la diferencia entre "faltan las variables" y "las
- * variables están pero el token o la URL son incorrectos".
+ * Para /api/health: ¿Redis está configurado y contesta de verdad, y el
+ * cerrojo funciona con ESE Redis? Hace un PING real y después un ciclo
+ * completo de cerrojo sobre una llave propia de la comprobación (tomar con
+ * NX, comprobar que un segundo intento ve ocupado, soltar con el script):
+ * los mismos tres comandos que usa el webhook. Así se ve la diferencia entre
+ * "faltan las variables", "están pero el token o la URL son incorrectos" y
+ * "contesta pero algún comando no se comporta como se espera".
  */
 export async function verificarRedis(fetchImpl: typeof fetch = fetch): Promise<{
   configurado: boolean;
   responde: boolean;
+  /** Verdadero si tomar/ocupado/soltar funcionaron sobre este Redis. */
+  cerrojo: boolean;
   detalle: string | null;
 }> {
   const config = configuracionRedis();
-  if (!config) return { configurado: false, responde: false, detalle: "faltan KV_REST_API_URL y KV_REST_API_TOKEN" };
+  if (!config) {
+    return { configurado: false, responde: false, cerrojo: false, detalle: "faltan KV_REST_API_URL y KV_REST_API_TOKEN" };
+  }
 
   try {
     const respuesta = await fetchImpl(config.url, {
@@ -152,12 +160,39 @@ export async function verificarRedis(fetchImpl: typeof fetch = fetch): Promise<{
     const cuerpo = (await respuesta.json().catch(() => null)) as { result?: unknown; error?: string } | null;
 
     if (!respuesta.ok || !cuerpo || typeof cuerpo.error === "string") {
-      return { configurado: true, responde: false, detalle: `Redis ${respuesta.status}: ${cuerpo?.error ?? "respuesta ilegible"}` };
+      return { configurado: true, responde: false, cerrojo: false, detalle: `Redis ${respuesta.status}: ${cuerpo?.error ?? "respuesta ilegible"}` };
     }
 
-    return { configurado: true, responde: cuerpo.result === "PONG", detalle: null };
+    if (cuerpo.result !== "PONG") {
+      return { configurado: true, responde: false, cerrojo: false, detalle: `PING contestó ${JSON.stringify(cuerpo.result)}` };
+    }
   } catch (error) {
-    return { configurado: true, responde: false, detalle: `Redis no contestó: ${error instanceof Error ? error.message : error}` };
+    return { configurado: true, responde: false, cerrojo: false, detalle: `Redis no contestó: ${error instanceof Error ? error.message : error}` };
+  }
+
+  // Ciclo completo del cerrojo sobre una llave de la comprobación, que vence
+  // sola a los 10 s por si algo se corta a mitad.
+  const cerrojo = cerrojoRedis(config, fetchImpl);
+  const clave = `harper:health:${crypto.randomUUID()}`;
+
+  try {
+    const tomada = await cerrojo.tomar(clave, "a", 10_000);
+    const ocupada = !(await cerrojo.tomar(clave, "b", 10_000));
+    await cerrojo.soltar(clave, "b"); // con otro nonce no la suelta
+    const sigueTomada = !(await cerrojo.tomar(clave, "c", 10_000));
+    await cerrojo.soltar(clave, "a");
+    const libre = await cerrojo.tomar(clave, "d", 10_000);
+    await cerrojo.soltar(clave, "d");
+
+    const ok = tomada && ocupada && sigueTomada && libre;
+    return {
+      configurado: true,
+      responde: true,
+      cerrojo: ok,
+      detalle: ok ? null : `el cerrojo no se comporta como se espera (tomada=${tomada} ocupada=${ocupada} sigueTomada=${sigueTomada} libre=${libre})`,
+    };
+  } catch (error) {
+    return { configurado: true, responde: true, cerrojo: false, detalle: `el cerrojo falló: ${error instanceof Error ? error.message : error}` };
   }
 }
 
