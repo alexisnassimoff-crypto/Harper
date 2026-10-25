@@ -10,55 +10,62 @@ export const metadata: Metadata = {
 
 export default async function Devoluciones() {
   const config = await getConfig();
+  const whatsapp = config.whatsapp ? (
+    <a href={`https://wa.me/${config.whatsapp}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>
+      WhatsApp
+    </a>
+  ) : (
+    "WhatsApp"
+  );
 
   return (
     <>
       <h1 className="titulo">Cambios y devoluciones</h1>
 
-      <h2 style={{ fontSize: "1.25rem", marginTop: "1rem" }}>
-        Derecho de arrepentimiento
-      </h2>
+      <h2 style={{ fontSize: "1.25rem", marginTop: "1rem" }}>Devoluciones</h2>
       <p>
-        Si comprás a distancia, tenés derecho a arrepentirte dentro de los{" "}
-        <strong style={{ fontWeight: 500 }}>{DIAS_ARREPENTIMIENTO} días corridos</strong> contados a
-        partir de la entrega del producto, sin necesidad de expresar motivo y sin
-        costo alguno (art. 34 de la Ley 24.240). El producto debe estar sin uso y
-        en su empaque original. El costo de devolución corre por nuestra cuenta.
+        Podés solicitar la devolución de tu compra dentro de los{" "}
+        <strong style={{ fontWeight: 500 }}>{DIAS_ARREPENTIMIENTO} días corridos</strong> desde que
+        recibís el pedido, sin necesidad de justificar el motivo. Harper se hace
+        cargo del costo del envío de devolución. Te devolvemos el dinero por el
+        mismo medio de pago, a través de Mercado Pago.
       </p>
       <p>
-        Para ejercerlo, completá el{" "}
-        <Link href="/legales/arrepentimiento" style={{ textDecoration: "underline" }}>
-          botón de arrepentimiento
-        </Link>
-        .
+        Cuando recibamos el producto devuelto, verificaremos su estado general,
+        integridad y accesorios incluidos. Podés abrir el paquete y probarte los
+        anteojos normalmente. Si detectamos daños atribuibles a un uso indebido o
+        faltantes imputables al comprador, evaluaremos la situación conforme a la
+        legislación vigente.
       </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Cambios</h2>
       <p>
-        Aceptamos cambios por otro color o modelo dentro de los {DIAS_CAMBIO} días de
-        recibido el pedido, siempre que el producto esté sin uso y en su empaque
-        original. Escribinos a{" "}
-        <a href={`mailto:${config.emailContacto}`} style={{ textDecoration: "underline" }}>
-          {config.emailContacto}
-        </a>{" "}
-        indicando tu número de pedido y te coordinamos el cambio.
+        Para cambios de color o modelo, contás con {DIAS_CAMBIO} días desde que
+        recibís el pedido, siempre que el producto esté sin uso, en buen estado y
+        sujeto a disponibilidad.
+      </p>
+      <p>
+        En los cambios voluntarios de color o modelo, los gastos de envío de
+        devolución y del nuevo producto corren por cuenta del comprador. Si hubo
+        un error de Harper o un defecto cubierto por la garantía, Harper asume los
+        costos correspondientes.
       </p>
 
-      <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>
-        Productos con defectos
-      </h2>
+      <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Garantía</h2>
       <p>
-        Si el producto llegó dañado o presenta un defecto de fabricación,
-        escribinos dentro de las 48 horas de recibido adjuntando fotos. Nos
-        hacemos cargo del reemplazo y de todos los costos de logística.
+        Todos nuestros productos cuentan con 6 meses de garantía legal por
+        defectos o fallas que afecten su funcionamiento, desde que los recibís,
+        sin costo para vos.
       </p>
 
-      <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Reintegros</h2>
-      <p>
-        Los reintegros se realizan por el mismo medio de pago utilizado en la
-        compra, dentro de los 10 días hábiles de recibido el producto devuelto y
-        verificado su estado. Los plazos de acreditación dependen de la entidad
-        emisora de la tarjeta.
+      <p style={{ marginTop: "1.5rem" }}>
+        Para solicitar un cambio o devolución, contactanos por {whatsapp} o
+        utilizá nuestro{" "}
+        <Link href="/legales/arrepentimiento" style={{ textDecoration: "underline" }}>
+          Botón de arrepentimiento
+        </Link>
+        . El Botón de arrepentimiento es para cancelar la compra dentro del plazo
+        legal. Los cambios voluntarios se gestionan por WhatsApp.
       </p>
     </>
   );
