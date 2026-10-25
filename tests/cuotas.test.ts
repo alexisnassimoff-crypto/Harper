@@ -65,6 +65,35 @@ test("sin etiqueta de CFT, vale como 0 solo si el total es el precio de contado"
   assert.equal(evaluarCuotas([respuesta({ labels: [], total_amount: 91000 }), respuesta({})], 6, 89900), null);
 });
 
+test("las prepagas y los emisores que solo cobran en un pago no impiden el anuncio", () => {
+  // Así contesta Mercado Pago de verdad: junto a los bancos con cuotas vienen
+  // tarjetas prepagas y algún emisor de crédito que solo ofrece 1 pago.
+  const unPago = [{ installments: 1, installment_rate: 0, labels: ["CFT_0,00%|TEA_0,00%"], installment_amount: 89900, total_amount: 89900 }];
+  const prepaga = { payment_type_id: "prepaid_card", issuer: { id: "2", name: "Prepaga" }, payer_costs: unPago };
+  const soloUnPago = { payment_type_id: "credit_card", issuer: { id: "3", name: "Ripio" }, payer_costs: unPago };
+  const r = evaluarCuotas([respuesta({}, [prepaga, soloUnPago]), respuesta({}, [prepaga])], 6, 89900);
+  assert.deepEqual(r, { cuotas: 6, montoCuota: 14983.33, cftea: "0,00 %" });
+});
+
+test("un banco de crédito que da cuotas pero cobra interés en esas sigue impidiendo el anuncio", () => {
+  const conInteres = {
+    payment_type_id: "credit_card",
+    issuer: { id: "4", name: "Banco" },
+    payer_costs: [
+      { installments: 1, installment_rate: 0, labels: ["CFT_0,00%|TEA_0,00%"], installment_amount: 89900, total_amount: 89900 },
+      { installments: 6, installment_rate: 12.5, labels: ["CFT_19,87%|TEA_16,02%"], installment_amount: 16856, total_amount: 101137 },
+    ],
+  };
+  assert.equal(evaluarCuotas([respuesta({}, [conInteres]), respuesta({})], 6, 89900), null);
+});
+
+test("una marca con solo prepagas o un pago no tiene cuotas que anunciar", () => {
+  const unPago = [{ installments: 1, installment_rate: 0, labels: ["CFT_0,00%|TEA_0,00%"], installment_amount: 89900, total_amount: 89900 }];
+  const prepaga = { payment_type_id: "prepaid_card", issuer: { id: "2", name: "Prepaga" }, payer_costs: unPago };
+  const soloUnPago = { payment_type_id: "credit_card", issuer: { id: "3", name: "Ripio" }, payer_costs: unPago };
+  assert.equal(evaluarCuotas([respuesta({}), [prepaga, soloUnPago]], 6, 89900), null);
+});
+
 test("si esas cuotas no se ofrecen, o una marca no tiene opciones, no se anuncian", () => {
   assert.equal(evaluarCuotas([respuesta({}), respuesta({})], 9, 89900), null);
   assert.equal(evaluarCuotas([respuesta({}), []], 6, 89900), null);
