@@ -44,6 +44,9 @@ export async function GET() {
   // acá se ve qué contesta para el anteojo más barato publicado.
   const anteojos = (await getProductos("Anteojos").catch(() => [])).map((p) => p.precio).filter((p) => p > 0);
   const cuotas = anteojos.length ? await diagnosticarCuotas(Math.min(...anteojos)) : { anunciadas: null };
+  // La portada las verifica con lo más barato publicado de todo el catálogo.
+  const todo = (await getProductos().catch(() => [])).map((p) => p.precio).filter((p) => p > 0);
+  const cuotasPortada = todo.length ? await diagnosticarCuotas(Math.min(...todo)) : { anunciadas: null };
 
   const variables: Record<string, boolean> = {};
   for (const v of VARIABLES) {
@@ -89,6 +92,7 @@ export async function GET() {
     },
     redis,
     cuotas,
+    cuotasPortada,
     variables,
     avisos: [
       !redis.configurado
