@@ -1,3 +1,4 @@
+import { TABLAS } from "../airtable";
 import { cumpleFormula } from "./formula";
 import { tablasIniciales, type RegistroFixture } from "./datos";
 
@@ -79,6 +80,13 @@ function leer(id: string, recordId: string) {
 }
 
 function crear(id: string, fields: Record<string, unknown>) {
+  // Para probar una base sin los campos de facturación: Airtable contesta 422.
+  const sinFactura = process.env.HARPER_FIXTURES_PEDIDOS_SIN_FACTURA === "1" && id === TABLAS.pedidos;
+  const desconocido = sinFactura ? Object.keys(fields).find((k) => k.startsWith("Factura_")) : undefined;
+  if (desconocido) {
+    throw respuesta(422, JSON.stringify({ error: { type: "UNKNOWN_FIELD_NAME", message: `Unknown field name: "${desconocido}"` } }));
+  }
+
   const fila: RegistroFixture = {
     id: nuevoId(),
     createdTime: new Date().toISOString(),

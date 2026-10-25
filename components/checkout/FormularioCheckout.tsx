@@ -6,6 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
+import {
+  CONDICIONES_IVA,
+  CONSUMIDOR_FINAL,
+  normalizarFacturacion,
+  validarFacturacion,
+  type ErroresFacturacion,
+  type Facturacion,
+} from "@/lib/facturacion";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
@@ -25,8 +33,12 @@ const ID_FORMULARIO = "formulario-checkout";
 /** Lo que se guarda de la dirección elegida para la próxima compra. */
 type DomicilioGuardado = { elegida: DireccionElegida; piso: string; numero: string };
 
-/** Los errores del cliente, más el del casillero de dirección (que no es un dato en sí). */
-type Errores = ErroresCliente & { domicilio?: string };
+/** Los errores del cliente y de la factura, más el del casillero de dirección (que no es un dato en sí). */
+type Errores = ErroresCliente & ErroresFacturacion & { domicilio?: string };
+
+/** Los datos de facturación tal como se completan. Por defecto, consumidor final. */
+type DatosFactura = { aCuit: boolean; razonSocial: string; cuit: string; condicionIva: string; domicilioFiscal: string };
+const FACTURA_VACIA: DatosFactura = { aCuit: false, razonSocial: "", cuit: "", condicionIva: "", domicilioFiscal: "" };
 
 /** El orden en que aparecen los campos, por id, para llevar el foco al primer error. */
 const ORDEN_CAMPOS = [
@@ -41,6 +53,10 @@ const ORDEN_CAMPOS = [
   "ciudad",
   "cp",
   "provincia",
+  "facturaRazonSocial",
+  "facturaCuit",
+  "facturaCondicionIva",
+  "facturaDomicilio",
   "aceptaTerminos",
 ] as const;
 
@@ -49,7 +65,7 @@ type RespuestaCheckout = {
   initPoint?: string;
   numero?: string;
   error?: string;
-  errores?: ErroresCliente;
+  errores?: ErroresCliente & ErroresFacturacion;
   descartados?: { varianteId: string; motivo: string }[];
   totalNuevo?: number;
 };
@@ -105,6 +121,9 @@ export default function FormularioCheckout({
   } = useCarritoResuelto();
 
   const [form, setForm] = useState<DatosCliente>(VACIO);
+  // Aparte de los del comprador: no se guardan para la próxima compra, así
+  // que cada compra arranca como consumidor final.
+  const [factura, setFactura] = useState<DatosFactura>(FACTURA_VACIA);
   const [errores, setErrores] = useState<Errores>({});
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
@@ -380,6 +399,18 @@ export default function FormularioCheckout({
     }
   }
 
+  function actualizarFactura(cambios: Partial<DatosFactura>, campoConError?: keyof ErroresFacturacion) {
+    setFactura((f) => ({ ...f, ...cambios }));
+    if (campoConError) setErrores((e) => ({ ...e, [campoConError]: undefined }));
+  }
+
+  /** Los datos de facturación tal como viajan: los del titular solo si los eligió. */
+  function facturacionAEnviar(): Facturacion {
+    if (!factura.aCuit) return CONSUMIDOR_FINAL;
+    const { aCuit: _elegida, ...datos } = factura;
+    return { tipo: "cuit", ...datos };
+  }
+
   /** Los datos del pedido tal como viajan: con el piso o depto en la dirección. */
   function clienteAEnviar(): DatosCliente {
     if (modoDireccion !== "buscador") return form;
@@ -392,7 +423,8 @@ export default function FormularioCheckout({
     setFallo(null);
 
     const cliente = clienteAEnviar();
-    const encontrados: Errores = validarCliente(cliente);
+    const facturacion = facturacionAEnviar();
+    const encontrados: Errores = { ...validarCliente(cliente), ...validarFacturacion(normalizarFacturacion(facturacion)) };
 
     if (modoDireccion === "buscador") {
       if (!elegida) {
@@ -436,6 +468,8 @@ export default function FormularioCheckout({
           totalVisto: resumen.total,
           // De qué anuncio vino, para el pedido y para la Conversions API.
           origen: origenParaElPedido(),
+          // Para emitir la factura. No va a Mercado Pago ni a Meta.
+          facturacion,
         }),
       });
 
@@ -726,6 +760,72 @@ export default function FormularioCheckout({
           </>
         )}
 
+        {/* Datos de facturación: por defecto, consumidor final. Si la factura
+            va a nombre de una empresa u otro titular con CUIT, sus datos son
+            propios de la factura: no los del comprador ni los de la entrega. */}
+        <fieldset className="checkout__facturacion">
+          <legend className="label">Datos de facturación</legend>
+          <label className="checkout__promos">
+            <input
+              type="radio"
+              name="facturacion"
+              checked={!factura.aCuit}
+              onChange={() => actualizarFactura({ aCuit: false })}
+            />
+            Consumidor final
+          </label>
+          <label className="checkout__promos">
+            <input
+              id="facturaACuit"
+              type="radio"
+              name="facturacion"
+              checked={factura.aCuit}
+              onChange={() => actualizarFactura({ aCuit: true })}
+            />
+            Factura a nombre de una empresa u otro titular con CUIT
+          </label>
+
+          {factura.aCuit ? (
+            <div className="checkout__facturacion-campos">
+              <Campo
+                id="facturaRazonSocial"
+                etiqueta="Razón social o nombre del titular"
+                autoComplete="organization"
+                enterKeyHint="next"
+                valor={factura.razonSocial}
+                error={errores.facturaRazonSocial}
+                onChange={(v) => actualizarFactura({ razonSocial: v }, "facturaRazonSocial")}
+              />
+              <Campo
+                id="facturaCuit"
+                etiqueta="CUIT"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="30-12345678-9"
+                enterKeyHint="next"
+                valor={factura.cuit}
+                error={errores.facturaCuit}
+                onChange={(v) => actualizarFactura({ cuit: v }, "facturaCuit")}
+              />
+              <SelectorCondicionIva
+                valor={factura.condicionIva}
+                error={errores.facturaCondicionIva}
+                onChange={(v) => actualizarFactura({ condicionIva: v }, "facturaCondicionIva")}
+              />
+              <Campo
+                id="facturaDomicilio"
+                etiqueta="Domicilio fiscal"
+                autoComplete="off"
+                placeholder="Calle 123, localidad, provincia, CP"
+                enterKeyHint="done"
+                valor={factura.domicilioFiscal}
+                error={errores.facturaDomicilio}
+                onChange={(v) => actualizarFactura({ domicilioFiscal: v }, "facturaDomicilio")}
+              />
+            </div>
+          ) : null}
+        </fieldset>
+
         {/* Mayoría de edad (o autorización del representante legal) y Términos:
             una sola casilla, obligatoria y sin marcar. Sin pedir la fecha de
             nacimiento. Los enlaces abren aparte para no perder el checkout. */}
@@ -863,6 +963,37 @@ function SelectorProvincia({
         {PROVINCIAS.map((p) => (
           <option key={p} value={p}>
             {p}
+          </option>
+        ))}
+      </select>
+      {error ? <small>{error}</small> : null}
+    </label>
+  );
+}
+
+function SelectorCondicionIva({
+  valor,
+  error,
+  onChange,
+}: {
+  valor: string;
+  error?: string;
+  onChange: (valor: string) => void;
+}) {
+  return (
+    <label className="campo" data-error={Boolean(error)}>
+      <span>Condición frente al IVA</span>
+      <select
+        id="facturaCondicionIva"
+        name="facturaCondicionIva"
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={Boolean(error)}
+      >
+        <option value="">Elegí una opción</option>
+        {CONDICIONES_IVA.map((c) => (
+          <option key={c} value={c}>
+            {c}
           </option>
         ))}
       </select>

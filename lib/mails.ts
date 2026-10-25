@@ -4,6 +4,7 @@ import type { DatosCliente, ItemResuelto } from "./tipos";
 import { caracteristicasDe } from "./caracteristicas";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
 import { pedidoParaMostrar, TEXTO_PROXIMO_PASO, type SolicitudArrepentimiento } from "./arrepentimiento";
+import { lineasDeFacturacion, type FacturacionPedido } from "./facturacion";
 
 // Se puede apuntar a un Resend simulado para las pruebas de punta a punta.
 const API_RESEND = process.env.RESEND_API_URL ?? "https://api.resend.com/emails";
@@ -183,6 +184,10 @@ export type DatosMail = {
   cliente: DatosCliente;
   config: ConfigTienda;
   sitio: string;
+  /** Para emitir la factura; `null` en pedidos anteriores a estos datos. */
+  facturacion?: FacturacionPedido | null;
+  /** Los mismos datos, ya escritos, cuando quedaron en Notas del pedido. */
+  lineasFacturacion?: string[] | null;
 };
 
 /**
@@ -255,6 +260,10 @@ Consultas: ${d.config.emailContacto}`;
 
 /** 2 — Aviso interno para preparar y despachar el pedido. */
 export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
+  // Los datos para la factura, aparte y a la vista: no son los del comprador
+  // ni la dirección de entrega.
+  const factura = d.facturacion ? lineasDeFacturacion(d.facturacion) : (d.lineasFacturacion ?? null);
+  const aCuit = factura?.some((l) => l.startsWith("CUIT:")) ?? false;
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Venta nueva — ${escaparHtml(d.numero)}</h1>
 <p style="margin:0 0 24px;font-size:14px;color:#78756c;">${formatearPrecio(d.total)} · ${escaparHtml(d.cliente.provincia)}</p>
@@ -264,6 +273,18 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
+${
+  factura
+    ? `
+<div style="margin-top:28px;padding:16px;background:#f2f0ec;border:1px solid #e3e0d8;font-size:14px;line-height:1.7;">
+  <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#78756c;margin-bottom:6px;">Datos de facturación</div>
+  <strong style="font-weight:600;">${escaparHtml(factura[0])}</strong>${factura
+    .slice(1)
+    .map((l) => `<br>${escaparHtml(l)}`)
+    .join("")}
+</div>`
+    : ""
+}
 
 <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e3e0d8;font-size:14px;line-height:1.7;">
   <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#78756c;margin-bottom:6px;">Datos de envío</div>
@@ -287,12 +308,12 @@ ${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join(
 ${d.cliente.nombre}
 ${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} - CP ${d.cliente.cp}
 ${d.cliente.dni ? `DNI ${d.cliente.dni} - ` : ""}Tel ${d.cliente.telefono} - ${d.cliente.email}
-
+${factura ? `\nDATOS DE FACTURACIÓN\n${factura.join("\n")}\n` : ""}
 Airtable: ${d.pedidoUrl}`;
 
   return {
     para: d.config.emailPedidos,
-    asunto: `Venta ${d.numero} — ${formatearPrecio(d.total)}`,
+    asunto: `Venta ${d.numero} — ${formatearPrecio(d.total)}${aCuit ? " · factura a CUIT" : ""}`,
     html,
     texto,
     responderA: d.cliente.email,

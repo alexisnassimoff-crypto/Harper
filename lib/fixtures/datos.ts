@@ -241,6 +241,9 @@ export const CONFIG: RegistroFixture[] = [
   // Fiscal lo entrega ARCA y la alícuota la define el contador.
   config("data_fiscal", "https://qr.afip.gob.ar/?qr=PRUEBA-NO-ES-REAL"),
   config("impuestos_nacionales", "21"),
+  // Solo para probar la clase de factura. La condición real de FOCUS VISION
+  // SRL frente al IVA la confirma el contador.
+  config("condicion_iva", "Responsable Inscripto"),
 ];
 
 function descuento(categoria: string, desde: number, porcentaje: number): RegistroFixture {

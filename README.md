@@ -211,6 +211,7 @@ Datos fiscales en `Config` (vacíos = no se muestra nada; nunca se suponen):
 | `data_fiscal` | El código del Formulario 960/D (Data Fiscal) para harper.ar. Se muestra el logo con su enlace en "Información legal", al pie de la portada | ARCA → Mis Servicios → "Formulario 960 D" → sitio web → campo "Script", pegado tal cual. Solo se usan el enlace `qr.afip.gob.ar`/`qr.arca.gob.ar` y el logo de ARCA |
 | `impuestos_nacionales` | Porcentaje que suman el IVA y otros impuestos nacionales indirectos sobre el precio neto (por ejemplo `21`). Debajo de cada precio aparece "Precio sin impuestos nacionales" (Res. SIyC 4/2025) | El contador |
 | `impuestos_nacionales_<categoría>` | El mismo dato para una categoría con otra alícuota (`anteojos`, `estuches`, `panos`…) | El contador |
+| `condicion_iva` | La condición de FOCUS VISION SRL frente al IVA: `Responsable Inscripto`, `Monotributo` o `Exento`. Decide la clase de cada factura (ver "Datos de facturación") | El contador |
 
 **Cuotas.** `NEXT_PUBLIC_CUOTAS` dice cuántas cuotas sin interés se quieren
 anunciar, pero se anuncian solo si Mercado Pago lo confirma: el servidor
@@ -367,6 +368,32 @@ El checkout pide una casilla obligatoria: "Soy mayor de edad o cuento con
 autorización de mi representante legal, y acepto los Términos y condiciones."
 Sin fecha de nacimiento. El servidor rechaza el pedido sin esa casilla
 (`validarCliente`). No se guarda entre visitas: se confirma en cada compra.
+
+## Datos de facturación
+
+Por defecto se compra como consumidor final. En el checkout, la sección
+"Datos de facturación" permite pedir la factura a nombre de una empresa u otro
+titular con CUIT: razón social o nombre, CUIT (se valida el dígito
+verificador), condición frente al IVA y domicilio fiscal. Son datos de la
+factura, aparte del comprador y de la dirección de entrega, y no van a
+Mercado Pago ni a Meta.
+
+Cada pedido los guarda en `Pedidos`: `Factura_condicion_IVA`, `Factura_clase`,
+`Factura_razon_social`, `Factura_CUIT` y `Factura_domicilio` (los tres últimos
+solo si la factura va a un CUIT). El aviso interno de venta los muestra en un
+bloque propio y, si es a un CUIT, lo dice en el asunto.
+
+La clase sale de las dos condiciones frente al IVA, la de Harper
+(`Config.condicion_iva`) y la del receptor, no de que sea una empresa
+(`lib/facturacion.ts`). Harper responsable inscripto: A a responsables
+inscriptos y monotributistas (RG 5003/2021, con la leyenda de la Ley 27.618) y
+B al resto. Harper monotributista o exento: siempre C. Sin `condicion_iva`
+cargada, la clase queda "A confirmar". No hay facturación automática con ARCA:
+la factura se hace desde el sistema contable.
+
+Si `Pedidos` no tuviera esos campos, la venta no se frena: el pedido se crea
+como antes y, si la factura va a un CUIT, los datos quedan en `Notas` y el
+aviso interno los lee de ahí.
 
 ## Datos de quien no termina la compra
 

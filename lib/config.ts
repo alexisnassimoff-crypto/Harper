@@ -50,6 +50,13 @@ export type ConfigTienda = {
    * cargado no se muestra. Ver lib/impuestos.ts.
    */
   impuestosNacionales: ImpuestosNacionales;
+  /**
+   * La condición de Harper frente al IVA, clave `condicion_iva` ("Responsable
+   * Inscripto", "Monotributo" o "Exento"). Decide la clase de cada factura
+   * junto con la del receptor. Vacío = la clase queda "A confirmar". Ver
+   * lib/facturacion.ts.
+   */
+  condicionIva: string;
 };
 
 /**
@@ -79,6 +86,7 @@ const POR_DEFECTO: ConfigTienda = {
   portadaImagen: "",
   dataFiscal: "",
   impuestosNacionales: SIN_IMPUESTOS_CARGADOS,
+  condicionIva: "",
 };
 
 type FilaConfig = { Clave?: string; Valor?: string };
@@ -138,6 +146,7 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
     portadaImagen: texto("portada_imagen", POR_DEFECTO.portadaImagen),
     dataFiscal: texto("data_fiscal", POR_DEFECTO.dataFiscal),
     impuestosNacionales: leerImpuestos(mapa),
+    condicionIva: texto("condicion_iva", POR_DEFECTO.condicionIva),
   };
 }
 
