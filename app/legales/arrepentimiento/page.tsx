@@ -39,9 +39,15 @@ export default async function Arrepentimiento() {
       </p>
 
       <p className="apagado">
-        El producto debe estar sin uso y en su empaque original. Una vez recibida
-        tu solicitud te contactamos dentro de las 48 horas hábiles para coordinar
-        el retiro sin cargo y el reintegro del importe abonado.
+        Podés abrir el paquete y probarte los anteojos normalmente, y no hace
+        falta conservar el empaque original. Una vez recibida tu solicitud te
+        contactamos dentro de las 48 horas hábiles para coordinar el retiro sin
+        cargo y el reintegro del importe abonado.
+      </p>
+
+      <p className="apagado">
+        Este botón es para cancelar la compra dentro del plazo legal. Los cambios
+        voluntarios de color o modelo se gestionan por WhatsApp.
       </p>
 
       <div
