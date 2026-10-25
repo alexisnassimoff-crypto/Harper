@@ -9,6 +9,7 @@ import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
 import { cuotasActivas } from "@/lib/cuotas";
 import { indiceVarianteInicial } from "@/lib/variantes";
+import { rutaDeCategoria } from "@/lib/categorias";
 
 /**
  * La página de producto, compartida por dos rutas:
@@ -82,12 +83,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
     .toISOString()
     .slice(0, 10);
 
-  const seccion =
-    producto.categoria === "Anteojos"
-      ? "anteojos"
-      : producto.categoria === "Estuches"
-        ? "estuches"
-        : "panos";
+  const seccion = rutaDeCategoria(producto.categoria);
 
   // Datos estructurados: habilitan el resultado enriquecido con precio en Google.
   const jsonLd = [
@@ -122,7 +118,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
           "@type": "ListItem",
           position: 2,
           name: producto.categoria,
-          item: `${sitio}/${seccion}`,
+          item: `${sitio}${seccion}`,
         },
         { "@type": "ListItem", position: 3, name: producto.nombre },
       ],
@@ -154,6 +150,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         varianteInicial={varianteInicial}
         confianza={mensajesDeConfianza(config)}
         cuotas={cuotasActivas()}
+        whatsapp={config.whatsapp || null}
       />
 
       {otros.length > 0 ? (

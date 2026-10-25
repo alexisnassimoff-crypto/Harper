@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { desglosar } from "@/lib/resumen";
-import EscaleraPrecios from "@/components/EscaleraPrecios";
+import OfertaCantidad from "@/components/producto/OfertaCantidad";
 import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 import { useCarritoResuelto } from "./useCarritoResuelto";
@@ -48,16 +48,13 @@ export default function VistaCarrito() {
   const resumen = desglosar(datos);
   const faltaParaGratis = datos.envioGratisDesde - datos.subtotal;
 
-  // Unidades por categoría, para la escalera de precios.
-  const porCategoria = new Map<Categoria, { unidades: number; precioLista: number }>();
+  // Unidades y descuento aplicado por categoría, para la línea del segundo par.
+  const porCategoria = new Map<Categoria, { unidades: number; precioLista: number; descuento: number }>();
   for (const item of datos.items) {
-    const actual = porCategoria.get(item.categoria) ?? {
-      unidades: 0,
-      precioLista: item.precioLista,
-    };
+    const actual = porCategoria.get(item.categoria) ?? { unidades: 0, precioLista: item.precioLista, descuento: 0 };
     actual.unidades += item.cantidad;
-    // El precio de referencia de la escalera: el más barato de la categoría.
     actual.precioLista = Math.min(actual.precioLista, item.precioLista);
+    actual.descuento = Math.max(actual.descuento, item.descuento);
     porCategoria.set(item.categoria, actual);
   }
 
@@ -119,8 +116,8 @@ export default function VistaCarrito() {
 
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                   {/* Un +/− en vez del desplegable: sumar una unidad es un solo
-                      toque, y con los descuentos por cantidad queremos que
-                      agrandar el pedido cueste lo menos posible. */}
+                      toque, y con el segundo par queremos que agrandar el
+                      pedido cueste lo menos posible. */}
                   <div className="contador">
                     <button
                       type="button"
@@ -194,7 +191,7 @@ export default function VistaCarrito() {
 
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>Descuento por cantidad</span>
+            <span>Descuento</span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}
@@ -203,13 +200,17 @@ export default function VistaCarrito() {
           valor={resumen.envio === 0 ? "Gratis" : formatearPrecio(resumen.envio)}
         />
 
+        {/* Solo la promoción del segundo par, en una línea. Sin tabla de
+            tramos: el descuento que corresponda ya se ve en la fila de arriba. */}
         {[...porCategoria.entries()].map(([categoria, info]) => (
-          <EscaleraPrecios
+          <OfertaCantidad
             key={categoria}
             tramos={datos.tramos}
             categoria={categoria}
             precioLista={info.precioLista}
-            cantidadActual={info.unidades}
+            cantidadEnCarrito={info.unidades}
+            descuentoAplicado={info.descuento}
+            variante="carrito"
           />
         ))}
 

@@ -7,6 +7,7 @@ import {
 } from "./airtable";
 import { aNumero } from "./formato";
 import { videoReproducible } from "./galeria";
+import { categoriaDesdeTexto } from "./categorias";
 import type { Categoria, Envase, Medidas, Producto, Variante } from "./tipos";
 
 /** Cada cuántos segundos se refresca el catálogo cacheado. */
@@ -168,20 +169,32 @@ function texto(valor: string | undefined): string | null {
   return limpio ? limpio : null;
 }
 
-/** Un producto a partir de su fila y de sus variantes ya armadas. */
+/**
+ * Un producto a partir de su fila y de sus variantes ya armadas.
+ *
+ * Null si su categoría no es ninguna de lib/categorias.ts: un producto con
+ * una categoría mal escrita o nueva no se publica en una sección equivocada
+ * (por ejemplo, unos anteojos de sol entre los de filtro azul).
+ */
 function armarProducto(
   registro: AirtableRecord<FilaProducto>,
   misVariantes: Variante[]
-): Producto {
+): Producto | null {
   const f = registro.fields;
   const precio = aNumero(f.Precio, 0);
   const precioAnterior = aNumero(f.Precio_anterior, 0);
+
+  const categoria = categoriaDesdeTexto(f.Categoria);
+  if (!categoria) {
+    console.warn(`[catalogo] "${f.Nombre ?? registro.id}" tiene una categoría desconocida ("${f.Categoria ?? ""}"): no se publica`);
+    return null;
+  }
 
   return {
     id: registro.id,
     nombre: f.Nombre?.trim() ?? "Sin nombre",
     slug: f.Slug?.trim() ?? registro.id,
-    categoria: (f.Categoria as Categoria) ?? "Anteojos",
+    categoria,
     descripcion: f.Descripcion?.trim() ?? "",
     precio,
     // Solo tiene sentido mostrarlo tachado si es mayor al precio actual.
@@ -252,6 +265,7 @@ async function leerProductos(
 
   return productos
     .map((registro) => armarProducto(registro, porProducto.get(registro.id) ?? []))
+    .filter((p): p is Producto => p !== null)
     .filter((p) => (categoria ? p.categoria === categoria : true))
     // Sin variantes cargadas no hay nada que vender.
     .filter((p) => p.variantes.length > 0);
@@ -294,5 +308,9 @@ async function leerSlugs(): Promise<string[]> {
     revalidate: REVALIDATE,
   });
 
-  return productos.map((p) => p.fields.Slug?.trim()).filter((s): s is string => Boolean(s));
+  return productos
+    // Las mismas reglas que el catálogo: sin categoría conocida no hay ficha.
+    .filter((p) => categoriaDesdeTexto(p.fields.Categoria) !== null)
+    .map((p) => p.fields.Slug?.trim())
+    .filter((s): s is string => Boolean(s));
 }

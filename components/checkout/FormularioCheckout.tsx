@@ -41,6 +41,7 @@ const ORDEN_CAMPOS = [
   "ciudad",
   "cp",
   "provincia",
+  "aceptaTerminos",
 ] as const;
 
 /** Lo que puede contestar /api/checkout. */
@@ -64,6 +65,9 @@ const VACIO: DatosCliente = {
   cp: "",
   // Sin marcar: el consentimiento para promociones lo da el comprador.
   aceptaPromos: false,
+  // Sin marcar: la confirmación de edad y la aceptación de los Términos son
+  // un sí explícito en cada compra.
+  aceptaTerminos: false,
 };
 
 /**
@@ -144,8 +148,9 @@ export default function FormularioCheckout({
       const guardado = window.localStorage.getItem(CLAVE_DATOS);
       const previos = guardado ? (JSON.parse(guardado) as Partial<DatosCliente>) : null;
       if (previos) {
-        // El consentimiento no se recuerda: se vuelve a preguntar cada vez.
+        // El consentimiento y la aceptación no se recuerdan: se preguntan cada vez.
         delete previos.aceptaPromos;
+        delete previos.aceptaTerminos;
         setForm((f) => ({ ...f, ...previos }));
       }
 
@@ -195,8 +200,8 @@ export default function FormularioCheckout({
       try {
         // La dirección se guarda como viaja, con el piso: si otro día el
         // buscador no está, el campo manual la muestra completa.
-        const { aceptaPromos: _consentimiento, ...datos } = clienteAEnviar();
-        if (Object.values(datos).some((v) => v.trim() !== "")) {
+        const { aceptaPromos: _consentimiento, aceptaTerminos: _aceptacion, ...datos } = clienteAEnviar();
+        if (Object.values(datos).some((v) => typeof v === "string" && v.trim() !== "")) {
           window.localStorage.setItem(CLAVE_DATOS, JSON.stringify(datos));
         }
       } catch {
@@ -354,7 +359,13 @@ export default function FormularioCheckout({
       const id = campo === "direccion" && !document.getElementById("direccion") ? "numero" : campo;
       const nodo = document.getElementById(id) ?? document.getElementById("domicilio");
       if (nodo) {
-        nodo.focus();
+        // focus() no desplaza si el campo ya está en pantalla aunque lo tape
+        // el header fijo. Si quedó tapado o fuera de la vista, se centra: así
+        // se ven también su etiqueta y el mensaje de error.
+        nodo.focus({ preventScroll: true });
+        const margen = parseFloat(getComputedStyle(nodo).scrollMarginTop) || 0;
+        const { top, bottom } = nodo.getBoundingClientRect();
+        if (top < margen || bottom > window.innerHeight) nodo.scrollIntoView({ block: "center" });
         return;
       }
     }
@@ -396,7 +407,7 @@ export default function FormularioCheckout({
     setEnviando(true);
 
     try {
-      const { aceptaPromos: _consentimiento, ...datos } = form;
+      const { aceptaPromos: _consentimiento, aceptaTerminos: _aceptacion, ...datos } = clienteAEnviar();
       window.localStorage.setItem(CLAVE_DATOS, JSON.stringify(datos));
     } catch {
       // Si no se puede guardar, la compra sigue igual.
@@ -706,6 +717,42 @@ export default function FormularioCheckout({
           </>
         )}
 
+        {/* Mayoría de edad (o autorización del representante legal) y Términos:
+            una sola casilla, obligatoria y sin marcar. Sin pedir la fecha de
+            nacimiento. Los enlaces abren aparte para no perder el checkout. */}
+        <div className="checkout__legal" data-error={Boolean(errores.aceptaTerminos)}>
+          <label className="checkout__promos checkout__acepta">
+            <input
+              id="aceptaTerminos"
+              type="checkbox"
+              name="aceptaTerminos"
+              checked={form.aceptaTerminos === true}
+              onChange={(e) => actualizar("aceptaTerminos", e.target.checked)}
+              aria-invalid={Boolean(errores.aceptaTerminos)}
+              aria-describedby={errores.aceptaTerminos ? "error-terminos" : undefined}
+            />
+            <span>
+              Soy mayor de edad o cuento con autorización de mi representante legal, y acepto los{" "}
+              <a href="/legales/terminos" target="_blank" rel="noopener" className="checkout__enlace">
+                Términos y condiciones
+              </a>
+              .
+            </span>
+          </label>
+          {errores.aceptaTerminos ? (
+            <small id="error-terminos" className="checkout__error">
+              {errores.aceptaTerminos}
+            </small>
+          ) : null}
+          <p className="checkout__nota">
+            Usamos tus datos para procesar y entregar tu compra, según la{" "}
+            <a href="/legales/privacidad" target="_blank" rel="noopener" className="checkout__enlace">
+              Política de privacidad
+            </a>
+            .
+          </p>
+        </div>
+
         <label className="checkout__promos">
           <input
             type="checkbox"
@@ -739,7 +786,7 @@ export default function FormularioCheckout({
 
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>Descuento por cantidad</span>
+            <span>Descuento</span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}

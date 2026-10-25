@@ -1,3 +1,4 @@
+import { categoriaDesdeTexto } from "./categorias";
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { getProductos, getProductosParaCobrar } from "./catalogo";
 import {
@@ -303,8 +304,18 @@ export type PedidoPublico = {
   total: number;
   /** Productos sin envío: el valor de la venta para el píxel. */
   subtotal: number;
-  /** Solo SKU, cantidad y precio: lo que el píxel manda como `contents`. */
-  items: { sku: string; cantidad: number; precioUnitario: number }[];
+  /**
+   * SKU, cantidad y precio (lo que el píxel manda como `contents`), más el
+   * modelo y la categoría para saber si el armazón admite cristales graduados.
+   * Nada de datos de la persona.
+   */
+  items: {
+    sku: string;
+    cantidad: number;
+    precioUnitario: number;
+    productoSlug: string;
+    categoria: Categoria | null;
+  }[];
 };
 
 /**
@@ -334,7 +345,14 @@ export async function buscarPedido(numero: string): Promise<PedidoPublico | null
       if (Array.isArray(parseado)) {
         items = (parseado as ItemResuelto[])
           .filter((i) => typeof i?.sku === "string")
-          .map((i) => ({ sku: i.sku, cantidad: i.cantidad, precioUnitario: i.precioUnitario }));
+          .map((i) => ({
+            sku: i.sku,
+            cantidad: i.cantidad,
+            precioUnitario: i.precioUnitario,
+            // Para decidir si se invita a consultar por cristales graduados.
+            productoSlug: typeof i.productoSlug === "string" ? i.productoSlug : "",
+            categoria: categoriaDesdeTexto(i.categoria),
+          }));
       }
     } catch {
       // Un Items ilegible no rompe la página: el evento sale sin detalle.

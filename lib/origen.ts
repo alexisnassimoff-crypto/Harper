@@ -38,6 +38,11 @@ export type Origen = {
   fbc?: string;
   /** Cuándo se capturó, en milisegundos desde 1970. */
   ts?: number;
+  /**
+   * La persona aceptó las cookies de medición y publicidad al comprar. Sin
+   * esto, el webhook no avisa la compra a Meta por la Conversions API.
+   */
+  publicidad?: boolean;
 };
 
 function recortar(valor: string | null | undefined): string | undefined {
@@ -113,6 +118,8 @@ export function normalizarOrigen(crudo: unknown): Origen | null {
 
   const ts = datos.ts;
   if (typeof ts === "number" && Number.isFinite(ts) && ts > 0) origen.ts = Math.floor(ts);
+
+  if (datos.publicidad === true) origen.publicidad = true;
 
   return Object.keys(origen).length > 0 ? origen : null;
 }

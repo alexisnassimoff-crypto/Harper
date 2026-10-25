@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { conDescuento, ofertaPorCantidad, porcentajeParaCantidad, type Tramo } from "../lib/descuentos";
 
-// Los tramos de anteojos publicados hoy: 2+ 5%, 4+ 10%, 8+ 15%, 15+ 20%.
+// Los tramos cargados hoy: 2+ 5%, 4+ 10%, 8+ 15%, 15+ 20%. Solo el primero se comunica.
 const TRAMOS: Tramo[] = [
   { categoria: "Anteojos", desdeUnidades: 15, porcentaje: 20 },
   { categoria: "Anteojos", desdeUnidades: 2, porcentaje: 5 },
@@ -11,37 +11,45 @@ const TRAMOS: Tramo[] = [
   { categoria: "Estuches", desdeUnidades: 3, porcentaje: 10 },
 ];
 
-test("la oferta de la ficha es el segundo par, con las mismas cuentas que cobra el servidor", () => {
-  const oferta = ofertaPorCantidad(TRAMOS, "Anteojos", 89_900, 0);
-  assert.deepEqual(oferta, {
+test("sin nada en el carrito, la oferta es el segundo par con el precio de este par, igual al que cobra el servidor", () => {
+  assert.deepEqual(ofertaPorCantidad(TRAMOS, "Anteojos", 89_900, 0), {
     estado: "pendiente",
     unidades: 2,
     faltan: 2,
     porcentaje: 5,
     unitario: 85_405,
-    total: 170_810,
-    ahorro: 8_990,
   });
-  // Lo mismo que resulta de aplicar el descuento que corresponde a 2 unidades.
-  assert.equal(oferta.estado === "pendiente" && oferta.unitario, conDescuento(89_900, porcentajeParaCantidad(TRAMOS, "Anteojos", 2)));
+  assert.equal(conDescuento(89_900, porcentajeParaCantidad(TRAMOS, "Anteojos", 2)), 85_405);
 });
 
-test("con un par en el carrito, falta uno; con dos o más, ya está aplicada", () => {
+test("nunca arma un total combinado: con otro producto en el carrito solo dice cuánto falta", () => {
   const conUno = ofertaPorCantidad(TRAMOS, "Anteojos", 89_900, 1);
   assert.equal(conUno?.estado, "pendiente");
   assert.equal(conUno?.estado === "pendiente" && conUno.faltan, 1);
-  assert.equal(conUno?.estado === "pendiente" && conUno.total, 170_810);
+  assert.ok(conUno && !("total" in conUno) && !("ahorro" in conUno));
+});
 
-  assert.deepEqual(ofertaPorCantidad(TRAMOS, "Anteojos", 89_900, 2), { estado: "alcanzada", unidades: 2, porcentaje: 5 });
-  // Con más pares informa el porcentaje que de verdad tiene el carrito.
-  assert.deepEqual(ofertaPorCantidad(TRAMOS, "Anteojos", 89_900, 4), { estado: "alcanzada", unidades: 2, porcentaje: 10 });
-  assert.deepEqual(ofertaPorCantidad(TRAMOS, "Anteojos", 89_900, 15), { estado: "alcanzada", unidades: 2, porcentaje: 20 });
+test("'ya tenés el descuento' solo si el servidor de verdad lo aplicó", () => {
+  assert.deepEqual(ofertaPorCantidad(TRAMOS, "Anteojos", 89_900, 2, 5), { estado: "aplicada", unidades: 2 });
+  // Con 4 o más no se publicita el tramo mayor: solo que ya tiene descuento.
+  assert.deepEqual(ofertaPorCantidad(TRAMOS, "Anteojos", 89_900, 4, 10), { estado: "aplicada", unidades: 2 });
+  // Si el carrito no trae descuento (por ejemplo, no se pudieron leer los tramos), no se promete nada.
+  assert.equal(ofertaPorCantidad(TRAMOS, "Anteojos", 89_900, 2, 0), null);
+});
+
+test("con dos tramos de igual mínimo, muestra el porcentaje que cobra el servidor (el mayor)", () => {
+  const duplicados: Tramo[] = [
+    { categoria: "Anteojos", desdeUnidades: 2, porcentaje: 5 },
+    { categoria: "Anteojos", desdeUnidades: 2, porcentaje: 8 },
+  ];
+  const oferta = ofertaPorCantidad(duplicados, "Anteojos", 89_900, 0);
+  assert.equal(oferta?.estado === "pendiente" && oferta.porcentaje, 8);
+  assert.equal(oferta?.estado === "pendiente" && oferta.unitario, conDescuento(89_900, 8));
 });
 
 test("cada categoría usa sus propios tramos; sin tramos no hay oferta", () => {
   const estuche = ofertaPorCantidad(TRAMOS, "Estuches", 6_990, 0);
   assert.equal(estuche?.estado === "pendiente" && estuche.unidades, 3);
-  assert.equal(estuche?.estado === "pendiente" && estuche.unitario, 6_291);
   assert.equal(ofertaPorCantidad(TRAMOS, "Paños", 29_900, 0), null);
   assert.equal(ofertaPorCantidad([], "Anteojos", 89_900, 0), null);
 });

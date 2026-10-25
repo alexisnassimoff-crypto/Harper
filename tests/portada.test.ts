@@ -21,3 +21,14 @@ test("los metadatos presentan anteojos primero", () => {
   assert.match(TITULO_SITIO, /Anteojos/);
   assert.ok(DESCRIPCION_SITIO.toLowerCase().startsWith("anteojos"));
 });
+
+test("el subtítulo aprobado solo se muestra si todos los anteojos publicados tienen las características confirmadas", async () => {
+  const { subtituloDeLaPortada } = await import("../lib/portada");
+  const confirmados = [{ confirmado: true }, { confirmado: true }];
+  assert.equal(subtituloDeLaPortada("", confirmados), SUBTITULO_PORTADA);
+  // Llega un modelo nuevo sin confirmar (por ejemplo, de sol): sin subtítulo, sin afirmar nada falso.
+  assert.equal(subtituloDeLaPortada("", [...confirmados, { confirmado: false }]), "");
+  assert.equal(subtituloDeLaPortada("", []), "");
+  // Lo que se cargue en Config manda siempre.
+  assert.equal(subtituloDeLaPortada("  Otro texto  ", [{ confirmado: false }]), "Otro texto");
+});

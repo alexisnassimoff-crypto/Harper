@@ -5,13 +5,25 @@ import { usePathname } from "next/navigation";
 import Logo from "./Logo";
 import { useCarrito } from "./carrito/CarritoContexto";
 
-const SECCIONES = [
-  { href: "/anteojos", texto: "Anteojos" },
-  { href: "/estuches", texto: "Estuches" },
-  { href: "/panos", texto: "Paños" },
+/** Si todavía no hay catálogo (Airtable caído al armar la página), las de siempre. */
+const POR_DEFECTO = [
+  { nombre: "Anteojos", slug: "anteojos" },
+  { nombre: "Estuches", slug: "estuches" },
+  { nombre: "Paños", slug: "panos" },
 ];
 
-export default function Header({ banner }: { banner?: string }) {
+export default function Header({
+  banner,
+  categorias,
+}: {
+  banner?: string;
+  /** Las categorías con productos publicados, en orden (lib/categorias.ts). */
+  categorias?: { nombre: string; slug: string }[];
+}) {
+  const secciones = (categorias && categorias.length > 0 ? categorias : POR_DEFECTO).map((c) => ({
+    href: `/${c.slug}`,
+    texto: c.nombre,
+  }));
   const { unidades, listo } = useCarrito();
   const pathname = usePathname();
 
@@ -47,8 +59,8 @@ export default function Header({ banner }: { banner?: string }) {
         }}
       >
         <div className="contenedor cabecera__barra">
-          <nav aria-label="Categorías" className="cabecera__nav">
-            {SECCIONES.map((s) => (
+          <nav aria-label="Categorías" className="cabecera__nav" data-muchas={secciones.length > 3 || undefined}>
+            {secciones.map((s) => (
               <Link
                 key={s.href}
                 href={s.href}

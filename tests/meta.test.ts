@@ -19,6 +19,7 @@ const cliente = {
   provincia: "Ciudad Autónoma de Buenos Aires",
   cp: "1429",
   aceptaPromos: false,
+  aceptaTerminos: true,
 };
 
 test("los datos de compra del píxel: SKU como id, valor sin envío, num_items", () => {

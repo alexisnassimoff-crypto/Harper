@@ -19,3 +19,19 @@ export const TITULO_SITIO = "Harper — Anteojos";
  */
 export const SUBTITULO_PORTADA =
   "Anteojos con filtro de luz azul y cristales fotocromáticos. Diseño para todos los días.";
+
+/**
+ * El subtítulo que va en el hero. Config.portada_subtitulo manda si se cargó.
+ * Si no, la frase aprobada, que afirma filtro azul y fotocromáticos: solo
+ * mientras todos los anteojos publicados tengan esas características
+ * confirmadas. Si se publica uno que no (por ejemplo, unos de sol), el hero
+ * queda sin subtítulo hasta definir uno nuevo, en vez de afirmar algo falso.
+ */
+export function subtituloDeLaPortada(
+  delConfig: string,
+  anteojosPublicados: { confirmado: boolean }[]
+): string {
+  if (delConfig.trim()) return delConfig.trim();
+  const todos = anteojosPublicados.length > 0 && anteojosPublicados.every((a) => a.confirmado);
+  return todos ? SUBTITULO_PORTADA : "";
+}

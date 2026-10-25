@@ -4,10 +4,12 @@ import Link from "next/link";
 import GrillaProductos from "@/components/GrillaProductos";
 import MensajesConfianza from "@/components/MensajesConfianza";
 import Revelar from "@/components/Revelar";
+import { caracteristicasDe } from "@/lib/caracteristicas";
 import { getProductos } from "@/lib/catalogo";
+import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
-import { DESCRIPCION_SITIO, SUBTITULO_PORTADA, TITULO_SITIO } from "@/lib/portada";
+import { DESCRIPCION_SITIO, subtituloDeLaPortada, TITULO_SITIO } from "@/lib/portada";
 
 export const revalidate = 60;
 
@@ -31,13 +33,23 @@ const FOTO_PORTADA = "/hero.webp";
 export default async function Home() {
   const [productos, config] = await Promise.all([getProductos(), getConfig()]);
 
-  const anteojos = productos.filter((p) => p.categoria === "Anteojos");
-  // Los complementos van juntos y después: son secundarios en la portada.
-  const complementos = productos.filter((p) => p.categoria !== "Anteojos");
+  // Una sección por cada categoría de anteojos con productos (hoy, Anteojos;
+  // mañana también de sol, Clip-On o de receta), y los complementos juntos al
+  // final: son secundarios en la portada.
+  const categorias = categoriasConProductos(productos);
+  const seccionesAnteojos = categorias
+    .filter((c) => esCategoriaDeAnteojos(c.nombre))
+    .map((c) => ({ ...c, productos: productos.filter((p) => p.categoria === c.nombre) }));
+  const deAnteojos = seccionesAnteojos.flatMap((s) => s.productos);
+  const complementos = productos.filter((p) => !esCategoriaDeAnteojos(p.categoria));
+  const seccionesComplementos = categorias.filter((c) => !esCategoriaDeAnteojos(c.nombre));
 
   const titulo = config.portadaTitulo || "Anteojos Harper";
-  // Qué vendemos, en una frase. Config.portada_subtitulo lo reemplaza si se carga.
-  const subtitulo = config.portadaSubtitulo || SUBTITULO_PORTADA;
+  // Qué vendemos, en una frase, sin afirmar nada que no esté confirmado.
+  const subtitulo = subtituloDeLaPortada(
+    config.portadaSubtitulo,
+    deAnteojos.map((p) => ({ confirmado: caracteristicasDe(p) !== null }))
+  );
 
   const confianza = mensajesDeConfianza(config);
 
@@ -60,7 +72,7 @@ export default async function Home() {
         <div className="contenedor hero__cuerpo">
           <div className="hero__contenido surge">
             <h1 className="hero__titulo">{titulo}</h1>
-            <p className="hero__texto">{subtitulo}</p>
+            {subtitulo ? <p className="hero__texto">{subtitulo}</p> : null}
             <a href="#anteojos" className="boton hero__boton">
               Comprar anteojos
             </a>
@@ -72,20 +84,21 @@ export default async function Home() {
         <MensajesConfianza mensajes={confianza} variante="tira" />
       </div>
 
-      {anteojos.length > 0 ? (
-        <section id="anteojos" className="contenedor seccion">
+      {seccionesAnteojos.map((seccion, i) => (
+        // La primera sección es a la que lleva "Comprar anteojos".
+        <section key={seccion.slug} id={i === 0 ? "anteojos" : seccion.slug} className="contenedor seccion">
           <div className="seccion__cabecera">
-            <h2 className="titulo">Anteojos</h2>
-            <Link href="/anteojos" className="label enlace-verde">
+            <h2 className="titulo">{seccion.nombre}</h2>
+            <Link href={`/${seccion.slug}`} className="label enlace-verde">
               Ver todo
             </Link>
           </div>
           {/* Sin animación de aparición: es lo que vino a ver el visitante y
-              tiene que estar ahí aunque el JavaScript tarde. Se precargan las
-              cuatro fotos porque las cuatro entran en la primera pantalla. */}
-          <GrillaProductos productos={anteojos} precargar={4} />
+              tiene que estar ahí aunque el JavaScript tarde. En la primera se
+              precargan las cuatro fotos que entran en la primera pantalla. */}
+          <GrillaProductos productos={seccion.productos} precargar={i === 0 ? 4 : 0} />
         </section>
-      ) : null}
+      ))}
 
       {complementos.length > 0 ? (
         <section className="contenedor seccion seccion--secundaria">
@@ -93,15 +106,16 @@ export default async function Home() {
             <div className="seccion__cabecera">
               <div className="pila" style={{ gap: "0.4rem" }}>
                 <span className="label">Complementos</span>
-                <h2 className="titulo titulo--chico">Estuches y paños</h2>
+                <h2 className="titulo titulo--chico">
+                  {seccionesComplementos.map((c) => c.nombre).join(" y ")}
+                </h2>
               </div>
               <nav aria-label="Complementos" style={{ display: "flex", gap: "1.25rem" }}>
-                <Link href="/estuches" className="label enlace-verde">
-                  Estuches
-                </Link>
-                <Link href="/panos" className="label enlace-verde">
-                  Paños
-                </Link>
+                {seccionesComplementos.map((c) => (
+                  <Link key={c.slug} href={`/${c.slug}`} className="label enlace-verde">
+                    {c.nombre}
+                  </Link>
+                ))}
               </nav>
             </div>
           </Revelar>

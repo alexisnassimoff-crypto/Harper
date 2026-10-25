@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import CtaFija from "./CtaFija";
+import ConsultaGraduados from "./ConsultaGraduados";
 import OfertaCantidad from "./OfertaCantidad";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import type { Confianza } from "@/lib/confianza";
@@ -31,6 +32,7 @@ export default function FichaProducto({
   varianteInicial,
   confianza = [],
   cuotas = null,
+  whatsapp = null,
 }: {
   producto: Producto;
   tramos?: Tramo[];
@@ -39,6 +41,8 @@ export default function FichaProducto({
   confianza?: Confianza[];
   /** Cuotas sin interés activas en Mercado Pago, o null si no hay. */
   cuotas?: number | null;
+  /** WhatsApp de la tienda, para la consulta por cristales graduados. */
+  whatsapp?: string | null;
 }) {
   const router = useRouter();
   const { items, agregar } = useCarrito();
@@ -57,9 +61,10 @@ export default function FichaProducto({
   // Lo que ya hay en el carrito de esta categoría: la oferta pasa de "llevá
   // 2" a "sumá 1 más" y a "ya lo tenés" a medida que el visitante agrega.
   const { datos: carritoResuelto } = useCarritoResuelto();
-  const unidadesEnCategoria = (carritoResuelto?.items ?? [])
-    .filter((i) => i.categoria === producto.categoria)
-    .reduce((total, i) => total + i.cantidad, 0);
+  const enCategoria = (carritoResuelto?.items ?? []).filter((i) => i.categoria === producto.categoria);
+  const unidadesEnCategoria = enCategoria.reduce((total, i) => total + i.cantidad, 0);
+  // Lo que el servidor de verdad aplicó: "ya tenés el descuento" sale de acá.
+  const descuentoAplicado = enCategoria.reduce((max, i) => Math.max(max, i.descuento), 0);
 
   const fotos = useMemo(
     () => (variante.fotos.length > 0 ? variante.fotos : []),
@@ -446,16 +451,21 @@ export default function FichaProducto({
           )}
         </div>
 
+        {/* Solo en los modelos cuyo armazón admite cristales graduados
+            (confirmados en lib/caracteristicas.ts): una consulta, no una venta. */}
+        {caracteristicas ? <ConsultaGraduados modelo={producto.nombre} whatsapp={whatsapp} /> : null}
+
         <MensajesConfianza mensajes={confianza} variante="lista" />
 
-        {/* La oferta por cantidad se cuenta acá, en una línea, y no recién en
-            el carrito: si la idea aparece después de decidir, ya es tarde. La
-            escalera completa, con todos los tramos, está en el carrito. */}
+        {/* La promoción del segundo par, en una línea y solo para anteojos.
+            Sin tablas de tramos: los mayores se aplican en el servidor, pero
+            no se publicitan. */}
         <OfertaCantidad
           tramos={tramos}
           categoria={producto.categoria}
           precioLista={producto.precio}
-          cantidadActual={unidadesEnCategoria}
+          cantidadEnCarrito={unidadesEnCategoria}
+          descuentoAplicado={descuentoAplicado}
         />
 
         {producto.incluye.length > 0 ? (

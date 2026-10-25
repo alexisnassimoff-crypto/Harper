@@ -10,6 +10,9 @@ import CapturaOrigen from "@/components/CapturaOrigen";
 import { getConfig } from "@/lib/config";
 import { DESCRIPCION_SITIO, TITULO_SITIO } from "@/lib/portada";
 import "./globals.css";
+import AvisoCookies from "@/components/AvisoCookies";
+import { getProductos } from "@/lib/catalogo";
+import { categoriasConProductos } from "@/lib/categorias";
 
 const raleway = Raleway({
   subsets: ["latin"],
@@ -60,7 +63,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const config = await getConfig();
+  const [config, productos] = await Promise.all([getConfig(), getProductos()]);
+  // El menú y el pie muestran solo las categorías con productos publicados:
+  // las previstas (sol, Clip-On, receta) aparecen solas cuando tengan.
+  const categorias = categoriasConProductos(productos).map((c) => ({ nombre: c.nombre, slug: c.slug }));
 
   // Identidad del negocio para Google: es de donde sale el panel de marca en
   // los resultados, y el buscador interno del sitio.
@@ -120,12 +126,13 @@ export default async function RootLayout({
           <a className="saltar-al-contenido" href="#contenido">
             Saltar al contenido
           </a>
-          <Header banner={config.bannerTexto} />
+          <Header banner={config.bannerTexto} categorias={categorias} />
           <main id="contenido">
             <TransicionDePagina>{children}</TransicionDePagina>
           </main>
-          <Footer config={config} />
+          <Footer config={config} categorias={categorias} />
           <WhatsApp numero={config.whatsapp} />
+          <AvisoCookies />
         </ProveedorCarrito>
       </body>
     </html>
