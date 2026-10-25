@@ -1,4 +1,5 @@
 import { listRecords, TABLAS } from "./airtable";
+import { categoriaDesdeTexto } from "./categorias";
 import { aNumero } from "./formato";
 import type { Categoria } from "./tipos";
 
@@ -65,7 +66,7 @@ async function leerTramos(revalidate: number): Promise<Tramo[]> {
   return filas
     .filter((f) => f.fields.Activo)
     .flatMap((f): Tramo[] => {
-      const categoria = f.fields.Categoria?.trim() as Categoria | undefined;
+      const categoria = categoriaDesdeTexto(f.fields.Categoria);
       const desdeUnidades = aNumero(f.fields.Desde_unidades, 0);
       const porcentaje = aNumero(f.fields.Porcentaje, 0);
 
@@ -129,4 +130,67 @@ export function proximoTramo(
 export function conDescuento(precio: number, porcentaje: number) {
   if (porcentaje <= 0) return precio;
   return Math.round(precio * (1 - porcentaje / 100));
+}
+
+/**
+ * La promoción que se le cuenta al público: solo el primer tramo de la
+ * categoría (en anteojos, el segundo par), en una línea. Los tramos mayores
+ * se siguen aplicando en el servidor, pero no se publicitan: una tabla hasta
+ * 15 unidades hace que la tienda parezca mayorista.
+ *
+ * Solo presentación. Nunca arma un total combinado: el servidor cobra cada
+ * producto a su propio precio de lista, y un total calculado con el precio de
+ * esta ficha no coincidiría si en el carrito hay otro producto.
+ */
+export type OfertaCantidad =
+  | {
+      estado: "pendiente";
+      /** Unidades del primer tramo (2 en anteojos). */
+      unidades: number;
+      /** Cuántas faltan para llegar, contando lo que ya está en el carrito. */
+      faltan: number;
+      /** El porcentaje que aplica el servidor con esas unidades. */
+      porcentaje: number;
+      /** Lo que queda cada unidad de ESTE producto con el descuento. */
+      unitario: number;
+    }
+  | {
+      estado: "aplicada";
+      unidades: number;
+    };
+
+export function ofertaPorCantidad(
+  tramos: Tramo[],
+  categoria: Categoria,
+  precioLista: number,
+  cantidadEnCarrito: number,
+  /** El mayor descuento que el servidor aplicó a esta categoría en el carrito. */
+  descuentoAplicado = 0
+): OfertaCantidad | null {
+  const primero = tramos
+    .filter((t) => t.categoria === categoria)
+    .sort((a, b) => a.desdeUnidades - b.desdeUnidades)[0];
+
+  if (!primero) return null;
+
+  const cantidad = Math.max(0, Math.floor(cantidadEnCarrito));
+
+  if (cantidad >= primero.desdeUnidades) {
+    // "Ya lo tenés" solo si el servidor de verdad lo aplicó: si los tramos no
+    // se pudieron leer al resolver el carrito, no se promete nada.
+    return descuentoAplicado > 0 ? { estado: "aplicada", unidades: primero.desdeUnidades } : null;
+  }
+
+  // El mismo porcentaje que usa el servidor para esa cantidad (si hubiera dos
+  // tramos con el mismo mínimo, gana el mayor, como al cobrar).
+  const porcentaje = porcentajeParaCantidad(tramos, categoria, primero.desdeUnidades);
+  if (porcentaje <= 0) return null;
+
+  return {
+    estado: "pendiente",
+    unidades: primero.desdeUnidades,
+    faltan: primero.desdeUnidades - cantidad,
+    porcentaje,
+    unitario: conDescuento(precioLista, porcentaje),
+  };
 }

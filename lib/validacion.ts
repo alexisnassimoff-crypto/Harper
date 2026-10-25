@@ -40,6 +40,11 @@ export function validarCliente(datos: Partial<DatosCliente>): ErroresCliente {
   if (texto(datos.cp).length < 4) {
     errores.cp = "Ingresá el código postal";
   }
+  // Mayoría de edad (o autorización del representante legal) y Términos:
+  // tiene que ser un sí explícito, no un valor por defecto.
+  if (datos.aceptaTerminos !== true) {
+    errores.aceptaTerminos = "Para comprar, confirmá tu edad y aceptá los Términos y condiciones";
+  }
 
   return errores;
 }
@@ -58,5 +63,6 @@ export function normalizarCliente(datos: Partial<DatosCliente>): DatosCliente {
     provincia: t(datos.provincia),
     cp: t(datos.cp),
     aceptaPromos: Boolean(datos.aceptaPromos),
+    aceptaTerminos: datos.aceptaTerminos === true,
   };
 }

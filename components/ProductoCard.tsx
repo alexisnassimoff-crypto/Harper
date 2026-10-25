@@ -5,7 +5,8 @@ import { useState } from "react";
 import FotoCruzada from "./FotoCruzada";
 import { useDeslizar } from "./useDeslizar";
 import { useCarrito } from "./carrito/CarritoContexto";
-import { precio as formatearPrecio } from "@/lib/formato";
+import { caracteristicasDe } from "@/lib/caracteristicas";
+import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { rutaDeVariante } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
@@ -14,8 +15,11 @@ export default function ProductoCard({
   producto,
   prioridad = false,
   inicial = 0,
+  precioSinImpuestos = null,
 }: {
   producto: Producto;
+  /** El neto para la leyenda de la Res. SIyC 4/2025; null si no hay dato. */
+  precioSinImpuestos?: number | null;
   /** Solo para las primeras tarjetas visibles: precarga la imagen. */
   prioridad?: boolean;
   /** Color con el que abre la ficha; lo reparte la grilla para no repetir. */
@@ -34,6 +38,8 @@ export default function ProductoCard({
   // en el primer color con stock, y el visitante que tocaba unos carey
   // aterrizaba en unos negros.
   const enlace = rutaDeVariante(producto, indice);
+  // Una línea discreta con lo que lo distingue, solo si está confirmado.
+  const rasgos = caracteristicasDe(producto)?.resumen ?? null;
 
   const deslizar = useDeslizar({
     alSiguiente: () => pasarFoto(1),
@@ -101,12 +107,30 @@ export default function ProductoCard({
           {producto.nombre}
         </Link>
 
+        {rasgos ? (
+          // Cada rasgo en su span: el punto medio lo pone el CSS solo cuando
+          // van en la misma línea. El lector de pantalla lee la frase entera.
+          <p className="ficha__rasgos">
+            <span className="solo-lectores">{rasgos}</span>
+            {rasgos.split(" · ").map((r) => (
+              <span key={r} className="ficha__rasgo" aria-hidden="true">
+                {r}
+              </span>
+            ))}
+          </p>
+        ) : null}
+
         <div className="ficha__precio">
           <span>{formatearPrecio(producto.precio)}</span>
           {producto.precioAnterior ? (
             <s className="apagado">{formatearPrecio(producto.precioAnterior)}</s>
           ) : null}
         </div>
+        {precioSinImpuestos !== null ? (
+          <small className="precio-sin-impuestos">
+            Precio sin impuestos nacionales: {precioConCentavos(precioSinImpuestos)}
+          </small>
+        ) : null}
 
         {producto.variantes.length > 1 ? (
           <div

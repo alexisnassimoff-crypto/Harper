@@ -26,6 +26,24 @@ export function mercadoPagoConfigurado() {
 }
 
 /**
+ * Las cuotas que Mercado Pago ofrece de verdad para un monto y una marca de
+ * tarjeta (solo lectura: no crea ni cambia nada). La respuesta trae, por
+ * banco emisor, cada cantidad de cuotas con su tasa, su monto y su CFT. Se
+ * guarda una hora en cache. Ver lib/cuotas.ts.
+ */
+export async function consultarCuotas(monto: number, medio: string): Promise<unknown> {
+  const url = `${API}/v1/payment_methods/installments?amount=${encodeURIComponent(String(monto))}&payment_method_id=${encodeURIComponent(medio)}`;
+  // `next` es la opción de cache de Next (una hora); el tipo de fetch no la trae.
+  const opciones: RequestInit & { next?: { revalidate: number } } = {
+    headers: { Authorization: `Bearer ${token()}` },
+    next: { revalidate: 3600 },
+  };
+  const respuesta = await fetch(url, opciones);
+  if (!respuesta.ok) throw new Error(`Mercado Pago contestó ${respuesta.status} al consultar cuotas (${medio})`);
+  return respuesta.json();
+}
+
+/**
  * Verdadero solo si el cobro puede funcionar de punta a punta.
  *
  * Con el token pero sin el secreto se cobra la plata y el webhook rechaza

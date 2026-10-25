@@ -12,6 +12,7 @@ const completo = {
   provincia: "Ciudad Autónoma de Buenos Aires",
   cp: "1429",
   aceptaPromos: false,
+  aceptaTerminos: true,
 };
 
 test("con todos los datos no hay errores; el DNI acepta puntos", () => {

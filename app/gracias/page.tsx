@@ -3,10 +3,12 @@ import Link from "next/link";
 import VaciarCarrito from "@/components/carrito/VaciarCarrito";
 import EsperarPago from "@/components/EsperarPago";
 import EventoPixel from "@/components/EventoPixel";
+import { caracteristicasDe } from "@/lib/caracteristicas";
 import { getConfig } from "@/lib/config";
 import { buscarPedido } from "@/lib/pedidos";
 import { datosDeCompra, idEventoCompra } from "@/lib/pixel";
 import { ESTADOS_CONFIRMADOS } from "@/lib/webhook-decision";
+import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "@/lib/whatsapp";
 
 export const metadata: Metadata = {
   title: "Gracias por tu compra",
@@ -43,6 +45,16 @@ export default async function Gracias({
     : confirmado
       ? "Gracias por tu compra"
       : "Estamos confirmando tu pago";
+
+  // Con la compra confirmada y algún armazón que admite cristales graduados,
+  // una invitación a consultar. Solo el número de pedido viaja en el mensaje.
+  const llevaArmazonGraduable =
+    confirmado && pedido
+      ? pedido.items.some((i) => i.categoria !== null && caracteristicasDe({ slug: i.productoSlug, categoria: i.categoria }) !== null)
+      : false;
+  const enlaceGraduados = llevaArmazonGraduable
+    ? enlaceWhatsApp(config.whatsapp, mensajeGraduadosPedido(pedido?.numero ?? numero))
+    : null;
 
   return (
     <>
@@ -97,6 +109,21 @@ export default async function Gracias({
           </p>
 
           {!confirmado ? <EsperarPago /> : null}
+
+          {enlaceGraduados ? (
+            <div className="invitacion-graduados">
+              <p>{TEXTO_GRADUADOS_PEDIDO}</p>
+              <a
+                href={enlaceGraduados}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="boton boton--fantasma boton--chico"
+                style={{ justifySelf: "start" }}
+              >
+                Consultar por WhatsApp
+              </a>
+            </div>
+          ) : null}
 
           <p className="apagado" style={{ fontSize: "0.875rem" }}>
             Si no ves el mail en unos minutos, revisá la carpeta de spam o

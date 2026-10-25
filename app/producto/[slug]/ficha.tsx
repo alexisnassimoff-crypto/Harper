@@ -7,8 +7,10 @@ import { getTramos } from "@/lib/descuentos";
 import { getProducto, getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
-import { cuotasActivas } from "@/lib/cuotas";
+import { verificarCuotas } from "@/lib/cuotas-servidor";
+import { netoDe } from "@/lib/impuestos";
 import { indiceVarianteInicial } from "@/lib/variantes";
+import { rutaDeCategoria } from "@/lib/categorias";
 
 /**
  * La página de producto, compartida por dos rutas:
@@ -63,10 +65,11 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   const producto = await getProducto(slug);
   if (!producto) notFound();
 
-  const [tramos, config, delMismoTipo] = await Promise.all([
+  const [tramos, config, delMismoTipo, cuotas] = await Promise.all([
     getTramos(),
     getConfig(),
     getProductos(producto.categoria),
+    verificarCuotas(producto.precio),
   ]);
 
   const otros = delMismoTipo.filter((p) => p.id !== producto.id);
@@ -82,12 +85,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
     .toISOString()
     .slice(0, 10);
 
-  const seccion =
-    producto.categoria === "Anteojos"
-      ? "anteojos"
-      : producto.categoria === "Estuches"
-        ? "estuches"
-        : "panos";
+  const seccion = rutaDeCategoria(producto.categoria);
 
   // Datos estructurados: habilitan el resultado enriquecido con precio en Google.
   const jsonLd = [
@@ -122,7 +120,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
           "@type": "ListItem",
           position: 2,
           name: producto.categoria,
-          item: `${sitio}/${seccion}`,
+          item: `${sitio}${seccion}`,
         },
         { "@type": "ListItem", position: 3, name: producto.nombre },
       ],
@@ -152,8 +150,10 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         producto={producto}
         tramos={tramos}
         varianteInicial={varianteInicial}
-        confianza={mensajesDeConfianza(config)}
-        cuotas={cuotasActivas()}
+        confianza={mensajesDeConfianza(config, cuotas)}
+        cuotas={cuotas}
+        precioSinImpuestos={netoDe(config.impuestosNacionales, producto.categoria, producto.precio)}
+        whatsapp={config.whatsapp || null}
       />
 
       {otros.length > 0 ? (

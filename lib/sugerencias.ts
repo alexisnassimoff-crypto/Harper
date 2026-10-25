@@ -1,5 +1,5 @@
 import { getProductos } from "./catalogo";
-import { getTramos, porcentajeParaCantidad, type Tramo } from "./descuentos";
+import { getTramos, ofertaPorCantidad, type Tramo } from "./descuentos";
 import type { Categoria, ItemResuelto, Producto } from "./tipos";
 
 /**
@@ -11,8 +11,10 @@ import type { Categoria, ItemResuelto, Producto } from "./tipos";
  * puede interesar".
  *
  * La regla más valiosa es la del segundo par: quien lleva un anteojo ve otros
- * modelos con el descuento que se desbloquea al sumar dos. Al anteojo NO se le
- * ofrece un estuche: ya viene incluido, y ofrecérselo contradice la ficha.
+ * modelos con el descuento que se desbloquea al sumar dos. Es la única
+ * promoción que se le cuenta al público: los tramos mayores se aplican al
+ * cobrar, pero no se anuncian. Al anteojo NO se le ofrece un estuche: ya viene
+ * incluido, y ofrecérselo contradice la ficha.
  *
  * Es dinámico en dos sentidos: cambia según lo que ya hay en el carrito —así
  * nunca ofrece algo que el comprador ya tiene— y rota entre los candidatos
@@ -48,19 +50,24 @@ const MAXIMO = 3;
 type Regla = {
   si: Categoria;
   entonces: Categoria;
-  motivo: (contexto: { porcentaje: number }) => string;
+  motivo: (contexto: { unidades: number; segundoPar: number }) => string;
   mismaCategoria?: boolean;
 };
+
+/** Para más de lo mismo, sin hablar de descuentos. */
+const OTRO_MODELO = "Otro modelo para sumar";
 
 const REGLAS: Regla[] = [
   {
     si: "Anteojos",
     entonces: "Anteojos",
     mismaCategoria: true,
-    motivo: ({ porcentaje }) =>
-      porcentaje > 0
-        ? `Segundo par: ${porcentaje}% off en los dos`
-        : "Sumá un segundo par",
+    motivo: ({ unidades, segundoPar }) =>
+      unidades >= 2
+        ? OTRO_MODELO
+        : segundoPar > 0
+          ? `Segundo par: ${segundoPar}% off en los dos`
+          : "Sumá un segundo par",
   },
   {
     si: "Estuches",
@@ -152,18 +159,20 @@ export function elegirSugerencias(
     if (!categoriasEnCarrito.has(regla.si)) continue;
     if (!regla.mismaCategoria && categoriasEnCarrito.has(regla.entonces)) continue;
 
-    // El porcentaje que se desbloquea con una unidad más de esa categoría.
+    // La promo de 2 pares, solo si con una unidad más se llega justo a ella.
     const unidades = unidadesPorCategoria.get(regla.entonces) ?? 0;
-    const porcentaje = porcentajeParaCantidad(tramos, regla.entonces, unidades + 1);
+    const oferta = ofertaPorCantidad(tramos, regla.entonces, 0, unidades);
+    const segundoPar =
+      oferta?.estado === "pendiente" && oferta.unidades === 2 && oferta.faltan === 1 ? oferta.porcentaje : 0;
 
-    sumar(regla.entonces, regla.motivo({ porcentaje }));
+    sumar(regla.entonces, regla.motivo({ unidades, segundoPar }));
   }
 
-  // 2. Si ya tiene de todo, se le ofrece más de lo mismo: sumar unidades de la
-  //    categoría que ya eligió es lo que dispara el descuento por cantidad.
+  // 2. Si ya tiene de todo, se le ofrece más de lo mismo, sin prometer
+  //    descuentos: los tramos no se anuncian.
   if (elegidas.length === 0) {
     for (const categoria of rotar([...categoriasEnCarrito], semilla)) {
-      sumar(categoria, "Sumá otro y accedé a más descuento");
+      sumar(categoria, OTRO_MODELO);
     }
   }
 

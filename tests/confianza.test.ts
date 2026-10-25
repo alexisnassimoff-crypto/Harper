@@ -17,10 +17,15 @@ test("con envío gratis configurado y sin cuotas", () => {
   assert.equal(m[2].href, "/legales/devoluciones");
 });
 
-test("las cuotas aparecen solo cuando están activas", () => {
+const VERIFICADAS = { cuotas: 3, montoCuota: 29966.67, cftea: "0,00 %" };
+
+test("las cuotas aparecen solo cuando Mercado Pago las confirmó, con el CFTEA", () => {
   process.env.NEXT_PUBLIC_CUOTAS = "3";
-  const m = mensajesDeConfianza(config);
-  assert.ok(m.some((x) => x.clave === "cuotas" && x.texto === "3 cuotas sin interés"));
+  assert.ok(!mensajesDeConfianza(config).some((x) => x.clave === "cuotas"), "la variable sola no alcanza");
+  const m = mensajesDeConfianza(config, VERIFICADAS);
+  const cuotas = m.find((x) => x.clave === "cuotas");
+  assert.equal(cuotas?.texto, "3 cuotas sin interés");
+  assert.equal(cuotas?.detalle, "Visa y Mastercard · CFTEA 0,00 %");
   delete process.env.NEXT_PUBLIC_CUOTAS;
 });
 
@@ -33,7 +38,7 @@ test("sin promoción de envío gratis se dice solo que se envía", () => {
 
 test("ningún mensaje afirma algo que la tienda no puede probar, ni promete plazos", () => {
   process.env.NEXT_PUBLIC_CUOTAS = "3";
-  const todo = mensajesDeConfianza(config)
+  const todo = mensajesDeConfianza(config, VERIFICADAS)
     .flatMap((x) => [x.texto, x.detalle ?? ""])
     .join(" ")
     .toLowerCase();

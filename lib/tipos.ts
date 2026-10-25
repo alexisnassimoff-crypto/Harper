@@ -1,6 +1,9 @@
 /** Tipos de dominio de la tienda. */
 
-export type Categoria = "Anteojos" | "Estuches" | "Paños";
+import type { Categoria } from "./categorias";
+
+// Las categorías viven en lib/categorias.ts (las actuales y las previstas).
+export type { Categoria };
 
 export type Variante = {
   id: string;
@@ -108,6 +111,13 @@ export type DatosCliente = {
   provincia: string;
   cp: string;
   aceptaPromos: boolean;
+  /**
+   * Confirmó ser mayor de edad (o tener autorización de su representante
+   * legal) y aceptó los Términos y condiciones. Obligatorio para comprar
+   * (lo exige validarCliente); no se recuerda entre compras. Opcional en el
+   * tipo porque los pedidos ya confirmados se reconstruyen sin él.
+   */
+  aceptaTerminos?: boolean;
 };
 
 export type EstadoPedido =

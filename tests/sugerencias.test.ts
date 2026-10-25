@@ -53,10 +53,35 @@ test("sin tramos cargados, igual ofrece el segundo par con un motivo honesto", (
   assert.equal(s[0].motivo, "Sumá un segundo par");
 });
 
-test("con dos anteojos ya en el carrito, el motivo pasa al siguiente tramo", () => {
-  const s = elegirSugerencias([item(amatista), item(citrino)], catalogo, 0, TRAMOS);
-  // Con 3 unidades sigue en 5%; la regla dice qué se desbloquea con una más.
-  assert.equal(s[0].motivo, "Segundo par: 5% off en los dos");
+test("con dos o más anteojos en el carrito no se anuncian los tramos mayores", () => {
+  // Ya tiene la promo de 2 pares: el siguiente tramo (4 pares, 10%) se aplica
+  // al cobrar pero no se publicita.
+  for (const cantidad of [1, 2, 3, 7, 14]) {
+    const s = elegirSugerencias([item(amatista, 1), item(citrino, cantidad)], catalogo, 0, TRAMOS);
+    assert.ok(s.length > 0);
+    for (const x of s) {
+      assert.equal(x.motivo, "Otro modelo para sumar", `con ${cantidad + 1} pares: ${x.motivo}`);
+      assert.ok(!x.motivo.includes("%"));
+    }
+  }
+});
+
+test("la promo del segundo par usa el porcentaje del tramo de 2, no el de más unidades", () => {
+  const tramos: Tramo[] = [
+    { categoria: "Anteojos", desdeUnidades: 4, porcentaje: 10 },
+    { categoria: "Anteojos", desdeUnidades: 2, porcentaje: 5 },
+  ];
+  assert.equal(elegirSugerencias([item(amatista)], catalogo, 0, tramos)[0].motivo, "Segundo par: 5% off en los dos");
+  // Si el primer tramo no es de 2 unidades, no se habla de "segundo par" con descuento.
+  const desde3: Tramo[] = [{ categoria: "Anteojos", desdeUnidades: 3, porcentaje: 8 }];
+  assert.equal(elegirSugerencias([item(amatista)], catalogo, 0, desde3)[0].motivo, "Sumá un segundo par");
+});
+
+test("con complementos de todo tipo, ofrece más sin prometer descuentos", () => {
+  const otroEstuche = producto("m500", "Estuches", 7990);
+  const s = elegirSugerencias([item(r100), item(pano)], [...catalogo, otroEstuche], 0, TRAMOS);
+  assert.ok(s.length > 0);
+  assert.ok(s.every((x) => x.motivo === "Otro modelo para sumar" && !/descuento|%/.test(x.motivo)));
 });
 
 test("estuche → paño, paño → estuche", () => {

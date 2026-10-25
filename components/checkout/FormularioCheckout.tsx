@@ -5,13 +5,13 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
-import { cuotasActivas } from "@/lib/cuotas";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, EleccionEnvio } from "@/lib/tipos";
-import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
+import { validarCliente, type ErroresCliente } from "@/lib/validacion";
+import { useAvisoCookiesAbierto } from "@/components/AvisoCookies";
 import BarraPagar from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import { PROVINCIAS } from "./provincias";
@@ -41,6 +41,7 @@ const ORDEN_CAMPOS = [
   "ciudad",
   "cp",
   "provincia",
+  "aceptaTerminos",
 ] as const;
 
 /** Lo que puede contestar /api/checkout. */
@@ -64,6 +65,9 @@ const VACIO: DatosCliente = {
   cp: "",
   // Sin marcar: el consentimiento para promociones lo da el comprador.
   aceptaPromos: false,
+  // Sin marcar: la confirmación de edad y la aceptación de los Términos son
+  // un sí explícito en cada compra.
+  aceptaTerminos: false,
 };
 
 /**
@@ -144,8 +148,9 @@ export default function FormularioCheckout({
       const guardado = window.localStorage.getItem(CLAVE_DATOS);
       const previos = guardado ? (JSON.parse(guardado) as Partial<DatosCliente>) : null;
       if (previos) {
-        // El consentimiento no se recuerda: se vuelve a preguntar cada vez.
+        // El consentimiento y la aceptación no se recuerdan: se preguntan cada vez.
         delete previos.aceptaPromos;
+        delete previos.aceptaTerminos;
         setForm((f) => ({ ...f, ...previos }));
       }
 
@@ -195,8 +200,8 @@ export default function FormularioCheckout({
       try {
         // La dirección se guarda como viaja, con el piso: si otro día el
         // buscador no está, el campo manual la muestra completa.
-        const { aceptaPromos: _consentimiento, ...datos } = clienteAEnviar();
-        if (Object.values(datos).some((v) => v.trim() !== "")) {
+        const { aceptaPromos: _consentimiento, aceptaTerminos: _aceptacion, ...datos } = clienteAEnviar();
+        if (Object.values(datos).some((v) => typeof v === "string" && v.trim() !== "")) {
           window.localStorage.setItem(CLAVE_DATOS, JSON.stringify(datos));
         }
       } catch {
@@ -220,31 +225,9 @@ export default function FormularioCheckout({
     return () => window.removeEventListener("pageshow", alVolver);
   }, []);
 
-  // Captura temprana del mail: si abandona a mitad, el contacto igual queda
-  // registrado y se le puede escribir después. Sin el consentimiento de
-  // promociones: eso se guarda recién al comprar, con lo que haya marcado.
-  const mailAvisado = useRef<string>("");
-
-  useEffect(() => {
-    const email = form.email.trim().toLowerCase();
-
-    if (!emailValido(email) || email === mailAvisado.current) return;
-
-    const id = window.setTimeout(() => {
-      mailAvisado.current = email;
-
-      fetch("/api/lead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, nombre: form.nombre }),
-        keepalive: true,
-      }).catch(() => {
-        // Es best-effort: nunca puede frenar ni romper la compra.
-      });
-    }, 1200);
-
-    return () => window.clearTimeout(id);
-  }, [form.email, form.nombre]);
+  // El email no se guarda mientras se escribe: recién al enviar el pedido.
+  // Sin una base legal y el consentimiento que correspondan, quien no
+  // terminó la compra no recibe campañas de recuperación ni promociones.
 
   // InitiateCheckout: una vez por visita al checkout, con el carrito ya
   // resuelto (valor e ítems reales). Ni con carrito vacío ni al volver de un
@@ -262,6 +245,9 @@ export default function FormularioCheckout({
   // La barra fija de pagar aparece cuando el botón real sale de pantalla.
   const botonPagar = useRef<HTMLButtonElement>(null);
   const [botonEnPantalla, setBotonEnPantalla] = useState(true);
+  // Mientras el aviso de cookies tapa la parte de abajo, la barra se queda:
+  // el botón real podría estar justo debajo del aviso.
+  const avisoCookies = useAvisoCookiesAbierto();
 
   useEffect(() => {
     const nodo = botonPagar.current;
@@ -354,9 +340,43 @@ export default function FormularioCheckout({
       const id = campo === "direccion" && !document.getElementById("direccion") ? "numero" : campo;
       const nodo = document.getElementById(id) ?? document.getElementById("domicilio");
       if (nodo) {
-        nodo.focus();
+        nodo.focus({ preventScroll: true });
+        // Se mide en el cuadro siguiente, con el mensaje de error ya pintado.
+        const bloque = nodo.closest<HTMLElement>(".checkout__legal, .campo") ?? nodo;
+        requestAnimationFrame(() => mostrarEntreCapasFijas(bloque));
         return;
       }
+    }
+  }
+
+  /**
+   * Deja el campo con error a la vista, con su etiqueta y su mensaje. focus()
+   * no desplaza si el campo "está en pantalla" aunque lo tapen el header, la
+   * barra fija de pagar o el aviso de cookies: acá se mide la franja que de
+   * verdad se ve y, si no entra, se lo centra en ella.
+   */
+  function mostrarEntreCapasFijas(bloque: HTMLElement) {
+    // Se mide, se desplaza y se vuelve a medir: al bajar, la franja de
+    // promoción se va y el header queda pegado arriba, y eso corre la franja
+    // visible. Con dos o tres vueltas queda donde tiene que estar.
+    for (let vuelta = 0; vuelta < 3; vuelta++) {
+      if (!bloque.isConnected) return;
+      const arriba = Math.max(0, document.querySelector("header")?.getBoundingClientRect().bottom ?? 0);
+      let abajo = window.innerHeight;
+      for (const capa of document.querySelectorAll<HTMLElement>(".cta-fija, .cookies")) {
+        const r = capa.getBoundingClientRect();
+        if (r.height > 0 && r.top < abajo && r.bottom > arriba) abajo = r.top;
+      }
+      const { top, bottom } = bloque.getBoundingClientRect();
+      if (top >= arriba && bottom <= abajo) return;
+      const alto = bottom - top;
+      const franja = abajo - arriba;
+      // Si no entra entero, que se vea desde arriba (etiqueta y campo primero).
+      const desplazar = alto > franja ? top - arriba - 8 : (top + bottom) / 2 - (arriba + abajo) / 2;
+      if (Math.abs(desplazar) < 1) return;
+      const antes = window.scrollY;
+      window.scrollBy({ top: desplazar, behavior: "instant" });
+      if (window.scrollY === antes) return; // Tope de la página: no hay más para mover.
     }
   }
 
@@ -396,7 +416,7 @@ export default function FormularioCheckout({
     setEnviando(true);
 
     try {
-      const { aceptaPromos: _consentimiento, ...datos } = form;
+      const { aceptaPromos: _consentimiento, aceptaTerminos: _aceptacion, ...datos } = clienteAEnviar();
       window.localStorage.setItem(CLAVE_DATOS, JSON.stringify(datos));
     } catch {
       // Si no se puede guardar, la compra sigue igual.
@@ -706,6 +726,42 @@ export default function FormularioCheckout({
           </>
         )}
 
+        {/* Mayoría de edad (o autorización del representante legal) y Términos:
+            una sola casilla, obligatoria y sin marcar. Sin pedir la fecha de
+            nacimiento. Los enlaces abren aparte para no perder el checkout. */}
+        <div className="checkout__legal" data-error={Boolean(errores.aceptaTerminos)}>
+          <label className="checkout__promos checkout__acepta">
+            <input
+              id="aceptaTerminos"
+              type="checkbox"
+              name="aceptaTerminos"
+              checked={form.aceptaTerminos === true}
+              onChange={(e) => actualizar("aceptaTerminos", e.target.checked)}
+              aria-invalid={Boolean(errores.aceptaTerminos)}
+              aria-describedby={errores.aceptaTerminos ? "error-terminos" : undefined}
+            />
+            <span>
+              Soy mayor de edad o cuento con autorización de mi representante legal, y acepto los{" "}
+              <a href="/legales/terminos" target="_blank" rel="noopener" className="checkout__enlace">
+                Términos y condiciones
+              </a>
+              .
+            </span>
+          </label>
+          {errores.aceptaTerminos ? (
+            <small id="error-terminos" className="checkout__error">
+              {errores.aceptaTerminos}
+            </small>
+          ) : null}
+          <p className="checkout__nota">
+            Usamos tus datos para procesar y entregar tu compra, según la{" "}
+            <a href="/legales/privacidad" target="_blank" rel="noopener" className="checkout__enlace">
+              Política de privacidad
+            </a>
+            .
+          </p>
+        </div>
+
         <label className="checkout__promos">
           <input
             type="checkbox"
@@ -739,7 +795,7 @@ export default function FormularioCheckout({
 
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>Descuento por cantidad</span>
+            <span>Descuento</span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}
@@ -766,16 +822,14 @@ export default function FormularioCheckout({
         </button>
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
-          Pagás en Mercado Pago:{" "}
-          {cuotasActivas()
-            ? `${cuotasActivas()} cuotas sin interés con tarjeta, débito o`
-            : "tarjeta en cuotas, débito o"}{" "}
-          dinero en cuenta.
+          Pagás en Mercado Pago con tarjeta de crédito o débito, o con dinero en
+          cuenta. Las cuotas disponibles y su costo los ves en Mercado Pago antes
+          de confirmar el pago.
         </p>
       </aside>
 
       <BarraPagar
-        visible={!botonEnPantalla}
+        visible={!botonEnPantalla || avisoCookies}
         formulario={ID_FORMULARIO}
         total={formatearPrecio(resumen.total)}
         detalle={`${productos}${resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}`}

@@ -607,124 +607,138 @@ p {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- Escalera de descuentos por cantidad ---------- */
+/* Checkout: la casilla de edad y Términos, con su error y la nota de datos. */
+.checkout__legal {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+/* Al enfocar un campo con error, que no quede debajo del header fijo. */
+.checkout__form :is(input, select) {
+  scroll-margin-top: 6.5rem;
+}
+.checkout__acepta {
+  color: var(--texto);
+}
+.checkout__legal[data-error="true"] .checkout__acepta input {
+  outline: 2px solid var(--alerta);
+  outline-offset: 2px;
+}
+.checkout__error {
+  padding-left: 1.6rem;
+  color: var(--alerta);
+  font-size: 0.75rem;
+}
+.checkout__nota {
+  padding-left: 1.6rem;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+.checkout__enlace {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+@media (max-width: 46rem) {
+  .checkout__nota,
+  .checkout__error {
+    padding-right: 4.5rem;
+  }
+}
 
-.escalera {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 1rem 1.1rem 1.1rem;
+/* "Precio sin impuestos nacionales" (Res. SIyC 4/2025): debajo del precio
+   final y en letra más chica, como pide la norma. */
+.precio-sin-impuestos {
+  display: block;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+/* Las condiciones de las cuotas (contado y CFTEA), debajo de la cuota. */
+.cuotas-condiciones {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+/* La consulta por cristales graduados: una línea discreta en la ficha. */
+.consulta-graduados {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+.consulta-graduados__pregunta {
+  color: var(--texto);
+}
+.consulta-graduados__enlace {
+  color: var(--verde);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  white-space: nowrap;
+}
+
+/* La invitación a consultar por graduados después de comprar (/gracias). */
+.invitacion-graduados {
+  display: grid;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 1.25rem 1.35rem;
   border: 1px solid var(--borde);
   border-radius: var(--radio);
   background: var(--fondo-alt);
 }
+.invitacion-graduados p {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
 
-.escalera__titulo {
-  font-size: 0.875rem;
+/* La promoción del segundo par: una línea sobria, sin tabla ni insignias.
+   El detalle va en un gris que cumple contraste AA sobre el fondo de la caja. */
+.oferta-cantidad {
+  padding: 0.8rem 1.1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo-alt);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+.oferta-cantidad strong {
+  font-weight: 600;
   color: var(--verde);
 }
-
-.escalera__titulo strong {
-  font-weight: 600;
-}
-
-.escalera__tramos {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.escalera__pieza {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  padding: 0.5rem 0.2rem 0.45rem;
-  border: 1px solid var(--borde);
-  border-radius: 12px;
-  background: var(--fondo);
-  transition:
-    background var(--medio) var(--curva),
-    border-color var(--medio) var(--curva),
-    color var(--medio) var(--curva);
-}
-
-.escalera__pieza[data-alcanzado] {
-  background: var(--verde);
-  border-color: var(--verde);
-}
-
-.escalera__pieza[data-alcanzado] .escalera__cantidad,
-.escalera__pieza[data-alcanzado] .escalera__precio,
-.escalera__pieza[data-alcanzado] .escalera__off {
-  color: var(--sobre-acento);
-}
-
-.escalera__pieza[data-proximo]:not([data-alcanzado]) {
-  border-style: dashed;
-  border-color: var(--verde);
-}
-
-.escalera__cantidad {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--texto-suave);
-}
-
-.escalera__precio {
+.oferta-cantidad__detalle {
   font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--texto);
+  color: color-mix(in srgb, var(--texto) 72%, var(--fondo-alt));
   white-space: nowrap;
 }
 
-.escalera__off {
-  font-size: 0.6875rem;
-  color: var(--verde);
-}
-
-.escalera__barra {
-  height: 0.375rem;
-  border-radius: var(--radio-pill);
-  background: color-mix(in srgb, var(--tinta) 10%, var(--fondo));
-  overflow: hidden;
-}
-
-.escalera__relleno {
-  height: 100%;
-  border-radius: var(--radio-pill);
-  background: var(--verde);
-  transition: width var(--lento) var(--curva);
-}
-
-/* La oferta del primer escalón, dicha completa: total, y ahorro al lado. */
-.escalera__oferta {
+/* Qué se está comprando, debajo del precio de la ficha. Una tilde fina en
+   verde por punto: se lee como información, no como publicidad. */
+.caracteristicas {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.25rem 0.6rem;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   font-size: 0.9375rem;
+  line-height: 1.35;
 }
-.escalera__oferta strong {
-  font-weight: 600;
+.caracteristicas li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
 }
-.escalera__ahorro {
-  padding: 0.1rem 0.5rem;
-  border-radius: var(--radio-pill);
-  background: var(--verde);
-  color: var(--sobre-acento);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-@media (max-width: 26rem) {
-  .escalera__precio {
-    font-size: 0.75rem;
-  }
+.caracteristicas li::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.32rem;
+  height: 0.62rem;
+  border: solid var(--verde);
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-0.12rem) rotate(45deg);
 }
 
 /* ---------- Carrito: actualización y errores ---------- */
@@ -1244,6 +1258,8 @@ p {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0 1.1rem 1.1rem;
+  /* Para que la línea de rasgos se acomode al ancho de la tarjeta. */
+  container-type: inline-size;
 }
 /* Mismo tratamiento que los títulos de sección: Raleway ya era la familia en
    todo el sitio, pero acá el texto iba con tracking abierto (+0.06em) contra el
@@ -1256,6 +1272,34 @@ p {
 }
 .ficha:hover .ficha__titulo {
   color: var(--verde);
+}
+/* Lo que distingue al modelo, en voz baja: debajo del nombre, chico y apagado.
+   En una línea con un punto medio cuando entra; en una tarjeta angosta (dos
+   columnas en celular), una debajo de la otra y sin el punto, para que nunca
+   quede colgando al final de un renglón. */
+.ficha__rasgos {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.45em;
+  margin-top: -0.2rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.ficha__rasgo + .ficha__rasgo::before {
+  content: "·";
+  margin-right: 0.45em;
+}
+@container (max-width: 13.5rem) {
+  .ficha__rasgos {
+    flex-direction: column;
+  }
+  .ficha__rasgo + .ficha__rasgo::before {
+    content: none;
+  }
 }
 .ficha__precio {
   display: flex;
@@ -2191,4 +2235,293 @@ p {
   body[data-cta-fija] footer {
     padding-bottom: 4.75rem;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Pie: Harper protagonista, información legal siempre visible
+--------------------------------------------------------------------------- */
+
+.pie {
+  margin-top: 6rem;
+  background: var(--verde);
+  color: #fff;
+}
+.pie a,
+.pie button {
+  color: inherit;
+}
+.pie__principal {
+  display: grid;
+  gap: 2.5rem 2rem;
+  grid-template-columns: 1fr;
+  padding-block: 4rem 3rem;
+}
+@media (min-width: 40rem) {
+  .pie__principal {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .pie__marca {
+    grid-column: 1 / -1;
+  }
+}
+@media (min-width: 64rem) {
+  .pie__principal {
+    grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+  }
+  .pie__marca {
+    grid-column: auto;
+  }
+}
+.pie__marca {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+.pie__lema {
+  font-size: 0.9375rem;
+  color: rgb(255 255 255 / 0.78);
+  letter-spacing: 0.01em;
+}
+.pie__columna {
+  display: grid;
+  gap: 0.65rem;
+  align-content: start;
+}
+.pie__titulo {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.66);
+}
+/* El contenido recibe el foco (salto desde "Saltar al contenido" o al cerrar
+   el aviso de cookies) sin dibujar un marco alrededor de toda la página. */
+#contenido:focus {
+  outline: none;
+}
+
+/* Un botón que se ve como un enlace (abre las preferencias de cookies). */
+.enlace-boton {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pie__enlace {
+  justify-self: start;
+  font-size: 0.875rem;
+  color: #fff;
+  opacity: 0.92;
+  transition: opacity var(--rapido) var(--curva);
+}
+.pie__enlace:hover,
+.pie__enlace:focus-visible {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.pie__legal {
+  display: grid;
+  gap: 0.9rem;
+  padding-block: 1.75rem 2rem;
+  border-top: 1px solid rgb(255 255 255 / 0.18);
+}
+.pie__datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.75rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: rgb(255 255 255 / 0.86);
+}
+.pie__datos > div {
+  display: flex;
+  gap: 0.4rem;
+}
+.pie__datos dt {
+  color: rgb(255 255 255 / 0.62);
+}
+.pie__datos dd {
+  margin: 0;
+}
+.pie__datos a {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+/* Data Fiscal (F. 960/D de ARCA): el logo, chico y sobre blanco como lo entrega ARCA. */
+.pie__data-fiscal {
+  justify-self: start;
+  display: inline-flex;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.pie__data-fiscal img {
+  display: block;
+  height: 4rem;
+  width: auto;
+  border-radius: 2px;
+}
+.pie__copy {
+  font-size: 0.75rem;
+  color: rgb(255 255 255 / 0.62);
+}
+@media (max-width: 46rem) {
+  /* El globo de WhatsApp flota abajo a la derecha: los datos no se meten debajo. */
+  .pie__legal {
+    padding-bottom: 5.5rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Menú: con más de tres categorías, en celular se desliza de costado
+--------------------------------------------------------------------------- */
+
+@media (max-width: 47.99rem) {
+  .cabecera__nav[data-muchas] {
+    justify-content: flex-start;
+    gap: 1.4rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+  .cabecera__nav[data-muchas]::-webkit-scrollbar {
+    display: none;
+  }
+  .cabecera__nav[data-muchas] .nav-enlace {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Aviso de cookies: discreto, abajo, sin tapar la compra
+--------------------------------------------------------------------------- */
+
+.cookies {
+  position: fixed;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  z-index: 70;
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem 1.1rem;
+  background: var(--fondo);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.14);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+@media (min-width: 48rem) {
+  .cookies {
+    left: 1.5rem;
+    right: auto;
+    bottom: 1.5rem;
+    max-width: 30rem;
+  }
+}
+/* Con la barra fija de pagar visible, el aviso se apoya encima, no la tapa. */
+@media (max-width: 46rem) {
+  body[data-cta-fija] .cookies {
+    bottom: calc(5.25rem + env(safe-area-inset-bottom));
+  }
+}
+.cookies__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+/* "Preferencias" va en el renglón del texto, junto a "Más información": así
+   los dos botones entran en una sola fila y el aviso tapa menos. */
+.cookies__preferencias {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+.cookies__enlace {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.cookies--panel {
+  max-height: min(82vh, 36rem);
+  overflow-y: auto;
+}
+.cookies--panel:focus {
+  outline: none;
+}
+.cookies__titulo {
+  font-size: 1rem;
+  font-weight: 500;
+}
+.cookies__categoria {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--borde);
+}
+.cookies__categoria strong {
+  font-weight: 500;
+}
+.cookies__categoria p {
+  margin-top: 0.15rem;
+  color: var(--texto-suave);
+}
+.cookies__siempre {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--verde);
+}
+.cookies__mas {
+  color: var(--texto-suave);
+}
+/* Interruptor: un checkbox con forma de llave, accesible como switch. */
+.cookies__interruptor {
+  appearance: none;
+  flex-shrink: 0;
+  position: relative;
+  width: 2.6rem;
+  height: 1.5rem;
+  margin: 0.1rem 0 0;
+  border-radius: var(--radio-pill);
+  background: color-mix(in srgb, var(--texto) 22%, var(--fondo));
+  cursor: pointer;
+  transition: background var(--rapido) var(--curva);
+}
+.cookies__interruptor::after {
+  content: "";
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: transform var(--rapido) var(--curva);
+}
+.cookies__interruptor:checked {
+  background: var(--verde);
+}
+.cookies__interruptor:checked::after {
+  transform: translateX(1.1rem);
+}
+.cookies__interruptor:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: 2px;
 }

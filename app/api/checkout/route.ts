@@ -4,6 +4,7 @@ import { guardarCliente } from "@/lib/clientes";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
 import { leerEleccionEnvio, nombreModo, nombreServicio } from "@/lib/envio-elegido";
+import { registroAceptacion } from "@/lib/legales";
 import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
@@ -129,6 +130,8 @@ export async function POST(request: Request) {
       Envio_servicio: nombreServicio(eleccion),
       Envio_sucursal: eleccion?.sucursal ?? "",
       Fecha: ahora.toISOString(),
+      // validarCliente ya exigió la casilla: queda qué versión aceptó y cuándo.
+      Terminos_aceptados: registroAceptacion(ahora),
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     });
 

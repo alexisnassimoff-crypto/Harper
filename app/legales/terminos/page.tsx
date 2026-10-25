@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getConfig } from "@/lib/config";
+import { versionTerminosLegible } from "@/lib/legales";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -12,6 +13,8 @@ export default async function Terminos() {
   return (
     <>
       <h1 className="titulo">Términos y condiciones</h1>
+
+      <p className="apagado">Versión vigente: {versionTerminosLegible()}.</p>
 
       <p className="apagado">
         Estos términos regulan la compra de productos en harper.ar, operado por{" "}

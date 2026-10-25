@@ -9,11 +9,14 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
-import EscaleraPrecios from "@/components/EscaleraPrecios";
+import { useAvisoCookiesAbierto } from "@/components/AvisoCookies";
 import CtaFija from "./CtaFija";
+import ConsultaGraduados from "./ConsultaGraduados";
+import OfertaCantidad from "./OfertaCantidad";
+import { caracteristicasDe } from "@/lib/caracteristicas";
 import type { Confianza } from "@/lib/confianza";
-import { importeCuota } from "@/lib/cuotas";
-import { precio as formatearPrecio } from "@/lib/formato";
+import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
+import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import {
   armarGaleria,
@@ -30,14 +33,20 @@ export default function FichaProducto({
   varianteInicial,
   confianza = [],
   cuotas = null,
+  precioSinImpuestos = null,
+  whatsapp = null,
 }: {
   producto: Producto;
   tramos?: Tramo[];
   /** Índice del color con el que abre. Lo decide el servidor según la URL. */
   varianteInicial?: number;
   confianza?: Confianza[];
-  /** Cuotas sin interés activas en Mercado Pago, o null si no hay. */
-  cuotas?: number | null;
+  /** Cuotas sin interés confirmadas por Mercado Pago para este precio, o null. */
+  cuotas?: CuotasVerificadas | null;
+  /** El neto para la leyenda de la Res. SIyC 4/2025; null si no hay dato. */
+  precioSinImpuestos?: number | null;
+  /** WhatsApp de la tienda, para la consulta por cristales graduados. */
+  whatsapp?: string | null;
 }) {
   const router = useRouter();
   const { items, agregar } = useCarrito();
@@ -53,12 +62,13 @@ export default function FichaProducto({
   const variante = producto.variantes[indiceVariante];
   const yaEnCarrito = items.some((i) => i.varianteId === variante.id);
 
-  // Lo que ya hay en el carrito de esta categoría: la escalera de precios se
-  // va llenando a medida que el visitante agrega, que es todo el chiste.
+  // Lo que ya hay en el carrito de esta categoría: la oferta pasa de "llevá
+  // 2" a "sumá 1 más" y a "ya lo tenés" a medida que el visitante agrega.
   const { datos: carritoResuelto } = useCarritoResuelto();
-  const unidadesEnCategoria = (carritoResuelto?.items ?? [])
-    .filter((i) => i.categoria === producto.categoria)
-    .reduce((total, i) => total + i.cantidad, 0);
+  const enCategoria = (carritoResuelto?.items ?? []).filter((i) => i.categoria === producto.categoria);
+  const unidadesEnCategoria = enCategoria.reduce((total, i) => total + i.cantidad, 0);
+  // Lo que el servidor de verdad aplicó: "ya tenés el descuento" sale de acá.
+  const descuentoAplicado = enCategoria.reduce((max, i) => Math.max(max, i.descuento), 0);
 
   const fotos = useMemo(
     () => (variante.fotos.length > 0 ? variante.fotos : []),
@@ -103,6 +113,9 @@ export default function FichaProducto({
   // pantalla, y se va cuando vuelve: nunca hay dos botones a la vista.
   const bloqueCompra = useRef<HTMLDivElement>(null);
   const [compraEnPantalla, setCompraEnPantalla] = useState(true);
+  // Mientras el aviso de cookies tapa la parte de abajo, la barra se queda:
+  // el botón real podría estar justo debajo del aviso.
+  const avisoCookies = useAvisoCookiesAbierto();
 
   useEffect(() => {
     const nodo = bloqueCompra.current;
@@ -156,10 +169,14 @@ export default function FichaProducto({
     iniciarTransicion(() => router.push("/checkout"));
   }
 
-  const cuotaTexto =
-    cuotas && cuotas > 1
-      ? `${cuotas} cuotas sin interés de ${formatearPrecio(importeCuota(producto.precio, cuotas))}`
-      : null;
+  // Res. SIyC 4/2025, art. 2 inc. d: cantidad y monto de cada cuota (el de
+  // Mercado Pago, con centavos), precio de contado y CFTEA.
+  const cuotaTexto = cuotas
+    ? `${cuotas.cuotas} cuotas sin interés de ${precioConCentavos(cuotas.montoCuota)}`
+    : null;
+  const cuotaCondiciones = cuotas
+    ? `Precio de contado ${formatearPrecio(producto.precio)} · CFTEA ${cuotas.cftea} · ${NOMBRE_MARCAS}`
+    : null;
 
   const medidas = producto.medidas
     ? [
@@ -173,6 +190,10 @@ export default function FichaProducto({
     producto.material ? { nombre: "Armazón", valor: producto.material } : null,
     producto.lentes ? { nombre: "Lentes", valor: producto.lentes } : null,
   ].filter((d): d is { nombre: string; valor: string } => d !== null);
+
+  // Qué se compra, dicho arriba: solo en los modelos con las características
+  // confirmadas (lib/caracteristicas.ts).
+  const caracteristicas = caracteristicasDe(producto);
 
   return (
     <div className="contenedor ficha-producto">
@@ -351,12 +372,28 @@ export default function FichaProducto({
             ) : null}
           </div>
 
+          {precioSinImpuestos !== null ? (
+            <small className="precio-sin-impuestos">
+              Precio sin impuestos nacionales: {precioConCentavos(precioSinImpuestos)}
+            </small>
+          ) : null}
+
           {cuotaTexto ? (
             <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--verde)" }}>
               {cuotaTexto}
             </span>
           ) : null}
+          {cuotaCondiciones ? <span className="cuotas-condiciones">{cuotaCondiciones}</span> : null}
         </div>
+
+        {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}
+        {caracteristicas ? (
+          <ul className="caracteristicas" aria-label="Características">
+            {caracteristicas.lista.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        ) : null}
 
         {/* Selector de color */}
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
@@ -432,15 +469,21 @@ export default function FichaProducto({
           )}
         </div>
 
+        {/* Solo en los modelos cuyo armazón admite cristales graduados
+            (confirmados en lib/caracteristicas.ts): una consulta, no una venta. */}
+        {caracteristicas ? <ConsultaGraduados modelo={producto.nombre} whatsapp={whatsapp} /> : null}
+
         <MensajesConfianza mensajes={confianza} variante="lista" />
 
-        {/* El descuento por cantidad se muestra acá y no recién en el carrito:
-            si la idea aparece después de decidir, ya es tarde. */}
-        <EscaleraPrecios
+        {/* La promoción del segundo par, en una línea y solo para anteojos.
+            Sin tablas de tramos: los mayores se aplican en el servidor, pero
+            no se publicitan. */}
+        <OfertaCantidad
           tramos={tramos}
           categoria={producto.categoria}
           precioLista={producto.precio}
-          cantidadActual={unidadesEnCategoria}
+          cantidadEnCarrito={unidadesEnCategoria}
+          descuentoAplicado={descuentoAplicado}
         />
 
         {producto.incluye.length > 0 ? (
@@ -489,10 +532,10 @@ export default function FichaProducto({
       </div>
 
       <CtaFija
-        visible={!compraEnPantalla && !variante.agotada}
+        visible={(!compraEnPantalla || avisoCookies) && !variante.agotada}
         nombre={`${producto.nombre} · ${variante.color}`}
         precio={formatearPrecio(producto.precio)}
-        detalle={cuotaTexto}
+        detalle={cuotas ? `${cuotas.cuotas} cuotas de ${precioConCentavos(cuotas.montoCuota)} · CFTEA ${cuotas.cftea}` : null}
         ocupado={enTransicion}
         alComprar={comprarAhora}
       />

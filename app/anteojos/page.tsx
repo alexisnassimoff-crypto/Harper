@@ -4,6 +4,7 @@ import MensajesConfianza from "@/components/MensajesConfianza";
 import { getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
+import { verificarCuotasPara } from "@/lib/cuotas-servidor";
 
 export const revalidate = 60;
 
@@ -25,6 +26,8 @@ export const metadata: Metadata = {
 
 export default async function Anteojos() {
   const [productos, config] = await Promise.all([getProductos("Anteojos"), getConfig()]);
+  // Cuotas solo si Mercado Pago las confirma para el precio más bajo del listado.
+  const cuotas = await verificarCuotasPara(productos.map((p) => p.precio));
 
   return (
     <section className="contenedor seccion seccion--pagina">
@@ -32,7 +35,7 @@ export default async function Anteojos() {
         <h1 className="titulo">Anteojos</h1>
       </div>
       <GrillaProductos productos={productos} precargar={4} />
-      <MensajesConfianza mensajes={mensajesDeConfianza(config)} variante="tira" />
+      <MensajesConfianza mensajes={mensajesDeConfianza(config, cuotas)} variante="tira" />
     </section>
   );
 }

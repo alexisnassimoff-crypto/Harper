@@ -168,6 +168,23 @@ enlace manual del paso 2 no toca nada.
 
 Un producto sin variantes activas no aparece en la web.
 
+**Categorías.** El campo `Categoria` acepta exactamente estas, definidas en
+`lib/categorias.ts`: `Anteojos`, `Anteojos de sol`, `Clip-On`,
+`Anteojos de receta`, `Estuches` y `Paños`. Para la primera carga de una nueva
+(por ejemplo, unos de sol), primero se agrega esa opción al campo `Categoria` de
+`Productos` (y al de `Descuentos`, solo si se decide darle una promoción). Una
+categoría sin productos activos no aparece en el menú, el footer, la portada ni
+el sitemap, y su página da 404. Un producto con una categoría que no está en la
+lista no se publica: queda un aviso en el log.
+
+**Características confirmadas.** "Filtro azul · Fotocromáticos", la lista de la
+ficha y la consulta por cristales graduados se muestran solo en los modelos
+confirmados de `lib/caracteristicas.ts` (AMATISTA, OBSIDIANA, CUARZO y
+CITRINO). Un modelo nuevo no hereda nada: hay que confirmarlo y sumarlo ahí. Mientras haya
+un anteojo publicado sin confirmar, la portada no muestra el subtítulo por
+defecto (que afirma filtro azul y fotocromáticos), salvo que se cargue
+`portada_subtitulo` en `Config`.
+
 Campos opcionales de `Productos` que la ficha muestra solo si están cargados
 (nada se inventa si faltan):
 
@@ -187,6 +204,21 @@ anteojo.
 `plazo_entrega` se guarda pero no se le muestra al comprador en ningún lado
 hasta que haya un operador logístico contratado y confirmado.
 
+Datos fiscales en `Config` (vacíos = no se muestra nada; nunca se suponen):
+
+| Clave | Qué es | De dónde sale |
+|---|---|---|
+| `data_fiscal` | El código del Formulario 960/D (Data Fiscal) para harper.ar. Se muestra el logo con su enlace en "Información legal", al pie de la portada | ARCA → Mis Servicios → "Formulario 960 D" → sitio web → campo "Script", pegado tal cual. Solo se usan el enlace `qr.afip.gob.ar`/`qr.arca.gob.ar` y el logo de ARCA |
+| `impuestos_nacionales` | Porcentaje que suman el IVA y otros impuestos nacionales indirectos sobre el precio neto (por ejemplo `21`). Debajo de cada precio aparece "Precio sin impuestos nacionales" (Res. SIyC 4/2025) | El contador |
+| `impuestos_nacionales_<categoría>` | El mismo dato para una categoría con otra alícuota (`anteojos`, `estuches`, `panos`…) | El contador |
+
+**Cuotas.** `NEXT_PUBLIC_CUOTAS` dice cuántas cuotas sin interés se quieren
+anunciar, pero se anuncian solo si Mercado Pago lo confirma: el servidor
+consulta `/v1/payment_methods/installments` (Visa y Mastercard, cache de una
+hora) y exige esas cuotas en todos los bancos, sin interés y con CFT 0. Se
+muestran el monto por cuota que calcula Mercado Pago (con centavos), el
+precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
+
 ## Rutas
 
 | Ruta | Qué hace |
@@ -195,7 +227,6 @@ hasta que haya un operador logístico contratado y confirmado.
 | `POST /api/carrito/resolver` | Devuelve el carrito con precios y stock reales |
 | `POST /api/envio/cotizar` | Precios reales de Correo Argentino para un código postal |
 | `GET /api/envio/sucursales` | Sucursales donde retirar, por provincia |
-| `POST /api/lead` | Guarda el mail apenas se escribe en el checkout |
 | `POST /api/checkout` | Crea el pedido y la preferencia de Mercado Pago |
 | `POST /api/mercadopago/webhook` | Confirma el pago, descuenta stock y manda mails |
 | `POST /api/sync-media` | Espeja fotos y videos a Blob |
@@ -285,6 +316,11 @@ comprador.
 Los tramos viven en la tabla `Descuentos`: categoría, unidades mínimas y porcentaje.
 Aplica el más alto que alcance el pedido.
 
+**Al público se le cuenta solo el primer tramo, en una línea** (en anteojos:
+"Llevá 2 pares y obtenés 5% off en cada uno"). No hay tablas de tramos en las
+fichas ni en el carrito. Los tramos mayores se siguen aplicando igual en el
+servidor y el carrito los muestra como "Descuento".
+
 **Las unidades se cuentan por categoría, no por producto ni por color.** Alguien que
 lleva un M500 negro, un O300 rojo y un R100 marrón está comprando tres estuches. Exigir
 que sean iguales mataría justo la venta variada que interesa.
@@ -301,6 +337,53 @@ como `unit_price` ya descontado, porque MP no acepta importes negativos.
 Si la tabla está vacía o Airtable no responde, se cobra el precio de lista. Degradar
 hacia el precio completo es lo correcto: cobrar de más se reclama, cobrar de menos no
 se descubre nunca.
+
+## Cookies y Meta
+
+La primera visita ve un aviso abajo con **Aceptar**, **Rechazar opcionales** y
+**Preferencias**. No bloquea la navegación ni la compra. La elección queda en
+el navegador (`harper.consentimiento.v1`) y se cambia desde "Preferencias de
+cookies" en el footer.
+
+Sin el "sí" a medición y publicidad no se carga el Meta Pixel, no se crean las
+cookies `_fbp`/`_fbc`, no se guarda de qué anuncio vino y el pedido no lleva
+atribución. El webhook solo avisa la compra a Meta por la Conversions API si el
+pedido trae `publicidad: true` en `Origen`, que el checkout marca únicamente con
+consentimiento. Si la persona retira el consentimiento (en esa pestaña o en
+otra), el píxel se revoca y se borran esas cookies. Sin consentimiento, también
+se borran al entrar las que pudo haber dejado una versión anterior de la tienda.
+
+Límite conocido: para la Conversions API cuenta la elección vigente al enviar
+el checkout. Si alguien revoca entre el envío y la acreditación del pago (por
+ejemplo, un pago en efectivo que tarda días), esa compra igual se le avisa a
+Meta.
+
+Mientras el aviso está abierto, en celular la barra fija de compra no se
+esconde: el aviso tapa la parte de abajo y el botón real podría quedar debajo.
+
+## Mayoría de edad y Términos
+
+El checkout pide una casilla obligatoria: "Soy mayor de edad o cuento con
+autorización de mi representante legal, y acepto los Términos y condiciones."
+Sin fecha de nacimiento. El servidor rechaza el pedido sin esa casilla
+(`validarCliente`). No se guarda entre visitas: se confirma en cada compra.
+
+## Datos de quien no termina la compra
+
+El email y los datos del checkout se guardan en Airtable recién cuando la
+persona envía el pedido (botón "Pagar"), no mientras escribe. Quien no
+termina la compra no queda registrado, y la tienda no manda campañas de
+recuperación ni promociones: las novedades solo van a quien marcó la casilla
+(`Clientes.Acepta_promos`). Cada pedido guarda en `Pedidos.Terminos_aceptados`
+la versión de los Términos aceptada y el momento exacto (`lib/legales.ts`; al
+publicar otra versión de los Términos se cambia `VERSION_TERMINOS`).
+
+## Consultas por cristales graduados
+
+Las fichas de los modelos confirmados, la página de gracias y el mail de compra
+aprobada invitan a consultar por WhatsApp (`Config.whatsapp`). El mensaje lleva
+solo el nombre del modelo o el número de pedido: nunca datos personales ni
+recetas. Harper no vende graduaciones desde la web: es una consulta.
 
 ## Dirección con Google
 

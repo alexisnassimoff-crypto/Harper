@@ -9,6 +9,7 @@
  * Nada de acá manda datos personales: solo productos, cantidades y montos.
  */
 
+import { aceptaPublicidad } from "./consentimiento";
 import { CLAVE_ORIGEN, fbcDesdeClickId, origenVigente, type Origen } from "./origen";
 
 declare global {
@@ -55,15 +56,16 @@ export function datosDeCompra(datos: {
 }
 
 /**
- * Dispara un evento. Si el píxel no está (sin variable, bloqueado, todavía
- * cargando) no pasa nada: el stub de `fbq` encola y listo.
+ * Dispara un evento, solo si la persona aceptó las cookies de medición y
+ * publicidad. Si el píxel no está (sin variable, sin consentimiento,
+ * bloqueado) no pasa nada.
  */
 export function trackPixel(
   evento: string,
   data: Record<string, unknown> = {},
   opciones: { eventID?: string } = {}
 ) {
-  if (typeof window === "undefined" || !window.fbq) return false;
+  if (typeof window === "undefined" || !window.fbq || !aceptaPublicidad()) return false;
 
   if (opciones.eventID) window.fbq("track", evento, data, { eventID: opciones.eventID });
   else window.fbq("track", evento, data);
@@ -111,13 +113,16 @@ export function leerOrigenGuardado(ahora = Date.now()): Origen | null {
 /**
  * Lo que viaja con el pedido: la atribución guardada más las cookies del
  * píxel, que son lo que la Conversions API necesita para cruzar la venta con
- * el click en el anuncio.
+ * el click en el anuncio, y la marca `publicidad: true` que habilita ese
+ * aviso a Meta. Sin consentimiento de medición y publicidad no viaja nada:
+ * el pedido no lleva atribución y Meta no se entera de la compra.
  */
 export function origenParaElPedido(ahora = Date.now()): Origen | null {
+  if (!aceptaPublicidad()) return null;
+
   const guardado = leerOrigenGuardado(ahora) ?? {};
   const fbp = cookie("_fbp");
   const fbc = cookie("_fbc") ?? fbcDesdeClickId(guardado.fbclid, guardado.ts ?? ahora);
 
-  const origen: Origen = { ...guardado, ...(fbp ? { fbp } : {}), ...(fbc ? { fbc } : {}) };
-  return Object.keys(origen).length > 0 ? origen : null;
+  return { ...guardado, ...(fbp ? { fbp } : {}), ...(fbc ? { fbc } : {}), publicidad: true };
 }

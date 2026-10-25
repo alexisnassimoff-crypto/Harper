@@ -1,6 +1,8 @@
 import type { ConfigTienda } from "./config";
 import { precio as formatearPrecio } from "./formato";
 import type { DatosCliente, ItemResuelto } from "./tipos";
+import { caracteristicasDe } from "./caracteristicas";
+import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
 
 const API_RESEND = "https://api.resend.com/emails";
 
@@ -131,7 +133,7 @@ function filasDeItems(items: ItemResuelto[], sitio: string) {
     <strong style="font-weight:500;">${escaparHtml(item.nombre)}</strong><br>
     <span style="color:#78756c;">${escaparHtml(item.color)} · ${item.cantidad} ${item.cantidad === 1 ? "unidad" : "unidades"}</span>${
       item.descuento > 0
-        ? `<br><span style="color:#004226;">${item.descuento}% de descuento por cantidad</span>`
+        ? `<br><span style="color:#004226;">${item.descuento}% de descuento</span>`
         : ""
     }
   </td>
@@ -175,8 +177,19 @@ export type DatosMail = {
   sitio: string;
 };
 
+/**
+ * El enlace para consultar por cristales graduados, solo si el pedido lleva
+ * algún armazón que los admite y hay WhatsApp configurado. El mensaje lleva
+ * el número de pedido y nada más.
+ */
+export function enlaceGraduadosDelPedido(d: Pick<DatosMail, "numero" | "items" | "config">): string | null {
+  const lleva = d.items.some((i) => caracteristicasDe({ slug: i.productoSlug, categoria: i.categoria }) !== null);
+  return lleva ? enlaceWhatsApp(d.config.whatsapp, mensajeGraduadosPedido(d.numero)) : null;
+}
+
 /** 1 — Confirmación de compra para el cliente. */
 export function mailConfirmacion(d: DatosMail): Envio {
+  const graduados = enlaceGraduadosDelPedido(d);
   const direccion = `${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} (CP ${d.cliente.cp})`;
 
   const html = envoltorio(
@@ -197,7 +210,16 @@ ${totales(d.subtotal, d.envio, d.total)}
   <div style="font-size:14px;line-height:1.6;">
     ${escaparHtml(d.cliente.nombre)}<br>${escaparHtml(direccion)}
   </div>
-</div>`,
+</div>${
+      graduados
+        ? `
+
+<div style="margin-top:28px;padding:18px 20px;background:#f2f0ec;border:1px solid #e3e0d8;">
+  <p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:#16150f;">${escaparHtml(TEXTO_GRADUADOS_PEDIDO)}</p>
+  <a href="${escaparHtml(graduados)}" style="font-size:13px;letter-spacing:0.5px;color:#004226;text-decoration:underline;">Consultar por WhatsApp</a>
+</div>`
+        : ""
+    }`,
     d.config
   );
 
@@ -211,7 +233,7 @@ Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
 Total: ${formatearPrecio(d.total)}
 
 Envio a: ${d.cliente.nombre}, ${direccion}
-
+${graduados ? `\n${TEXTO_GRADUADOS_PEDIDO}\nWhatsApp: ${graduados}\n` : ""}
 Consultas: ${d.config.emailContacto}`;
 
   return {

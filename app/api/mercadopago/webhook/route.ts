@@ -113,6 +113,11 @@ async function avisarCompraAMeta(venta: VentaConfirmada) {
     // Un Origen ilegible no impide mandar la compra.
   }
 
+  // Solo si la persona aceptó las cookies de medición y publicidad al
+  // comprar (lo marca el checkout en el Origen del pedido). Sin ese "sí",
+  // Meta no se entera de la compra.
+  if (origen?.publicidad !== true) return;
+
   const evento = armarEventoCompra({
     numero: venta.numero,
     items: venta.items,

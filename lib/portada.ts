@@ -1,10 +1,10 @@
 /**
  * Textos de la portada y de los metadatos del sitio.
  *
- * Todo lo que se afirma acá tiene que ser verificable en el catálogo o en la
- * operación: cuántos modelos hay, con qué se paga, cómo llega. Nada de
- * propiedades ópticas ni certificaciones: esas van en la ficha, cargadas por
- * Ale en Airtable, o no van.
+ * Todo lo que se afirma acá tiene que ser verificable. Las características de
+ * los anteojos (filtro de luz azul, fotocromáticos) las confirmó Ale el
+ * 25/10/2026 para los cuatro modelos publicados; ver lib/caracteristicas.ts.
+ * Nada de certificaciones: no se publican sin documentación que las respalde.
  */
 
 /** Descripción del sitio para buscadores y redes. Anteojos primero. */
@@ -13,30 +13,25 @@ export const DESCRIPCION_SITIO =
 
 export const TITULO_SITIO = "Harper — Anteojos";
 
-const EN_LETRAS = ["", "un", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
-
-function enLetras(n: number) {
-  return EN_LETRAS[n] ?? String(n);
-}
+/**
+ * El subtítulo del hero cuando Config.portada_subtitulo está vacío: qué
+ * vendemos, en una frase. Texto aprobado por Ale el 25/10/2026.
+ */
+export const SUBTITULO_PORTADA =
+  "Anteojos con filtro de luz azul y cristales fotocromáticos. Diseño para todos los días.";
 
 /**
- * El subtítulo del hero cuando Config no trae uno.
- *
- * Se arma con lo que hay publicado, así nunca promete modelos o colores que no
- * están: si mañana se despublica uno, el texto cambia solo.
+ * El subtítulo que va en el hero. Config.portada_subtitulo manda si se cargó.
+ * Si no, la frase aprobada, que afirma filtro azul y fotocromáticos: solo
+ * mientras todos los anteojos publicados tengan esas características
+ * confirmadas. Si se publica uno que no (por ejemplo, unos de sol), el hero
+ * queda sin subtítulo hasta definir uno nuevo, en vez de afirmar algo falso.
  */
-export function subtituloPorDefecto(modelos: number, coloresMaximo: number): string {
-  const cierre = "Comprá online, pagá con Mercado Pago y recibilos en tu casa.";
-
-  if (modelos <= 0) return cierre;
-
-  const cuantos = modelos === 1 ? "Un modelo" : `${capitalizar(enLetras(modelos))} modelos`;
-  const colores =
-    coloresMaximo > 1 ? ` y hasta ${enLetras(coloresMaximo)} colores` : "";
-
-  return `${cuantos}${colores}. ${cierre}`;
-}
-
-function capitalizar(texto: string) {
-  return texto.charAt(0).toUpperCase() + texto.slice(1);
+export function subtituloDeLaPortada(
+  delConfig: string,
+  anteojosPublicados: { confirmado: boolean }[]
+): string {
+  if (delConfig.trim()) return delConfig.trim();
+  const todos = anteojosPublicados.length > 0 && anteojosPublicados.every((a) => a.confirmado);
+  return todos ? SUBTITULO_PORTADA : "";
 }

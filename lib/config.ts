@@ -1,5 +1,6 @@
 import { listRecords, TABLAS } from "./airtable";
 import { aNumero } from "./formato";
+import { leerImpuestos, SIN_IMPUESTOS_CARGADOS, type ImpuestosNacionales } from "./impuestos";
 
 /**
  * Ajustes de la tienda, editables desde la tabla Config de Airtable
@@ -39,6 +40,16 @@ export type ConfigTienda = {
    * portada muestra una foto del catálogo (el primer anteojo publicado).
    */
   portadaImagen: string;
+  /**
+   * El código del Formulario 960/D (Data Fiscal) tal como lo entrega ARCA,
+   * clave `data_fiscal`. Vacío = no se muestra. Ver lib/data-fiscal.ts.
+   */
+  dataFiscal: string;
+  /**
+   * Para el "Precio sin impuestos nacionales" (Res. SIyC 4/2025). Sin dato
+   * cargado no se muestra. Ver lib/impuestos.ts.
+   */
+  impuestosNacionales: ImpuestosNacionales;
 };
 
 /**
@@ -66,6 +77,8 @@ const POR_DEFECTO: ConfigTienda = {
   portadaTitulo: "",
   portadaSubtitulo: "",
   portadaImagen: "",
+  dataFiscal: "",
+  impuestosNacionales: SIN_IMPUESTOS_CARGADOS,
 };
 
 type FilaConfig = { Clave?: string; Valor?: string };
@@ -123,6 +136,8 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
     portadaTitulo: texto("portada_titulo", POR_DEFECTO.portadaTitulo),
     portadaSubtitulo: texto("portada_subtitulo", POR_DEFECTO.portadaSubtitulo),
     portadaImagen: texto("portada_imagen", POR_DEFECTO.portadaImagen),
+    dataFiscal: texto("data_fiscal", POR_DEFECTO.dataFiscal),
+    impuestosNacionales: leerImpuestos(mapa),
   };
 }
 
