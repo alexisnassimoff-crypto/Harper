@@ -91,12 +91,16 @@ export default function AvisoCookies() {
   }, [visible]);
 
   // El panel recibe el foco al abrirse. Escape lo cierra: si todavía no
-  // eligió, vuelve al aviso compacto; si ya había elegido, se va todo.
+  // eligió, vuelve al aviso compacto; si ya había elegido, se va todo. Solo
+  // con el foco adentro del panel: un Escape en un campo del checkout (por
+  // ejemplo, para cerrar las sugerencias de dirección) es de ese campo.
   useEffect(() => {
     if (!panel) return;
     dialogo.current?.focus();
     function alTeclear(e: KeyboardEvent) {
-      if (e.key === "Escape") cerrarPanel(Boolean(leerConsentimiento()));
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (!dialogo.current?.contains(document.activeElement)) return;
+      cerrarPanel(Boolean(leerConsentimiento()));
     }
     window.addEventListener("keydown", alTeclear);
     return () => window.removeEventListener("keydown", alTeclear);
@@ -107,15 +111,21 @@ export default function AvisoCookies() {
   }
 
   function cerrarPanel(cerrarTodo: boolean) {
+    // El foco se mueve solo si estaba en el aviso o en el panel: si la
+    // persona ya estaba en otra parte de la página, se queda donde está.
+    const activo = document.activeElement;
+    const enElAviso = activo instanceof Element && activo.closest(".cookies") !== null;
     setPanel(false);
     if (cerrarTodo) setVisible(false);
     const destino = vuelta.current;
     vuelta.current = null;
-    // Después de que React saque el panel: el foco vuelve a donde estaba (el
-    // enlace del pie) o, si se abrió desde el aviso, a su "Preferencias".
+    if (!enElAviso) return;
+    // Después de que React saque el panel: a donde estaba (el enlace del pie),
+    // al "Preferencias" del aviso si sigue, o al contenido de la página.
     requestAnimationFrame(() => {
       if (destino?.isConnected) destino.focus();
-      else botonPreferencias.current?.focus();
+      else if (botonPreferencias.current) botonPreferencias.current.focus();
+      else document.getElementById("contenido")?.focus({ preventScroll: true });
     });
   }
 

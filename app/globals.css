@@ -2278,6 +2278,12 @@ p {
   text-transform: uppercase;
   color: rgb(255 255 255 / 0.66);
 }
+/* El contenido recibe el foco (salto desde "Saltar al contenido" o al cerrar
+   el aviso de cookies) sin dibujar un marco alrededor de toda la página. */
+#contenido:focus {
+  outline: none;
+}
+
 /* Un botón que se ve como un enlace (abre las preferencias de cookies). */
 .enlace-boton {
   background: none;

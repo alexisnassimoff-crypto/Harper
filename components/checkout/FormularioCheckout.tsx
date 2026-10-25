@@ -379,19 +379,28 @@ export default function FormularioCheckout({
    * verdad se ve y, si no entra, se lo centra en ella.
    */
   function mostrarEntreCapasFijas(bloque: HTMLElement) {
-    const arriba = document.querySelector("header")?.getBoundingClientRect().bottom ?? 0;
-    let abajo = window.innerHeight;
-    for (const capa of document.querySelectorAll<HTMLElement>(".cta-fija, .cookies")) {
-      const r = capa.getBoundingClientRect();
-      if (r.height > 0 && r.top < abajo && r.bottom > arriba) abajo = r.top;
+    // Se mide, se desplaza y se vuelve a medir: al bajar, la franja de
+    // promoción se va y el header queda pegado arriba, y eso corre la franja
+    // visible. Con dos o tres vueltas queda donde tiene que estar.
+    for (let vuelta = 0; vuelta < 3; vuelta++) {
+      if (!bloque.isConnected) return;
+      const arriba = Math.max(0, document.querySelector("header")?.getBoundingClientRect().bottom ?? 0);
+      let abajo = window.innerHeight;
+      for (const capa of document.querySelectorAll<HTMLElement>(".cta-fija, .cookies")) {
+        const r = capa.getBoundingClientRect();
+        if (r.height > 0 && r.top < abajo && r.bottom > arriba) abajo = r.top;
+      }
+      const { top, bottom } = bloque.getBoundingClientRect();
+      if (top >= arriba && bottom <= abajo) return;
+      const alto = bottom - top;
+      const franja = abajo - arriba;
+      // Si no entra entero, que se vea desde arriba (etiqueta y campo primero).
+      const desplazar = alto > franja ? top - arriba - 8 : (top + bottom) / 2 - (arriba + abajo) / 2;
+      if (Math.abs(desplazar) < 1) return;
+      const antes = window.scrollY;
+      window.scrollBy({ top: desplazar, behavior: "instant" });
+      if (window.scrollY === antes) return; // Tope de la página: no hay más para mover.
     }
-    const { top, bottom } = bloque.getBoundingClientRect();
-    if (top >= arriba && bottom <= abajo) return;
-    const alto = bottom - top;
-    const franja = abajo - arriba;
-    // Si no entra entero, que se vea desde arriba (etiqueta y campo primero).
-    const desplazar = alto > franja ? top - arriba - 8 : (top + bottom) / 2 - (arriba + abajo) / 2;
-    window.scrollBy({ top: desplazar });
   }
 
   /** Los datos del pedido tal como viajan: con el piso o depto en la dirección. */

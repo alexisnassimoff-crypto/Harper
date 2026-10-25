@@ -127,7 +127,7 @@ export default async function RootLayout({
             Saltar al contenido
           </a>
           <Header banner={config.bannerTexto} categorias={categorias} />
-          <main id="contenido">
+          <main id="contenido" tabIndex={-1}>
             <TransicionDePagina>{children}</TransicionDePagina>
           </main>
           <Footer config={config} categorias={categorias} />

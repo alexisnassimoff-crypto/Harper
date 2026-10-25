@@ -25,9 +25,33 @@ import {
  */
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
 
+/**
+ * Si se encoló el `init` y todavía no se ejecutó. Un rechazo que llega antes
+ * de que baje el script de Meta vacía la cola (si no, el `init` y el PageView
+ * ya encolados saldrían igual al cargar) y obliga a un `init` nuevo si después
+ * vuelve a aceptar.
+ */
+let iniciado = false;
+
+/** Revoca el píxel. Si el script todavía no corrió, descarta lo encolado. */
+function revocarPixel() {
+  const fbq: any = window.fbq;
+  if (!fbq) return;
+  if (!fbq.callMethod && Array.isArray(fbq.queue)) {
+    fbq.queue.length = 0;
+    iniciado = false;
+  }
+  fbq("consent", "revoke");
+}
+
 function cargarPixel() {
   if (window.fbq) {
+    // Primero el permiso: si quedó un "revoke" en la cola, el init va después.
     window.fbq("consent", "grant");
+    if (!iniciado) {
+      window.fbq("init", PIXEL_ID);
+      iniciado = true;
+    }
     return;
   }
   const n: any = (window.fbq = function (...args: unknown[]) {
@@ -43,6 +67,7 @@ function cargarPixel() {
   s.src = "https://connect.facebook.net/en_US/fbevents.js";
   document.head.appendChild(s);
   window.fbq("init", PIXEL_ID);
+  iniciado = true;
 }
 
 export default function MetaPixel() {
@@ -61,7 +86,7 @@ export default function MetaPixel() {
       const si = dato?.publicidad === true;
       setPermitido(si);
       if (!si) {
-        if (window.fbq) window.fbq("consent", "revoke");
+        revocarPixel();
         borrarRastrosPublicitarios(CLAVE_ORIGEN);
       }
     });

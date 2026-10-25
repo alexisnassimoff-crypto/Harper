@@ -62,7 +62,14 @@ export function guardarConsentimiento(publicidad: boolean, ahora = new Date()): 
   try {
     window.localStorage.setItem(CLAVE_CONSENTIMIENTO, JSON.stringify(dato));
   } catch {
-    // Sin almacenamiento la elección vale para esta visita.
+    // Sin almacenamiento la elección vale para esta visita. Si no se pudo
+    // escribir pero había una elección vieja guardada (por ejemplo un "sí"),
+    // se borra: borrar no necesita lugar, y así no le gana a la nueva.
+    try {
+      window.localStorage.removeItem(CLAVE_CONSENTIMIENTO);
+    } catch {
+      // Tampoco se puede leer: manda la de memoria.
+    }
   }
   window.dispatchEvent(new CustomEvent(EVENTO_CONSENTIMIENTO, { detail: dato }));
   return dato;
