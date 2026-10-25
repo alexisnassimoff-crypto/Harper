@@ -16,6 +16,7 @@ const TABLAS_HARPER = {
   clientes: "tblsaNGzIXaeK8aJM",
   config: "tblMyAedM5pvVijLf",
   descuentos: "tblYkgJW6Bi0Fx048",
+  arrepentimientos: "tblgag8YwduSiTWfx",
 };
 
 export type NombreTabla = keyof typeof TABLAS_HARPER;

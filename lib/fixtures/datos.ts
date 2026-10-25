@@ -292,6 +292,7 @@ export function tablasIniciales(): Map<string, RegistroFixture[]> {
     [TABLAS.descuentos, estructurar(DESCUENTOS)],
     [TABLAS.pedidos, estructurar(PEDIDOS)],
     [TABLAS.clientes, []],
+    [TABLAS.arrepentimientos, []],
   ]);
 }
 
