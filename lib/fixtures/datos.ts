@@ -237,6 +237,10 @@ export const CONFIG: RegistroFixture[] = [
   config("cp_origen", "1429"),
   config("embalaje_margen_cm", "1"),
   config("embalaje_peso_g", "30"),
+  // Solo para probar cómo se ven. NO son datos reales: el código de Data
+  // Fiscal lo entrega ARCA y la alícuota la define el contador.
+  config("data_fiscal", "https://qr.afip.gob.ar/?qr=PRUEBA-NO-ES-REAL"),
+  config("impuestos_nacionales", "21"),
 ];
 
 function descuento(categoria: string, desde: number, porcentaje: number): RegistroFixture {

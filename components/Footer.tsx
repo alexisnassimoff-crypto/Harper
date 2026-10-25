@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ConfigTienda } from "@/lib/config";
+import { leerDataFiscal } from "@/lib/data-fiscal";
 import { EnlacePreferenciasCookies } from "./AvisoCookies";
 import Logo from "./Logo";
 
@@ -30,6 +31,7 @@ export default function Footer({
   const whatsapp = config.whatsapp ? `https://wa.me/${config.whatsapp}` : null;
   const telefono = config.whatsapp ? telefonoLegible(config.whatsapp) : "";
   const anio = new Date().getFullYear();
+  const dataFiscal = leerDataFiscal(config.dataFiscal);
 
   return (
     <footer className="pie">
@@ -120,6 +122,24 @@ export default function Footer({
             </div>
           ) : null}
         </dl>
+        {dataFiscal ? (
+          // Formulario 960/D de ARCA: el logo y el enlace son los que entrega
+          // ARCA para harper.ar (Config.data_fiscal). Sin código, no se muestra.
+          <a
+            className="pie__data-fiscal"
+            href={dataFiscal.enlace}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Data Fiscal (ARCA): información fiscal del vendedor"
+          >
+            {dataFiscal.imagen ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={dataFiscal.imagen} alt="Data Fiscal" loading="lazy" decoding="async" />
+            ) : (
+              "Data Fiscal"
+            )}
+          </a>
+        ) : null}
         <p className="pie__copy">
           © {anio} Harper. Harper es una marca de {config.razonSocial}.
         </p>

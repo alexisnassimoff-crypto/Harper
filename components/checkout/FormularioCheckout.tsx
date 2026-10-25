@@ -5,13 +5,12 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
-import { cuotasActivas } from "@/lib/cuotas";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, EleccionEnvio } from "@/lib/tipos";
-import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
+import { validarCliente, type ErroresCliente } from "@/lib/validacion";
 import { useAvisoCookiesAbierto } from "@/components/AvisoCookies";
 import BarraPagar from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
@@ -226,31 +225,9 @@ export default function FormularioCheckout({
     return () => window.removeEventListener("pageshow", alVolver);
   }, []);
 
-  // Captura temprana del mail: si abandona a mitad, el contacto igual queda
-  // registrado y se le puede escribir después. Sin el consentimiento de
-  // promociones: eso se guarda recién al comprar, con lo que haya marcado.
-  const mailAvisado = useRef<string>("");
-
-  useEffect(() => {
-    const email = form.email.trim().toLowerCase();
-
-    if (!emailValido(email) || email === mailAvisado.current) return;
-
-    const id = window.setTimeout(() => {
-      mailAvisado.current = email;
-
-      fetch("/api/lead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, nombre: form.nombre }),
-        keepalive: true,
-      }).catch(() => {
-        // Es best-effort: nunca puede frenar ni romper la compra.
-      });
-    }, 1200);
-
-    return () => window.clearTimeout(id);
-  }, [form.email, form.nombre]);
+  // El email no se guarda mientras se escribe: recién al enviar el pedido.
+  // Sin una base legal y el consentimiento que correspondan, quien no
+  // terminó la compra no recibe campañas de recuperación ni promociones.
 
   // InitiateCheckout: una vez por visita al checkout, con el carrito ya
   // resuelto (valor e ítems reales). Ni con carrito vacío ni al volver de un
@@ -845,11 +822,9 @@ export default function FormularioCheckout({
         </button>
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
-          Pagás en Mercado Pago:{" "}
-          {cuotasActivas()
-            ? `${cuotasActivas()} cuotas sin interés con tarjeta, débito o`
-            : "tarjeta en cuotas, débito o"}{" "}
-          dinero en cuenta.
+          Pagás en Mercado Pago con tarjeta de crédito o débito, o con dinero en
+          cuenta. Las cuotas disponibles y su costo los ves en Mercado Pago antes
+          de confirmar el pago.
         </p>
       </aside>
 

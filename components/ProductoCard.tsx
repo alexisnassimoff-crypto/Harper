@@ -6,7 +6,7 @@ import FotoCruzada from "./FotoCruzada";
 import { useDeslizar } from "./useDeslizar";
 import { useCarrito } from "./carrito/CarritoContexto";
 import { caracteristicasDe } from "@/lib/caracteristicas";
-import { precio as formatearPrecio } from "@/lib/formato";
+import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { rutaDeVariante } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
@@ -15,8 +15,11 @@ export default function ProductoCard({
   producto,
   prioridad = false,
   inicial = 0,
+  precioSinImpuestos = null,
 }: {
   producto: Producto;
+  /** El neto para la leyenda de la Res. SIyC 4/2025; null si no hay dato. */
+  precioSinImpuestos?: number | null;
   /** Solo para las primeras tarjetas visibles: precarga la imagen. */
   prioridad?: boolean;
   /** Color con el que abre la ficha; lo reparte la grilla para no repetir. */
@@ -123,6 +126,11 @@ export default function ProductoCard({
             <s className="apagado">{formatearPrecio(producto.precioAnterior)}</s>
           ) : null}
         </div>
+        {precioSinImpuestos !== null ? (
+          <small className="precio-sin-impuestos">
+            Precio sin impuestos nacionales: {precioConCentavos(precioSinImpuestos)}
+          </small>
+        ) : null}
 
         {producto.variantes.length > 1 ? (
           <div

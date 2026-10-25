@@ -1,5 +1,5 @@
 import type { ConfigTienda } from "./config";
-import { cuotasActivas } from "./cuotas";
+import { NOMBRE_MARCAS, type CuotasVerificadas } from "./cuotas";
 import { precio as formatearPrecio } from "./formato";
 
 /**
@@ -35,9 +35,12 @@ export type Confianza = {
 
 export type DatosConfianza = Pick<ConfigTienda, "envioGratisDesde">;
 
-export function mensajesDeConfianza(config: DatosConfianza): Confianza[] {
+/**
+ * `cuotas`: solo las que Mercado Pago confirmó sin interés y con CFT 0 (ver
+ * lib/cuotas.ts). Sin eso, no se anuncian cuotas.
+ */
+export function mensajesDeConfianza(config: DatosConfianza, cuotas: CuotasVerificadas | null = null): Confianza[] {
   const mensajes: Confianza[] = [];
-  const cuotas = cuotasActivas();
 
   mensajes.push({
     clave: "pago",
@@ -48,8 +51,8 @@ export function mensajesDeConfianza(config: DatosConfianza): Confianza[] {
   if (cuotas) {
     mensajes.push({
       clave: "cuotas",
-      texto: `${cuotas} cuotas sin interés`,
-      detalle: "Con tarjeta de crédito",
+      texto: `${cuotas.cuotas} cuotas sin interés`,
+      detalle: `${NOMBRE_MARCAS} · CFTEA ${cuotas.cftea}`,
     });
   }
 

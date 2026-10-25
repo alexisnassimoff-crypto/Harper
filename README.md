@@ -204,6 +204,21 @@ anteojo.
 `plazo_entrega` se guarda pero no se le muestra al comprador en ningún lado
 hasta que haya un operador logístico contratado y confirmado.
 
+Datos fiscales en `Config` (vacíos = no se muestra nada; nunca se suponen):
+
+| Clave | Qué es | De dónde sale |
+|---|---|---|
+| `data_fiscal` | El código del Formulario 960/D (Data Fiscal) para harper.ar. Se muestra el logo con su enlace en "Información legal", al pie de la portada | ARCA → Mis Servicios → "Formulario 960 D" → sitio web → campo "Script", pegado tal cual. Solo se usan el enlace `qr.afip.gob.ar`/`qr.arca.gob.ar` y el logo de ARCA |
+| `impuestos_nacionales` | Porcentaje que suman el IVA y otros impuestos nacionales indirectos sobre el precio neto (por ejemplo `21`). Debajo de cada precio aparece "Precio sin impuestos nacionales" (Res. SIyC 4/2025) | El contador |
+| `impuestos_nacionales_<categoría>` | El mismo dato para una categoría con otra alícuota (`anteojos`, `estuches`, `panos`…) | El contador |
+
+**Cuotas.** `NEXT_PUBLIC_CUOTAS` dice cuántas cuotas sin interés se quieren
+anunciar, pero se anuncian solo si Mercado Pago lo confirma: el servidor
+consulta `/v1/payment_methods/installments` (Visa y Mastercard, cache de una
+hora) y exige esas cuotas en todos los bancos, sin interés y con CFT 0. Se
+muestran el monto por cuota que calcula Mercado Pago (con centavos), el
+precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
+
 ## Rutas
 
 | Ruta | Qué hace |
@@ -212,7 +227,6 @@ hasta que haya un operador logístico contratado y confirmado.
 | `POST /api/carrito/resolver` | Devuelve el carrito con precios y stock reales |
 | `POST /api/envio/cotizar` | Precios reales de Correo Argentino para un código postal |
 | `GET /api/envio/sucursales` | Sucursales donde retirar, por provincia |
-| `POST /api/lead` | Guarda el mail apenas se escribe en el checkout |
 | `POST /api/checkout` | Crea el pedido y la preferencia de Mercado Pago |
 | `POST /api/mercadopago/webhook` | Confirma el pago, descuenta stock y manda mails |
 | `POST /api/sync-media` | Espeja fotos y videos a Blob |
@@ -353,6 +367,16 @@ El checkout pide una casilla obligatoria: "Soy mayor de edad o cuento con
 autorización de mi representante legal, y acepto los Términos y condiciones."
 Sin fecha de nacimiento. El servidor rechaza el pedido sin esa casilla
 (`validarCliente`). No se guarda entre visitas: se confirma en cada compra.
+
+## Datos de quien no termina la compra
+
+El email y los datos del checkout se guardan en Airtable recién cuando la
+persona envía el pedido (botón "Pagar"), no mientras escribe. Quien no
+termina la compra no queda registrado, y la tienda no manda campañas de
+recuperación ni promociones: las novedades solo van a quien marcó la casilla
+(`Clientes.Acepta_promos`). Cada pedido guarda en `Pedidos.Terminos_aceptados`
+la versión de los Términos aceptada y el momento exacto (`lib/legales.ts`; al
+publicar otra versión de los Términos se cambia `VERSION_TERMINOS`).
 
 ## Consultas por cristales graduados
 

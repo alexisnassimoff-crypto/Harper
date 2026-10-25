@@ -645,6 +645,22 @@ p {
   }
 }
 
+/* "Precio sin impuestos nacionales" (Res. SIyC 4/2025): debajo del precio
+   final y en letra más chica, como pide la norma. */
+.precio-sin-impuestos {
+  display: block;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+/* Las condiciones de las cuotas (contado y CFTEA), debajo de la cuota. */
+.cuotas-condiciones {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
 /* La consulta por cristales graduados: una línea discreta en la ficha. */
 .consulta-graduados {
   font-size: 0.875rem;
@@ -2333,6 +2349,20 @@ p {
 .pie__datos a {
   text-decoration: underline;
   text-underline-offset: 0.18em;
+}
+/* Data Fiscal (F. 960/D de ARCA): el logo, chico y sobre blanco como lo entrega ARCA. */
+.pie__data-fiscal {
+  justify-self: start;
+  display: inline-flex;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.pie__data-fiscal img {
+  display: block;
+  height: 4rem;
+  width: auto;
+  border-radius: 2px;
 }
 .pie__copy {
   font-size: 0.75rem;

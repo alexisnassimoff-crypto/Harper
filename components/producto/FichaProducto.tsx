@@ -15,8 +15,8 @@ import ConsultaGraduados from "./ConsultaGraduados";
 import OfertaCantidad from "./OfertaCantidad";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import type { Confianza } from "@/lib/confianza";
-import { importeCuota } from "@/lib/cuotas";
-import { precio as formatearPrecio } from "@/lib/formato";
+import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
+import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import {
   armarGaleria,
@@ -33,6 +33,7 @@ export default function FichaProducto({
   varianteInicial,
   confianza = [],
   cuotas = null,
+  precioSinImpuestos = null,
   whatsapp = null,
 }: {
   producto: Producto;
@@ -40,8 +41,10 @@ export default function FichaProducto({
   /** Índice del color con el que abre. Lo decide el servidor según la URL. */
   varianteInicial?: number;
   confianza?: Confianza[];
-  /** Cuotas sin interés activas en Mercado Pago, o null si no hay. */
-  cuotas?: number | null;
+  /** Cuotas sin interés confirmadas por Mercado Pago para este precio, o null. */
+  cuotas?: CuotasVerificadas | null;
+  /** El neto para la leyenda de la Res. SIyC 4/2025; null si no hay dato. */
+  precioSinImpuestos?: number | null;
   /** WhatsApp de la tienda, para la consulta por cristales graduados. */
   whatsapp?: string | null;
 }) {
@@ -166,10 +169,14 @@ export default function FichaProducto({
     iniciarTransicion(() => router.push("/checkout"));
   }
 
-  const cuotaTexto =
-    cuotas && cuotas > 1
-      ? `${cuotas} cuotas sin interés de ${formatearPrecio(importeCuota(producto.precio, cuotas))}`
-      : null;
+  // Res. SIyC 4/2025, art. 2 inc. d: cantidad y monto de cada cuota (el de
+  // Mercado Pago, con centavos), precio de contado y CFTEA.
+  const cuotaTexto = cuotas
+    ? `${cuotas.cuotas} cuotas sin interés de ${precioConCentavos(cuotas.montoCuota)}`
+    : null;
+  const cuotaCondiciones = cuotas
+    ? `Precio de contado ${formatearPrecio(producto.precio)} · CFTEA ${cuotas.cftea} · ${NOMBRE_MARCAS}`
+    : null;
 
   const medidas = producto.medidas
     ? [
@@ -365,11 +372,18 @@ export default function FichaProducto({
             ) : null}
           </div>
 
+          {precioSinImpuestos !== null ? (
+            <small className="precio-sin-impuestos">
+              Precio sin impuestos nacionales: {precioConCentavos(precioSinImpuestos)}
+            </small>
+          ) : null}
+
           {cuotaTexto ? (
             <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--verde)" }}>
               {cuotaTexto}
             </span>
           ) : null}
+          {cuotaCondiciones ? <span className="cuotas-condiciones">{cuotaCondiciones}</span> : null}
         </div>
 
         {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}
@@ -521,7 +535,7 @@ export default function FichaProducto({
         visible={(!compraEnPantalla || avisoCookies) && !variante.agotada}
         nombre={`${producto.nombre} · ${variante.color}`}
         precio={formatearPrecio(producto.precio)}
-        detalle={cuotaTexto}
+        detalle={cuotas ? `${cuotas.cuotas} cuotas de ${precioConCentavos(cuotas.montoCuota)} · CFTEA ${cuotas.cftea}` : null}
         ocupado={enTransicion}
         alComprar={comprarAhora}
       />

@@ -9,6 +9,7 @@ import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
+import { verificarCuotasPara } from "@/lib/cuotas-servidor";
 import { DESCRIPCION_SITIO, subtituloDeLaPortada, TITULO_SITIO } from "@/lib/portada";
 
 export const revalidate = 60;
@@ -51,7 +52,10 @@ export default async function Home() {
     deAnteojos.map((p) => ({ confirmado: caracteristicasDe(p) !== null }))
   );
 
-  const confianza = mensajesDeConfianza(config);
+  // Las cuotas se anuncian solo si Mercado Pago las confirma para el precio
+  // más bajo de lo publicado (así valen para todo lo que se ve).
+  const cuotas = await verificarCuotasPara(productos.map((p) => p.precio));
+  const confianza = mensajesDeConfianza(config, cuotas);
 
   return (
     <>

@@ -29,39 +29,6 @@ async function buscarPorEmail(email: string) {
   return encontrados[0] ?? null;
 }
 
-/**
- * Registra el mail apenas el comprador lo escribe, antes de terminar la compra.
- *
- * Si abandona a mitad, el contacto igual queda guardado y se lo puede recuperar.
- * Nunca pisa datos de un cliente que ya compró.
- *
- * El consentimiento para promociones NO se toca acá: el comprador todavía no
- * vio ni marcó la casilla. Se guarda recién en el checkout, con lo que eligió.
- */
-export async function registrarLead(datos: { email: string; nombre?: string }) {
-  const existente = await buscarPorEmail(datos.email);
-
-  if (existente) {
-    // Si ya compró alguna vez, no lo marcamos como abandono.
-    if (existente.fields.Ultima_compra) return existente.id;
-
-    await updateRecord<FilaCliente>(TABLAS.clientes, existente.id, {
-      Nombre: datos.nombre?.trim() || existente.fields.Nombre,
-      Carrito_abandonado: true,
-    });
-
-    return existente.id;
-  }
-
-  const creado = await createRecord<FilaCliente>(TABLAS.clientes, {
-    Email: datos.email.toLowerCase(),
-    Nombre: datos.nombre?.trim() || undefined,
-    Carrito_abandonado: true,
-  });
-
-  return creado.id;
-}
-
 /** Crea o actualiza el cliente con los datos completos del checkout. */
 export async function guardarCliente(datos: DatosCliente): Promise<string> {
   const existente = await buscarPorEmail(datos.email);

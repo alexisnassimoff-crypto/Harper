@@ -10,6 +10,18 @@ export function precio(valor: number) {
   return formateador.format(valor);
 }
 
+const conCentavos = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "ARS",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/** Con centavos: cuotas y precio sin impuestos, que no son pesos enteros. */
+export function precioConCentavos(valor: number) {
+  return conCentavos.format(valor);
+}
+
 /** Convierte un texto de Airtable a número, tolerando vacíos y separadores. */
 export function aNumero(valor: unknown, porDefecto = 0): number {
   if (typeof valor === "number" && Number.isFinite(valor)) return valor;

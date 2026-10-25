@@ -6,6 +6,7 @@ import { getProductos } from "@/lib/catalogo";
 import { CATEGORIAS, categoriaPorSlug } from "@/lib/categorias";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
+import { verificarCuotasPara } from "@/lib/cuotas-servidor";
 
 export const revalidate = 60;
 
@@ -47,6 +48,8 @@ export default async function PaginaCategoria({ params }: { params: Promise<{ ca
 
   const [productos, config] = await Promise.all([getProductos(info.nombre), getConfig()]);
   if (productos.length === 0) notFound();
+  // Cuotas solo si Mercado Pago las confirma para el precio más bajo del listado.
+  const cuotas = await verificarCuotasPara(productos.map((p) => p.precio));
 
   return (
     <section className="contenedor seccion seccion--pagina">
@@ -54,7 +57,7 @@ export default async function PaginaCategoria({ params }: { params: Promise<{ ca
         <h1 className="titulo">{info.nombre}</h1>
       </div>
       <GrillaProductos productos={productos} precargar={4} />
-      <MensajesConfianza mensajes={mensajesDeConfianza(config)} variante="tira" />
+      <MensajesConfianza mensajes={mensajesDeConfianza(config, cuotas)} variante="tira" />
     </section>
   );
 }

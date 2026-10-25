@@ -1,4 +1,6 @@
 import ProductoCard from "./ProductoCard";
+import { getConfig } from "@/lib/config";
+import { netoDe } from "@/lib/impuestos";
 import Revelar from "./Revelar";
 import type { Producto } from "@/lib/tipos";
 
@@ -16,7 +18,7 @@ import type { Producto } from "@/lib/tipos";
  *  - `precargar`: cuántas fotos se piden con prioridad. Solo las que quedan
  *    arriba del fold; el resto compite con ellas y las demora.
  */
-export default function GrillaProductos({
+export default async function GrillaProductos({
   productos,
   compacta = false,
   animar = false,
@@ -36,12 +38,19 @@ export default function GrillaProductos({
   }
 
   const iniciales = coloresIniciales(productos);
+  // "Precio sin impuestos nacionales" debajo de cada precio, si el dato está en Config.
+  const { impuestosNacionales } = await getConfig();
 
   return (
     <div className={compacta ? "grilla grilla--compacta" : "grilla"}>
       {productos.map((p, i) => {
         const tarjeta = (
-          <ProductoCard producto={p} prioridad={i < precargar} inicial={iniciales[i]} />
+          <ProductoCard
+            producto={p}
+            prioridad={i < precargar}
+            inicial={iniciales[i]}
+            precioSinImpuestos={netoDe(impuestosNacionales, p.categoria, p.precio)}
+          />
         );
 
         // El retraso se reinicia por fila para que la cascada no se alargue
