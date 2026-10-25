@@ -9,8 +9,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
-import EscaleraPrecios from "@/components/EscaleraPrecios";
 import CtaFija from "./CtaFija";
+import OfertaCantidad from "./OfertaCantidad";
+import { caracteristicasDe } from "@/lib/caracteristicas";
 import type { Confianza } from "@/lib/confianza";
 import { importeCuota } from "@/lib/cuotas";
 import { precio as formatearPrecio } from "@/lib/formato";
@@ -53,8 +54,8 @@ export default function FichaProducto({
   const variante = producto.variantes[indiceVariante];
   const yaEnCarrito = items.some((i) => i.varianteId === variante.id);
 
-  // Lo que ya hay en el carrito de esta categoría: la escalera de precios se
-  // va llenando a medida que el visitante agrega, que es todo el chiste.
+  // Lo que ya hay en el carrito de esta categoría: la oferta pasa de "llevá
+  // 2" a "sumá 1 más" y a "ya lo tenés" a medida que el visitante agrega.
   const { datos: carritoResuelto } = useCarritoResuelto();
   const unidadesEnCategoria = (carritoResuelto?.items ?? [])
     .filter((i) => i.categoria === producto.categoria)
@@ -173,6 +174,10 @@ export default function FichaProducto({
     producto.material ? { nombre: "Armazón", valor: producto.material } : null,
     producto.lentes ? { nombre: "Lentes", valor: producto.lentes } : null,
   ].filter((d): d is { nombre: string; valor: string } => d !== null);
+
+  // Qué se compra, dicho arriba: solo en los modelos con las características
+  // confirmadas (lib/caracteristicas.ts).
+  const caracteristicas = caracteristicasDe(producto);
 
   return (
     <div className="contenedor ficha-producto">
@@ -358,6 +363,15 @@ export default function FichaProducto({
           ) : null}
         </div>
 
+        {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}
+        {caracteristicas ? (
+          <ul className="caracteristicas" aria-label="Características">
+            {caracteristicas.lista.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        ) : null}
+
         {/* Selector de color */}
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
           <legend className="label" style={{ marginBottom: "0.75rem" }}>
@@ -434,9 +448,10 @@ export default function FichaProducto({
 
         <MensajesConfianza mensajes={confianza} variante="lista" />
 
-        {/* El descuento por cantidad se muestra acá y no recién en el carrito:
-            si la idea aparece después de decidir, ya es tarde. */}
-        <EscaleraPrecios
+        {/* La oferta por cantidad se cuenta acá, en una línea, y no recién en
+            el carrito: si la idea aparece después de decidir, ya es tarde. La
+            escalera completa, con todos los tramos, está en el carrito. */}
+        <OfertaCantidad
           tramos={tramos}
           categoria={producto.categoria}
           precioLista={producto.precio}

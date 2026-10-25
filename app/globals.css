@@ -727,6 +727,58 @@ p {
   }
 }
 
+/* La oferta por cantidad de la ficha: una línea y su aclaración, sin tabla. */
+.oferta-cantidad {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo-alt);
+}
+.oferta-cantidad__linea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  font-size: 0.9375rem;
+}
+.oferta-cantidad strong {
+  font-weight: 600;
+}
+.oferta-cantidad__detalle {
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+}
+
+/* Qué se está comprando, debajo del precio de la ficha. Una tilde fina en
+   verde por punto: se lee como información, no como publicidad. */
+.caracteristicas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+.caracteristicas li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+.caracteristicas li::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.32rem;
+  height: 0.62rem;
+  border: solid var(--verde);
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-0.12rem) rotate(45deg);
+}
+
 /* ---------- Carrito: actualización y errores ---------- */
 
 /* Mientras se vuelve a consultar el servidor, lo que ya se veía sigue ahí,
@@ -1244,6 +1296,8 @@ p {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0 1.1rem 1.1rem;
+  /* Para que la línea de rasgos se acomode al ancho de la tarjeta. */
+  container-type: inline-size;
 }
 /* Mismo tratamiento que los títulos de sección: Raleway ya era la familia en
    todo el sitio, pero acá el texto iba con tracking abierto (+0.06em) contra el
@@ -1256,6 +1310,34 @@ p {
 }
 .ficha:hover .ficha__titulo {
   color: var(--verde);
+}
+/* Lo que distingue al modelo, en voz baja: debajo del nombre, chico y apagado.
+   En una línea con un punto medio cuando entra; en una tarjeta angosta (dos
+   columnas en celular), una debajo de la otra y sin el punto, para que nunca
+   quede colgando al final de un renglón. */
+.ficha__rasgos {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.45em;
+  margin-top: -0.2rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.ficha__rasgo + .ficha__rasgo::before {
+  content: "·";
+  margin-right: 0.45em;
+}
+@container (max-width: 15rem) {
+  .ficha__rasgos {
+    flex-direction: column;
+  }
+  .ficha__rasgo + .ficha__rasgo::before {
+    content: none;
+  }
 }
 .ficha__precio {
   display: flex;

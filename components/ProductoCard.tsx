@@ -5,6 +5,7 @@ import { useState } from "react";
 import FotoCruzada from "./FotoCruzada";
 import { useDeslizar } from "./useDeslizar";
 import { useCarrito } from "./carrito/CarritoContexto";
+import { caracteristicasDe } from "@/lib/caracteristicas";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { rutaDeVariante } from "@/lib/variantes";
@@ -34,6 +35,8 @@ export default function ProductoCard({
   // en el primer color con stock, y el visitante que tocaba unos carey
   // aterrizaba en unos negros.
   const enlace = rutaDeVariante(producto, indice);
+  // Una línea discreta con lo que lo distingue, solo si está confirmado.
+  const rasgos = caracteristicasDe(producto)?.resumen ?? null;
 
   const deslizar = useDeslizar({
     alSiguiente: () => pasarFoto(1),
@@ -100,6 +103,19 @@ export default function ProductoCard({
         <Link href={enlace} className="ficha__titulo">
           {producto.nombre}
         </Link>
+
+        {rasgos ? (
+          // Cada rasgo en su span: el punto medio lo pone el CSS solo cuando
+          // van en la misma línea. El lector de pantalla lee la frase entera.
+          <p className="ficha__rasgos">
+            <span className="solo-lectores">{rasgos}</span>
+            {rasgos.split(" · ").map((r) => (
+              <span key={r} className="ficha__rasgo" aria-hidden="true">
+                {r}
+              </span>
+            ))}
+          </p>
+        ) : null}
 
         <div className="ficha__precio">
           <span>{formatearPrecio(producto.precio)}</span>

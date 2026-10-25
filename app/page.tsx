@@ -7,7 +7,7 @@ import Revelar from "@/components/Revelar";
 import { getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
-import { DESCRIPCION_SITIO, TITULO_SITIO, subtituloPorDefecto } from "@/lib/portada";
+import { DESCRIPCION_SITIO, SUBTITULO_PORTADA, TITULO_SITIO } from "@/lib/portada";
 
 export const revalidate = 60;
 
@@ -35,10 +35,9 @@ export default async function Home() {
   // Los complementos van juntos y después: son secundarios en la portada.
   const complementos = productos.filter((p) => p.categoria !== "Anteojos");
 
-  const coloresMaximo = anteojos.reduce((max, p) => Math.max(max, p.variantes.length), 0);
   const titulo = config.portadaTitulo || "Anteojos Harper";
-  const subtitulo =
-    config.portadaSubtitulo || subtituloPorDefecto(anteojos.length, coloresMaximo);
+  // Qué vendemos, en una frase. Config.portada_subtitulo lo reemplaza si se carga.
+  const subtitulo = config.portadaSubtitulo || SUBTITULO_PORTADA;
 
   const confianza = mensajesDeConfianza(config);
 

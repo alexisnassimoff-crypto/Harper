@@ -130,3 +130,67 @@ export function conDescuento(precio: number, porcentaje: number) {
   if (porcentaje <= 0) return precio;
   return Math.round(precio * (1 - porcentaje / 100));
 }
+
+/**
+ * La oferta más relevante para quien compra para sí: el primer tramo de la
+ * categoría (en anteojos, el segundo par). Es lo que la ficha cuenta en una
+ * línea; la escalera completa queda en el carrito.
+ *
+ * Solo presentación, con las mismas cuentas que cobra el servidor
+ * (`conDescuento` sobre el precio de lista).
+ */
+export type OfertaCantidad =
+  | {
+      estado: "pendiente";
+      /** Unidades del primer tramo (2 en anteojos). */
+      unidades: number;
+      /** Cuántas faltan para llegar, contando lo que ya está en el carrito. */
+      faltan: number;
+      porcentaje: number;
+      /** Precio por unidad con el descuento. */
+      unitario: number;
+      /** Lo que salen las `unidades` juntas. */
+      total: number;
+      /** Lo que se ahorra en las `unidades` juntas. */
+      ahorro: number;
+    }
+  | {
+      estado: "alcanzada";
+      unidades: number;
+      /** El porcentaje que ya tiene el carrito (el del tramo más alto alcanzado). */
+      porcentaje: number;
+    };
+
+export function ofertaPorCantidad(
+  tramos: Tramo[],
+  categoria: Categoria,
+  precioLista: number,
+  cantidadActual: number
+): OfertaCantidad | null {
+  const primero = tramos
+    .filter((t) => t.categoria === categoria)
+    .sort((a, b) => a.desdeUnidades - b.desdeUnidades)[0];
+
+  if (!primero) return null;
+
+  const cantidad = Math.max(0, Math.floor(cantidadActual));
+
+  if (cantidad >= primero.desdeUnidades) {
+    return {
+      estado: "alcanzada",
+      unidades: primero.desdeUnidades,
+      porcentaje: porcentajeParaCantidad(tramos, categoria, cantidad),
+    };
+  }
+
+  const unitario = conDescuento(precioLista, primero.porcentaje);
+  return {
+    estado: "pendiente",
+    unidades: primero.desdeUnidades,
+    faltan: primero.desdeUnidades - cantidad,
+    porcentaje: primero.porcentaje,
+    unitario,
+    total: unitario * primero.desdeUnidades,
+    ahorro: (precioLista - unitario) * primero.desdeUnidades,
+  };
+}

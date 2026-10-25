@@ -25,7 +25,7 @@ export type RegistroFixture = {
 const CREADO = "2026-08-23T21:35:20.000Z";
 
 const DESCRIPCION_ANTEOJOS =
-  "Anteojos con filtro de luz azul y cristales fotocromaticos. Marco liviano con el logo Harper en hot printing plata. Certificados bajo norma ISO 12870. Incluyen estuche rigido Harper con pano de microfibra.";
+  "Anteojos con filtro de luz azul y cristales fotocromáticos. Marco liviano con el logo Harper en hot printing plata. Incluyen estuche rígido Harper con paño de microfibra.";
 
 function producto(
   id: string,
@@ -78,7 +78,7 @@ export const PRODUCTOS: RegistroFixture[] = [
     Orden: 1,
     Precio: 6990,
     Descripcion:
-      "Estuche rigido rectangular de ecocuero premium reforzado. Bisagras reforzadas de apertura suave, interior en simil gamuza que protege los cristales. Incluye pano de microfibra de alta densidad.",
+      "Estuche rígido rectangular de ecocuero premium reforzado. Bisagras reforzadas de apertura suave, interior en símil gamuza que protege los cristales. Incluye paño de microfibra de alta densidad.",
   }),
   producto("recuwV528wmBEONh6", {
     ...ESTUCHE,
@@ -87,7 +87,7 @@ export const PRODUCTOS: RegistroFixture[] = [
     Orden: 2,
     Precio: 6990,
     Descripcion:
-      "Estuche rigido de forma redondeada en ecocuero premium reforzado. Bisagras reforzadas de apertura suave, interior en simil gamuza que protege los cristales. Incluye pano de microfibra de alta densidad.",
+      "Estuche rígido de forma redondeada en ecocuero premium reforzado. Bisagras reforzadas de apertura suave, interior en símil gamuza que protege los cristales. Incluye paño de microfibra de alta densidad.",
   }),
   producto("reciqwodWWhuku73b", {
     ...ESTUCHE,
@@ -99,7 +99,7 @@ export const PRODUCTOS: RegistroFixture[] = [
     Ancho_cm: 5.4,
     Alto_cm: 3.4,
     Descripcion:
-      "Estuche rigido con cierre magnetico en ecocuero premium. Estructura reforzada, interior en simil gamuza que protege los cristales. Incluye pano de microfibra de alta densidad.",
+      "Estuche rígido con cierre magnético en ecocuero premium. Estructura reforzada, interior en símil gamuza que protege los cristales. Incluye paño de microfibra de alta densidad.",
   }),
 
   producto("recSq5CS0vGVRrx4y", {
@@ -199,17 +199,17 @@ export const VARIANTES: RegistroFixture[] = [
   // Stock bajo a propósito, para ver el aviso de "quedan pocas".
   variante("recOVWC0S1rbDJADU", "recywEhXkR8g53yDD", "CITRINO-CAREY", "Carey", "#7A4A26", 3, 4, fotosAnteojo("citrino", "carey")),
 
-  variante("recUt2E9B8CnymzJ4", "rec1OLrInalgRigKf", "R100-MARRON", "Marron", "#713519", 1000, 1, fotosEstuche("r100", "marron")),
+  variante("recUt2E9B8CnymzJ4", "rec1OLrInalgRigKf", "R100-MARRON", "Marrón", "#713519", 1000, 1, fotosEstuche("r100", "marron")),
   variante("recUhcR8wlI7J8ycV", "rec1OLrInalgRigKf", "R100-GRIS", "Gris", "#7C7C7A", 1000, 2, fotosEstuche("r100", "gris")),
   variante("recs2sCE4NGqhN30D", "rec1OLrInalgRigKf", "R100-NEGRO", "Negro", NEGRO, 1000, 3, fotosEstuche("r100", "negro")),
-  variante("recNUSj9Tzm6x4Iup", "rec1OLrInalgRigKf", "R100-AZUL", "Azul petroleo", "#01425E", 1000, 4, fotosEstuche("r100", "azul")),
+  variante("recNUSj9Tzm6x4Iup", "rec1OLrInalgRigKf", "R100-AZUL", "Azul petróleo", "#01425E", 1000, 4, fotosEstuche("r100", "azul")),
 
-  variante("recxRZzI79EyGjTn8", "recuwV528wmBEONh6", "O300-MARRON", "Marron", "#713519", 1000, 1, fotosEstuche("o300", "marron")),
+  variante("recxRZzI79EyGjTn8", "recuwV528wmBEONh6", "O300-MARRON", "Marrón", "#713519", 1000, 1, fotosEstuche("o300", "marron")),
   variante("recVrqYywSfdeMFzC", "recuwV528wmBEONh6", "O300-ROJO", "Rojo", "#C23B37", 1000, 2, fotosEstuche("o300", "rojo")),
   variante("recK8MNGn2D0O9EDg", "recuwV528wmBEONh6", "O300-NEGRO", "Negro", NEGRO, 1000, 3, fotosEstuche("o300", "negro")),
-  variante("recPDSmRdPy4G4J2u", "recuwV528wmBEONh6", "O300-AZUL", "Azul petroleo", "#01425E", 1000, 4, fotosEstuche("o300", "azul")),
+  variante("recPDSmRdPy4G4J2u", "recuwV528wmBEONh6", "O300-AZUL", "Azul petróleo", "#01425E", 1000, 4, fotosEstuche("o300", "azul")),
 
-  variante("recMyVTEzcVtTh64g", "reciqwodWWhuku73b", "M500-MARRON", "Marron", "#713519", 1000, 1, fotosEstuche("m500", "marron")),
+  variante("recMyVTEzcVtTh64g", "reciqwodWWhuku73b", "M500-MARRON", "Marrón", "#713519", 1000, 1, fotosEstuche("m500", "marron")),
   variante("recO5RQKeydWUda86", "reciqwodWWhuku73b", "M500-GRIS", "Gris", "#7C7C7A", 1000, 2, fotosEstuche("m500", "gris")),
   variante("rec594e3IIRZUA1Il", "reciqwodWWhuku73b", "M500-CAMEL", "Camel", "#DD9658", 1000, 3, fotosEstuche("m500", "camel")),
   variante("rec7nfs8eu6k0EOFX", "reciqwodWWhuku73b", "M500-NEGRO", "Negro", "#0A0A0A", 1000, 4, fotosEstuche("m500", "negro")),
