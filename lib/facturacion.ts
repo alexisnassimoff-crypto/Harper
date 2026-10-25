@@ -27,8 +27,11 @@ export const CONDICIONES_IVA = [
   "IVA Responsable Inscripto",
   "Responsable Monotributo",
   "Monotributista Social",
+  "Monotributo Trabajador Independiente Promovido",
   "IVA Sujeto Exento",
   "IVA No Alcanzado",
+  "IVA Liberado – Ley N° 19.640",
+  "Sujeto No Categorizado",
   "Consumidor Final",
 ] as const;
 
@@ -116,19 +119,27 @@ export function condicionDelReceptor(f: Facturacion): CondicionIva {
 /** La condición de Harper frente al IVA, tal como se carga en Config. */
 export type CondicionEmisor = "Responsable Inscripto" | "Monotributo" | "Exento";
 
-/** Lee `condicion_iva` de Config. Lo que no se reconoce, `null`: no se supone. */
+/**
+ * Lee `condicion_iva` de Config. Lo que no se reconoce, `null`: no se supone.
+ * Monotributo y exento se miran primero, y "no inscripto" nunca cuenta como
+ * responsable inscripto.
+ */
 export function leerCondicionEmisor(valor: string): CondicionEmisor | null {
-  const v = valor.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  if (/inscript/.test(v)) return "Responsable Inscripto";
+  const v = valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   if (/monotribut/.test(v)) return "Monotributo";
   if (/exent/.test(v)) return "Exento";
+  if (/inscript/.test(v) && !/\bno\s+inscript/.test(v)) return "Responsable Inscripto";
   return null;
 }
 
 export type ClaseFactura = "A" | "B" | "C";
 
-const RECIBEN_A: CondicionIva[] = ["IVA Responsable Inscripto", "Responsable Monotributo", "Monotributista Social"];
-const MONOTRIBUTISTAS: CondicionIva[] = ["Responsable Monotributo", "Monotributista Social"];
+const MONOTRIBUTISTAS: CondicionIva[] = [
+  "Responsable Monotributo",
+  "Monotributista Social",
+  "Monotributo Trabajador Independiente Promovido",
+];
+const RECIBEN_A: CondicionIva[] = ["IVA Responsable Inscripto", ...MONOTRIBUTISTAS];
 
 /** La clase según las dos condiciones. Sin la de Harper, `null`. */
 export function claseDeFactura(emisor: CondicionEmisor | null, receptor: CondicionIva): ClaseFactura | null {
@@ -190,6 +201,16 @@ export function facturacionDeFila(fila: Record<string, unknown>): FacturacionPed
     cuit: t("Factura_CUIT"),
     domicilioFiscal: t("Factura_domicilio"),
   };
+}
+
+/** Cómo empieza la constancia en Notas cuando el pedido no tiene los campos Factura_. */
+export const ENCABEZADO_NOTAS = "DATOS DE FACTURACIÓN";
+
+/** Las líneas de facturación guardadas en Notas, si las hay. */
+export function lineasDeNotas(notas: unknown): string[] | null {
+  if (typeof notas !== "string" || !notas.startsWith(ENCABEZADO_NOTAS)) return null;
+  const lineas = notas.split("\n").slice(1).map((l) => l.trim()).filter(Boolean);
+  return lineas.length > 0 ? lineas : null;
 }
 
 /** Las líneas para el aviso interno y para dejar constancia en texto. */

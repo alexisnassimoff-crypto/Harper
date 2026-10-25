@@ -9,7 +9,7 @@ import {
 } from "./cerrojo";
 import { marcarCompra } from "./clientes";
 import { getConfig } from "./config";
-import { facturacionDeFila } from "./facturacion";
+import { facturacionDeFila, lineasDeNotas } from "./facturacion";
 import {
   enviarMail as enviarMailReal,
   mailAvisoInterno,
@@ -102,6 +102,8 @@ export type FilaPedido = {
   Factura_razon_social?: string;
   Factura_CUIT?: string;
   Factura_domicilio?: string;
+  /** Si faltaban los campos Factura_, los datos de una factura a CUIT quedan acá. */
+  Notas?: string;
 };
 
 type FilaCliente = {
@@ -533,6 +535,7 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       config,
       sitio: deps.sitio,
       facturacion: facturacionDeFila(pedido.fields),
+      lineasFacturacion: lineasDeNotas(pedido.fields.Notas),
     };
 
     const datos = datosMail;

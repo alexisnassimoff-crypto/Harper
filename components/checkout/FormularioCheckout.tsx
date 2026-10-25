@@ -816,7 +816,7 @@ export default function FormularioCheckout({
                 id="facturaDomicilio"
                 etiqueta="Domicilio fiscal"
                 autoComplete="off"
-                placeholder="Calle y número, localidad, provincia y CP"
+                placeholder="Calle 123, localidad, provincia, CP"
                 enterKeyHint="done"
                 valor={factura.domicilioFiscal}
                 error={errores.facturaDomicilio}

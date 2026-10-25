@@ -4,7 +4,9 @@ import { guardarCliente } from "@/lib/clientes";
 import { getConfig } from "@/lib/config";
 import {
   camposDeFacturacion,
+  ENCABEZADO_NOTAS,
   facturacionDelPedido,
+  type FacturacionPedido,
   leerCondicionEmisor,
   lineasDeFacturacion,
   normalizarFacturacion,
@@ -154,7 +156,7 @@ export async function POST(request: Request) {
       Terminos_aceptados: registroAceptacion(ahora),
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     };
-    const pedido = await crearPedido(campos, camposDeFacturacion(factura), lineasDeFacturacion(factura));
+    const pedido = await crearPedido(campos, factura);
 
     pedidoId = pedido.id;
 
@@ -193,17 +195,20 @@ export async function POST(request: Request) {
 }
 
 /**
- * Crea el pedido con sus datos de facturación. Si Airtable no conoce esos
- * campos (por ejemplo, porque alguien los renombró), la venta no se frena:
- * el pedido se crea igual y los datos de facturación quedan en Notas.
+ * Crea el pedido con sus datos de facturación. Si Airtable rechaza el pedido
+ * con esos campos (porque faltan o alguien los cambió), la venta no se frena:
+ * se crea como antes, sin ellos. Si la factura va a un CUIT, sus datos quedan
+ * en Notas y el aviso interno los lee de ahí. Si el rechazo era por otra cosa,
+ * el segundo intento falla igual que antes de este cambio.
  */
-async function crearPedido(campos: FilaPedido, facturacion: Record<string, string>, lineas: string[]) {
+async function crearPedido(campos: FilaPedido, factura: FacturacionPedido) {
   try {
-    return await createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...facturacion });
+    return await createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...camposDeFacturacion(factura) });
   } catch (error) {
-    if (!(error instanceof ErrorAirtable && error.status === 422 && /Factura_/.test(error.message))) throw error;
-    console.error("[checkout] faltan los campos de facturación en Pedidos; van en Notas:", error.message);
-    return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, Notas: `DATOS DE FACTURACIÓN\n${lineas.join("\n")}` });
+    if (!(error instanceof ErrorAirtable && error.status === 422)) throw error;
+    console.error("[checkout] Pedidos rechazó los datos de facturación; el pedido se crea sin esos campos:", error.message);
+    const notas = factura.cuit ? { Notas: `${ENCABEZADO_NOTAS}\n${lineasDeFacturacion(factura).join("\n")}` } : {};
+    return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...notas });
   }
 }
 

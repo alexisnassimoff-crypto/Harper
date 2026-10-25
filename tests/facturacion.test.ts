@@ -10,6 +10,7 @@ import {
   formatearCuit,
   leerCondicionEmisor,
   lineasDeFacturacion,
+  lineasDeNotas,
   normalizarFacturacion,
   validarFacturacion,
 } from "../lib/facturacion";
@@ -55,6 +56,9 @@ test("la condición de Harper se lee de Config y no se supone", () => {
   assert.equal(leerCondicionEmisor("exento"), "Exento");
   assert.equal(leerCondicionEmisor(""), null);
   assert.equal(leerCondicionEmisor("no sé"), null);
+  // "No inscripto" nunca es responsable inscripto.
+  assert.equal(leerCondicionEmisor("Monotributo (no inscripto en IVA)"), "Monotributo");
+  assert.equal(leerCondicionEmisor("No inscripto"), null);
 });
 
 test("la clase sale de las dos condiciones frente al IVA, no de que sea una empresa", () => {
@@ -63,10 +67,14 @@ test("la clase sale de las dos condiciones frente al IVA, no de que sea una empr
     "IVA Responsable Inscripto": "A",
     "Responsable Monotributo": "A",
     "Monotributista Social": "A",
+    "Monotributo Trabajador Independiente Promovido": "A",
     "IVA Sujeto Exento": "B",
     "IVA No Alcanzado": "B",
+    "IVA Liberado – Ley N° 19.640": "B",
+    "Sujeto No Categorizado": "B",
     "Consumidor Final": "B",
   };
+  assert.equal(Object.keys(esperado).length, CONDICIONES_IVA.length);
   for (const condicion of CONDICIONES_IVA) {
     assert.equal(claseDeFactura(ri, condicion), esperado[condicion], `RI a ${condicion}`);
     assert.equal(claseDeFactura("Monotributo", condicion), "C", `monotributo a ${condicion}`);
@@ -146,4 +154,30 @@ test("consumidor final: el aviso lo dice con la clase, o avisa que falta la cond
   assert.deepEqual(lineasDeFacturacion(facturacionDelPedido(normalizarFacturacion(undefined), "Monotributo")), [
     "Factura C · Consumidor final, a nombre de quien compra",
   ]);
+});
+
+test("si el pedido quedó sin los campos Factura_, el aviso interno lee los datos de Notas", () => {
+  const facturacion = facturacionDelPedido(
+    normalizarFacturacion({ tipo: "cuit", razonSocial: "Óptica Sur SA", cuit: "30718023161", condicionIva: "IVA Responsable Inscripto", domicilioFiscal: "Av. Corrientes 1234, CABA, 1043" }),
+    null
+  );
+  const notas = `DATOS DE FACTURACIÓN\n${lineasDeFacturacion(facturacion).join("\n")}`;
+  const lineas = lineasDeNotas(notas);
+  assert.equal(lineas?.[0], "Factura: clase a confirmar a nombre de un titular con CUIT");
+  assert.equal(lineasDeNotas("Llamar antes de entregar"), null, "una nota cualquiera no es facturación");
+  assert.equal(lineasDeNotas(undefined), null);
+
+  const mail = mailAvisoInterno({ ...base, lineasFacturacion: lineas });
+  assert.match(mail.asunto, /factura a CUIT$/);
+  assert.match(mail.texto, /DATOS DE FACTURACIÓN\nFactura: clase a confirmar a nombre de un titular con CUIT\nRazón social o titular: Óptica Sur SA\nCUIT: 30-71802316-1/);
+  assert.ok(mail.html.includes("Datos de facturación"));
+});
+
+test("Monotributo Trabajador Independiente Promovido: A con la leyenda, como los demás monotributistas", () => {
+  const p = facturacionDelPedido(
+    normalizarFacturacion({ tipo: "cuit", razonSocial: "Juan Pérez", cuit: "20-12345678-6", condicionIva: "Monotributo Trabajador Independiente Promovido", domicilioFiscal: "Calle 1 123, Rosario, Santa Fe" }),
+    "Responsable Inscripto"
+  );
+  assert.equal(p.clase, "A");
+  assert.ok(lineasDeFacturacion(p).some((l) => /Ley 27\.618/.test(l)));
 });

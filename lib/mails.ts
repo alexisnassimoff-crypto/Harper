@@ -186,6 +186,8 @@ export type DatosMail = {
   sitio: string;
   /** Para emitir la factura; `null` en pedidos anteriores a estos datos. */
   facturacion?: FacturacionPedido | null;
+  /** Los mismos datos, ya escritos, cuando quedaron en Notas del pedido. */
+  lineasFacturacion?: string[] | null;
 };
 
 /**
@@ -260,7 +262,8 @@ Consultas: ${d.config.emailContacto}`;
 export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
   // Los datos para la factura, aparte y a la vista: no son los del comprador
   // ni la dirección de entrega.
-  const factura = d.facturacion ? lineasDeFacturacion(d.facturacion) : null;
+  const factura = d.facturacion ? lineasDeFacturacion(d.facturacion) : (d.lineasFacturacion ?? null);
+  const aCuit = factura?.some((l) => l.startsWith("CUIT:")) ?? false;
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Venta nueva — ${escaparHtml(d.numero)}</h1>
 <p style="margin:0 0 24px;font-size:14px;color:#78756c;">${formatearPrecio(d.total)} · ${escaparHtml(d.cliente.provincia)}</p>
@@ -310,7 +313,7 @@ Airtable: ${d.pedidoUrl}`;
 
   return {
     para: d.config.emailPedidos,
-    asunto: `Venta ${d.numero} — ${formatearPrecio(d.total)}${d.facturacion?.cuit ? " · factura a CUIT" : ""}`,
+    asunto: `Venta ${d.numero} — ${formatearPrecio(d.total)}${aCuit ? " · factura a CUIT" : ""}`,
     html,
     texto,
     responderA: d.cliente.email,
