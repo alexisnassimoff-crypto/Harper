@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
-import { createRecord, esErrorPermanente, TABLAS, updateRecord } from "@/lib/airtable";
+import { createRecord, ErrorAirtable, esErrorPermanente, TABLAS, updateRecord } from "@/lib/airtable";
 import { guardarCliente } from "@/lib/clientes";
+import { getConfig } from "@/lib/config";
+import {
+  camposDeFacturacion,
+  facturacionDelPedido,
+  leerCondicionEmisor,
+  lineasDeFacturacion,
+  normalizarFacturacion,
+  validarFacturacion,
+} from "@/lib/facturacion";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
 import { leerEleccionEnvio, nombreModo, nombreServicio } from "@/lib/envio-elegido";
@@ -27,6 +36,7 @@ export async function POST(request: Request) {
     envio?: unknown;
     totalVisto?: unknown;
     origen?: unknown;
+    facturacion?: unknown;
   };
 
   try {
@@ -35,8 +45,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Pedido inválido" }, { status: 400 });
   }
 
-  // ---- Validación del cliente ----
-  const errores = validarCliente(cuerpo.cliente as Record<string, unknown>);
+  // ---- Validación del cliente y de los datos de facturación ----
+  // Sin datos de facturación (o con cualquier otra cosa) es consumidor final.
+  const facturacion = normalizarFacturacion(cuerpo.facturacion);
+  const errores = {
+    ...validarCliente(cuerpo.cliente as Record<string, unknown>),
+    ...validarFacturacion(facturacion),
+  };
 
   if (Object.keys(errores).length > 0) {
     return NextResponse.json(
@@ -111,8 +126,13 @@ export async function POST(request: Request) {
     // De qué anuncio vino: solo las claves conocidas, recortadas.
     const origen = normalizarOrigen(cuerpo.origen);
 
+    // La clase de la factura, con la condición de Harper frente al IVA que
+    // está en Config. Si Config no responde, queda "A confirmar": nunca frena
+    // la venta.
+    const factura = facturacionDelPedido(facturacion, leerCondicionEmisor((await getConfig()).condicionIva));
+
     // El pedido nace en "pendiente". Solo el webhook lo pasa a "pagado".
-    const pedido = await createRecord<FilaPedido>(TABLAS.pedidos, {
+    const campos: FilaPedido = {
       Numero: numero,
       Estado: "pendiente",
       Cliente: [clienteId],
@@ -133,7 +153,8 @@ export async function POST(request: Request) {
       // validarCliente ya exigió la casilla: queda qué versión aceptó y cuándo.
       Terminos_aceptados: registroAceptacion(ahora),
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
-    });
+    };
+    const pedido = await crearPedido(campos, camposDeFacturacion(factura), lineasDeFacturacion(factura));
 
     pedidoId = pedido.id;
 
@@ -168,6 +189,21 @@ export async function POST(request: Request) {
       { error: "No pudimos iniciar el pago. Probá de nuevo en un momento." },
       { status: codigo }
     );
+  }
+}
+
+/**
+ * Crea el pedido con sus datos de facturación. Si Airtable no conoce esos
+ * campos (por ejemplo, porque alguien los renombró), la venta no se frena:
+ * el pedido se crea igual y los datos de facturación quedan en Notas.
+ */
+async function crearPedido(campos: FilaPedido, facturacion: Record<string, string>, lineas: string[]) {
+  try {
+    return await createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...facturacion });
+  } catch (error) {
+    if (!(error instanceof ErrorAirtable && error.status === 422 && /Factura_/.test(error.message))) throw error;
+    console.error("[checkout] faltan los campos de facturación en Pedidos; van en Notas:", error.message);
+    return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, Notas: `DATOS DE FACTURACIÓN\n${lineas.join("\n")}` });
   }
 }
 

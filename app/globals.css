@@ -617,6 +617,24 @@ p {
 .checkout__form :is(input, select) {
   scroll-margin-top: 6.5rem;
 }
+/* Datos de facturación: discretos, como las casillas de abajo. */
+.checkout__facturacion {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.checkout__facturacion legend {
+  padding: 0;
+  margin-bottom: 0.15rem;
+}
+.checkout__facturacion-campos {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.6rem;
+}
 .checkout__acepta {
   color: var(--texto);
 }
@@ -1037,7 +1055,8 @@ p {
     grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
     gap: 3rem;
   }
-  .checkout__campos {
+  .checkout__campos,
+  .checkout__facturacion-campos {
     gap: 1.1rem;
   }
   .checkout__par {
