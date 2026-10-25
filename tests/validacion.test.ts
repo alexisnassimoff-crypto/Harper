@@ -6,7 +6,7 @@ const completo = {
   email: "ale@harper.ar",
   nombre: "Ale Nassimoff",
   telefono: "11 4917 2061",
-  dni: "",
+  dni: "30123456",
   direccion: "Núñez 2422",
   ciudad: "CABA",
   provincia: "Ciudad Autónoma de Buenos Aires",
@@ -14,15 +14,17 @@ const completo = {
   aceptaPromos: false,
 };
 
-test("el DNI es opcional", () => {
+test("con todos los datos no hay errores; el DNI acepta puntos", () => {
   assert.deepEqual(validarCliente(completo), {});
-  assert.deepEqual(validarCliente({ ...completo, dni: "30123456" }), {});
   assert.deepEqual(validarCliente({ ...completo, dni: "30.123.456" }), {});
+  assert.deepEqual(validarCliente({ ...completo, dni: "7654321" }), {});
 });
 
-test("si se escribe un DNI, tiene que tener forma de DNI", () => {
+test("el DNI es obligatorio: lo pide la logística para entregar", () => {
+  assert.equal(validarCliente({ ...completo, dni: "" }).dni, "Ingresá tu DNI");
+  assert.equal(validarCliente({ ...completo, dni: "   " }).dni, "Ingresá tu DNI");
   assert.ok(validarCliente({ ...completo, dni: "123" }).dni);
-  assert.ok(validarCliente({ ...completo, dni: "1234567890" }).dni);
+  assert.ok(validarCliente({ ...completo, dni: "123456789" }).dni);
 });
 
 test("el teléfono sigue siendo obligatorio: lo usa el envío", () => {

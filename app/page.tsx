@@ -8,7 +8,6 @@ import { getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
 import { DESCRIPCION_SITIO, TITULO_SITIO, subtituloPorDefecto } from "@/lib/portada";
-import { indiceVarianteInicial, rutaDeVariante } from "@/lib/variantes";
 
 export const revalidate = 60;
 
@@ -21,6 +20,13 @@ export const metadata: Metadata = {
     // Sin `images`: las pone app/opengraph-image.jpg.
   },
 };
+
+/**
+ * La fotografía de la portada. Es la foto de la marca (public/hero.webp), no
+ * un producto elegido automáticamente del catálogo. Solo la reemplaza una
+ * foto cargada a propósito en Config.portada_imagen.
+ */
+const FOTO_PORTADA = "/hero.webp";
 
 export default async function Home() {
   const [productos, config] = await Promise.all([getProductos(), getConfig()]);
@@ -36,68 +42,32 @@ export default async function Home() {
 
   const confianza = mensajesDeConfianza(config);
 
-  // El producto que protagoniza el hero cuando no hay una foto aprobada en
-  // Config: el primer anteojo del catálogo, en su primer color con stock, con
-  // la foto en tres cuartos si la tiene. Es una foto del catálogo —ya
-  // publicada— así que muestra exactamente lo que se vende.
-  const protagonista = anteojos[0] ?? null;
-  const varianteHero = protagonista
-    ? protagonista.variantes[indiceVarianteInicial(protagonista)]
-    : null;
-  const fotoHero = varianteHero?.fotos[1] ?? varianteHero?.fotos[0] ?? null;
-
-  const texto = (
-    <div className="hero__contenido surge">
-      <h1 className="hero__titulo">{titulo}</h1>
-      <p className="hero__texto">{subtitulo}</p>
-      <a href="#anteojos" className="boton hero__boton">
-        Ver anteojos
-      </a>
-    </div>
-  );
-
   return (
     <>
-      {/* Hero compacto: en celular ocupa menos de media pantalla, así el
-          catálogo asoma sin scrollear. Un solo botón, que lleva a la grilla. */}
-      {config.portadaImagen ? (
-        // Foto editorial aprobada y cargada en Config: a sangre, con velo.
-        <section className="hero hero--foto">
-          <Image
-            src={config.portadaImagen}
-            alt=""
-            fill
-            priority
-            sizes="100vw"
-            style={{ objectFit: "cover", objectPosition: "center 30%" }}
-          />
-          <div className="hero__velo" aria-hidden="true" />
-          <div className="contenedor hero__cuerpo">{texto}</div>
-        </section>
-      ) : (
-        // Sin foto aprobada: el producto real sobre el fondo de la marca.
-        <section className="hero hero--producto">
-          <div className="contenedor hero__grilla">
-            {texto}
-            {protagonista && varianteHero && fotoHero ? (
-              <Link
-                href={rutaDeVariante(protagonista, indiceVarianteInicial(protagonista))}
-                className="hero__producto surge surge-1"
-                aria-label={`Ver ${protagonista.nombre}`}
-              >
-                <Image
-                  src={fotoHero}
-                  alt={`${protagonista.nombre} — ${varianteHero.color}`}
-                  fill
-                  priority
-                  sizes="(max-width: 48rem) 92vw, 44vw"
-                  style={{ objectFit: "contain" }}
-                />
-              </Link>
-            ) : null}
+      {/* Hero editorial: la foto a sangre, con el texto y el botón apoyados en
+          el tercio inferior. La cara está arriba y queda siempre libre. */}
+      <section className="hero">
+        <Image
+          src={config.portadaImagen || FOTO_PORTADA}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          // El rostro está en el centro, arriba: al recortar para celular se
+          // conserva esa zona.
+          style={{ objectFit: "cover", objectPosition: "52% 28%" }}
+        />
+        <div className="hero__velo" aria-hidden="true" />
+        <div className="contenedor hero__cuerpo">
+          <div className="hero__contenido surge">
+            <h1 className="hero__titulo">{titulo}</h1>
+            <p className="hero__texto">{subtitulo}</p>
+            <a href="#anteojos" className="boton hero__boton">
+              Comprar anteojos
+            </a>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       <div className="contenedor">
         <MensajesConfianza mensajes={confianza} variante="tira" />
