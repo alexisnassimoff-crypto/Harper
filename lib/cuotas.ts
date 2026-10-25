@@ -5,9 +5,11 @@
  * `NEXT_PUBLIC_CUOTAS` dice cuántas se quieren anunciar (las que Ale activó
  * en el panel de MP), pero no alcanza con eso: antes de anunciarlas se le
  * pregunta a Mercado Pago qué ofrece de verdad para ese precio. Se anuncian
- * solo si, con Visa y con Mastercard y en todos los bancos que devuelve, esas
- * cuotas existen, no tienen interés y el CFT es 0. Si Mercado Pago no lo
- * confirma (o no contesta), no se anuncian cuotas: nunca un CFT supuesto.
+ * solo si, con Visa y con Mastercard y en todos los bancos que dan cuotas con
+ * tarjeta de crédito, esas cuotas existen, no tienen interés y el CFT es 0
+ * (las prepagas y los emisores que solo cobran en un pago no cuentan). Si
+ * Mercado Pago no lo confirma (o no contesta), no se anuncian cuotas: nunca
+ * un CFT supuesto.
  *
  * Lo que se muestra cumple la Res. SIyC 4/2025 (art. 2 inc. d): precio de
  * contado, cantidad y monto de cada cuota (el que calcula Mercado Pago, con
@@ -43,7 +45,17 @@ type CostoMP = {
   total_amount?: unknown;
   labels?: unknown;
 };
-type OpcionMP = { payer_costs?: unknown };
+type OpcionMP = { payment_type_id?: unknown; payer_costs?: unknown };
+
+/**
+ * Las opciones que cuentan para el anuncio: tarjetas de crédito que financian.
+ * Mercado Pago también devuelve tarjetas prepagas y emisores que solo cobran
+ * en un pago; esas no tienen cuotas que anunciar, así que no lo desmienten.
+ */
+function financiaEnCuotas(opcion: OpcionMP, costos: CostoMP[]): boolean {
+  if (typeof opcion?.payment_type_id === "string" && opcion.payment_type_id !== "credit_card") return false;
+  return costos.some((c) => typeof c?.installments === "number" && c.installments > 1);
+}
 
 /** "CFT_0,00%|TEA_0,00%" → 0. Sin etiqueta de CFT → null. */
 function cftDeEtiquetas(labels: unknown): number | null {
@@ -72,10 +84,14 @@ export function evaluarCuotas(
     // Una marca sin opciones = Mercado Pago no la ofrece para este monto.
     if (!Array.isArray(respuesta) || respuesta.length === 0) return null;
 
+    let financian = 0;
     for (const opcion of respuesta as OpcionMP[]) {
       const costos = Array.isArray(opcion?.payer_costs) ? (opcion.payer_costs as CostoMP[]) : [];
+      if (!financiaEnCuotas(opcion, costos)) continue;
+      financian++;
+
       const costo = costos.find((c) => c?.installments === cuotas);
-      // Un banco sin esas cuotas, o con interés: el anuncio no sería cierto.
+      // Un banco que da cuotas pero no esas, o con interés: el anuncio no sería cierto.
       if (!costo || costo.installment_rate !== 0) return null;
 
       // El CFT, tal como lo informa Mercado Pago. Si no viene en la etiqueta,
@@ -88,6 +104,8 @@ export function evaluarCuotas(
         montoCuota = costo.installment_amount;
       }
     }
+    // Una marca sin ninguna tarjeta de crédito que financie: no hay cuotas.
+    if (financian === 0) return null;
   }
 
   return {
