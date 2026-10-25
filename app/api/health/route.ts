@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { isAirtableConfigured, modoFixtures } from "@/lib/airtable";
+import { getProductos } from "@/lib/catalogo";
 import { verificarRedis } from "@/lib/cerrojo";
+import { diagnosticarCuotas } from "@/lib/cuotas-servidor";
 import { configuracionDirecciones } from "@/lib/direcciones-servidor";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
@@ -37,6 +39,11 @@ export async function GET() {
   // soltar): distingue "faltan las variables", "están pero no sirven" y
   // "contesta pero el cerrojo no se comporta como se espera".
   const redis = await verificarRedis();
+
+  // Las cuotas sin interés se anuncian solo si Mercado Pago las confirma:
+  // acá se ve qué contesta para el anteojo más barato publicado.
+  const anteojos = (await getProductos("Anteojos").catch(() => [])).map((p) => p.precio).filter((p) => p > 0);
+  const cuotas = anteojos.length ? await diagnosticarCuotas(Math.min(...anteojos)) : { anunciadas: null };
 
   const variables: Record<string, boolean> = {};
   for (const v of VARIABLES) {
@@ -81,6 +88,7 @@ export async function GET() {
       googlePlaces: configuracionDirecciones() !== null,
     },
     redis,
+    cuotas,
     variables,
     avisos: [
       !redis.configurado
