@@ -31,11 +31,16 @@ type Envio = {
  * ya cobrada. Si falla, queda registrado en los logs de Vercel.
  */
 export async function enviarMail(envio: Envio): Promise<boolean> {
+  return (await enviarMailConDetalle(envio)).ok;
+}
+
+/** Lo mismo, pero si falla dice por qué: para dejar constancia del error. */
+export async function enviarMailConDetalle(envio: Envio): Promise<{ ok: true } | { ok: false; error: string }> {
   const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
     console.warn("[mails] RESEND_API_KEY sin configurar, no se envía nada");
-    return false;
+    return { ok: false, error: "RESEND_API_KEY sin configurar" };
   }
 
   try {
@@ -57,14 +62,15 @@ export async function enviarMail(envio: Envio): Promise<boolean> {
     });
 
     if (!respuesta.ok) {
-      console.error("[mails] Resend rechazó el envío:", await respuesta.text());
-      return false;
+      const detalle = await respuesta.text();
+      console.error("[mails] Resend rechazó el envío:", detalle);
+      return { ok: false, error: `Resend ${respuesta.status}: ${detalle.slice(0, 300)}` };
     }
 
-    return true;
+    return { ok: true };
   } catch (error) {
     console.error("[mails] error de red al enviar:", error);
-    return false;
+    return { ok: false, error: `Error de red: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -346,6 +352,8 @@ type DatosArrepentimiento = {
   recibida: string;
   solicitud: SolicitudArrepentimiento;
   config: ConfigTienda;
+  /** Por qué no se pudo guardar en Airtable, si no se pudo. */
+  errorRegistro?: string;
 };
 
 /**
@@ -402,12 +410,16 @@ function filasArrepentimiento(d: DatosArrepentimiento): [string, string][] {
 /** 6 — Botón de arrepentimiento: el aviso a Harper, que es el registro de la solicitud. */
 export function mailArrepentimientoInterno(d: DatosArrepentimiento): Envio {
   const filas = filasArrepentimiento(d);
+  const registro = d.errorRegistro
+    ? `ATENCIÓN: no se pudo guardar en Airtable (${d.errorRegistro}). Este mail es la constancia de la solicitud.`
+    : "Quedó registrada en Airtable, en la tabla Arrepentimientos.";
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Solicitud de arrepentimiento — ${escaparHtml(d.codigo)}</h1>
 <p style="margin:0 0 20px;font-size:14px;color:#78756c;line-height:1.6;">
   Al comprador se le mostró este código en pantalla y se le envía por email. Si ese email falla, te llega otro aviso.
   Contactalo el siguiente día hábil para coordinar el retiro sin cargo y el reintegro. Respondiendo este mail le escribís a él.
 </p>
+<p style="margin:0 0 20px;font-size:14px;line-height:1.6;${d.errorRegistro ? "color:#a1281b;" : "color:#78756c;"}">${escaparHtml(registro)}</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:1.6;">
   ${filas
     .map(
@@ -423,14 +435,16 @@ export function mailArrepentimientoInterno(d: DatosArrepentimiento): Envio {
 
   return {
     para: d.config.emailPedidos,
-    asunto: `Arrepentimiento ${d.codigo} — ${d.solicitud.nombre}`,
+    asunto: `${d.errorRegistro ? "REVISAR " : ""}Arrepentimiento ${d.codigo} — ${d.solicitud.nombre}`,
     html,
     texto: `SOLICITUD DE ARREPENTIMIENTO ${d.codigo}
 
 ${filas.map(([clave, valor]) => `${clave}: ${valor}`).join("\n")}
 
 Al comprador se le mostró el código en pantalla y se le envía por email. Si ese email falla, te llega otro aviso.
-Contactalo el siguiente día hábil para coordinar el retiro sin cargo y el reintegro.`,
+Contactalo el siguiente día hábil para coordinar el retiro sin cargo y el reintegro.
+
+${registro}`,
     responderA: d.solicitud.email,
   };
 }

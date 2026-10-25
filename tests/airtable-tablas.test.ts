@@ -20,5 +20,6 @@ test("AIRTABLE_TABLAS reemplaza solo las tablas conocidas con IDs válidos; el r
   assert.equal(TABLAS.productos, "tblrhgsHP6oJLa5C2");
   assert.equal(TABLAS.config, "tblMyAedM5pvVijLf");
   assert.equal(TABLAS.descuentos, "tblYkgJW6Bi0Fx048");
+  assert.equal(TABLAS.arrepentimientos, "tblgag8YwduSiTWfx");
   assert.ok(!("otraCosa" in TABLAS));
 });
