@@ -2403,13 +2403,15 @@ p {
   align-items: center;
   justify-content: flex-end;
 }
+/* "Preferencias" va en el renglón del texto, junto a "Más información": así
+   los dos botones entran en una sola fila y el aviso tapa menos. */
 .cookies__preferencias {
-  margin-right: auto;
+  display: inline;
   padding: 0;
   border: 0;
   background: none;
   font: inherit;
-  color: var(--texto-suave);
+  color: inherit;
   text-decoration: underline;
   text-underline-offset: 0.18em;
   cursor: pointer;

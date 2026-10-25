@@ -1,12 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import {
+  alCambiarConsentimiento,
   EVENTO_ABRIR_PREFERENCIAS,
   guardarConsentimiento,
   leerConsentimiento,
 } from "@/lib/consentimiento";
+
+/** Se emite en `window` cuando el aviso aparece o se va. */
+const EVENTO_AVISO = "harper:aviso-cookies";
+
+function suscribirAviso(alCambiar: () => void) {
+  window.addEventListener(EVENTO_AVISO, alCambiar);
+  return () => window.removeEventListener(EVENTO_AVISO, alCambiar);
+}
+
+/**
+ * Si el aviso (o el panel) está en pantalla. Las barras fijas de compra lo
+ * usan para quedarse visibles mientras tanto: el aviso tapa la parte de abajo
+ * y, sin la barra, el botón real de comprar podría quedar justo debajo.
+ */
+export function useAvisoCookiesAbierto(): boolean {
+  return useSyncExternalStore(
+    suscribirAviso,
+    () => document.body.dataset.avisoCookies !== undefined,
+    () => false
+  );
+}
 
 /**
  * El aviso de cookies: discreto, abajo, sin tapar la compra.
@@ -25,6 +47,11 @@ export default function AvisoCookies() {
   const [publicidad, setPublicidad] = useState(false);
   const idTitulo = useId();
   const dialogo = useRef<HTMLDivElement>(null);
+  const botonPreferencias = useRef<HTMLButtonElement>(null);
+  // Dónde estaba el foco antes de abrir el panel, para devolverlo al cerrar.
+  const vuelta = useRef<HTMLElement | null>(null);
+  const panelAbierto = useRef(false);
+  panelAbierto.current = panel;
 
   useEffect(() => {
     const guardado = leerConsentimiento();
@@ -32,33 +59,70 @@ export default function AvisoCookies() {
     else setPublicidad(guardado.publicidad);
 
     function abrir() {
+      recordarFoco();
       setPublicidad(leerConsentimiento()?.publicidad === true);
       setVisible(true);
       setPanel(true);
     }
     window.addEventListener(EVENTO_ABRIR_PREFERENCIAS, abrir);
-    return () => window.removeEventListener(EVENTO_ABRIR_PREFERENCIAS, abrir);
+
+    // Si elige en otra pestaña, el aviso compacto de esta se va solo.
+    const dejar = alCambiarConsentimiento((dato) => {
+      if (!dato) return;
+      setPublicidad(dato.publicidad);
+      if (!panelAbierto.current) setVisible(false);
+    });
+
+    return () => {
+      window.removeEventListener(EVENTO_ABRIR_PREFERENCIAS, abrir);
+      dejar();
+    };
   }, []);
 
-  // El panel recibe el foco al abrirse y se cierra con Escape.
+  // Mientras está en pantalla lo marca en <body> y avisa a las barras fijas.
+  useEffect(() => {
+    if (!visible) return;
+    document.body.dataset.avisoCookies = "";
+    window.dispatchEvent(new Event(EVENTO_AVISO));
+    return () => {
+      delete document.body.dataset.avisoCookies;
+      window.dispatchEvent(new Event(EVENTO_AVISO));
+    };
+  }, [visible]);
+
+  // El panel recibe el foco al abrirse. Escape lo cierra: si todavía no
+  // eligió, vuelve al aviso compacto; si ya había elegido, se va todo.
   useEffect(() => {
     if (!panel) return;
     dialogo.current?.focus();
     function alTeclear(e: KeyboardEvent) {
-      if (e.key === "Escape" && leerConsentimiento()) {
-        setPanel(false);
-        setVisible(false);
-      }
+      if (e.key === "Escape") cerrarPanel(Boolean(leerConsentimiento()));
     }
     window.addEventListener("keydown", alTeclear);
     return () => window.removeEventListener("keydown", alTeclear);
   }, [panel]);
 
+  function recordarFoco() {
+    vuelta.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+
+  function cerrarPanel(cerrarTodo: boolean) {
+    setPanel(false);
+    if (cerrarTodo) setVisible(false);
+    const destino = vuelta.current;
+    vuelta.current = null;
+    // Después de que React saque el panel: el foco vuelve a donde estaba (el
+    // enlace del pie) o, si se abrió desde el aviso, a su "Preferencias".
+    requestAnimationFrame(() => {
+      if (destino?.isConnected) destino.focus();
+      else botonPreferencias.current?.focus();
+    });
+  }
+
   function elegir(acepta: boolean) {
     guardarConsentimiento(acepta);
     setPublicidad(acepta);
-    setPanel(false);
-    setVisible(false);
+    cerrarPanel(true);
   }
 
   if (!visible) return null;
@@ -123,11 +187,20 @@ export default function AvisoCookies() {
         <Link href="/legales/privacidad" className="cookies__enlace">
           Más información
         </Link>
-      </p>
-      <div className="cookies__acciones">
-        <button type="button" className="cookies__preferencias" onClick={() => setPanel(true)}>
+        <span aria-hidden="true"> · </span>
+        <button
+          type="button"
+          ref={botonPreferencias}
+          className="cookies__preferencias"
+          onClick={() => {
+            recordarFoco();
+            setPanel(true);
+          }}
+        >
           Preferencias
         </button>
+      </p>
+      <div className="cookies__acciones">
         <button type="button" className="boton boton--fantasma boton--chico" onClick={() => elegir(false)}>
           Rechazar opcionales
         </button>

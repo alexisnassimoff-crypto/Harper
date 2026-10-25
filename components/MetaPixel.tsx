@@ -7,9 +7,8 @@ import "@/lib/pixel";
 import { CLAVE_ORIGEN } from "@/lib/origen";
 import {
   aceptaPublicidad,
+  alCambiarConsentimiento,
   borrarRastrosPublicitarios,
-  EVENTO_CONSENTIMIENTO,
-  type Consentimiento,
 } from "@/lib/consentimiento";
 
 /**
@@ -18,8 +17,8 @@ import {
  * Se activa solo si NEXT_PUBLIC_META_PIXEL_ID está configurada Y la persona
  * aceptó las cookies de medición y publicidad. Sin ese "sí" el script de Meta
  * no se descarga, no se crean las cookies _fbp/_fbc y no sale ningún evento.
- * Si después rechaza, se revoca el consentimiento en el píxel, se dejan de
- * mandar eventos y se borran sus cookies.
+ * Si después rechaza (en esta pestaña o en otra), se revoca el consentimiento
+ * en el píxel, se dejan de mandar eventos y se borran sus cookies.
  *
  * El script base se inyecta una vez y cada cambio de ruta dispara un PageView;
  * los eventos de valor los disparan las páginas con <EventoPixel/>.
@@ -52,23 +51,25 @@ export default function MetaPixel() {
 
   // La elección guardada al entrar y los cambios que haga después.
   useEffect(() => {
-    setPermitido(aceptaPublicidad());
+    const acepta = aceptaPublicidad();
+    setPermitido(acepta);
+    // Sin un "sí", no tiene que haber rastros publicitarios, tampoco los que
+    // haya dejado una versión anterior de la tienda que no preguntaba.
+    if (!acepta) borrarRastrosPublicitarios(CLAVE_ORIGEN);
 
-    function alCambiar(evento: Event) {
-      const dato = (evento as CustomEvent<Consentimiento>).detail;
-      setPermitido(dato?.publicidad === true);
-      if (dato?.publicidad !== true) {
+    return alCambiarConsentimiento((dato) => {
+      const si = dato?.publicidad === true;
+      setPermitido(si);
+      if (!si) {
         if (window.fbq) window.fbq("consent", "revoke");
         borrarRastrosPublicitarios(CLAVE_ORIGEN);
       }
-    }
-
-    window.addEventListener(EVENTO_CONSENTIMIENTO, alCambiar);
-    return () => window.removeEventListener(EVENTO_CONSENTIMIENTO, alCambiar);
+    });
   }, []);
 
   useEffect(() => {
-    if (!PIXEL_ID || !permitido) return;
+    // Se vuelve a leer la elección: el estado puede haber quedado viejo.
+    if (!PIXEL_ID || !permitido || !aceptaPublicidad()) return;
     cargarPixel();
     window.fbq?.("track", "PageView");
   }, [pathname, permitido]);

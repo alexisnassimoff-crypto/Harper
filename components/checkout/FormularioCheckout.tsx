@@ -12,6 +12,7 @@ import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, EleccionEnvio } from "@/lib/tipos";
 import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
+import { useAvisoCookiesAbierto } from "@/components/AvisoCookies";
 import BarraPagar from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import { PROVINCIAS } from "./provincias";
@@ -267,6 +268,9 @@ export default function FormularioCheckout({
   // La barra fija de pagar aparece cuando el botón real sale de pantalla.
   const botonPagar = useRef<HTMLButtonElement>(null);
   const [botonEnPantalla, setBotonEnPantalla] = useState(true);
+  // Mientras el aviso de cookies tapa la parte de abajo, la barra se queda:
+  // el botón real podría estar justo debajo del aviso.
+  const avisoCookies = useAvisoCookiesAbierto();
 
   useEffect(() => {
     const nodo = botonPagar.current;
@@ -359,16 +363,35 @@ export default function FormularioCheckout({
       const id = campo === "direccion" && !document.getElementById("direccion") ? "numero" : campo;
       const nodo = document.getElementById(id) ?? document.getElementById("domicilio");
       if (nodo) {
-        // focus() no desplaza si el campo ya está en pantalla aunque lo tape
-        // el header fijo. Si quedó tapado o fuera de la vista, se centra: así
-        // se ven también su etiqueta y el mensaje de error.
         nodo.focus({ preventScroll: true });
-        const margen = parseFloat(getComputedStyle(nodo).scrollMarginTop) || 0;
-        const { top, bottom } = nodo.getBoundingClientRect();
-        if (top < margen || bottom > window.innerHeight) nodo.scrollIntoView({ block: "center" });
+        // Se mide en el cuadro siguiente, con el mensaje de error ya pintado.
+        const bloque = nodo.closest<HTMLElement>(".checkout__legal, .campo") ?? nodo;
+        requestAnimationFrame(() => mostrarEntreCapasFijas(bloque));
         return;
       }
     }
+  }
+
+  /**
+   * Deja el campo con error a la vista, con su etiqueta y su mensaje. focus()
+   * no desplaza si el campo "está en pantalla" aunque lo tapen el header, la
+   * barra fija de pagar o el aviso de cookies: acá se mide la franja que de
+   * verdad se ve y, si no entra, se lo centra en ella.
+   */
+  function mostrarEntreCapasFijas(bloque: HTMLElement) {
+    const arriba = document.querySelector("header")?.getBoundingClientRect().bottom ?? 0;
+    let abajo = window.innerHeight;
+    for (const capa of document.querySelectorAll<HTMLElement>(".cta-fija, .cookies")) {
+      const r = capa.getBoundingClientRect();
+      if (r.height > 0 && r.top < abajo && r.bottom > arriba) abajo = r.top;
+    }
+    const { top, bottom } = bloque.getBoundingClientRect();
+    if (top >= arriba && bottom <= abajo) return;
+    const alto = bottom - top;
+    const franja = abajo - arriba;
+    // Si no entra entero, que se vea desde arriba (etiqueta y campo primero).
+    const desplazar = alto > franja ? top - arriba - 8 : (top + bottom) / 2 - (arriba + abajo) / 2;
+    window.scrollBy({ top: desplazar });
   }
 
   /** Los datos del pedido tal como viajan: con el piso o depto en la dirección. */
@@ -822,7 +845,7 @@ export default function FormularioCheckout({
       </aside>
 
       <BarraPagar
-        visible={!botonEnPantalla}
+        visible={!botonEnPantalla || avisoCookies}
         formulario={ID_FORMULARIO}
         total={formatearPrecio(resumen.total)}
         detalle={`${productos}${resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}`}

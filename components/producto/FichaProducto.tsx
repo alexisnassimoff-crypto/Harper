@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
+import { useAvisoCookiesAbierto } from "@/components/AvisoCookies";
 import CtaFija from "./CtaFija";
 import ConsultaGraduados from "./ConsultaGraduados";
 import OfertaCantidad from "./OfertaCantidad";
@@ -109,6 +110,9 @@ export default function FichaProducto({
   // pantalla, y se va cuando vuelve: nunca hay dos botones a la vista.
   const bloqueCompra = useRef<HTMLDivElement>(null);
   const [compraEnPantalla, setCompraEnPantalla] = useState(true);
+  // Mientras el aviso de cookies tapa la parte de abajo, la barra se queda:
+  // el botón real podría estar justo debajo del aviso.
+  const avisoCookies = useAvisoCookiesAbierto();
 
   useEffect(() => {
     const nodo = bloqueCompra.current;
@@ -514,7 +518,7 @@ export default function FichaProducto({
       </div>
 
       <CtaFija
-        visible={!compraEnPantalla && !variante.agotada}
+        visible={(!compraEnPantalla || avisoCookies) && !variante.agotada}
         nombre={`${producto.nombre} · ${variante.color}`}
         precio={formatearPrecio(producto.precio)}
         detalle={cuotaTexto}

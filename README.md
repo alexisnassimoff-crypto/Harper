@@ -335,8 +335,17 @@ Sin el "sí" a medición y publicidad no se carga el Meta Pixel, no se crean las
 cookies `_fbp`/`_fbc`, no se guarda de qué anuncio vino y el pedido no lleva
 atribución. El webhook solo avisa la compra a Meta por la Conversions API si el
 pedido trae `publicidad: true` en `Origen`, que el checkout marca únicamente con
-consentimiento. Si la persona retira el consentimiento, el píxel se revoca y se
-borran esas cookies.
+consentimiento. Si la persona retira el consentimiento (en esa pestaña o en
+otra), el píxel se revoca y se borran esas cookies. Sin consentimiento, también
+se borran al entrar las que pudo haber dejado una versión anterior de la tienda.
+
+Límite conocido: para la Conversions API cuenta la elección vigente al enviar
+el checkout. Si alguien revoca entre el envío y la acreditación del pago (por
+ejemplo, un pago en efectivo que tarda días), esa compra igual se le avisa a
+Meta.
+
+Mientras el aviso está abierto, en celular la barra fija de compra no se
+esconde: el aviso tapa la parte de abajo y el botón real podría quedar debajo.
 
 ## Mayoría de edad y Términos
 

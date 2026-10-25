@@ -31,17 +31,23 @@ export type Consentimiento = {
   fecha: string;
 };
 
+/**
+ * La elección de esta visita, para cuando el navegador no deja guardar
+ * (modo privado, almacenamiento lleno): sin esto, aceptar no tendría efecto.
+ */
+let enMemoria: Consentimiento | null = null;
+
 /** Lo guardado, si es de esta versión; si no hay o es viejo, null (= no eligió). */
 export function leerConsentimiento(): Consentimiento | null {
   if (typeof window === "undefined") return null;
   try {
     const crudo = window.localStorage.getItem(CLAVE_CONSENTIMIENTO);
-    if (!crudo) return null;
+    if (!crudo) return enMemoria;
     const dato = JSON.parse(crudo) as Partial<Consentimiento>;
     if (dato.version !== VERSION_CONSENTIMIENTO || typeof dato.publicidad !== "boolean") return null;
     return { version: dato.version, publicidad: dato.publicidad, fecha: String(dato.fecha ?? "") };
   } catch {
-    return null;
+    return enMemoria;
   }
 }
 
@@ -52,6 +58,7 @@ export function aceptaPublicidad(): boolean {
 
 export function guardarConsentimiento(publicidad: boolean, ahora = new Date()): Consentimiento {
   const dato: Consentimiento = { version: VERSION_CONSENTIMIENTO, publicidad, fecha: ahora.toISOString() };
+  enMemoria = dato;
   try {
     window.localStorage.setItem(CLAVE_CONSENTIMIENTO, JSON.stringify(dato));
   } catch {
@@ -59,6 +66,29 @@ export function guardarConsentimiento(publicidad: boolean, ahora = new Date()): 
   }
   window.dispatchEvent(new CustomEvent(EVENTO_CONSENTIMIENTO, { detail: dato }));
   return dato;
+}
+
+/**
+ * Avisa cada cambio de la elección: los de esta pestaña y los de otras
+ * pestañas del mismo sitio (evento `storage`). Si en otra pestaña rechaza,
+ * esta tiene que dejar de medir igual. Devuelve cómo dejar de escuchar.
+ */
+export function alCambiarConsentimiento(alCambiar: (dato: Consentimiento | null) => void): () => void {
+  function enEstaPestana(evento: Event) {
+    alCambiar((evento as CustomEvent<Consentimiento>).detail ?? null);
+  }
+  function enOtraPestana(evento: StorageEvent) {
+    // key null: se borró todo el almacenamiento del sitio.
+    if (evento.key !== CLAVE_CONSENTIMIENTO && evento.key !== null) return;
+    enMemoria = null;
+    alCambiar(leerConsentimiento());
+  }
+  window.addEventListener(EVENTO_CONSENTIMIENTO, enEstaPestana);
+  window.addEventListener("storage", enOtraPestana);
+  return () => {
+    window.removeEventListener(EVENTO_CONSENTIMIENTO, enEstaPestana);
+    window.removeEventListener("storage", enOtraPestana);
+  };
 }
 
 /**

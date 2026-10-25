@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { aceptaPublicidad, EVENTO_CONSENTIMIENTO, type Consentimiento } from "@/lib/consentimiento";
+import { aceptaPublicidad, alCambiarConsentimiento } from "@/lib/consentimiento";
 import { CLAVE_ORIGEN, leerOrigenDeUrl, type Origen } from "@/lib/origen";
 
 /**
@@ -40,14 +40,11 @@ export default function CapturaOrigen() {
       else pendiente = origen;
     }
 
-    function alCambiar(evento: Event) {
-      const dato = (evento as CustomEvent<Consentimiento>).detail;
-      if (dato?.publicidad === true && pendiente) guardar(pendiente);
+    return alCambiarConsentimiento((dato) => {
+      if (!dato) return;
+      if (dato.publicidad && pendiente) guardar(pendiente);
       pendiente = null;
-    }
-
-    window.addEventListener(EVENTO_CONSENTIMIENTO, alCambiar);
-    return () => window.removeEventListener(EVENTO_CONSENTIMIENTO, alCambiar);
+    });
   }, []);
 
   return null;
