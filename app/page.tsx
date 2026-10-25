@@ -52,10 +52,11 @@ export default async function Home() {
     deAnteojos.map((p) => ({ confirmado: caracteristicasDe(p) !== null }))
   );
 
-  // Las cuotas se anuncian solo si Mercado Pago las confirma para el precio
-  // más bajo de lo publicado (así valen para todo lo que se ve).
-  const cuotas = await verificarCuotasPara(productos.map((p) => p.precio));
-  const confianza = mensajesDeConfianza(config, cuotas);
+  // Las cuotas se anuncian solo si Mercado Pago las confirma para el anteojo
+  // más barato publicado, y se dice que son en anteojos: los complementos
+  // cuestan menos que el mínimo de la promoción y ahí las cuotas tienen interés.
+  const cuotas = await verificarCuotasPara(deAnteojos.map((p) => p.precio));
+  const confianza = mensajesDeConfianza(config, cuotas, "en anteojos");
 
   return (
     <>

@@ -29,6 +29,11 @@ test("las cuotas aparecen solo cuando Mercado Pago las confirmó, con el CFTEA",
   delete process.env.NEXT_PUBLIC_CUOTAS;
 });
 
+test("en la portada las cuotas dicen a qué valen", () => {
+  const cuotas = mensajesDeConfianza(config, VERIFICADAS, "en anteojos").find((x) => x.clave === "cuotas");
+  assert.equal(cuotas?.texto, "3 cuotas sin interés en anteojos");
+});
+
 test("sin promoción de envío gratis se dice solo que se envía", () => {
   const m = mensajesDeConfianza({ envioGratisDesde: 0 });
   const envio = m.find((x) => x.clave === "envio");
