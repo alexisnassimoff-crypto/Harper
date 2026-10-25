@@ -3,8 +3,10 @@ import { precio as formatearPrecio } from "./formato";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import { caracteristicasDe } from "./caracteristicas";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
+import { pedidoParaMostrar, TEXTO_PROXIMO_PASO, type SolicitudArrepentimiento } from "./arrepentimiento";
 
-const API_RESEND = "https://api.resend.com/emails";
+// Se puede apuntar a un Resend simulado para las pruebas de punta a punta.
+const API_RESEND = process.env.RESEND_API_URL ?? "https://api.resend.com/emails";
 
 /**
  * Remitente. Tiene que ser una dirección del dominio verificado en Resend,
@@ -335,5 +337,112 @@ export function mailEnviado(
     html,
     texto: `Despachamos tu pedido ${d.numero}.\n\nSeguimiento: ${d.tracking}\n\nConsultas: ${d.config.emailContacto}`,
     responderA: d.config.emailContacto,
+  };
+}
+
+type DatosArrepentimiento = {
+  codigo: string;
+  /** Fecha y hora de recepción, ya escrita (ver fechaDeRecepcion). */
+  recibida: string;
+  solicitud: SolicitudArrepentimiento;
+  config: ConfigTienda;
+};
+
+/**
+ * 5 — Botón de arrepentimiento: el código de recepción, al comprador. Lleva
+ * solo datos del sistema (y el número de pedido si tiene forma de número de
+ * pedido): nunca texto libre del formulario, que podría escribir cualquiera.
+ */
+export function mailArrepentimientoComprador(d: DatosArrepentimiento): Envio {
+  const pedido = pedidoParaMostrar(d.solicitud.pedido);
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Recibimos tu solicitud de arrepentimiento</h1>
+<p style="margin:0 0 16px;font-size:14px;color:#78756c;line-height:1.6;">
+  Este es el código de recepción de tu solicitud. Guardalo: la identifica.
+</p>
+<div style="font-size:20px;letter-spacing:2px;padding:16px;background:#f2f0ec;border:1px solid #e3e0d8;text-align:center;">
+  ${escaparHtml(d.codigo)}
+</div>
+<p style="margin:16px 0 0;font-size:14px;line-height:1.6;">
+  La recibimos el ${escaparHtml(d.recibida)}.${pedido ? ` Pedido ${escaparHtml(pedido)}.` : ""}
+</p>
+<p style="margin:16px 0 0;font-size:14px;line-height:1.6;">${escaparHtml(TEXTO_PROXIMO_PASO)}</p>`,
+    d.config
+  );
+
+  return {
+    para: d.solicitud.email,
+    asunto: `Recibimos tu solicitud de arrepentimiento — ${d.codigo}`,
+    html,
+    texto: `Recibimos tu solicitud de arrepentimiento.
+
+Código de recepción: ${d.codigo}
+Recibida el ${d.recibida}.${pedido ? ` Pedido ${pedido}.` : ""}
+
+${TEXTO_PROXIMO_PASO}
+
+Consultas: ${d.config.emailContacto}`,
+    responderA: d.config.emailContacto,
+  };
+}
+
+function filasArrepentimiento(d: DatosArrepentimiento): [string, string][] {
+  const s = d.solicitud;
+  return [
+    ["Código", d.codigo],
+    ["Recibida", d.recibida],
+    ["Nombre", s.nombre],
+    ["Email", s.email],
+    ["Pedido", s.pedido || "No lo indicó"],
+    ["Productos", s.producto || "No lo indicó (todo el pedido)"],
+    ["Motivo", s.motivo || "No lo indicó"],
+  ];
+}
+
+/** 6 — Botón de arrepentimiento: el aviso a Harper, que es el registro de la solicitud. */
+export function mailArrepentimientoInterno(d: DatosArrepentimiento): Envio {
+  const filas = filasArrepentimiento(d);
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Solicitud de arrepentimiento — ${escaparHtml(d.codigo)}</h1>
+<p style="margin:0 0 20px;font-size:14px;color:#78756c;line-height:1.6;">
+  Al comprador se le mostró este código en pantalla y se le envía por email. Si ese email falla, te llega otro aviso.
+  Contactalo el siguiente día hábil para coordinar el retiro sin cargo y el reintegro. Respondiendo este mail le escribís a él.
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:1.6;">
+  ${filas
+    .map(
+      ([clave, valor]) => `<tr>
+    <td width="96" style="padding:6px 12px 6px 0;vertical-align:top;color:#78756c;">${clave}</td>
+    <td style="padding:6px 0;vertical-align:top;white-space:pre-wrap;">${escaparHtml(valor)}</td>
+  </tr>`
+    )
+    .join("")}
+</table>`,
+    d.config
+  );
+
+  return {
+    para: d.config.emailPedidos,
+    asunto: `Arrepentimiento ${d.codigo} — ${d.solicitud.nombre}`,
+    html,
+    texto: `SOLICITUD DE ARREPENTIMIENTO ${d.codigo}
+
+${filas.map(([clave, valor]) => `${clave}: ${valor}`).join("\n")}
+
+Al comprador se le mostró el código en pantalla y se le envía por email. Si ese email falla, te llega otro aviso.
+Contactalo el siguiente día hábil para coordinar el retiro sin cargo y el reintegro.`,
+    responderA: d.solicitud.email,
+  };
+}
+
+/** 7 — El código no le llegó por email al comprador: que se lo mande Harper. */
+export function mailArrepentimientoSinCodigo(d: DatosArrepentimiento): Envio {
+  const texto = `No se pudo mandar por email el código ${d.codigo} a ${d.solicitud.email}. Se le mostró en pantalla, pero mandáselo vos respondiendo este mail.`;
+  return {
+    para: d.config.emailPedidos,
+    asunto: `REVISAR arrepentimiento ${d.codigo} — el código no le llegó al comprador`,
+    html: envoltorio(`<p style="margin:0;font-size:14px;line-height:1.6;">${escaparHtml(texto)}</p>`, d.config),
+    texto,
+    responderA: d.solicitud.email,
   };
 }

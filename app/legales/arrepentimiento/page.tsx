@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import FormularioArrepentimiento from "@/components/FormularioArrepentimiento";
 import { getConfig } from "@/lib/config";
 
 export const metadata: Metadata = {
@@ -9,23 +10,11 @@ export const metadata: Metadata = {
 /**
  * Obligatorio por la Resolución 424/2020 de la Secretaría de Comercio Interior.
  * Tiene que estar accesible desde la portada, en el primer nivel de navegación.
+ * El código de recepción se da en el momento, también fines de semana y
+ * feriados (Disp. SSDCyLC 954/2025): ver lib/arrepentimiento.ts.
  */
 export default async function Arrepentimiento() {
   const config = await getConfig();
-
-  const asunto = encodeURIComponent("Botón de arrepentimiento");
-  const cuerpo = encodeURIComponent(
-    [
-      "Solicito ejercer mi derecho de arrepentimiento (art. 34 Ley 24.240).",
-      "",
-      "Número de pedido:",
-      "Nombre y apellido:",
-      "DNI:",
-      "Producto a devolver:",
-      "Motivo (opcional):",
-      "",
-    ].join("\n")
-  );
 
   return (
     <>
@@ -40,9 +29,14 @@ export default async function Arrepentimiento() {
 
       <p className="apagado">
         Podés abrir el paquete y probarte los anteojos normalmente, y no hace
-        falta conservar el empaque original. Una vez recibida tu solicitud te
-        contactamos dentro de las 48 horas hábiles para coordinar el retiro sin
-        cargo y el reintegro del importe abonado.
+        falta conservar el empaque original.
+      </p>
+
+      <p className="apagado">
+        Al enviar la solicitud te damos un código de recepción en el momento, en
+        pantalla y por email, también los fines de semana y feriados. Atendemos
+        de lunes a viernes: el siguiente día hábil te contactamos para coordinar
+        el retiro sin cargo y el reintegro del importe abonado.
       </p>
 
       <p className="apagado">
@@ -60,14 +54,7 @@ export default async function Arrepentimiento() {
           alignItems: "flex-start",
         }}
       >
-        <p style={{ fontSize: "0.9375rem" }}>
-          Enviá tu solicitud con el número de pedido y tus datos. El mensaje ya
-          viene precargado con lo que necesitamos.
-        </p>
-
-        <a href={`mailto:${config.emailContacto}?subject=${asunto}&body=${cuerpo}`} className="boton">
-          Ejercer el arrepentimiento
-        </a>
+        <FormularioArrepentimiento emailContacto={config.emailContacto} whatsapp={config.whatsapp} />
 
         <p className="apagado" style={{ fontSize: "0.8125rem" }}>
           También podés escribirnos directamente a {config.emailContacto}
