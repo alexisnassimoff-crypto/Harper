@@ -96,3 +96,30 @@ export function evaluarCuotas(
     cftea: "0,00 %",
   };
 }
+
+/**
+ * Lo que contestó Mercado Pago, resumido para /api/health: por banco, qué
+ * cuotas ofrece y, para las anunciadas, la tasa, el CFT y el total. Sin datos
+ * personales ni credenciales. Sirve para saber por qué no se anuncian cuotas.
+ */
+export function resumirCuotasMP(respuesta: unknown, cuotas: number) {
+  if (!Array.isArray(respuesta)) return { formato: "inesperado" };
+  return respuesta.map((opcion: { issuer?: { name?: unknown }; payment_type_id?: unknown; processing_mode?: unknown; payer_costs?: unknown }) => {
+    const costos = Array.isArray(opcion?.payer_costs) ? (opcion.payer_costs as CostoMP[]) : [];
+    const costo = costos.find((c) => c?.installments === cuotas);
+    return {
+      emisor: typeof opcion?.issuer?.name === "string" ? opcion.issuer.name : null,
+      tipo: typeof opcion?.payment_type_id === "string" ? opcion.payment_type_id : null,
+      modo: typeof opcion?.processing_mode === "string" ? opcion.processing_mode : null,
+      ofrece: costos.map((c) => c?.installments).filter((n) => typeof n === "number"),
+      anunciadas: costo
+        ? {
+            tasa: costo.installment_rate ?? null,
+            etiquetas: Array.isArray(costo.labels) ? costo.labels.filter((l) => typeof l === "string") : null,
+            monto: costo.installment_amount ?? null,
+            total: costo.total_amount ?? null,
+          }
+        : null,
+    };
+  });
+}
