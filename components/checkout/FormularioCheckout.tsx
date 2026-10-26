@@ -19,8 +19,7 @@ import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, EleccionEnvio } from "@/lib/tipos";
 import { validarCliente, type ErroresCliente } from "@/lib/validacion";
-import { useAvisoCookiesAbierto } from "@/components/AvisoCookies";
-import BarraPagar from "./BarraPagar";
+import BarraPagar, { TextoPagoSeguro } from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import CodigoDescuento from "./CodigoDescuento";
 import { PROVINCIAS } from "./provincias";
@@ -264,25 +263,6 @@ export default function FormularioCheckout({
     trackPixel("InitiateCheckout", datosDeCompra({ items: carrito.items, valor: carrito.subtotal }));
   }, [carrito, reintento]);
 
-  // La barra fija de pagar aparece cuando el botón real sale de pantalla.
-  const botonPagar = useRef<HTMLButtonElement>(null);
-  const [botonEnPantalla, setBotonEnPantalla] = useState(true);
-  // Mientras el aviso de cookies tapa la parte de abajo, la barra se queda:
-  // el botón real podría estar justo debajo del aviso.
-  const avisoCookies = useAvisoCookiesAbierto();
-
-  useEffect(() => {
-    const nodo = botonPagar.current;
-    if (!nodo || typeof IntersectionObserver === "undefined") return;
-
-    const observador = new IntersectionObserver(
-      (entradas) => setBotonEnPantalla(entradas.some((e) => e.isIntersecting)),
-      { threshold: 0.2 }
-    );
-
-    observador.observe(nodo);
-    return () => observador.disconnect();
-  }, [carrito]);
 
   // Un aviso de error (por ejemplo, el cupón rechazado al pagar desde la barra
   // fija) se lleva a la franja visible: en celular quedaba fuera de pantalla.
@@ -950,8 +930,10 @@ export default function FormularioCheckout({
           </p>
         ) : null}
 
-        <button ref={botonPagar} type="submit" className="boton boton--bloque" disabled={enviando}>
-          {enviando ? "Redirigiendo…" : "Pagar"}
+        {/* En celular este botón no se muestra: lo reemplaza la barra fija,
+            siempre a la vista, con el mismo texto y el total. */}
+        <button type="submit" className="boton boton--bloque checkout__pagar" disabled={enviando}>
+          {enviando ? "Redirigiendo…" : <TextoPagoSeguro total={formatearPrecio(resumen.total)} />}
         </button>
 
         <p className="apagado" style={{ fontSize: "0.75rem" }}>
@@ -961,13 +943,7 @@ export default function FormularioCheckout({
         </p>
       </aside>
 
-      <BarraPagar
-        visible={!botonEnPantalla || avisoCookies}
-        formulario={ID_FORMULARIO}
-        total={formatearPrecio(resumen.total)}
-        detalle={`${productos}${resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}`}
-        ocupado={enviando}
-      />
+      <BarraPagar visible formulario={ID_FORMULARIO} total={formatearPrecio(resumen.total)} ocupado={enviando} />
     </form>
   );
 }

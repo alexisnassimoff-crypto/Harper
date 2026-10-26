@@ -2423,6 +2423,24 @@ p {
 .cta-fija .boton {
   flex: 0 0 auto;
 }
+/* Checkout: un solo botón a todo el ancho, con el candado y el total. */
+.cta-fija--pago .boton {
+  flex: 1 1 auto;
+}
+.pago-seguro {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  white-space: nowrap;
+}
+.pago-seguro__candado {
+  flex-shrink: 0;
+  /* Alineado ópticamente con las mayúsculas del texto. */
+  margin-top: -0.1em;
+}
+.pago-seguro__total {
+  font-variant-numeric: tabular-nums;
+}
 
 @media (max-width: 46rem) {
   .cta-fija {
@@ -2435,6 +2453,10 @@ p {
   }
   body[data-cta-fija] footer {
     padding-bottom: 4.75rem;
+  }
+  /* En celular paga la barra fija (siempre visible): no hay dos botones. */
+  .checkout__pagar {
+    display: none;
   }
 }
 
