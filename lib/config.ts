@@ -1,6 +1,7 @@
 import { listRecords, TABLAS } from "./airtable";
 import { aNumero } from "./formato";
 import { leerImpuestos, SIN_IMPUESTOS_CARGADOS, type ImpuestosNacionales } from "./impuestos";
+import { leerDatosTransferencia, type DatosTransferencia } from "./transferencia";
 
 /**
  * Ajustes de la tienda, editables desde la tabla Config de Airtable
@@ -57,6 +58,12 @@ export type ConfigTienda = {
    * lib/facturacion.ts.
    */
   condicionIva: string;
+  /**
+   * La cuenta para el pago por transferencia (claves transferencia_titular,
+   * _cuit, _banco, _cuenta, _cbu y _alias). Sin titular, CBU válido y alias
+   * es null y el checkout no ofrece transferencia. Ver lib/transferencia.ts.
+   */
+  transferencia: DatosTransferencia | null;
 };
 
 /**
@@ -87,6 +94,7 @@ const POR_DEFECTO: ConfigTienda = {
   dataFiscal: "",
   impuestosNacionales: SIN_IMPUESTOS_CARGADOS,
   condicionIva: "",
+  transferencia: null,
 };
 
 type FilaConfig = { Clave?: string; Valor?: string };
@@ -147,6 +155,7 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
     dataFiscal: texto("data_fiscal", POR_DEFECTO.dataFiscal),
     impuestosNacionales: leerImpuestos(mapa),
     condicionIva: texto("condicion_iva", POR_DEFECTO.condicionIva),
+    transferencia: leerDatosTransferencia((clave) => mapa.get(clave)),
   };
 }
 

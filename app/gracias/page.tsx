@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import VaciarCarrito from "@/components/carrito/VaciarCarrito";
+import DatosTransferencia from "@/components/DatosTransferencia";
 import EsperarPago from "@/components/EsperarPago";
 import EventoPixel from "@/components/EventoPixel";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { getConfig } from "@/lib/config";
+import { precio as formatearPrecio } from "@/lib/formato";
 import { buscarPedido } from "@/lib/pedidos";
 import { datosDeCompra, idEventoCompra } from "@/lib/pixel";
+import {
+  fechaDeVencimiento,
+  filasDeCuenta,
+  PLAZO_TRANSFERENCIA_HORAS,
+  venceLaTransferencia,
+} from "@/lib/transferencia";
 import { ESTADOS_CONFIRMADOS } from "@/lib/webhook-decision";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "@/lib/whatsapp";
 
@@ -40,11 +48,20 @@ export default async function Gracias({
   const rechazado = estado ? RECHAZADOS.has(estado) : false;
   const confirmado = estado ? ESTADOS_CONFIRMADOS.has(estado) : false;
 
+  // Un pedido por transferencia que todavía no se pagó: no hay nada que
+  // esperar de Mercado Pago, sino los datos para transferir.
+  const porTransferencia = pedido?.medioPago === "transferencia";
+  const esperaTransferencia = porTransferencia && !confirmado && !rechazado;
+
   const titulo = rechazado
-    ? "El pago no se acreditó"
+    ? porTransferencia
+      ? "El pedido está cancelado"
+      : "El pago no se acreditó"
     : confirmado
       ? "Gracias por tu compra"
-      : "Estamos confirmando tu pago";
+      : esperaTransferencia
+        ? "Recibimos tu pedido"
+        : "Estamos confirmando tu pago";
 
   // Con la compra confirmada y algún armazón que admite cristales graduados,
   // una invitación a consultar. Solo el número de pedido viaja en el mensaje.
@@ -79,8 +96,9 @@ export default async function Gracias({
       }}
     >
       {/* El carrito se vacía recién con el pago confirmado. Si Mercado Pago lo
-          rechaza, o todavía no contestó, el comprador conserva lo que armó. */}
-      {confirmado ? <VaciarCarrito /> : null}
+          rechaza, o todavía no contestó, el comprador conserva lo que armó.
+          Por transferencia el pedido ya quedó hecho: se vacía al registrarlo. */}
+      {confirmado || esperaTransferencia ? <VaciarCarrito /> : null}
 
       <h1 className="titulo">{titulo}</h1>
 
@@ -90,7 +108,27 @@ export default async function Gracias({
         </p>
       ) : null}
 
-      {rechazado ? (
+      {esperaTransferencia && pedido ? (
+        <EsperaTransferencia
+          numero={pedido.numero}
+          total={pedido.total}
+          fecha={pedido.fecha}
+          config={config}
+        />
+      ) : rechazado && porTransferencia ? (
+        <>
+          <p className="apagado">
+            Este pedido se canceló. Si ya hiciste la transferencia, escribinos a{" "}
+            <a href={`mailto:${config.emailContacto}`} style={{ textDecoration: "underline" }}>
+              {config.emailContacto}
+            </a>{" "}
+            con el número de pedido.
+          </p>
+          <Link href="/" className="boton" style={{ marginTop: "1rem" }}>
+            Volver a la tienda
+          </Link>
+        </>
+      ) : rechazado ? (
         <>
           <p className="apagado">
             Mercado Pago rechazó el pago, así que no te cobramos nada. Podés
@@ -141,5 +179,68 @@ export default async function Gracias({
       )}
     </section>
   </>
+  );
+}
+
+/** El importe, la cuenta y el plazo, para un pedido por transferencia sin pagar. */
+function EsperaTransferencia({
+  numero,
+  total,
+  fecha,
+  config,
+}: {
+  numero: string;
+  total: number;
+  fecha: string | null;
+  config: Awaited<ReturnType<typeof getConfig>>;
+}) {
+  const creado = fecha ? new Date(fecha) : null;
+  const vence = creado && !Number.isNaN(creado.getTime()) ? fechaDeVencimiento(venceLaTransferencia(creado)) : null;
+  const comprobante = enlaceWhatsApp(config.whatsapp, `Hola, transferí el pedido ${numero}. Te mando el comprobante.`);
+
+  return (
+    <>
+      <p className="apagado">
+        Para confirmarlo, transferí <strong style={{ fontWeight: 500, color: "var(--texto)" }}>{formatearPrecio(total)}</strong>
+        {vence ? ` antes del ${vence}` : ` dentro de las ${PLAZO_TRANSFERENCIA_HORAS} horas`}. Te mandamos estos mismos
+        datos por mail.
+      </p>
+
+      {config.transferencia ? (
+        <DatosTransferencia
+          total={formatearPrecio(total)}
+          importe={total}
+          filas={filasDeCuenta(config.transferencia, numero)}
+        />
+      ) : null}
+
+      <p className="apagado" style={{ fontSize: "0.9375rem" }}>
+        El pedido se confirma cuando recibimos la transferencia: ahí te llega el mail de confirmación y preparamos el
+        envío. Revisamos las transferencias de lunes a viernes. Hasta entonces los productos no quedan reservados.
+      </p>
+
+      {comprobante ? (
+        <a
+          href={comprobante}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="boton boton--fantasma boton--chico"
+        >
+          Mandar el comprobante por WhatsApp
+        </a>
+      ) : null}
+
+      <p className="apagado" style={{ fontSize: "0.875rem" }}>
+        Si no recibimos la transferencia en {PLAZO_TRANSFERENCIA_HORAS} horas, el pedido se cancela. ¿Dudas? Escribinos a{" "}
+        <a href={`mailto:${config.emailContacto}`} style={{ textDecoration: "underline" }}>
+          {config.emailContacto}
+        </a>{" "}
+        con el número de pedido.
+      </p>
+
+      <Link href="/" className="boton" style={{ marginTop: "1rem" }}>
+        Volver a la tienda
+      </Link>
+    </>
   );
 }

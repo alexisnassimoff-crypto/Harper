@@ -18,8 +18,9 @@ import { precio as formatearPrecio } from "@/lib/formato";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, EleccionEnvio } from "@/lib/tipos";
+import { PLAZO_TRANSFERENCIA_HORAS, type MedioPago } from "@/lib/transferencia";
 import { validarCliente, type ErroresCliente } from "@/lib/validacion";
-import BarraPagar, { TextoPagoSeguro } from "./BarraPagar";
+import BarraPagar, { TextoBotonPagar } from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import CodigoDescuento from "./CodigoDescuento";
 import { PROVINCIAS } from "./provincias";
@@ -63,6 +64,8 @@ const ORDEN_CAMPOS = [
 /** Lo que puede contestar /api/checkout. */
 type RespuestaCheckout = {
   initPoint?: string;
+  /** Por transferencia: la página con los datos de la cuenta. */
+  siguiente?: string;
   numero?: string;
   error?: string;
   errores?: ErroresCliente & ErroresFacturacion;
@@ -70,6 +73,8 @@ type RespuestaCheckout = {
   totalNuevo?: number;
   /** El cupón no corresponde (por ejemplo, no es la primera compra). */
   cuponRechazado?: string;
+  /** La transferencia dejó de estar disponible. */
+  sinTransferencia?: boolean;
 };
 
 const VACIO: DatosCliente = {
@@ -129,6 +134,10 @@ export default function FormularioCheckout({
   const [errores, setErrores] = useState<Errores>({});
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
+  // Por defecto, Mercado Pago, como siempre. La transferencia solo se ofrece
+  // si el servidor la calculó (hay una cuenta cargada en Config).
+  const [medioElegido, setMedioElegido] = useState<MedioPago>("mercadopago");
+  const medioPago: MedioPago = medioElegido === "transferencia" && carrito?.transferencia ? "transferencia" : "mercadopago";
 
   // La dirección: con el buscador de Google o con los campos manuales.
   const [modoDireccion, setModoDireccion] = useState<"buscador" | "manual">(buscador ? "buscador" : "manual");
@@ -154,11 +163,22 @@ export default function FormularioCheckout({
     ? 0
     : (opcionDomicilio?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
 
-  const resumen = desglosar({
+  // Los dos precios vienen del servidor: cambiar de medio de pago no espera
+  // ninguna consulta.
+  const resumenMercadoPago = desglosar({
     subtotal: carrito?.subtotal ?? 0,
     ahorro: carrito?.ahorro ?? 0,
     envio,
   });
+  const resumenTransferencia = carrito?.transferencia
+    ? desglosar({
+        subtotal: carrito.subtotal,
+        ahorro: carrito.ahorro,
+        ahorroTransferencia: carrito.transferencia.ahorro,
+        envio,
+      })
+    : null;
+  const resumen = medioPago === "transferencia" && resumenTransferencia ? resumenTransferencia : resumenMercadoPago;
 
   // Pre-carga los datos de una compra anterior: la comodidad de tener
   // cuenta, sin la fricción de crearla.
@@ -466,6 +486,8 @@ export default function FormularioCheckout({
           facturacion,
           // Solo el código: cuánto descuenta lo calcula el servidor.
           cupon,
+          // Solo cómo paga: el 10% de la transferencia también lo calcula el servidor.
+          medioPago,
         }),
       });
 
@@ -501,12 +523,29 @@ export default function FormularioCheckout({
         return;
       }
 
+      // La transferencia dejó de estar disponible: vuelve a Mercado Pago y ve
+      // el total de siempre antes de pagar.
+      if (respuesta.status === 409 && cuerpo.sinTransferencia) {
+        setMedioElegido("mercadopago");
+        recargar();
+        setFallo(cuerpo.error ?? "El pago por transferencia no está disponible en este momento.");
+        setEnviando(false);
+        return;
+      }
+
       // El total cambió (un precio, un descuento, el envío): se vuelve a
       // resolver el carrito y el comprador ve el nuevo antes de pagar.
       if (respuesta.status === 409 && typeof cuerpo.totalNuevo === "number") {
         recargar();
         setFallo(cuerpo.error ?? "El total cambió: revisalo antes de pagar.");
         setEnviando(false);
+        return;
+      }
+
+      // Por transferencia el pedido ya quedó registrado: los datos de la
+      // cuenta están en la página siguiente (y en el mail).
+      if (respuesta.ok && cuerpo.siguiente) {
+        window.location.assign(cuerpo.siguiente);
         return;
       }
 
@@ -591,7 +630,7 @@ export default function FormularioCheckout({
             <span>
               {productos} · <strong>{formatearPrecio(resumen.total)}</strong>
               {resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}
-              {resumen.descuento > 0 ? ` · ahorrás ${formatearPrecio(resumen.descuento)}` : ""}
+              {resumen.ahorroTotal > 0 ? ` · ahorrás ${formatearPrecio(resumen.ahorroTotal)}` : ""}
             </span>
             <span className="checkout__ver">Ver detalle</span>
           </summary>
@@ -833,6 +872,48 @@ export default function FormularioCheckout({
           ) : null}
         </fieldset>
 
+        {/* Medio de pago: solo si hay una cuenta para transferir. Cada opción
+            muestra su total, y el resumen y el botón cambian al instante. */}
+        {resumenTransferencia && carrito.transferencia ? (
+          <fieldset className="medio-pago">
+            <legend className="label">Medio de pago</legend>
+            <label className="medio-pago__opcion" data-elegida={medioPago === "mercadopago"}>
+              <input
+                type="radio"
+                name="medioPago"
+                value="mercadopago"
+                checked={medioPago === "mercadopago"}
+                onChange={() => setMedioElegido("mercadopago")}
+              />
+              <span className="medio-pago__texto">
+                <span className="medio-pago__nombre">Tarjeta o Mercado Pago</span>
+                <span className="medio-pago__detalle">Crédito, débito o dinero en cuenta.</span>
+              </span>
+              <span className="medio-pago__precio">{formatearPrecio(resumenMercadoPago.total)}</span>
+            </label>
+            <label className="medio-pago__opcion" data-elegida={medioPago === "transferencia"}>
+              <input
+                id="medioTransferencia"
+                type="radio"
+                name="medioPago"
+                value="transferencia"
+                checked={medioPago === "transferencia"}
+                onChange={() => setMedioElegido("transferencia")}
+              />
+              <span className="medio-pago__texto">
+                <span className="medio-pago__nombre">
+                  Transferencia bancaria
+                  <span className="medio-pago__extra">{carrito.transferencia.porcentaje}% OFF adicional</span>
+                </span>
+                <span className="medio-pago__detalle">
+                  Te damos los datos de la cuenta al confirmar. Tenés {PLAZO_TRANSFERENCIA_HORAS} horas para transferir.
+                </span>
+              </span>
+              <span className="medio-pago__precio">{formatearPrecio(resumenTransferencia.total)}</span>
+            </label>
+          </fieldset>
+        ) : null}
+
         {/* Mayoría de edad (o autorización del representante legal) y Términos:
             una sola casilla, obligatoria y sin marcar. Sin pedir la fecha de
             nacimiento. Los enlaces abren aparte para no perder el checkout. */}
@@ -909,6 +990,13 @@ export default function FormularioCheckout({
           </div>
         ) : null}
 
+        {resumen.transferencia > 0 ? (
+          <div className="fila" style={{ color: "var(--verde)" }}>
+            <span>Transferencia bancaria ({carrito.transferencia?.porcentaje}%)</span>
+            <span>−{formatearPrecio(resumen.transferencia)}</span>
+          </div>
+        ) : null}
+
         <div className="fila">
           <span className="apagado">Envío a domicilio</span>
           <span>{envioTexto}</span>
@@ -920,8 +1008,8 @@ export default function FormularioCheckout({
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total)}</strong>
         </div>
 
-        {resumen.descuento > 0 ? (
-          <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.descuento)}!</p>
+        {resumen.ahorroTotal > 0 ? (
+          <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.ahorroTotal)}!</p>
         ) : null}
 
         {fallo ? (
@@ -933,17 +1021,31 @@ export default function FormularioCheckout({
         {/* En celular este botón no se muestra: lo reemplaza la barra fija,
             siempre a la vista, con el mismo texto y el total. */}
         <button type="submit" className="boton boton--bloque checkout__pagar" disabled={enviando}>
-          {enviando ? "Redirigiendo…" : <TextoPagoSeguro total={formatearPrecio(resumen.total)} />}
+          <TextoBotonPagar medio={medioPago} total={formatearPrecio(resumen.total)} ocupado={enviando} />
         </button>
 
-        <p className="apagado" style={{ fontSize: "0.75rem" }}>
-          Pagás en Mercado Pago con tarjeta de crédito o débito, o con dinero en
-          cuenta. Las cuotas disponibles y su costo los ves en Mercado Pago antes
-          de confirmar el pago.
-        </p>
+        {medioPago === "transferencia" ? (
+          <p className="apagado" style={{ fontSize: "0.75rem" }}>
+            Al confirmar te mostramos los datos de la cuenta y te los mandamos por
+            mail. Tenés {PLAZO_TRANSFERENCIA_HORAS} horas para transferir: el pedido
+            se confirma cuando recibimos la transferencia.
+          </p>
+        ) : (
+          <p className="apagado" style={{ fontSize: "0.75rem" }}>
+            Pagás en Mercado Pago con tarjeta de crédito o débito, o con dinero en
+            cuenta. Las cuotas disponibles y su costo los ves en Mercado Pago antes
+            de confirmar el pago.
+          </p>
+        )}
       </aside>
 
-      <BarraPagar visible formulario={ID_FORMULARIO} total={formatearPrecio(resumen.total)} ocupado={enviando} />
+      <BarraPagar
+        visible
+        formulario={ID_FORMULARIO}
+        total={formatearPrecio(resumen.total)}
+        medio={medioPago}
+        ocupado={enviando}
+      />
     </form>
   );
 }

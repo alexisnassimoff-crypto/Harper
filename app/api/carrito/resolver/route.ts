@@ -50,6 +50,14 @@ export async function POST(request: Request) {
     tramos: resuelto.tramos,
     cupon: resuelto.cupon,
     subtotalSinCupon: resuelto.subtotalSinCupon,
+    // Lo mismo por transferencia, para cambiar de medio de pago al instante.
+    transferencia: resuelto.transferencia
+      ? {
+          porcentaje: resuelto.transferencia.porcentaje,
+          subtotal: resuelto.transferencia.subtotal,
+          ahorro: resuelto.transferencia.ahorro,
+        }
+      : null,
     sugerencias,
   });
 }

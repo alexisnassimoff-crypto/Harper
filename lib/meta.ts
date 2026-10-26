@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
-import type { Origen } from "./origen";
+import { normalizarOrigen, type Origen } from "./origen";
 import { datosDeCompra, idEventoCompra } from "./pixel";
 import type { DatosCliente, ItemResuelto } from "./tipos";
+import type { VentaConfirmada } from "./webhook-proceso";
 
 /**
  * Conversions API de Meta: la compra confirmada, mandada desde el servidor.
@@ -157,5 +158,45 @@ export async function enviarEventosAMeta(
     return { ok: respuesta.ok, status: respuesta.status, cuerpo: await respuesta.text() };
   } catch (error) {
     return { ok: false, status: 0, cuerpo: (error as Error).message };
+  }
+}
+
+/**
+ * La compra confirmada, a Meta por la Conversions API: la usan el webhook de
+ * Mercado Pago y la confirmación de una transferencia. Mismo event_id que el
+ * píxel de /gracias: Meta se queda con uno. Si el webhook retoma un pedido
+ * tras una caída y lo manda de nuevo, Meta también lo deduplica. Best-effort:
+ * un fallo acá se loguea y no toca la venta.
+ */
+export async function avisarCompraAMeta(venta: VentaConfirmada) {
+  if (!metaCapiConfigurada()) return;
+
+  let origen = null;
+  try {
+    origen = venta.origenCrudo ? normalizarOrigen(JSON.parse(venta.origenCrudo)) : null;
+  } catch {
+    // Un Origen ilegible no impide mandar la compra.
+  }
+
+  // Solo si la persona aceptó las cookies de medición y publicidad al
+  // comprar (lo marca el checkout en el Origen del pedido). Sin ese "sí",
+  // Meta no se entera de la compra.
+  if (origen?.publicidad !== true) return;
+
+  const evento = armarEventoCompra({
+    numero: venta.numero,
+    items: venta.items,
+    subtotal: venta.subtotal,
+    cliente: venta.cliente,
+    clienteId: venta.clienteId,
+    origen,
+    sitio: venta.sitio,
+    ahora: Date.now(),
+  });
+
+  const respuesta = await enviarEventosAMeta([evento]);
+
+  if (!respuesta.ok) {
+    console.error(`[meta] no se pudo mandar la compra ${venta.numero}: ${respuesta.status} ${respuesta.cuerpo}`);
   }
 }

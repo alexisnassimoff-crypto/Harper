@@ -173,7 +173,8 @@ export async function crearPreferencia(opciones: {
 }
 
 export type PagoMP = {
-  id: number;
+  /** En Mercado Pago, un número. Una transferencia confirmada por Harper usa "transferencia-…". */
+  id: number | string;
   status: string;
   status_detail?: string;
   external_reference?: string;

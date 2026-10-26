@@ -5,6 +5,7 @@ import { caracteristicasDe } from "./caracteristicas";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
 import { pedidoParaMostrar, TEXTO_PROXIMO_PASO, type SolicitudArrepentimiento } from "./arrepentimiento";
 import { lineasDeFacturacion, type FacturacionPedido } from "./facturacion";
+import { filasDeCuenta, PLAZO_TRANSFERENCIA_HORAS, type DatosTransferencia } from "./transferencia";
 
 // Se puede apuntar a un Resend simulado para las pruebas de punta a punta.
 const API_RESEND = process.env.RESEND_API_URL ?? "https://api.resend.com/emails";
@@ -124,6 +125,16 @@ function envoltorio(contenido: string, config: ConfigTienda) {
 </html>`;
 }
 
+/** "5% de descuento + 10% por transferencia". Vacío si el ítem va a precio de lista. */
+function textoDescuento(item: ItemResuelto) {
+  return [
+    item.descuento > 0 ? `${item.descuento}% de descuento` : null,
+    item.descuentoTransferencia ? `${item.descuentoTransferencia}% por transferencia` : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
+}
+
 function filasDeItems(items: ItemResuelto[], sitio: string) {
   return items
     .map((item) => {
@@ -141,14 +152,14 @@ function filasDeItems(items: ItemResuelto[], sitio: string) {
   <td style="padding:10px 0;vertical-align:top;font-size:14px;line-height:1.5;">
     <strong style="font-weight:500;">${escaparHtml(item.nombre)}</strong><br>
     <span style="color:#78756c;">${escaparHtml(item.color)} · ${item.cantidad} ${item.cantidad === 1 ? "unidad" : "unidades"}</span>${
-      item.descuento > 0
-        ? `<br><span style="color:#004226;">${item.descuento}% de descuento</span>`
+      textoDescuento(item)
+        ? `<br><span style="color:#004226;">${textoDescuento(item)}</span>`
         : ""
     }
   </td>
   <td align="right" style="padding:10px 0;vertical-align:top;font-size:14px;white-space:nowrap;">
     ${
-      item.descuento > 0
+      textoDescuento(item)
         ? `<span style="color:#78756c;text-decoration:line-through;font-size:12px;">${formatearPrecio(item.precioLista * item.cantidad)}</span><br>`
         : ""
     }${formatearPrecio(item.subtotal)}
@@ -190,7 +201,23 @@ export type DatosMail = {
   lineasFacturacion?: string[] | null;
   /** El cupón aplicado, por ejemplo "HARPER10 (−$ 8.990)"; null si no hubo. */
   cupon?: string | null;
+  /** Verdadero si el pedido se paga (o se pagó) por transferencia. */
+  porTransferencia?: boolean;
 };
+
+function lineasDeItemsEnTexto(items: ItemResuelto[]) {
+  return items
+    .map((i) => {
+      const descuento = [
+        i.descuento > 0 ? `${i.descuento}% off` : null,
+        i.descuentoTransferencia ? `${i.descuentoTransferencia}% por transferencia` : null,
+      ]
+        .filter(Boolean)
+        .join(" + ");
+      return `- ${i.cantidad}x ${i.nombre} ${i.color}: ${formatearPrecio(i.subtotal)}${descuento ? ` (${descuento})` : ""}`;
+    })
+    .join("\n");
+}
 
 /**
  * El enlace para consultar por cristales graduados, solo si el pedido lleva
@@ -241,7 +268,7 @@ ${totales(d.subtotal, d.envio, d.total)}
   const texto = `Gracias por tu compra.
 
 Pedido ${d.numero}
-${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color}: ${formatearPrecio(i.subtotal)}${i.descuento > 0 ? ` (${i.descuento}% off)` : ""}`).join("\n")}
+${lineasDeItemsEnTexto(d.items)}
 
 Subtotal: ${formatearPrecio(d.subtotal)}
 Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
@@ -260,15 +287,31 @@ Consultas: ${d.config.emailContacto}`;
   };
 }
 
-/** 2 — Aviso interno para preparar y despachar el pedido. */
-export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
+/** Lo que el aviso interno agrega mientras una transferencia no llegó. */
+export type EsperaTransferencia = {
+  /** La página para confirmar el pago; null si no se pudo firmar. */
+  confirmar: string | null;
+  /** Hasta cuándo tiene el comprador, ya escrito. */
+  vence: string;
+};
+
+/**
+ * 2 — Aviso interno para preparar y despachar el pedido. Con `espera`, es el
+ * de un pedido por transferencia que todavía no se pagó: no se prepara.
+ */
+export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string; espera?: EsperaTransferencia }): Envio {
   // Los datos para la factura, aparte y a la vista: no son los del comprador
   // ni la dirección de entrega.
   const factura = d.facturacion ? lineasDeFacturacion(d.facturacion) : (d.lineasFacturacion ?? null);
   const aCuit = factura?.some((l) => l.startsWith("CUIT:")) ?? false;
+  const espera = d.espera;
+  const titulo = espera ? "Transferencia pendiente" : "Venta nueva";
   const html = envoltorio(
-    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Venta nueva — ${escaparHtml(d.numero)}</h1>
-<p style="margin:0 0 24px;font-size:14px;color:#78756c;">${formatearPrecio(d.total)} · ${escaparHtml(d.cliente.provincia)}</p>
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">${titulo} — ${escaparHtml(d.numero)}</h1>
+<p style="margin:0 0 24px;font-size:14px;color:#78756c;">${formatearPrecio(d.total)} · ${escaparHtml(d.cliente.provincia)}${
+      d.porTransferencia && !espera ? " · pagado por transferencia" : ""
+    }</p>
+${espera ? bloqueEspera(d.total, espera) : ""}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   ${filasDeItems(d.items, d.sitio)}
@@ -304,8 +347,8 @@ ${
     d.config
   );
 
-  const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}
-
+  const texto = `${titulo.toUpperCase()} ${d.numero} — ${formatearPrecio(d.total)}${d.porTransferencia && !espera ? " (pagado por transferencia)" : ""}
+${espera ? `\n${textoEspera(d.total, espera)}\n` : ""}
 ${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join("\n")}
 ${d.cupon ? `Cupón ${d.cupon}\n` : ""}
 ${d.cliente.nombre}
@@ -316,10 +359,115 @@ Airtable: ${d.pedidoUrl}`;
 
   return {
     para: d.config.emailPedidos,
-    asunto: `Venta ${d.numero} — ${formatearPrecio(d.total)}${aCuit ? " · factura a CUIT" : ""}`,
+    asunto: espera
+      ? `Transferencia pendiente ${d.numero} — ${formatearPrecio(d.total)} (todavía no está pagado)`
+      : `Venta ${d.numero} — ${formatearPrecio(d.total)}${d.porTransferencia ? " · transferencia" : ""}${aCuit ? " · factura a CUIT" : ""}`,
     html,
     texto,
     responderA: d.cliente.email,
+  };
+}
+
+function bloqueEspera(total: number, espera: EsperaTransferencia) {
+  return `<div style="margin:0 0 24px;padding:16px;background:#f2f0ec;border:1px solid #e3e0d8;font-size:14px;line-height:1.6;">
+  <strong style="font-weight:600;">Todavía no está pagado: no lo prepares.</strong><br>
+  Cuando veas la transferencia de ${formatearPrecio(total)} en la cuenta, confirmala: ahí se descuenta el stock y al comprador le llega la confirmación de la compra.
+  El comprador tiene hasta el ${escaparHtml(espera.vence)} para transferir.
+  ${
+    espera.confirmar
+      ? `<p style="margin:14px 0 0;"><a href="${escaparHtml(espera.confirmar)}" style="display:inline-block;background:#004226;color:#faf9f6;text-decoration:none;padding:14px 24px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;">Confirmar transferencia recibida</a></p>`
+      : `<p style="margin:14px 0 0;color:#a1281b;">No se pudo armar el enlace para confirmarla (falta AIRTABLE_TOKEN). Avisá antes de confirmarla a mano.</p>`
+  }
+</div>`;
+}
+
+function textoEspera(total: number, espera: EsperaTransferencia) {
+  return `TODAVÍA NO ESTÁ PAGADO: no lo prepares.
+Cuando veas la transferencia de ${formatearPrecio(total)} en la cuenta, confirmala: ahí se descuenta el stock y al comprador le llega la confirmación.
+El comprador tiene hasta el ${espera.vence} para transferir.
+${espera.confirmar ? `Confirmar transferencia recibida: ${espera.confirmar}` : "No se pudo armar el enlace para confirmarla (falta AIRTABLE_TOKEN)."}`;
+}
+
+/**
+ * 2b — Pedido por transferencia: el importe y los datos de la cuenta, al
+ * comprador. Lo mismo que ve en pantalla al confirmar el pedido.
+ */
+export function mailDatosTransferencia(d: DatosMail & { cuenta: DatosTransferencia; vence: string }): Envio {
+  const filas = filasDeCuenta(d.cuenta, d.numero);
+  const comprobante = enlaceWhatsApp(d.config.whatsapp, `Hola, transferí el pedido ${d.numero}. Te mando el comprobante.`);
+
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Recibimos tu pedido</h1>
+<p style="margin:0 0 20px;font-size:14px;color:#78756c;line-height:1.6;">
+  Para confirmar el pedido <strong style="color:#16150f;">${escaparHtml(d.numero)}</strong>, transferí
+  <strong style="color:#16150f;">${formatearPrecio(d.total)}</strong> antes del ${escaparHtml(d.vence)}.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f0ec;border:1px solid #e3e0d8;font-size:14px;line-height:1.6;">
+  <tr><td style="padding:16px 16px 4px;">
+    <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#78756c;">Importe a transferir</div>
+    <div style="font-size:22px;margin-top:2px;">${formatearPrecio(d.total)}</div>
+  </td></tr>
+  <tr><td style="padding:8px 16px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:1.6;">
+      ${filas
+        .map(
+          ([clave, valor]) => `<tr>
+        <td width="110" style="padding:3px 12px 3px 0;color:#78756c;vertical-align:top;">${clave}</td>
+        <td style="padding:3px 0;vertical-align:top;word-break:break-all;">${escaparHtml(valor)}</td>
+      </tr>`
+        )
+        .join("")}
+    </table>
+  </td></tr>
+</table>
+
+<p style="margin:20px 0 0;font-size:14px;line-height:1.6;">
+  El pedido se confirma cuando recibimos la transferencia: ahí te llega el mail de confirmación y preparamos el envío.
+  Revisamos las transferencias de lunes a viernes. Hasta entonces los productos no quedan reservados.
+</p>
+<p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#78756c;">
+  Si no recibimos la transferencia en ${PLAZO_TRANSFERENCIA_HORAS} horas, el pedido se cancela.
+</p>${
+      comprobante
+        ? `
+<p style="margin:16px 0 0;font-size:14px;line-height:1.6;">
+  ¿Ya transferiste? <a href="${escaparHtml(comprobante)}" style="color:#004226;text-decoration:underline;">Mandanos el comprobante por WhatsApp</a>.
+</p>`
+        : ""
+    }
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;">
+  ${filasDeItems(d.items, d.sitio)}
+</table>
+
+${totales(d.subtotal, d.envio, d.total)}`,
+    d.config
+  );
+
+  const texto = `Recibimos tu pedido ${d.numero}.
+
+Para confirmarlo, transferí ${formatearPrecio(d.total)} antes del ${d.vence}.
+
+${filas.map(([clave, valor]) => `${clave}: ${valor}`).join("\n")}
+
+El pedido se confirma cuando recibimos la transferencia: ahí te llega el mail de confirmación y preparamos el envío. Revisamos las transferencias de lunes a viernes. Hasta entonces los productos no quedan reservados.
+Si no recibimos la transferencia en ${PLAZO_TRANSFERENCIA_HORAS} horas, el pedido se cancela.
+${comprobante ? `\n¿Ya transferiste? Mandanos el comprobante por WhatsApp: ${comprobante}\n` : ""}
+${lineasDeItemsEnTexto(d.items)}
+
+Subtotal: ${formatearPrecio(d.subtotal)}
+Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
+Total: ${formatearPrecio(d.total)}
+
+Consultas: ${d.config.emailContacto}`;
+
+  return {
+    para: d.cliente.email,
+    asunto: `Tu pedido ${d.numero}: datos para transferir ${formatearPrecio(d.total)}`,
+    html,
+    texto,
+    responderA: d.config.emailContacto,
   };
 }
 

@@ -96,6 +96,8 @@ export type ItemResuelto = {
   precioUnitario: number;
   /** Porcentaje aplicado, 0 si no llegó a ningún tramo. */
   descuento: number;
+  /** El 10% adicional por transferencia, sobre el precio ya descontado (ver lib/transferencia.ts). */
+  descuentoTransferencia?: number;
   cantidad: number;
   subtotal: number;
   stockDisponible: number;

@@ -21,6 +21,7 @@ import {
 } from "./mails";
 import { obtenerPago as obtenerPagoReal, type PagoMP } from "./mercadopago";
 import { descontarStock } from "./stock";
+import { esPedidoPorTransferencia } from "./transferencia";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import {
   decidirNotificacion,
@@ -107,6 +108,8 @@ export type FilaPedido = {
   Notas?: string;
   /** El cupón aplicado, por ejemplo "HARPER10 (−$ 8.990)". */
   Cupon?: string;
+  /** "Mercado Pago" o "Transferencia" (ver lib/transferencia.ts). */
+  Medio_pago?: string;
 };
 
 type FilaCliente = {
@@ -540,6 +543,7 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       facturacion: facturacionDeFila(pedido.fields),
       lineasFacturacion: lineasDeNotas(pedido.fields.Notas),
       cupon: pedido.fields.Cupon || cuponDeNotas(pedido.fields.Notas),
+      porTransferencia: esPedidoPorTransferencia(pedido.fields),
     };
 
     const datos = datosMail;

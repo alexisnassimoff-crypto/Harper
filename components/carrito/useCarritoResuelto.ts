@@ -22,6 +22,8 @@ export type CarritoResueltoCliente = {
   cupon: CuponResuelto | null;
   /** El subtotal sin el cupón: la base del envío gratis. */
   subtotalSinCupon: number;
+  /** Los productos pagados por transferencia (10% más); null si no se ofrece. */
+  transferencia: { porcentaje: number; subtotal: number; ahorro: number } | null;
   /** Los tramos vigentes, para poder empujar al siguiente. */
   tramos: Tramo[];
   /** Lo que le falta al carrito, según lo que ya eligió. */

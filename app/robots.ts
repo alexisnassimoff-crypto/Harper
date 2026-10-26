@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
       // Nada de esto aporta a la búsqueda y puede exponer datos de un pedido.
-      disallow: ["/api/", "/checkout", "/carrito", "/gracias"],
+      disallow: ["/api/", "/checkout", "/carrito", "/gracias", "/transferencia"],
     },
     sitemap: `${SITIO}/sitemap.xml`,
   };

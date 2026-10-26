@@ -635,6 +635,83 @@ p {
   gap: 0.85rem;
   margin-top: 0.6rem;
 }
+/* Medio de pago: dos opciones con su total. La elegida, con el verde de la marca. */
+.medio-pago {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.medio-pago legend {
+  padding: 0;
+  margin-bottom: 0.45rem;
+}
+.medio-pago__opcion {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  cursor: pointer;
+  transition:
+    border-color var(--rapido) var(--curva),
+    box-shadow var(--rapido) var(--curva),
+    background var(--rapido) var(--curva);
+}
+.medio-pago__opcion:hover {
+  border-color: color-mix(in srgb, var(--verde) 40%, var(--borde));
+}
+.medio-pago__opcion[data-elegida="true"] {
+  border-color: var(--verde);
+  box-shadow: 0 0 0 1px var(--verde);
+  background: color-mix(in srgb, var(--verde) 4%, var(--fondo));
+}
+.medio-pago__opcion:has(input:focus-visible) {
+  outline: 2px solid var(--verde);
+  outline-offset: 2px;
+}
+.medio-pago__opcion input {
+  margin-top: 0.2rem;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  accent-color: var(--verde);
+}
+.medio-pago__texto {
+  display: grid;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+.medio-pago__nombre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.55rem;
+  font-size: 0.9375rem;
+  color: var(--texto);
+}
+.medio-pago__extra {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--verde);
+}
+.medio-pago__detalle {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--texto) 72%, var(--fondo));
+}
+.medio-pago__precio {
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .checkout__acepta {
   color: var(--texto);
 }
@@ -710,6 +787,74 @@ p {
 .invitacion-graduados p {
   font-size: 0.9375rem;
   line-height: 1.5;
+}
+
+/* Los datos para transferir (/gracias): el importe arriba, la cuenta debajo. */
+.datos-transferencia {
+  display: grid;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--verde) 22%, var(--borde));
+  border-radius: var(--radio);
+  background: color-mix(in srgb, var(--verde) 4%, var(--fondo));
+}
+.datos-transferencia__importe {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--verde) 16%, var(--borde));
+}
+.datos-transferencia__importe > div {
+  display: grid;
+  gap: 0.2rem;
+}
+.datos-transferencia__importe strong {
+  font-size: 1.5rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.datos-transferencia__lista {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 1rem 1.25rem 1.15rem;
+}
+.datos-transferencia__lista > div {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: baseline;
+  font-size: 0.9375rem;
+}
+.datos-transferencia__lista dt {
+  color: color-mix(in srgb, var(--texto) 72%, var(--fondo));
+}
+.datos-transferencia__lista dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.datos-transferencia__copiar {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--verde);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+@media (max-width: 30rem) {
+  .datos-transferencia__lista > div {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
 }
 
 /* La promoción del segundo par: una línea sobria, sin tabla ni insignias.
