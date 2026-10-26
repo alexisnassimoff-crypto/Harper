@@ -2903,6 +2903,10 @@ p {
 .anuncios__grupo {
   display: flex;
   flex-shrink: 0;
+  /* Cada copia ocupa al menos el ancho de la pantalla: en una pantalla más
+     ancha que los mensajes, la vuelta no deja un hueco. */
+  min-width: 100vw;
+  justify-content: space-around;
   margin: 0;
   padding: 0;
   list-style: none;
