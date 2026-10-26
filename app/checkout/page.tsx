@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import FormularioCheckout from "@/components/checkout/FormularioCheckout";
 import { direccionesDisponibles } from "@/lib/direcciones-servidor";
-import { leerMedioPago } from "@/lib/transferencia";
+import { leerMedioPago } from "@/lib/dinero-mp";
 
 export const metadata: Metadata = {
   title: "Finalizar compra",
@@ -14,8 +14,8 @@ export default async function PaginaCheckout({
   searchParams: Promise<{ error?: string; medio?: string }>;
 }) {
   const { error, medio } = await searchParams;
-  // Si el pago rechazado era por transferencia, vuelve con esa opción elegida.
-  const porTransferencia = leerMedioPago(medio) === "transferencia";
+  // Si el pago rechazado era con dinero en Mercado Pago, vuelve con esa opción elegida.
+  const conDineroMP = leerMedioPago(medio) === "dineroMP";
 
   // InitiateCheckout lo dispara el formulario, cuando el carrito ya está
   // resuelto (con valor e ítems) y solo si de verdad hay algo para comprar y
@@ -29,7 +29,7 @@ export default async function PaginaCheckout({
           explicación de qué había pasado. */}
       {error === "pago" ? (
         <p role="alert" className="checkout__aviso">
-          {porTransferencia
+          {conDineroMP
             ? "El pago no se pudo completar y no te cobramos nada. Revisá que tengas saldo en tu cuenta de Mercado Pago o probá con otro medio de pago."
             : "El pago no se pudo completar y no te cobramos nada. Revisá los datos de la tarjeta o probá con otro medio de pago."}
         </p>
@@ -41,7 +41,7 @@ export default async function PaginaCheckout({
       <FormularioCheckout
         reintento={error === "pago"}
         buscador={direccionesDisponibles()}
-        medioInicial={porTransferencia ? "transferencia" : "mercadopago"}
+        medioInicial={conDineroMP ? "dineroMP" : "mercadopago"}
       />
     </section>
   );

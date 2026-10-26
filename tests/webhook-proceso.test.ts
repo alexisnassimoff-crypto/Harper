@@ -16,7 +16,7 @@ import { interceptar, reiniciar, RespuestaFixture } from "../lib/fixtures/servid
 import type { PagoMP } from "../lib/mercadopago";
 import { leerMarcas } from "../lib/stock";
 import type { ItemResuelto } from "../lib/tipos";
-import { MEDIO_TRANSFERENCIA } from "../lib/transferencia";
+import { MEDIO_DINERO_MP } from "../lib/dinero-mp";
 import { esMarcaDeReclamo, VIGENCIA_RECLAMO_MS } from "../lib/webhook-decision";
 import { dependenciasReales, procesarNotificacion, type Dependencias, type FilaPedido } from "../lib/webhook-proceso";
 
@@ -181,19 +181,19 @@ test("un pago aprobado, una vez: stock, pagado, dos mails, cierre", async () => 
   await verificarVentaUnica(pedidoId, mails);
 });
 
-test("transferencia: cobrada con dinero en cuenta es una venta normal, marcada como transferencia", async () => {
-  const { pedidoId } = await crearPedido({ Medio_pago: MEDIO_TRANSFERENCIA });
+test("dinero en Mercado Pago: cobrado con el saldo de la cuenta es una venta normal, marcada así en el aviso", async () => {
+  const { pedidoId } = await crearPedido({ Medio_pago: MEDIO_DINERO_MP });
   const { deps, mails } = armarDeps({ "111": pago(pedidoId, { payment_type_id: "account_money" }) });
 
   const r = await como("A", () => procesarNotificacion("111", deps));
 
   assert.equal(r.cuerpo.estado, "pagado");
   const aviso = mails.map((m) => m.mail).find((m) => m.para === "harpercaseseyewear@gmail.com");
-  assert.match(aviso?.asunto ?? "", /^Venta HARPER-T1 .* · transferencia$/);
+  assert.match(aviso?.asunto ?? "", /^Venta HARPER-T1 .* · dinero en Mercado Pago$/);
 });
 
-test("transferencia cobrada con otra cosa (Mercado Pago no respetó la exclusión): la venta sigue y el aviso dice REVISAR", async () => {
-  const { pedidoId } = await crearPedido({ Medio_pago: MEDIO_TRANSFERENCIA });
+test("dinero en Mercado Pago cobrado con otra cosa (Mercado Pago no respetó la exclusión): la venta sigue y el aviso dice REVISAR", async () => {
+  const { pedidoId } = await crearPedido({ Medio_pago: MEDIO_DINERO_MP });
   const { deps, mails } = armarDeps({ "111": pago(pedidoId, { payment_type_id: "credit_card" }) });
 
   const r = await como("A", () => procesarNotificacion("111", deps));
@@ -202,7 +202,7 @@ test("transferencia cobrada con otra cosa (Mercado Pago no respetó la exclusió
   assert.equal(r.cuerpo.stockDescontado, 2);
   const aviso = mails.map((m) => m.mail).find((m) => m.para === "harpercaseseyewear@gmail.com");
   assert.match(aviso?.asunto ?? "", /^REVISAR Venta HARPER-T1/);
-  assert.match(aviso?.texto ?? "", /cobró con "credit_card" y no con dinero en cuenta/);
+  assert.match(aviso?.texto ?? "", /cobró con "credit_card" y no con el saldo de la cuenta/);
 });
 
 test("un pedido de Mercado Pago de siempre no se marca ni se revisa, se pague con lo que se pague", async () => {

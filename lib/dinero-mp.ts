@@ -2,48 +2,49 @@ import { conDescuento } from "./descuentos";
 import type { ItemResuelto } from "./tipos";
 
 /**
- * Pago por transferencia: en Mercado Pago, con dinero en cuenta.
+ * "Dinero en Mercado Pago · 10% OFF adicional": se paga en Mercado Pago solo
+ * con el saldo de la cuenta del comprador. No es una transferencia bancaria.
  *
  *  - 10% más sobre los productos, nunca sobre el envío.
  *  - Se suma a la mejor promoción del pedido (el cupón HARPER10 o el
  *    descuento por cantidad, la que convenga): primero esa, después el 10%
- *    sobre el importe ya descontado. $ 89.900 con HARPER10 es $ 80.910, y por
- *    transferencia $ 72.819.
- *  - El envío se calcula como siempre: la transferencia no cambia quién
- *    tiene envío gratis.
- *  - Se paga en Mercado Pago, que solo ofrece el dinero de la cuenta del
- *    comprador (lib/mercadopago.ts). El pedido se confirma como cualquier
- *    otro: con el webhook, en el momento.
+ *    sobre el importe ya descontado. $ 89.900 con HARPER10 es $ 80.910, y con
+ *    dinero en Mercado Pago $ 72.819.
+ *  - El envío se calcula como siempre: este descuento no cambia quién tiene
+ *    envío gratis.
+ *  - Mercado Pago solo ofrece el dinero de la cuenta del comprador
+ *    (lib/mercadopago.ts). El pedido se confirma como cualquier otro: con el
+ *    webhook, en el momento.
  *
  * Este archivo lo usan el checkout y el servidor: sin nada de servidor.
  */
 
-export const PORCENTAJE_TRANSFERENCIA = 10;
+export const PORCENTAJE_DINERO_MP = 10;
 
-export type MedioPago = "mercadopago" | "transferencia";
+export type MedioPago = "mercadopago" | "dineroMP";
 
-/** Cualquier cosa que no sea "transferencia" es Mercado Pago, como siempre. */
+/** Cualquier cosa que no sea "dineroMP" es Tarjeta / Mercado Pago, como siempre. */
 export function leerMedioPago(crudo: unknown): MedioPago {
-  return crudo === "transferencia" ? "transferencia" : "mercadopago";
+  return crudo === "dineroMP" ? "dineroMP" : "mercadopago";
 }
 
 /** Lo que queda en el pedido de Airtable (campo Medio_pago, o una línea de Notas). */
-export const MEDIO_TRANSFERENCIA = "Transferencia (dinero en cuenta de Mercado Pago)";
-export const NOTA_TRANSFERENCIA = `Medio de pago: ${MEDIO_TRANSFERENCIA}`;
+export const MEDIO_DINERO_MP = "Dinero en Mercado Pago";
+export const NOTA_DINERO_MP = `Medio de pago: ${MEDIO_DINERO_MP}`;
 
-/** Verdadero si el pedido de Airtable se pidió con el descuento por transferencia. */
-export function esPedidoPorTransferencia(fila: { Medio_pago?: unknown; Notas?: unknown }): boolean {
-  if (fila.Medio_pago === MEDIO_TRANSFERENCIA) return true;
-  return typeof fila.Notas === "string" && fila.Notas.split("\n").some((l) => l.trim() === NOTA_TRANSFERENCIA);
+/** Verdadero si el pedido de Airtable se pidió con el descuento por dinero en Mercado Pago. */
+export function esPedidoConDineroMP(fila: { Medio_pago?: unknown; Notas?: unknown }): boolean {
+  if (fila.Medio_pago === MEDIO_DINERO_MP) return true;
+  return typeof fila.Notas === "string" && fila.Notas.split("\n").some((l) => l.trim() === NOTA_DINERO_MP);
 }
 
 /**
- * Los tipos de pago que Mercado Pago NO ofrece cuando se paga por
- * transferencia: queda solo el dinero en cuenta (`account_money`), que
+ * Los tipos de pago que Mercado Pago NO ofrece cuando se paga con dinero en
+ * Mercado Pago: queda solo el dinero en cuenta (`account_money`), que
  * además no se puede excluir. Son los tipos de Argentina según Mercado Pago;
  * `atm` no existe acá, pero el checkout de siempre ya lo excluye.
  */
-export const TIPOS_EXCLUIDOS_TRANSFERENCIA = [
+export const TIPOS_EXCLUIDOS_DINERO_MP = [
   "credit_card",
   "debit_card",
   "prepaid_card",
@@ -53,33 +54,33 @@ export const TIPOS_EXCLUIDOS_TRANSFERENCIA = [
   "digital_currency",
 ] as const;
 
-/** El único tipo de pago que vale para el descuento por transferencia. */
+/** El único tipo de pago que vale para el descuento por dinero en Mercado Pago. */
 export const TIPO_DINERO_EN_CUENTA = "account_money";
 
-export type PrecioTransferencia = {
+export type PrecioDineroMP = {
   porcentaje: number;
-  /** Los ítems a cobrar por transferencia. */
+  /** Los ítems a cobrar con dinero en Mercado Pago. */
   items: ItemResuelto[];
   /** Los productos con todos los descuentos. */
   subtotal: number;
-  /** Lo que descuenta la transferencia, aparte de la otra promoción. */
+  /** Lo que descuenta este 10%, aparte de la otra promoción. */
   ahorro: number;
 };
 
 /**
- * El 10% de la transferencia sobre los productos, ya con su mejor promoción.
+ * El 10% por dinero en Mercado Pago sobre los productos, ya con su mejor promoción.
  *
  * Se calcula sobre el total de los productos, como se haría a mano: dos pares
- * a $ 85.405 son $ 170.810, y por transferencia $ 153.729. Ese total se
+ * a $ 85.405 son $ 170.810, y con dinero en Mercado Pago $ 153.729. Ese total se
  * reparte entre los renglones para que el pedido sume exacto; el redondeo, si
  * lo hay, lo absorbe el renglón más grande. El unitario puede quedar con
  * medio peso: a Mercado Pago se le manda partido en pesos enteros (ver
  * `unidadesParaCobrar`).
  */
-export function aplicarTransferencia(
+export function aplicarDineroMP(
   items: ItemResuelto[],
-  porcentaje: number = PORCENTAJE_TRANSFERENCIA
-): PrecioTransferencia {
+  porcentaje: number = PORCENTAJE_DINERO_MP
+): PrecioDineroMP {
   const antes = items.reduce((total, i) => total + i.subtotal, 0);
   const subtotal = conDescuento(antes, porcentaje);
 
@@ -93,7 +94,7 @@ export function aplicarTransferencia(
     porcentaje,
     items: items.map((i, n) => ({
       ...i,
-      descuentoTransferencia: porcentaje,
+      descuentoDineroMP: porcentaje,
       precioUnitario: lineas[n] / i.cantidad,
       subtotal: lineas[n],
     })),

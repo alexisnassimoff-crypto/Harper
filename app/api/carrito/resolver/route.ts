@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { limpiarItems, resolverCarrito } from "@/lib/pedidos";
 import { sugerirParaCarrito } from "@/lib/sugerencias";
 import { buscarCupon } from "@/lib/cupones";
+import { verificarCuotas } from "@/lib/cuotas-servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
-  const { items, cupon } = (cuerpo ?? {}) as { items?: unknown; cupon?: unknown };
+  const { items, cupon, cuotas } = (cuerpo ?? {}) as { items?: unknown; cupon?: unknown; cuotas?: unknown };
 
   if (!Array.isArray(items)) {
     return NextResponse.json({ error: "Falta items" }, { status: 400 });
@@ -32,10 +33,16 @@ export async function POST(request: Request) {
 
   // Las sugerencias no pueden romper el carrito: si fallan, se muestra igual.
   const cuponAplicado = resuelto.cupon?.estado === "aplicado" ? (buscarCupon(resuelto.cupon.codigo)?.porcentaje ?? 0) : 0;
-  const sugerencias = await sugerirParaCarrito(resuelto.items, cuponAplicado).catch((error) => {
-    console.error("[carrito] no se pudieron armar las sugerencias:", error);
-    return [];
-  });
+  // El checkout pide además las cuotas sin interés para el total con tarjeta
+  // (con el envío): se anuncian solo si Mercado Pago las confirma para ese
+  // monto, igual que en las fichas. Sin respuesta de Mercado Pago, no hay.
+  const [sugerencias, cuotasVerificadas] = await Promise.all([
+    sugerirParaCarrito(resuelto.items, cuponAplicado).catch((error) => {
+      console.error("[carrito] no se pudieron armar las sugerencias:", error);
+      return [];
+    }),
+    cuotas === true && resuelto.items.length > 0 ? verificarCuotas(resuelto.total) : Promise.resolve(null),
+  ]);
 
   return NextResponse.json({
     items: resuelto.items,
@@ -50,14 +57,15 @@ export async function POST(request: Request) {
     tramos: resuelto.tramos,
     cupon: resuelto.cupon,
     subtotalSinCupon: resuelto.subtotalSinCupon,
-    // Lo mismo por transferencia, para cambiar de medio de pago al instante.
-    transferencia: resuelto.transferencia
+    // Lo mismo con dinero en Mercado Pago, para cambiar de medio de pago al instante.
+    dineroMP: resuelto.dineroMP
       ? {
-          porcentaje: resuelto.transferencia.porcentaje,
-          subtotal: resuelto.transferencia.subtotal,
-          ahorro: resuelto.transferencia.ahorro,
+          porcentaje: resuelto.dineroMP.porcentaje,
+          subtotal: resuelto.dineroMP.subtotal,
+          ahorro: resuelto.dineroMP.ahorro,
         }
       : null,
     sugerencias,
+    cuotas: cuotasVerificadas ? { ...cuotasVerificadas, monto: resuelto.total } : null,
   });
 }

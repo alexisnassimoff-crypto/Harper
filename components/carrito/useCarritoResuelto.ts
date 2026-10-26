@@ -5,6 +5,7 @@ import type { ItemResuelto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import type { Sugerencia } from "@/lib/sugerencias";
 import type { CuponResuelto } from "@/lib/cupones";
+import type { CuotasVerificadas } from "@/lib/cuotas";
 import { useCarrito } from "./CarritoContexto";
 
 export type CarritoResueltoCliente = {
@@ -22,12 +23,14 @@ export type CarritoResueltoCliente = {
   cupon: CuponResuelto | null;
   /** El subtotal sin el cupón: la base del envío gratis. */
   subtotalSinCupon: number;
-  /** Los productos pagados por transferencia (10% más); null si no se ofrece. */
-  transferencia: { porcentaje: number; subtotal: number; ahorro: number } | null;
+  /** Los productos pagados con dinero en Mercado Pago (10% más); null si no se ofrece. */
+  dineroMP: { porcentaje: number; subtotal: number; ahorro: number } | null;
   /** Los tramos vigentes, para poder empujar al siguiente. */
   tramos: Tramo[];
   /** Lo que le falta al carrito, según lo que ya eligió. */
   sugerencias: Sugerencia[];
+  /** Solo si se pidieron: las cuotas sin interés confirmadas para `monto` (el total con tarjeta). */
+  cuotas?: (CuotasVerificadas & { monto: number }) | null;
 };
 
 /**
@@ -45,7 +48,7 @@ export type CarritoResueltoCliente = {
  *    nada para comprar: se muestra lo último que se sabía y un botón para
  *    reintentar.
  */
-export function useCarritoResuelto() {
+export function useCarritoResuelto({ cuotas = false }: { cuotas?: boolean } = {}) {
   const { items, listo, quitar, cupon } = useCarrito();
   const [datos, setDatos] = useState<CarritoResueltoCliente | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -78,7 +81,7 @@ export function useCarritoResuelto() {
     fetch("/api/carrito/resolver", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items, cupon }),
+      body: JSON.stringify({ items, cupon, ...(cuotas ? { cuotas: true } : {}) }),
       signal: controlador.signal,
     })
       .then((r) => {
@@ -102,7 +105,7 @@ export function useCarritoResuelto() {
 
     return () => controlador.abort();
     // `quitar` es estable (useCallback) y `items` cambia por contenido.
-  }, [items, listo, quitar, intento, cupon]);
+  }, [items, listo, quitar, intento, cupon, cuotas]);
 
   return { datos, cargando: cargando || !listo, actualizando, error, recargar };
 }

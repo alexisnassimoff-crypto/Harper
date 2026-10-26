@@ -37,6 +37,13 @@ export default async function Terminos() {
         pago. La compra se considera confirmada cuando Mercado Pago acredita el
         pago, momento en el que enviamos un correo de confirmación.
       </p>
+      <p>
+        Si se elige pagar con Dinero en Mercado Pago, es decir, exclusivamente
+        con el saldo de la cuenta de Mercado Pago, se aplica un 10% de descuento
+        adicional sobre el precio de los productos. Ese 10% se calcula sobre el
+        importe con el cupón o la promoción que corresponda ya aplicados, y no
+        se aplica al costo de envío.
+      </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Envíos</h2>
       <p>

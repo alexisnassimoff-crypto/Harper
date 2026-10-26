@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { MedioPago } from "@/lib/transferencia";
 
 /**
  * Barra fija con el botón de pagar, solo en celular y siempre a la vista:
- * candado, "Pago seguro" y el total a pagar. Por transferencia, "Confirmar
- * pedido" y el total, sin candado.
+ * candado, "Pago seguro" y el total a pagar.
  *
  * En el checkout el resumen queda debajo de todos los campos: una pantalla y
  * media de scroll. La barra trae el botón (con el total) mientras se completan
@@ -19,14 +17,12 @@ export default function BarraPagar({
   visible,
   formulario,
   total,
-  medio,
   ocupado = false,
 }: {
   visible: boolean;
   /** El id del <form> que envía. */
   formulario: string;
   total: string;
-  medio: MedioPago;
   ocupado?: boolean;
 }) {
   const [montado, setMontado] = useState(false);
@@ -49,23 +45,11 @@ export default function BarraPagar({
   return createPortal(
     <div className="cta-fija cta-fija--pago" data-visible={visible || undefined} inert={!visible}>
       <button type="submit" form={formulario} className="boton boton--bloque" disabled={ocupado}>
-        <TextoBotonPagar medio={medio} total={total} ocupado={ocupado} />
+        {ocupado ? "Redirigiendo…" : <TextoPagoSeguro total={total} />}
       </button>
     </div>,
     document.body
   );
-}
-
-/** El texto del botón de pagar, el mismo en la barra fija y en el resumen. */
-export function TextoBotonPagar({ medio, total, ocupado }: { medio: MedioPago; total: string; ocupado: boolean }) {
-  if (medio === "transferencia") {
-    return ocupado ? "Redirigiendo…" : (
-      <span>
-        Confirmar pedido · <span className="pago-seguro__total">{total}</span>
-      </span>
-    );
-  }
-  return ocupado ? "Redirigiendo…" : <TextoPagoSeguro total={total} />;
 }
 
 /** "🔒 Pago seguro · $ 80.910": el candado a la izquierda, alineado con el texto. */

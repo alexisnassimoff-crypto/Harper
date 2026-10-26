@@ -20,7 +20,7 @@ import { leerEleccionEnvio, nombreModo, nombreServicio } from "@/lib/envio-elegi
 import { registroAceptacion } from "@/lib/legales";
 import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
-import { leerMedioPago, MEDIO_TRANSFERENCIA, NOTA_TRANSFERENCIA } from "@/lib/transferencia";
+import { leerMedioPago, MEDIO_DINERO_MP, NOTA_DINERO_MP } from "@/lib/dinero-mp";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   const cliente = normalizarCliente(cuerpo.cliente as Record<string, unknown>);
   const items = limpiarItems(cuerpo.items);
   // Sin medio de pago (o con cualquier otra cosa) es Mercado Pago, como siempre.
-  const porTransferencia = leerMedioPago(cuerpo.medioPago) === "transferencia";
+  const conDineroMP = leerMedioPago(cuerpo.medioPago) === "dineroMP";
 
   if (items.length === 0) {
     return NextResponse.json({ error: "Tu carrito está vacío." }, { status: 400 });
@@ -131,11 +131,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Por transferencia se cobra el 10% adicional sobre los productos, que el
-    // servidor calculó junto con el resto (lib/transferencia.ts).
-    const transferencia = porTransferencia ? carrito.transferencia : null;
-    const cobro = transferencia
-      ? { items: transferencia.items, subtotal: transferencia.subtotal, total: transferencia.subtotal + carrito.envio }
+    // Con dinero en Mercado Pago se cobra el 10% adicional sobre los productos, que el
+    // servidor calculó junto con el resto (lib/dinero-mp.ts).
+    const dineroMP = conDineroMP ? carrito.dineroMP : null;
+    const cobro = dineroMP
+      ? { items: dineroMP.items, subtotal: dineroMP.subtotal, total: dineroMP.subtotal + carrito.envio }
       : { items: carrito.items, subtotal: carrito.subtotal, total: carrito.total };
 
     // El comprador tiene que pagar exactamente lo que vio. Si el servidor
@@ -190,7 +190,7 @@ export async function POST(request: Request) {
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     };
     const cupon = carrito.cupon?.estado === "aplicado" ? constanciaDelCupon(carrito.cupon, formatearPrecio) : null;
-    const pedido = await crearPedido(campos, factura, cupon, Boolean(transferencia));
+    const pedido = await crearPedido(campos, factura, cupon, Boolean(dineroMP));
 
     pedidoId = pedido.id;
 
@@ -201,8 +201,8 @@ export async function POST(request: Request) {
       envio: carrito.envio,
       cliente,
       sitio: urlDelSitio(request),
-      // Por transferencia, Mercado Pago ofrece solo el dinero en cuenta.
-      soloDineroEnCuenta: Boolean(transferencia),
+      // Con "Dinero en Mercado Pago", Mercado Pago ofrece solo el saldo de la cuenta.
+      soloDineroEnCuenta: Boolean(dineroMP),
     });
 
     await updateRecord<FilaPedido>(TABLAS.pedidos, pedido.id, {
@@ -232,28 +232,28 @@ export async function POST(request: Request) {
 
 /**
  * Crea el pedido con sus datos de facturación, el cupón y, si se pidió con el
- * descuento por transferencia, el medio de pago. Si Airtable rechaza esos
+ * descuento por dinero en Mercado Pago, el medio de pago. Si Airtable rechaza esos
  * campos (porque faltan o alguien los cambió), la venta no se frena y se
  * pierde lo menos posible, en este orden:
  *  1. Todo junto.
- *  2. Por transferencia y con cupón, sin el campo Medio_pago: va a Notas.
+ *  2. Con dinero en Mercado Pago y cupón, sin el campo Medio_pago: va a Notas.
  *  3. Sin los campos Cupon ni Medio_pago: la facturación se guarda igual y el
- *     cupón y la transferencia van a Notas.
+ *     cupón y el medio de pago van a Notas.
  *  4. Como antes de estos cambios, sin Factura_, Cupon ni Medio_pago: si la
  *     factura va a un CUIT, sus datos van a Notas (el aviso interno los lee
- *     de ahí), y el cupón y la transferencia aparte.
+ *     de ahí), y el cupón y el medio de pago aparte.
  * Un pedido de Mercado Pago sin cupón hace un solo intento, como siempre.
  * Si el rechazo era por otra cosa, el último intento falla igual que antes.
  */
-async function crearPedido(campos: FilaPedido, factura: FacturacionPedido, cupon: string | null, porTransferencia: boolean) {
+async function crearPedido(campos: FilaPedido, factura: FacturacionPedido, cupon: string | null, conDineroMP: boolean) {
   const facturacion = camposDeFacturacion(factura);
   const conCupon = cupon ? { Cupon: cupon } : {};
   const notaCupon = cupon ? `Cupón: ${cupon}` : null;
-  const notaMedio = porTransferencia ? NOTA_TRANSFERENCIA : null;
+  const notaMedio = conDineroMP ? NOTA_DINERO_MP : null;
   const intentos: FilaPedido[] = [
-    { ...campos, ...facturacion, ...conCupon, ...(porTransferencia ? { Medio_pago: MEDIO_TRANSFERENCIA } : {}) },
-    ...(porTransferencia && cupon ? [{ ...campos, ...facturacion, ...conCupon, Notas: NOTA_TRANSFERENCIA }] : []),
-    ...(cupon || porTransferencia ? [{ ...campos, ...facturacion, Notas: [notaCupon, notaMedio].filter(Boolean).join("\n\n") }] : []),
+    { ...campos, ...facturacion, ...conCupon, ...(conDineroMP ? { Medio_pago: MEDIO_DINERO_MP } : {}) },
+    ...(conDineroMP && cupon ? [{ ...campos, ...facturacion, ...conCupon, Notas: NOTA_DINERO_MP }] : []),
+    ...(cupon || conDineroMP ? [{ ...campos, ...facturacion, Notas: [notaCupon, notaMedio].filter(Boolean).join("\n\n") }] : []),
   ];
 
   for (const fila of intentos) {

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
+import { NOMBRE_MARCAS } from "@/lib/cuotas";
 import {
   CONDICIONES_IVA,
   CONSUMIDOR_FINAL,
@@ -14,13 +15,13 @@ import {
   type ErroresFacturacion,
   type Facturacion,
 } from "@/lib/facturacion";
-import { precio as formatearPrecio } from "@/lib/formato";
+import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, EleccionEnvio } from "@/lib/tipos";
-import type { MedioPago } from "@/lib/transferencia";
+import type { MedioPago } from "@/lib/dinero-mp";
 import { validarCliente, type ErroresCliente } from "@/lib/validacion";
-import BarraPagar, { TextoBotonPagar } from "./BarraPagar";
+import BarraPagar, { TextoPagoSeguro } from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import CodigoDescuento from "./CodigoDescuento";
 import { PROVINCIAS } from "./provincias";
@@ -114,7 +115,7 @@ export default function FormularioCheckout({
   reintento?: boolean;
   /** Verdadero si el servidor tiene Google Places: la dirección se busca. */
   buscador?: boolean;
-  /** Al volver de un pago rechazado por transferencia, sigue elegida. */
+  /** Al volver de un pago rechazado con dinero en Mercado Pago, sigue elegida. */
   medioInicial?: MedioPago;
 }) {
   const { items, quitar, cupon, quitarCupon } = useCarrito();
@@ -124,7 +125,7 @@ export default function FormularioCheckout({
     actualizando,
     error: errorCarrito,
     recargar,
-  } = useCarritoResuelto();
+  } = useCarritoResuelto({ cuotas: true });
 
   const [form, setForm] = useState<DatosCliente>(VACIO);
   // Aparte de los del comprador: no se guardan para la próxima compra, así
@@ -134,9 +135,9 @@ export default function FormularioCheckout({
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
   // Por defecto, Mercado Pago con cualquier medio, como siempre. La
-  // transferencia (dinero en cuenta, 10% más) se elige acá.
+  // opción "Dinero en Mercado Pago" (10% más) se elige acá.
   const [medioElegido, setMedioElegido] = useState<MedioPago>(medioInicial);
-  const medioPago: MedioPago = medioElegido === "transferencia" && carrito?.transferencia ? "transferencia" : "mercadopago";
+  const medioPago: MedioPago = medioElegido === "dineroMP" && carrito?.dineroMP ? "dineroMP" : "mercadopago";
 
   // La dirección: con el buscador de Google o con los campos manuales.
   const [modoDireccion, setModoDireccion] = useState<"buscador" | "manual">(buscador ? "buscador" : "manual");
@@ -169,15 +170,24 @@ export default function FormularioCheckout({
     ahorro: carrito?.ahorro ?? 0,
     envio,
   });
-  const resumenTransferencia = carrito?.transferencia
+  const resumenDineroMP = carrito?.dineroMP
     ? desglosar({
         subtotal: carrito.subtotal,
         ahorro: carrito.ahorro,
-        ahorroTransferencia: carrito.transferencia.ahorro,
+        ahorroDineroMP: carrito.dineroMP.ahorro,
         envio,
       })
     : null;
-  const resumen = medioPago === "transferencia" && resumenTransferencia ? resumenTransferencia : resumenMercadoPago;
+  const resumen = medioPago === "dineroMP" && resumenDineroMP ? resumenDineroMP : resumenMercadoPago;
+
+  // Las cuotas sin interés, solo si Mercado Pago las confirmó para el total
+  // de esta compra con tarjeta (con su envío). Si el total cambió (por
+  // ejemplo, con otra cotización del envío), no se anuncian.
+  const cuotas = carrito?.cuotas && carrito.cuotas.monto === resumenMercadoPago.total ? carrito.cuotas : null;
+  const cuotaTexto = cuotas ? `${cuotas.cuotas} cuotas sin interés de ${precioConCentavos(cuotas.montoCuota)}` : null;
+  const cuotaCondiciones = cuotas
+    ? `Precio de contado ${formatearPrecio(cuotas.monto)} · CFTEA ${cuotas.cftea} · ${NOMBRE_MARCAS}`
+    : null;
 
   // Pre-carga los datos de una compra anterior: la comodidad de tener
   // cuenta, sin la fricción de crearla.
@@ -485,7 +495,7 @@ export default function FormularioCheckout({
           facturacion,
           // Solo el código: cuánto descuenta lo calcula el servidor.
           cupon,
-          // Solo cómo paga: el 10% de la transferencia también lo calcula el servidor.
+          // Solo cómo paga: el 10% por dinero en Mercado Pago también lo calcula el servidor.
           medioPago,
         }),
       });
@@ -617,10 +627,10 @@ export default function FormularioCheckout({
             <span className="checkout__ver">Ver detalle</span>
           </summary>
           <ul>{listaItems}</ul>
-          {resumen.transferencia > 0 ? (
+          {resumen.dineroMP > 0 ? (
             <div className="fila" style={{ color: "var(--verde)" }}>
-              <span>Transferencia ({carrito.transferencia?.porcentaje}%)</span>
-              <span>−{formatearPrecio(resumen.transferencia)}</span>
+              <span>Dinero en Mercado Pago ({carrito.dineroMP?.porcentaje}%)</span>
+              <span>−{formatearPrecio(resumen.dineroMP)}</span>
             </div>
           ) : null}
           <div className="fila">
@@ -862,7 +872,7 @@ export default function FormularioCheckout({
 
         {/* Medio de pago. Cada opción muestra su total, y el resumen y el
             botón cambian al instante. Las dos se pagan en Mercado Pago. */}
-        {resumenTransferencia && carrito.transferencia ? (
+        {resumenDineroMP && carrito.dineroMP ? (
           // Mientras se envía, no se cambia: lo que se ve es lo que se cobra.
           <fieldset className="medio-pago" disabled={enviando}>
             <legend className="label">Medio de pago</legend>
@@ -875,31 +885,36 @@ export default function FormularioCheckout({
                 onChange={() => setMedioElegido("mercadopago")}
               />
               <span className="medio-pago__texto">
-                <span className="medio-pago__nombre">Tarjeta o Mercado Pago</span>
-                <span className="medio-pago__detalle">Crédito, débito o dinero en cuenta.</span>
+                <span className="medio-pago__nombre">Tarjeta / Mercado Pago</span>
+                {cuotaTexto ? (
+                  <>
+                    <span className="medio-pago__cuotas">{cuotaTexto}</span>
+                    <span className="cuotas-condiciones">{cuotaCondiciones}</span>
+                  </>
+                ) : (
+                  <span className="medio-pago__detalle">Tarjeta de crédito o débito.</span>
+                )}
               </span>
               <span className="medio-pago__precio">{formatearPrecio(resumenMercadoPago.total)}</span>
             </label>
-            <label className="medio-pago__opcion" data-elegida={medioPago === "transferencia"}>
+            <label className="medio-pago__opcion" data-elegida={medioPago === "dineroMP"}>
               <input
-                id="medioTransferencia"
+                id="medioDineroMP"
                 type="radio"
                 name="medioPago"
-                value="transferencia"
-                checked={medioPago === "transferencia"}
-                onChange={() => setMedioElegido("transferencia")}
+                value="dineroMP"
+                checked={medioPago === "dineroMP"}
+                onChange={() => setMedioElegido("dineroMP")}
               />
               <span className="medio-pago__texto">
                 <span className="medio-pago__nombre">
-                  Transferencia o dinero en cuenta
-                  <span className="medio-pago__extra">{carrito.transferencia.porcentaje}% OFF adicional</span>
+                  Dinero en Mercado Pago
+                  <span className="medio-pago__extra">{carrito.dineroMP.porcentaje}% OFF adicional</span>
                 </span>
-                <span className="medio-pago__detalle">
-                  Pagás en Mercado Pago con el dinero de tu cuenta. Podés cargarlo antes con una transferencia desde
-                  tu banco.
-                </span>
+                <span className="medio-pago__detalle">Exclusivamente con el saldo de tu cuenta de Mercado Pago.</span>
+                <span className="medio-pago__ahorro">Ahorrás {formatearPrecio(resumenDineroMP.ahorroTotal)}</span>
               </span>
-              <span className="medio-pago__precio">{formatearPrecio(resumenTransferencia.total)}</span>
+              <span className="medio-pago__precio">{formatearPrecio(resumenDineroMP.total)}</span>
             </label>
           </fieldset>
         ) : null}
@@ -980,10 +995,10 @@ export default function FormularioCheckout({
           </div>
         ) : null}
 
-        {resumen.transferencia > 0 ? (
+        {resumen.dineroMP > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>Transferencia ({carrito.transferencia?.porcentaje}%)</span>
-            <span>−{formatearPrecio(resumen.transferencia)}</span>
+            <span>Dinero en Mercado Pago ({carrito.dineroMP?.porcentaje}%)</span>
+            <span>−{formatearPrecio(resumen.dineroMP)}</span>
           </div>
         ) : null}
 
@@ -998,6 +1013,13 @@ export default function FormularioCheckout({
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total)}</strong>
         </div>
 
+        {medioPago === "mercadopago" && cuotaTexto ? (
+          <p className="checkout__cuotas">
+            <span>{cuotaTexto}</span>
+            <span className="cuotas-condiciones">{cuotaCondiciones}</span>
+          </p>
+        ) : null}
+
         {resumen.ahorroTotal > 0 ? (
           <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.ahorroTotal)}!</p>
         ) : null}
@@ -1011,14 +1033,13 @@ export default function FormularioCheckout({
         {/* En celular este botón no se muestra: lo reemplaza la barra fija,
             siempre a la vista, con el mismo texto y el total. */}
         <button type="submit" className="boton boton--bloque checkout__pagar" disabled={enviando}>
-          <TextoBotonPagar medio={medioPago} total={formatearPrecio(resumen.total)} ocupado={enviando} />
+          {enviando ? "Redirigiendo…" : <TextoPagoSeguro total={formatearPrecio(resumen.total)} />}
         </button>
 
-        {medioPago === "transferencia" ? (
+        {medioPago === "dineroMP" ? (
           <p className="apagado" style={{ fontSize: "0.75rem" }}>
-            Pagás en Mercado Pago solo con el dinero de tu cuenta de Mercado Pago:
-            sin tarjetas ni cuotas. Si no te alcanza, podés cargarlo antes con una
-            transferencia desde tu banco.
+            Pagás en Mercado Pago exclusivamente con el saldo de tu cuenta de
+            Mercado Pago: sin tarjetas ni cuotas.
           </p>
         ) : (
           <p className="apagado" style={{ fontSize: "0.75rem" }}>
@@ -1029,13 +1050,7 @@ export default function FormularioCheckout({
         )}
       </aside>
 
-      <BarraPagar
-        visible
-        formulario={ID_FORMULARIO}
-        total={formatearPrecio(resumen.total)}
-        medio={medioPago}
-        ocupado={enviando}
-      />
+      <BarraPagar visible formulario={ID_FORMULARIO} total={formatearPrecio(resumen.total)} ocupado={enviando} />
     </form>
   );
 }

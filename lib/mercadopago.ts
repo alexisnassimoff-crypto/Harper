@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { ItemResuelto, DatosCliente } from "./tipos";
 import { esUrlPublica } from "./sitio";
-import { TIPOS_EXCLUIDOS_TRANSFERENCIA, unidadesParaCobrar } from "./transferencia";
+import { TIPOS_EXCLUIDOS_DINERO_MP, unidadesParaCobrar } from "./dinero-mp";
 
 /**
  * La API real. `MP_API_URL` la reemplaza SOLO fuera de Vercel: es para la
@@ -78,7 +78,7 @@ function fechaMP(fecha: Date) {
  * Los precios se toman de `items`, que ya vienen resueltos contra Airtable:
  * en ningún momento se usa un monto que haya mandado el navegador.
  *
- * Con `soloDineroEnCuenta` (el pago por transferencia), Mercado Pago ofrece
+ * Con `soloDineroEnCuenta` (el pago con dinero en Mercado Pago), Mercado Pago ofrece
  * únicamente el dinero de la cuenta del comprador: sin tarjetas, sin efectivo
  * y sin cuotas sin tarjeta.
  */
@@ -91,11 +91,11 @@ export async function crearPreferencia(opciones: {
   sitio: string;
   soloDineroEnCuenta?: boolean;
 }): Promise<Preferencia> {
-  // Por transferencia, en pesos enteros: un renglón que no se divide justo
+  // Con dinero en Mercado Pago, en pesos enteros: un renglón que no se divide justo
   // por la cantidad (el 10% sobre dos pares) va partido en dos. Los demás
   // quedan como siempre, un renglón por producto con su precio unitario.
   const items = opciones.items.flatMap((i) =>
-    (i.descuentoTransferencia ? unidadesParaCobrar(i) : [{ precio: i.precioUnitario, cantidad: i.cantidad }]).map((u) => ({
+    (i.descuentoDineroMP ? unidadesParaCobrar(i) : [{ precio: i.precioUnitario, cantidad: i.cantidad }]).map((u) => ({
       id: i.sku,
       title: `${i.nombre} — ${i.color}`,
       quantity: u.cantidad,
@@ -140,17 +140,17 @@ export async function crearPreferencia(opciones: {
     back_urls: {
       success: `${opciones.sitio}/gracias?pedido=${encodeURIComponent(opciones.numeroPedido)}`,
       pending: `${opciones.sitio}/gracias?pedido=${encodeURIComponent(opciones.numeroPedido)}`,
-      failure: `${opciones.sitio}/checkout?error=pago${opciones.soloDineroEnCuenta ? "&medio=transferencia" : ""}`,
+      failure: `${opciones.sitio}/checkout?error=pago${opciones.soloDineroEnCuenta ? "&medio=dineroMP" : ""}`,
     },
     // Mercado Pago rechaza la preferencia entera si pedimos `auto_return` con
     // una `back_url` que no sea pública. En un preview o en local se omite.
     ...(publica ? { auto_return: "approved" } : {}),
     // Solo tarjeta y dinero en cuenta: el pago se aprueba o se rechaza en el
-    // momento y nunca queda un pedido esperando días una acreditación. Por
-    // transferencia, solo dinero en cuenta (que no se puede excluir).
+    // momento y nunca queda un pedido esperando días una acreditación. Con
+    // "Dinero en Mercado Pago", solo dinero en cuenta (que no se puede excluir).
     binary_mode: true,
     payment_methods: opciones.soloDineroEnCuenta
-      ? { excluded_payment_types: TIPOS_EXCLUIDOS_TRANSFERENCIA.map((id) => ({ id })), installments: 1 }
+      ? { excluded_payment_types: TIPOS_EXCLUIDOS_DINERO_MP.map((id) => ({ id })), installments: 1 }
       : { excluded_payment_types: [{ id: "ticket" }, { id: "atm" }], installments: 12 },
     // Sin esto la preferencia vive para siempre y un link viejo sigue cobrando
     // un precio que ya cambió. Se manda solo la fecha de fin: un

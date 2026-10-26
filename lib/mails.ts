@@ -124,11 +124,11 @@ function envoltorio(contenido: string, config: ConfigTienda) {
 </html>`;
 }
 
-/** "5% de descuento + 10% por transferencia". Vacío si el ítem va a precio de lista. */
+/** "5% de descuento + 10% por dinero en Mercado Pago". Vacío si el ítem va a precio de lista. */
 function textoDescuento(item: ItemResuelto) {
   return [
     item.descuento > 0 ? `${item.descuento}% de descuento` : null,
-    item.descuentoTransferencia ? `${item.descuentoTransferencia}% por transferencia` : null,
+    item.descuentoDineroMP ? `${item.descuentoDineroMP}% por dinero en Mercado Pago` : null,
   ]
     .filter(Boolean)
     .join(" + ");
@@ -200,8 +200,8 @@ export type DatosMail = {
   lineasFacturacion?: string[] | null;
   /** El cupón aplicado, por ejemplo "HARPER10 (−$ 8.990)"; null si no hubo. */
   cupon?: string | null;
-  /** Verdadero si se pidió con el descuento por transferencia (dinero en cuenta). */
-  porTransferencia?: boolean;
+  /** Verdadero si se pidió con el descuento por dinero en Mercado Pago. */
+  conDineroMP?: boolean;
   /** Algo que Harper tiene que revisar en esta venta, ya escrito. */
   alerta?: string | null;
 };
@@ -259,7 +259,7 @@ ${d.items
   .map((i) => {
     const descuento = [
       i.descuento > 0 ? `${i.descuento}% off` : null,
-      i.descuentoTransferencia ? `${i.descuentoTransferencia}% por transferencia` : null,
+      i.descuentoDineroMP ? `${i.descuentoDineroMP}% por dinero en Mercado Pago` : null,
     ]
       .filter(Boolean)
       .join(" + ");
@@ -293,7 +293,7 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Venta nueva — ${escaparHtml(d.numero)}</h1>
 <p style="margin:0 0 24px;font-size:14px;color:#78756c;">${formatearPrecio(d.total)} · ${escaparHtml(d.cliente.provincia)}${
-      d.porTransferencia ? " · transferencia (dinero en cuenta)" : ""
+      d.conDineroMP ? " · dinero en Mercado Pago" : ""
     }</p>
 ${d.alerta ? `<p style="margin:0 0 24px;padding:12px 14px;border:1px solid #a1281b;color:#a1281b;font-size:14px;line-height:1.6;">${escaparHtml(d.alerta)}</p>` : ""}
 
@@ -331,7 +331,7 @@ ${
     d.config
   );
 
-  const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}${d.porTransferencia ? " (transferencia, dinero en cuenta)" : ""}
+  const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " (dinero en Mercado Pago)" : ""}
 ${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}
 ${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join("\n")}
 ${d.cupon ? `Cupón ${d.cupon}\n` : ""}
@@ -343,7 +343,7 @@ Airtable: ${d.pedidoUrl}`;
 
   return {
     para: d.config.emailPedidos,
-    asunto: `${d.alerta ? "REVISAR " : ""}Venta ${d.numero} — ${formatearPrecio(d.total)}${d.porTransferencia ? " · transferencia" : ""}${aCuit ? " · factura a CUIT" : ""}`,
+    asunto: `${d.alerta ? "REVISAR " : ""}Venta ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " · dinero en Mercado Pago" : ""}${aCuit ? " · factura a CUIT" : ""}`,
     html,
     texto,
     responderA: d.cliente.email,

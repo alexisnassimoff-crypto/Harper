@@ -707,6 +707,27 @@ p {
   line-height: 1.4;
   color: color-mix(in srgb, var(--texto) 72%, var(--fondo));
 }
+.medio-pago__cuotas {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--verde);
+}
+.medio-pago__ahorro {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--verde);
+}
+/* La cuota, debajo del total, solo con Tarjeta / Mercado Pago. */
+.checkout__cuotas {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--verde);
+}
+.checkout__cuotas .cuotas-condiciones {
+  font-weight: 400;
+}
 .medio-pago__precio {
   font-size: 0.9375rem;
   font-variant-numeric: tabular-nums;

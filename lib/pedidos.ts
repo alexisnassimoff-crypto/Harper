@@ -18,7 +18,7 @@ import {
   type Tramo,
 } from "./descuentos";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
-import { aplicarTransferencia, type PrecioTransferencia } from "./transferencia";
+import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
 import type {
   Categoria,
   EleccionEnvio,
@@ -54,11 +54,11 @@ export type CarritoResuelto = {
   /** El subtotal sin el cupón: la base del envío gratis, como siempre. */
   subtotalSinCupon: number;
   /**
-   * El mismo pedido pagado por transferencia: el 10% adicional sobre la
+   * El mismo pedido pagado con dinero en Mercado Pago: el 10% adicional sobre la
    * promoción que ya tiene. Va siempre junto al de Mercado Pago para que el
    * checkout cambie de uno a otro al instante. Null si el carrito está vacío.
    */
-  transferencia: PrecioTransferencia | null;
+  dineroMP: PrecioDineroMP | null;
 };
 
 /** Tope por variante: evita que un bug o un curioso pida 9999 unidades. */
@@ -232,7 +232,7 @@ export async function resolverCarrito(
     tramos,
     cupon: promocion.cupon,
     subtotalSinCupon: subtotalParaEnvio,
-    transferencia: items.length > 0 ? aplicarTransferencia(items) : null,
+    dineroMP: items.length > 0 ? aplicarDineroMP(items) : null,
   };
 }
 
