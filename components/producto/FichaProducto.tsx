@@ -52,6 +52,9 @@ export default function FichaProducto({
 }) {
   const router = useRouter();
   const { items, agregar, cupon } = useCarrito();
+  // Cuántas unidades de cada color de este producto hay en el carrito.
+  const enCarrito = new Map<string, number>();
+  for (const item of items) enCarrito.set(item.varianteId, (enCarrito.get(item.varianteId) ?? 0) + item.cantidad);
   const [enTransicion, iniciarTransicion] = useTransition();
 
   const [indiceVariante, setIndiceVariante] = useState(
@@ -405,42 +408,52 @@ export default function FichaProducto({
           </ul>
         ) : null}
 
-        {/* Selector de color */}
+        {/* Selector de color. Arriba de cada color, cuántos de ese color hay
+            en el carrito: se ve de un vistazo qué colores ya se pidieron. */}
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
           <legend className="label" style={{ marginBottom: "0.75rem" }}>
             Color: {variante.color}
           </legend>
 
-          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-            {producto.variantes.map((v, i) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => elegirColor(i)}
-                title={v.agotada ? `${v.color} — agotado` : v.color}
-                aria-label={v.agotada ? `${v.color}, agotado` : v.color}
-                aria-pressed={i === indiceVariante}
-                className="swatch"
-                style={{ background: v.colorHex, opacity: v.agotada ? 0.4 : 1 }}
-              >
-                {v.agotada ? (
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      display: "grid",
-                      placeItems: "center",
-                      fontSize: "1.5rem",
-                      lineHeight: 1,
-                      color: "var(--texto)",
-                    }}
-                  >
-                    ⁄
-                  </span>
-                ) : null}
-              </button>
-            ))}
+          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", paddingTop: "0.35rem" }}>
+            {producto.variantes.map((v, i) => {
+              const cantidad = enCarrito.get(v.id) ?? 0;
+              const enElCarrito = cantidad > 0 ? `, ${cantidad} en el carrito` : "";
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => elegirColor(i)}
+                  title={`${v.agotada ? `${v.color} — agotado` : v.color}${enElCarrito}`}
+                  aria-label={`${v.agotada ? `${v.color}, agotado` : v.color}${enElCarrito}`}
+                  aria-pressed={i === indiceVariante}
+                  className="swatch"
+                  style={{ background: v.colorHex, opacity: v.agotada ? 0.4 : 1 }}
+                >
+                  {cantidad > 0 ? (
+                    <span className="swatch__cantidad" aria-hidden="true">
+                      {cantidad}
+                    </span>
+                  ) : null}
+                  {v.agotada ? (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "grid",
+                        placeItems: "center",
+                        fontSize: "1.5rem",
+                        lineHeight: 1,
+                        color: "var(--texto)",
+                      }}
+                    >
+                      ⁄
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </fieldset>
 
