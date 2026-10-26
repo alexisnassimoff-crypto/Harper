@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import FormularioCheckout from "@/components/checkout/FormularioCheckout";
 import { direccionesDisponibles } from "@/lib/direcciones-servidor";
+import { leerMedioPago } from "@/lib/transferencia";
 
 export const metadata: Metadata = {
   title: "Finalizar compra",
@@ -10,9 +11,11 @@ export const metadata: Metadata = {
 export default async function PaginaCheckout({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; medio?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, medio } = await searchParams;
+  // Si el pago rechazado era por transferencia, vuelve con esa opción elegida.
+  const porTransferencia = leerMedioPago(medio) === "transferencia";
 
   // InitiateCheckout lo dispara el formulario, cuando el carrito ya está
   // resuelto (con valor e ítems) y solo si de verdad hay algo para comprar y
@@ -26,15 +29,20 @@ export default async function PaginaCheckout({
           explicación de qué había pasado. */}
       {error === "pago" ? (
         <p role="alert" className="checkout__aviso">
-          El pago no se pudo completar y no te cobramos nada. Revisá los datos
-          de la tarjeta o probá con otro medio de pago.
+          {porTransferencia
+            ? "El pago no se pudo completar y no te cobramos nada. Revisá que tengas saldo en tu cuenta de Mercado Pago o probá con otro medio de pago."
+            : "El pago no se pudo completar y no te cobramos nada. Revisá los datos de la tarjeta o probá con otro medio de pago."}
         </p>
       ) : null}
 
       {/* Con Google Places configurado, la dirección es un solo casillero con
           sugerencias; sin él, los campos de siempre. Se decide en el servidor
           para que el formulario no tenga que averiguarlo con una consulta. */}
-      <FormularioCheckout reintento={error === "pago"} buscador={direccionesDisponibles()} />
+      <FormularioCheckout
+        reintento={error === "pago"}
+        buscador={direccionesDisponibles()}
+        medioInicial={porTransferencia ? "transferencia" : "mercadopago"}
+      />
     </section>
   );
 }

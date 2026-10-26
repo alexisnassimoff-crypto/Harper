@@ -109,6 +109,8 @@ export function aplicarTransferencia(
  * es exacto queda igual.
  */
 export function unidadesParaCobrar(item: { subtotal: number; cantidad: number }): { precio: number; cantidad: number }[] {
+  // Con centavos (un precio de lista cargado así) no hay pesos enteros que repartir.
+  if (!Number.isInteger(item.subtotal)) return [{ precio: item.subtotal / item.cantidad, cantidad: item.cantidad }];
   const base = Math.floor(item.subtotal / item.cantidad);
   const conUnPesoMas = item.subtotal - base * item.cantidad;
   return [

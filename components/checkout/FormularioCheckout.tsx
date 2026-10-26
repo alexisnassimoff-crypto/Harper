@@ -108,11 +108,14 @@ const VACIO: DatosCliente = {
 export default function FormularioCheckout({
   reintento = false,
   buscador = false,
+  medioInicial = "mercadopago",
 }: {
   /** Verdadero cuando vuelve de un pago rechazado: no es un checkout nuevo. */
   reintento?: boolean;
   /** Verdadero si el servidor tiene Google Places: la dirección se busca. */
   buscador?: boolean;
+  /** Al volver de un pago rechazado por transferencia, sigue elegida. */
+  medioInicial?: MedioPago;
 }) {
   const { items, quitar, cupon, quitarCupon } = useCarrito();
   const {
@@ -132,7 +135,7 @@ export default function FormularioCheckout({
   const [fallo, setFallo] = useState<string | null>(null);
   // Por defecto, Mercado Pago con cualquier medio, como siempre. La
   // transferencia (dinero en cuenta, 10% más) se elige acá.
-  const [medioElegido, setMedioElegido] = useState<MedioPago>("mercadopago");
+  const [medioElegido, setMedioElegido] = useState<MedioPago>(medioInicial);
   const medioPago: MedioPago = medioElegido === "transferencia" && carrito?.transferencia ? "transferencia" : "mercadopago";
 
   // La dirección: con el buscador de Google o con los campos manuales.
@@ -614,6 +617,12 @@ export default function FormularioCheckout({
             <span className="checkout__ver">Ver detalle</span>
           </summary>
           <ul>{listaItems}</ul>
+          {resumen.transferencia > 0 ? (
+            <div className="fila" style={{ color: "var(--verde)" }}>
+              <span>Transferencia ({carrito.transferencia?.porcentaje}%)</span>
+              <span>−{formatearPrecio(resumen.transferencia)}</span>
+            </div>
+          ) : null}
           <div className="fila">
             <span className="apagado">Envío a domicilio</span>
             <span>{envioTexto}</span>
@@ -854,7 +863,8 @@ export default function FormularioCheckout({
         {/* Medio de pago. Cada opción muestra su total, y el resumen y el
             botón cambian al instante. Las dos se pagan en Mercado Pago. */}
         {resumenTransferencia && carrito.transferencia ? (
-          <fieldset className="medio-pago">
+          // Mientras se envía, no se cambia: lo que se ve es lo que se cobra.
+          <fieldset className="medio-pago" disabled={enviando}>
             <legend className="label">Medio de pago</legend>
             <label className="medio-pago__opcion" data-elegida={medioPago === "mercadopago"}>
               <input

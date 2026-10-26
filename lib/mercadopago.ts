@@ -91,11 +91,11 @@ export async function crearPreferencia(opciones: {
   sitio: string;
   soloDineroEnCuenta?: boolean;
 }): Promise<Preferencia> {
-  // En pesos enteros: un renglón que no se divide justo por la cantidad (el
-  // 10% de la transferencia sobre dos pares) va partido en dos. Los demás
-  // quedan como siempre, un renglón por producto.
+  // Por transferencia, en pesos enteros: un renglón que no se divide justo
+  // por la cantidad (el 10% sobre dos pares) va partido en dos. Los demás
+  // quedan como siempre, un renglón por producto con su precio unitario.
   const items = opciones.items.flatMap((i) =>
-    unidadesParaCobrar(i).map((u) => ({
+    (i.descuentoTransferencia ? unidadesParaCobrar(i) : [{ precio: i.precioUnitario, cantidad: i.cantidad }]).map((u) => ({
       id: i.sku,
       title: `${i.nombre} — ${i.color}`,
       quantity: u.cantidad,
@@ -140,7 +140,7 @@ export async function crearPreferencia(opciones: {
     back_urls: {
       success: `${opciones.sitio}/gracias?pedido=${encodeURIComponent(opciones.numeroPedido)}`,
       pending: `${opciones.sitio}/gracias?pedido=${encodeURIComponent(opciones.numeroPedido)}`,
-      failure: `${opciones.sitio}/checkout?error=pago`,
+      failure: `${opciones.sitio}/checkout?error=pago${opciones.soloDineroEnCuenta ? "&medio=transferencia" : ""}`,
     },
     // Mercado Pago rechaza la preferencia entera si pedimos `auto_return` con
     // una `back_url` que no sea pública. En un preview o en local se omite.

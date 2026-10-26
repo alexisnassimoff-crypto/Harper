@@ -93,6 +93,8 @@ test("a Mercado Pago, en pesos enteros: el renglón se parte si no se divide jus
   ]);
   // Un renglón exacto (todos los de Mercado Pago de siempre) queda igual.
   assert.deepEqual(unidadesParaCobrar({ subtotal: 80910 * 3, cantidad: 3 }), [{ precio: 80910, cantidad: 3 }]);
+  // Con centavos no hay pesos enteros que repartir: queda un renglón, como siempre.
+  assert.deepEqual(unidadesParaCobrar({ subtotal: 89900.5, cantidad: 1 }), [{ precio: 89900.5, cantidad: 1 }]);
   // Siempre suma exacto.
   for (const [subtotal, cantidad] of [[230594, 3], [1000001, 7], [7609, 1], [68773 * 5 + 4, 5]]) {
     const partes = unidadesParaCobrar({ subtotal, cantidad });
