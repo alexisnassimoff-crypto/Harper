@@ -19,7 +19,7 @@ import { conEspera, verificarCuotas, verificarCuotasPara } from "@/lib/cuotas-se
 import { getTramos } from "@/lib/descuentos";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio } from "@/lib/formato";
-import { opinionesDeAnteojos, reputacionEnMercadoLibre } from "@/lib/ml-resenas-servidor";
+import { datosDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { paresDisponibles, totalesPosibles } from "@/lib/packs";
 import {
   DESCRIPCION_SITIO,
@@ -96,14 +96,15 @@ async function PortadaEstrella({
   const estuche =
     productos.find((p) => p.slug === ESTUCHE_PORTADA && p.variantes.some((v) => !v.agotada)) ?? null;
 
-  const [tramos, cuotasAnteojos, opiniones, reputacion] = await Promise.all([
+  const [tramos, cuotasAnteojos, mercadoLibre] = await Promise.all([
     getTramos(),
     // Para los textos generales ("6 cuotas sin interés en anteojos"): con el
     // anteojo más barato, como la portada de catálogo.
     conEspera(verificarCuotasPara(anteojos.map((p) => p.precio)), ESPERA_CUOTAS_MS, null),
-    conEspera(opinionesDeAnteojos(), ESPERA_OPINIONES_MS, null),
-    conEspera(reputacionEnMercadoLibre(), ESPERA_OPINIONES_MS, null),
+    conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, null),
   ]);
+  const opiniones = mercadoLibre?.opiniones ?? null;
+  const reputacion = mercadoLibre?.reputacion ?? null;
 
   // Las cuotas de cada total que la compra puede mostrar, confirmadas una por
   // una con Mercado Pago: el anuncio de cada pack es cierto para ese monto.
@@ -174,6 +175,7 @@ async function PortadaEstrella({
       <ComoComprar
         pasos={pasosDeCompra({
           cuotas: cuotasAnteojos,
+          nombreMarcas: NOMBRE_MARCAS,
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
           envioGratisDesde: config.envioGratisDesde,
           envioGratisTexto,

@@ -108,8 +108,8 @@ export function preguntasDePortada(datos: {
     });
     preguntas.push({
       pregunta: "¿Les puedo poner cristales con aumento?",
-      respuesta: `Sí: el armazón es apto para colocar cristales con aumento. Los cristales graduados no se venden en la web${
-        datos.hayWhatsapp ? ": consultanos por WhatsApp y te asesoramos." : "."
+      respuesta: `Sí: el armazón es apto para colocar cristales con aumento. Harper no vende cristales graduados${
+        datos.hayWhatsapp ? "; si tenés dudas, consultanos por WhatsApp y te asesoramos." : "."
       }`,
     });
   }
@@ -155,7 +155,8 @@ export type Paso = { titulo: string; texto: string };
 
 /** "Cómo es comprar en Harper", en cuatro pasos. Sin plazos de entrega. */
 export function pasosDeCompra(datos: {
-  cuotas: { cuotas: number } | null;
+  cuotas: { cuotas: number; cftea: string } | null;
+  nombreMarcas: string;
   porcentajeDineroMP: number;
   envioGratisDesde: number;
   envioGratisTexto: string;
@@ -169,7 +170,7 @@ export function pasosDeCompra(datos: {
     {
       titulo: "Pagá con Mercado Pago",
       texto: datos.cuotas
-        ? `En ${datos.cuotas.cuotas} cuotas sin interés con tarjeta, o con ${datos.porcentajeDineroMP}% OFF extra usando el dinero de tu cuenta.`
+        ? `En ${datos.cuotas.cuotas} cuotas sin interés con ${datos.nombreMarcas} (CFTEA ${datos.cuotas.cftea}), o con ${datos.porcentajeDineroMP}% OFF extra usando el dinero de tu cuenta.`
         : `Con tarjeta, débito, o con ${datos.porcentajeDineroMP}% OFF extra usando el dinero de tu cuenta.`,
     },
     {

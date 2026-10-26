@@ -2897,8 +2897,38 @@ p {
   width: max-content;
   animation: anuncios-pasan var(--anuncios-duracion, 28s) linear infinite;
 }
-.anuncios:hover .anuncios__pista {
+.anuncios[data-pausado] .anuncios__pista {
   animation-play-state: paused;
+}
+/* Con mouse, se frena al pasar por encima. Solo con mouse: en un celular el
+   "hover" queda pegado después de tocar, y la barra no volvería a andar. */
+@media (hover: hover) {
+  .anuncios:hover .anuncios__pista {
+    animation-play-state: paused;
+  }
+}
+.anuncios {
+  position: relative;
+}
+/* Pausar / seguir: al costado derecho, sobre un degradé para que no tape
+   letras a medias. */
+.anuncios__pausa {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  padding: 0 0 0 0.9rem;
+  border: 0;
+  background: linear-gradient(to right, transparent, var(--verde) 45%);
+  color: var(--hueso);
+  cursor: pointer;
+}
+.anuncios__pausa:focus-visible {
+  outline: 2px solid var(--hueso);
+  outline-offset: -4px;
 }
 .anuncios__grupo {
   display: flex;
@@ -2942,7 +2972,8 @@ p {
   .anuncios__pista {
     animation: none !important;
   }
-  .anuncios__grupo[aria-hidden="true"] {
+  .anuncios__grupo[aria-hidden="true"],
+  .anuncios__pausa {
     display: none;
   }
 }

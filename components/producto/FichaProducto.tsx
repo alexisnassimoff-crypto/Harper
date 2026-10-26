@@ -53,6 +53,8 @@ export default function FichaProducto({
     () => varianteInicial ?? indiceVarianteInicial(producto)
   );
   const [agregado, setAgregado] = useState(false);
+  // Sube con cada toque en un color: la galería vuelve a la primera foto.
+  const [toquesDeColor, setToquesDeColor] = useState(0);
 
   const variante = producto.variantes[indiceVariante];
   const yaEnCarrito = items.some((i) => i.varianteId === variante.id);
@@ -101,6 +103,7 @@ export default function FichaProducto({
   // al color inicial y mandaba al carrito un color distinto del elegido.
   function elegirColor(indice: number) {
     setIndiceVariante(indice);
+    setToquesDeColor((n) => n + 1);
     setAgregado(false);
   }
 
@@ -162,6 +165,7 @@ export default function FichaProducto({
           videos={producto.videos}
           poster={producto.fotoPrincipal}
           alt={`${producto.nombre} — ${variante.color}`}
+          reinicio={toquesDeColor}
         />
       </div>
 

@@ -35,7 +35,7 @@ test("las preguntas dicen solo lo confirmado", () => {
     texto("¿Qué tienen"),
     "Filtro de luz azul, cristales fotocromáticos que se adaptan a la luz solar y armazón apto para colocar cristales con aumento."
   );
-  assert.match(texto("¿Les puedo poner"), /no se venden en la web: consultanos por WhatsApp/);
+  assert.match(texto("¿Les puedo poner"), /Harper no vende cristales graduados; si tenés dudas, consultanos por WhatsApp/);
   assert.match(texto("¿Cómo puedo pagar"), /6 cuotas sin interés con Visa y Mastercard \(CFTEA 0,00 %\)/);
   assert.match(texto("¿Cuánto cuesta el envío"), /gratis en compras desde \$ 150\.000.*lunes a viernes/);
   assert.match(texto("¿Puedo cambiarlos"), /10 días .* 30 días .* 6 meses de garantía/);
@@ -54,10 +54,10 @@ test("las preguntas dicen solo lo confirmado", () => {
 });
 
 test("los pasos de compra no prometen plazos y nombran las cuotas solo si están confirmadas", () => {
-  const con = pasosDeCompra({ cuotas: { cuotas: 6 }, porcentajeDineroMP: 10, envioGratisDesde: 150000, envioGratisTexto: "$ 150.000", diasCambio: 30 });
-  const sin = pasosDeCompra({ cuotas: null, porcentajeDineroMP: 10, envioGratisDesde: 0, envioGratisTexto: "", diasCambio: 30 });
+  const con = pasosDeCompra({ cuotas: { cuotas: 6, cftea: "0,00 %" }, nombreMarcas: "Visa y Mastercard", porcentajeDineroMP: 10, envioGratisDesde: 150000, envioGratisTexto: "$ 150.000", diasCambio: 30 });
+  const sin = pasosDeCompra({ cuotas: null, nombreMarcas: "Visa y Mastercard", porcentajeDineroMP: 10, envioGratisDesde: 0, envioGratisTexto: "", diasCambio: 30 });
   assert.equal(con.length, 4);
-  assert.match(con[1].texto, /6 cuotas sin interés/);
+  assert.match(con[1].texto, /6 cuotas sin interés con Visa y Mastercard \(CFTEA 0,00 %\)/);
   assert.ok(!/cuotas/.test(sin[1].texto));
   assert.ok(!/gratis/.test(sin[2].texto));
 });
@@ -65,7 +65,7 @@ test("los pasos de compra no prometen plazos y nombran las cuotas solo si están
 test("la barra de anuncios: el banner de Config primero, las cuotas solo si están confirmadas", () => {
   assert.deepEqual(anunciosDelHeader({ banner: "Envío gratis en compras superiores a $150.000", cuotas: { cuotas: 6, montoCuota: 14983.33, cftea: "0,00 %" } }), [
     "Envío gratis en compras superiores a $150.000",
-    "6 cuotas sin interés en anteojos · CFTEA 0,00 %",
+    "6 cuotas sin interés en anteojos con Visa y Mastercard · CFTEA 0,00 %",
     "10% OFF extra pagando con dinero en Mercado Pago",
     "HARPER10: 10% OFF en tu primera compra",
   ]);

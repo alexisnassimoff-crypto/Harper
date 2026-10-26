@@ -62,13 +62,16 @@ export default function CompraPortada({
   envioGratisDesde: number;
   /** El estuche que se ofrece sumar, o null si no hay. */
   estuche: Producto | null;
-  /** Las opiniones de Mercado Libre, resumidas; null si no hay. */
+  /**
+   * Las opiniones de Mercado Libre de todos los anteojos Harper (no solo de
+   * este modelo: así se dice), resumidas; null si no hay.
+   */
   calificacion: { promedio: number; total: number } | null;
   garantias: Garantia[];
   whatsapp: string | null;
 }) {
   const router = useRouter();
-  const { items, agregar, cupon } = useCarrito();
+  const { items, agregar, cupon, listo } = useCarrito();
   const { datos: carritoResuelto } = useCarritoResuelto();
   const [enTransicion, iniciarTransicion] = useTransition();
 
@@ -187,6 +190,13 @@ export default function CompraPortada({
     setAgregado(false);
   }
 
+  // Si el carrito ya tiene algo más que este pack (otro modelo, otro color o
+  // más unidades), "Comprar ahora" lo suma: el total ya no es el del pack, y
+  // se avisa en vez de mostrar un precio que el checkout no va a cobrar.
+  const enElPack = new Map<string, number>();
+  for (const l of lineas()) enElPack.set(l.varianteId, l.cantidad);
+  const conOtrosProductos = listo && items.some((i) => i.cantidad > (enElPack.get(i.varianteId) ?? 0));
+
   // Los colores que quedan con pocas unidades, una sola vez cada uno.
   const conPocas = [...new Set(colores.filter((c) => c >= 0))]
     .map((i) => variantes[i])
@@ -221,7 +231,7 @@ export default function CompraPortada({
             <Estrellas puntaje={calificacion.promedio} />
             <span>
               {formatearPuntaje(calificacion.promedio)} · {calificacion.total.toLocaleString("es-AR")}{" "}
-              {calificacion.total === 1 ? "opinión" : "opiniones"} en Mercado Libre
+              {calificacion.total === 1 ? "opinión" : "opiniones"} de anteojos Harper en Mercado Libre
             </span>
           </a>
         ) : null}
@@ -441,7 +451,11 @@ export default function CompraPortada({
           ) : (
             <>
               <button type="button" className="boton boton--bloque" onClick={comprarAhora} disabled={enTransicion}>
-                {enTransicion ? "Un momento…" : `Comprar ahora · ${formatearPrecio(compra.total)}`}
+                {enTransicion
+                  ? "Un momento…"
+                  : conOtrosProductos
+                    ? "Comprar ahora"
+                    : `Comprar ahora · ${formatearPrecio(compra.total)}`}
               </button>
               <button type="button" className="boton boton--fantasma boton--bloque" onClick={agregarAlCarrito}>
                 {agregado ? "Agregado al carrito" : "Agregar al carrito"}
@@ -450,6 +464,13 @@ export default function CompraPortada({
                 <Link href="/carrito" className="label enlace-verde" style={{ alignSelf: "center" }}>
                   Ver el carrito
                 </Link>
+              ) : conOtrosProductos ? (
+                <p className="apagado" style={{ fontSize: "0.8125rem" }}>
+                  Tu carrito ya tiene otros productos: se suman a esta compra y el total final lo ves en el checkout.{" "}
+                  <Link href="/carrito" className="enlace-verde">
+                    Ver el carrito
+                  </Link>
+                </p>
               ) : null}
               {conPocas.map((v) => (
                 <p key={v.id} className="apagado" style={{ fontSize: "0.8125rem" }}>

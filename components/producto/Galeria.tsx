@@ -20,20 +20,26 @@ export default function Galeria({
   videos,
   poster,
   alt,
+  reinicio = 0,
 }: {
   fotos: string[];
   /** Los videos son del producto: van en la galería de todos los colores. */
   videos: string[];
   poster: string | null;
   alt: string;
+  /**
+   * Cada vez que cambia, vuelve a la primera foto aunque sean las mismas
+   * (la ficha lo sube al tocar un color, también el que ya estaba elegido).
+   */
+  reinicio?: number;
 }) {
   const [indiceMedio, setIndiceMedio] = useState(0);
   const [visorAbierto, setVisorAbierto] = useState(false);
 
-  // Otro color: de vuelta a su primera foto.
-  const [fotosMostradas, setFotosMostradas] = useState(fotos);
-  if (fotosMostradas !== fotos) {
-    setFotosMostradas(fotos);
+  // Otro color (u otro toque en el mismo): de vuelta a la primera foto.
+  const [mostrado, setMostrado] = useState({ fotos, reinicio });
+  if (mostrado.fotos !== fotos || mostrado.reinicio !== reinicio) {
+    setMostrado({ fotos, reinicio });
     setIndiceMedio(0);
   }
 
