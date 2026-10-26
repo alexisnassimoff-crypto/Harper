@@ -7,6 +7,17 @@ import { verificarCuotas } from "@/lib/cuotas-servidor";
 export const dynamic = "force-dynamic";
 
 /**
+ * Cuánto se espera a Mercado Pago por las cuotas. Son un dato para mostrar:
+ * si tarda, el checkout carga igual, sin anunciarlas (la consulta sigue y
+ * queda en cache para la próxima vez).
+ */
+const ESPERA_CUOTAS_MS = 3_000;
+
+function conLimite<T>(promesa: Promise<T>, ms: number, siTarda: T): Promise<T> {
+  return Promise.race([promesa, new Promise<T>((listo) => setTimeout(() => listo(siTarda), ms))]);
+}
+
+/**
  * Devuelve el carrito con los precios y el stock reales.
  *
  * El navegador guarda solo IDs y cantidades; esta ruta es la que pone los
@@ -41,7 +52,9 @@ export async function POST(request: Request) {
       console.error("[carrito] no se pudieron armar las sugerencias:", error);
       return [];
     }),
-    cuotas === true && resuelto.items.length > 0 ? verificarCuotas(resuelto.total) : Promise.resolve(null),
+    cuotas === true && resuelto.items.length > 0
+      ? conLimite(verificarCuotas(resuelto.total), ESPERA_CUOTAS_MS, null)
+      : Promise.resolve(null),
   ]);
 
   return NextResponse.json({
