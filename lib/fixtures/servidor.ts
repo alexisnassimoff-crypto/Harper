@@ -10,17 +10,12 @@ import { tablasIniciales, type RegistroFixture } from "./datos";
  * Soporta lo que la tienda usa: listar con fórmula y orden, leer un registro,
  * crear y actualizar (de a uno o en lote).
  *
- * El estado vive en el proceso: mientras corra, los pedidos creados en una
- * prueba se pueden leer después. Al reiniciar, vuelve al catálogo. Se guarda
- * en `globalThis` porque `next build` arma cada página y cada ruta con su
- * propia copia de los módulos: sin eso, /gracias no veía los pedidos que
- * creaba /api/checkout, cosa que con el Airtable real no pasa.
+ * El estado vive en el módulo: mientras el proceso corra, los pedidos creados
+ * en una prueba se pueden leer después. Al reiniciar, vuelve al catálogo.
  */
 
-type Estado = { tablas: ReturnType<typeof tablasIniciales>; secuencia: number };
-const compartido = globalThis as typeof globalThis & { __harperAirtableFixture?: Estado };
-const estado: Estado = (compartido.__harperAirtableFixture ??= { tablas: tablasIniciales(), secuencia: 0 });
-const tablas = estado.tablas;
+const tablas = tablasIniciales();
+let secuencia = 0;
 
 type Init = {
   method?: string;
@@ -35,8 +30,8 @@ function tabla(id: string): RegistroFixture[] {
 }
 
 function nuevoId() {
-  estado.secuencia += 1;
-  return `recFIX${estado.secuencia.toString().padStart(11, "0")}`;
+  secuencia += 1;
+  return `recFIX${secuencia.toString().padStart(11, "0")}`;
 }
 
 function comparar(a: unknown, b: unknown) {
@@ -177,5 +172,5 @@ export function atender<T>(path: string, init: Init): T {
 export function reiniciar() {
   tablas.clear();
   for (const [id, filas] of tablasIniciales()) tablas.set(id, filas);
-  estado.secuencia = 0;
+  secuencia = 0;
 }

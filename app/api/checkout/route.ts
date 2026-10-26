@@ -14,21 +14,13 @@ import {
   validarFacturacion,
 } from "@/lib/facturacion";
 import { precio as formatearPrecio } from "@/lib/formato";
-import { enviarMailConDetalle, mailAvisoInterno, mailDatosTransferencia, type DatosMail } from "@/lib/mails";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
 import { leerEleccionEnvio, nombreModo, nombreServicio } from "@/lib/envio-elegido";
 import { registroAceptacion } from "@/lib/legales";
 import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
-import {
-  fechaDeVencimiento,
-  leerMedioPago,
-  NOMBRE_MEDIO,
-  NOTA_TRANSFERENCIA,
-  venceLaTransferencia,
-} from "@/lib/transferencia";
-import { enlaceDeConfirmacion } from "@/lib/transferencia-servidor";
+import { leerMedioPago, MEDIO_TRANSFERENCIA, NOTA_TRANSFERENCIA } from "@/lib/transferencia";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +28,13 @@ export const dynamic = "force-dynamic";
 type FilaPedido = Record<string, unknown>;
 
 export async function POST(request: Request) {
+  if (!mercadoPagoConfigurado()) {
+    return NextResponse.json(
+      { error: "Los pagos todavía no están habilitados." },
+      { status: 503 }
+    );
+  }
+
   let cuerpo: {
     cliente?: unknown;
     items?: unknown;
@@ -51,16 +50,6 @@ export async function POST(request: Request) {
     cuerpo = await request.json();
   } catch {
     return NextResponse.json({ error: "Pedido inválido" }, { status: 400 });
-  }
-
-  // Sin medio de pago (o con cualquier otra cosa) es Mercado Pago, como siempre.
-  const medioPago = leerMedioPago(cuerpo.medioPago);
-
-  if (medioPago === "mercadopago" && !mercadoPagoConfigurado()) {
-    return NextResponse.json(
-      { error: "Los pagos todavía no están habilitados." },
-      { status: 503 }
-    );
   }
 
   // ---- Validación del cliente y de los datos de facturación ----
@@ -80,6 +69,8 @@ export async function POST(request: Request) {
 
   const cliente = normalizarCliente(cuerpo.cliente as Record<string, unknown>);
   const items = limpiarItems(cuerpo.items);
+  // Sin medio de pago (o con cualquier otra cosa) es Mercado Pago, como siempre.
+  const porTransferencia = leerMedioPago(cuerpo.medioPago) === "transferencia";
 
   if (items.length === 0) {
     return NextResponse.json({ error: "Tu carrito está vacío." }, { status: 400 });
@@ -140,19 +131,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Por transferencia se cobra el 10% adicional sobre los productos, que
-    // el servidor calculó junto con el resto (lib/transferencia.ts). Si no hay
-    // cuenta cargada en Config no se ofrece: no se registra un pedido que no
-    // se puede pagar.
-    const transferencia = medioPago === "transferencia" ? carrito.transferencia : null;
-
-    if (medioPago === "transferencia" && !transferencia) {
-      return NextResponse.json(
-        { error: "El pago por transferencia no está disponible en este momento. Elegí otro medio de pago.", sinTransferencia: true },
-        { status: 409 }
-      );
-    }
-
+    // Por transferencia se cobra el 10% adicional sobre los productos, que el
+    // servidor calculó junto con el resto (lib/transferencia.ts).
+    const transferencia = porTransferencia ? carrito.transferencia : null;
     const cobro = transferencia
       ? { items: transferencia.items, subtotal: transferencia.subtotal, total: transferencia.subtotal + carrito.envio }
       : { items: carrito.items, subtotal: carrito.subtotal, total: carrito.total };
@@ -185,8 +166,7 @@ export async function POST(request: Request) {
     // la venta.
     const factura = facturacionDelPedido(facturacion, leerCondicionEmisor((await getConfig()).condicionIva));
 
-    // El pedido nace en "pendiente". Solo el webhook (o Harper, al confirmar
-    // una transferencia) lo pasa a "pagado".
+    // El pedido nace en "pendiente". Solo el webhook lo pasa a "pagado".
     const campos: FilaPedido = {
       Numero: numero,
       Estado: "pendiente",
@@ -210,59 +190,19 @@ export async function POST(request: Request) {
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     };
     const cupon = carrito.cupon?.estado === "aplicado" ? constanciaDelCupon(carrito.cupon, formatearPrecio) : null;
-    const sitio = urlDelSitio(request);
-
-    // Por transferencia, el pedido lleva en Notas cómo se paga, hasta cuándo
-    // y el enlace con el que Harper confirma el pago recibido: así se puede
-    // confirmar desde Airtable aunque el aviso interno no llegue.
-    // El enlace va al mismo sitio que tomó el pedido (en una versión de
-    // prueba, esa versión): la página de confirmación vive ahí.
-    const vence = fechaDeVencimiento(venceLaTransferencia(ahora));
-    const confirmar = transferencia ? enlaceDeConfirmacion(new URL(request.url).origin, numero) : null;
-    const notaTransferencia = transferencia
-      ? [NOTA_TRANSFERENCIA, `Vence: ${vence}`, `Confirmar el pago recibido: ${confirmar ?? "no se pudo armar el enlace (falta AIRTABLE_TOKEN)"}`].join("\n")
-      : null;
-
-    const pedido = await crearPedido(campos, factura, cupon, { medio: NOMBRE_MEDIO[medioPago], nota: notaTransferencia });
+    const pedido = await crearPedido(campos, factura, cupon, Boolean(transferencia));
 
     pedidoId = pedido.id;
-
-    if (transferencia) {
-      // No hay nada que cobrar en línea: el comprador ve los datos de la
-      // cuenta en pantalla y los recibe por mail. Un mail que no sale no
-      // frena el pedido (los datos están en pantalla y el pedido en Airtable),
-      // pero queda el error en los logs.
-      const datos: DatosMail = {
-        numero,
-        items: cobro.items,
-        subtotal: cobro.subtotal,
-        envio: carrito.envio,
-        total: cobro.total,
-        cliente,
-        config: carrito.config,
-        sitio,
-        facturacion: factura,
-        cupon,
-        porTransferencia: true,
-      };
-      const pedidoUrl = `https://airtable.com/${process.env.AIRTABLE_BASE_ID}/${TABLAS.pedidos}/${pedido.id}`;
-      const [alComprador, aHarper] = await Promise.all([
-        enviarMailConDetalle(mailDatosTransferencia({ ...datos, cuenta: carrito.config.transferencia!, vence })),
-        enviarMailConDetalle(mailAvisoInterno({ ...datos, pedidoUrl, espera: { confirmar, vence } })),
-      ]);
-      if (!alComprador.ok) console.error(`[checkout] no salió el mail con los datos para transferir del pedido ${numero}:`, alComprador.error);
-      if (!aHarper.ok) console.error(`[checkout] no salió el aviso interno de la transferencia pendiente ${numero}:`, aHarper.error);
-
-      return NextResponse.json({ numero, siguiente: `/gracias?pedido=${encodeURIComponent(numero)}` });
-    }
 
     const preferencia = await crearPreferencia({
       numeroPedido: numero,
       pedidoId: pedido.id,
-      items: carrito.items,
+      items: cobro.items,
       envio: carrito.envio,
       cliente,
-      sitio,
+      sitio: urlDelSitio(request),
+      // Por transferencia, Mercado Pago ofrece solo el dinero en cuenta.
+      soloDineroEnCuenta: Boolean(transferencia),
     });
 
     await updateRecord<FilaPedido>(TABLAS.pedidos, pedido.id, {
@@ -284,43 +224,36 @@ export async function POST(request: Request) {
     const codigo = esErrorPermanente(error) ? 400 : 503;
 
     return NextResponse.json(
-      {
-        error:
-          medioPago === "transferencia"
-            ? "No pudimos registrar el pedido. Probá de nuevo en un momento."
-            : "No pudimos iniciar el pago. Probá de nuevo en un momento.",
-      },
+      { error: "No pudimos iniciar el pago. Probá de nuevo en un momento." },
       { status: codigo }
     );
   }
 }
 
 /**
- * Crea el pedido con sus datos de facturación, el cupón y el medio de pago.
- * Si Airtable rechaza esos campos (porque faltan o alguien los cambió), la
- * venta no se frena y se pierde lo menos posible, en este orden:
+ * Crea el pedido con sus datos de facturación, el cupón y, si se pidió con el
+ * descuento por transferencia, el medio de pago. Si Airtable rechaza esos
+ * campos (porque faltan o alguien los cambió), la venta no se frena y se
+ * pierde lo menos posible, en este orden:
  *  1. Todo junto.
- *  2. Sin los campos Cupon y Medio_pago: la facturación se guarda igual y el
- *     cupón va a Notas (el medio de pago, si es transferencia, ya está ahí).
- *  3. Como antes de estos cambios, sin Factura_, Cupon ni Medio_pago: si la
+ *  2. Por transferencia y con cupón, sin el campo Medio_pago: va a Notas.
+ *  3. Sin los campos Cupon ni Medio_pago: la facturación se guarda igual y el
+ *     cupón y la transferencia van a Notas.
+ *  4. Como antes de estos cambios, sin Factura_, Cupon ni Medio_pago: si la
  *     factura va a un CUIT, sus datos van a Notas (el aviso interno los lee
  *     de ahí), y el cupón y la transferencia aparte.
+ * Un pedido de Mercado Pago sin cupón hace un solo intento, como siempre.
  * Si el rechazo era por otra cosa, el último intento falla igual que antes.
  */
-async function crearPedido(
-  campos: FilaPedido,
-  factura: FacturacionPedido,
-  cupon: string | null,
-  pago: { medio: string; nota: string | null }
-) {
+async function crearPedido(campos: FilaPedido, factura: FacturacionPedido, cupon: string | null, porTransferencia: boolean) {
   const facturacion = camposDeFacturacion(factura);
-  const notas = (...bloques: (string | null)[]) => {
-    const presentes = bloques.filter(Boolean);
-    return presentes.length ? { Notas: presentes.join("\n\n") } : {};
-  };
+  const conCupon = cupon ? { Cupon: cupon } : {};
+  const notaCupon = cupon ? `Cupón: ${cupon}` : null;
+  const notaMedio = porTransferencia ? NOTA_TRANSFERENCIA : null;
   const intentos: FilaPedido[] = [
-    { ...campos, ...facturacion, ...(cupon ? { Cupon: cupon } : {}), Medio_pago: pago.medio, ...notas(pago.nota) },
-    { ...campos, ...facturacion, ...notas(cupon ? `Cupón: ${cupon}` : null, pago.nota) },
+    { ...campos, ...facturacion, ...conCupon, ...(porTransferencia ? { Medio_pago: MEDIO_TRANSFERENCIA } : {}) },
+    ...(porTransferencia && cupon ? [{ ...campos, ...facturacion, ...conCupon, Notas: NOTA_TRANSFERENCIA }] : []),
+    ...(cupon || porTransferencia ? [{ ...campos, ...facturacion, Notas: [notaCupon, notaMedio].filter(Boolean).join("\n\n") }] : []),
   ];
 
   for (const fila of intentos) {
@@ -332,14 +265,12 @@ async function crearPedido(
     }
   }
 
-  return createRecord<FilaPedido>(TABLAS.pedidos, {
-    ...campos,
-    ...notas(
-      factura.cuit ? `${ENCABEZADO_NOTAS}\n${lineasDeFacturacion(factura).join("\n")}` : null,
-      cupon ? `Cupón: ${cupon}` : null,
-      pago.nota
-    ),
-  });
+  const notas = [
+    factura.cuit ? `${ENCABEZADO_NOTAS}\n${lineasDeFacturacion(factura).join("\n")}` : null,
+    notaCupon,
+    notaMedio,
+  ].filter(Boolean);
+  return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...(notas.length ? { Notas: notas.join("\n\n") } : {}) });
 }
 
 /** Marca un pedido que nunca llegó a tener preferencia de pago. */

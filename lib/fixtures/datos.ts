@@ -244,14 +244,6 @@ export const CONFIG: RegistroFixture[] = [
   // Solo para probar la clase de factura. La condición real de FOCUS VISION
   // SRL frente al IVA la confirma el contador.
   config("condicion_iva", "Responsable Inscripto"),
-  // Una cuenta de prueba, con un CBU inventado que pasa los dígitos
-  // verificadores. La real está en Config de Airtable.
-  config("transferencia_titular", "FOCUS VISION SRL"),
-  config("transferencia_cuit", "30718023161"),
-  config("transferencia_banco", "Banco de Prueba"),
-  config("transferencia_cuenta", "CC 0000-0 000-0"),
-  config("transferencia_cbu", "2850590940904181352016"),
-  config("transferencia_alias", "HARPER.PRUEBA.CUENTA"),
 ];
 
 function descuento(categoria: string, desde: number, porcentaje: number): RegistroFixture {

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { esErrorPermanente } from "@/lib/airtable";
 import { firmaValida } from "@/lib/mercadopago";
-import { avisarCompraAMeta } from "@/lib/meta";
+import { armarEventoCompra, enviarEventosAMeta, metaCapiConfigurada } from "@/lib/meta";
+import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
-import { dependenciasReales, procesarNotificacion } from "@/lib/webhook-proceso";
+import { dependenciasReales, procesarNotificacion, type VentaConfirmada } from "@/lib/webhook-proceso";
 
 export const dynamic = "force-dynamic";
 
@@ -93,5 +94,44 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   } finally {
     enVuelo.delete(dataId);
+  }
+}
+
+/**
+ * La compra confirmada, a Meta por la Conversions API. Mismo event_id que el
+ * píxel de /gracias: Meta se queda con uno. Si el webhook retoma un pedido
+ * tras una caída y lo manda de nuevo, Meta también lo deduplica. Best-effort:
+ * un fallo acá se loguea y no toca la venta.
+ */
+async function avisarCompraAMeta(venta: VentaConfirmada) {
+  if (!metaCapiConfigurada()) return;
+
+  let origen = null;
+  try {
+    origen = venta.origenCrudo ? normalizarOrigen(JSON.parse(venta.origenCrudo)) : null;
+  } catch {
+    // Un Origen ilegible no impide mandar la compra.
+  }
+
+  // Solo si la persona aceptó las cookies de medición y publicidad al
+  // comprar (lo marca el checkout en el Origen del pedido). Sin ese "sí",
+  // Meta no se entera de la compra.
+  if (origen?.publicidad !== true) return;
+
+  const evento = armarEventoCompra({
+    numero: venta.numero,
+    items: venta.items,
+    subtotal: venta.subtotal,
+    cliente: venta.cliente,
+    clienteId: venta.clienteId,
+    origen,
+    sitio: venta.sitio,
+    ahora: Date.now(),
+  });
+
+  const respuesta = await enviarEventosAMeta([evento]);
+
+  if (!respuesta.ok) {
+    console.error(`[meta] no se pudo mandar la compra ${venta.numero}: ${respuesta.status} ${respuesta.cuerpo}`);
   }
 }

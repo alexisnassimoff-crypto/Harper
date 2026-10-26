@@ -7,7 +7,7 @@ import type { MedioPago } from "@/lib/transferencia";
 /**
  * Barra fija con el botón de pagar, solo en celular y siempre a la vista:
  * candado, "Pago seguro" y el total a pagar. Por transferencia, "Confirmar
- * pedido" y el total, sin candado: el pago todavía no se hizo.
+ * pedido" y el total, sin candado.
  *
  * En el checkout el resumen queda debajo de todos los campos: una pantalla y
  * media de scroll. La barra trae el botón (con el total) mientras se completan
@@ -59,7 +59,7 @@ export default function BarraPagar({
 /** El texto del botón de pagar, el mismo en la barra fija y en el resumen. */
 export function TextoBotonPagar({ medio, total, ocupado }: { medio: MedioPago; total: string; ocupado: boolean }) {
   if (medio === "transferencia") {
-    return ocupado ? "Confirmando…" : (
+    return ocupado ? "Redirigiendo…" : (
       <span>
         Confirmar pedido · <span className="pago-seguro__total">{total}</span>
       </span>

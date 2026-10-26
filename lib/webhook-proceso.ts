@@ -21,7 +21,7 @@ import {
 } from "./mails";
 import { obtenerPago as obtenerPagoReal, type PagoMP } from "./mercadopago";
 import { descontarStock } from "./stock";
-import { esPedidoPorTransferencia } from "./transferencia";
+import { esPedidoPorTransferencia, TIPO_DINERO_EN_CUENTA } from "./transferencia";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import {
   decidirNotificacion,
@@ -108,7 +108,7 @@ export type FilaPedido = {
   Notas?: string;
   /** El cupón aplicado, por ejemplo "HARPER10 (−$ 8.990)". */
   Cupon?: string;
-  /** "Mercado Pago" o "Transferencia" (ver lib/transferencia.ts). */
+  /** Solo en los pedidos con el descuento por transferencia (ver lib/transferencia.ts). */
   Medio_pago?: string;
 };
 
@@ -531,6 +531,16 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
 
     const total = pedido.fields.Total ?? 0;
 
+    // Con el descuento por transferencia, Mercado Pago solo ofrece dinero en
+    // cuenta. Si igual llegara cobrado con otra cosa, la venta sigue (el
+    // comprador pagó lo que vio) y Harper se entera en el aviso.
+    const porTransferencia = esPedidoPorTransferencia(pedido.fields);
+    const medioInesperado =
+      porTransferencia && pago.payment_type_id && pago.payment_type_id !== TIPO_DINERO_EN_CUENTA ? pago.payment_type_id : null;
+    if (medioInesperado) {
+      console.error(`[webhook] el pedido ${numero} tenía el descuento por transferencia y se cobró con ${medioInesperado}`);
+    }
+
     datosMail = {
       numero,
       items,
@@ -543,7 +553,10 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       facturacion: facturacionDeFila(pedido.fields),
       lineasFacturacion: lineasDeNotas(pedido.fields.Notas),
       cupon: pedido.fields.Cupon || cuponDeNotas(pedido.fields.Notas),
-      porTransferencia: esPedidoPorTransferencia(pedido.fields),
+      porTransferencia,
+      alerta: medioInesperado
+        ? `Tiene el 10% por transferencia, pero Mercado Pago lo cobró con "${medioInesperado}" y no con dinero en cuenta.`
+        : null,
     };
 
     const datos = datosMail;

@@ -18,12 +18,7 @@ import {
   type Tramo,
 } from "./descuentos";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
-import {
-  aplicarTransferencia,
-  esPedidoPorTransferencia,
-  type MedioPago,
-  type PrecioTransferencia,
-} from "./transferencia";
+import { aplicarTransferencia, type PrecioTransferencia } from "./transferencia";
 import type {
   Categoria,
   EleccionEnvio,
@@ -61,8 +56,7 @@ export type CarritoResuelto = {
   /**
    * El mismo pedido pagado por transferencia: el 10% adicional sobre la
    * promoción que ya tiene. Va siempre junto al de Mercado Pago para que el
-   * checkout cambie de uno a otro al instante. Null si no hay cuenta cargada
-   * en Config o el carrito está vacío.
+   * checkout cambie de uno a otro al instante. Null si el carrito está vacío.
    */
   transferencia: PrecioTransferencia | null;
 };
@@ -238,7 +232,7 @@ export async function resolverCarrito(
     tramos,
     cupon: promocion.cupon,
     subtotalSinCupon: subtotalParaEnvio,
-    transferencia: config.transferencia && items.length > 0 ? aplicarTransferencia(items) : null,
+    transferencia: items.length > 0 ? aplicarTransferencia(items) : null,
   };
 }
 
@@ -352,10 +346,6 @@ export type PedidoPublico = {
     productoSlug: string;
     categoria: Categoria | null;
   }[];
-  /** Cómo se paga: por transferencia, la página muestra los datos de la cuenta. */
-  medioPago: MedioPago;
-  /** Cuándo se hizo el pedido (ISO), para el plazo de la transferencia. */
-  fecha: string | null;
 };
 
 /**
@@ -368,16 +358,7 @@ export type PedidoPublico = {
  * que acá no puede salir ningún dato personal.
  */
 export async function buscarPedido(numero: string): Promise<PedidoPublico | null> {
-  type Fila = {
-    Numero?: string;
-    Estado?: string;
-    Total?: number;
-    Subtotal?: number;
-    Items?: string;
-    Fecha?: string;
-    Medio_pago?: string;
-    Notas?: string;
-  };
+  type Fila = { Numero?: string; Estado?: string; Total?: number; Subtotal?: number; Items?: string };
 
   try {
     const registros = await listRecords<Fila>(TABLAS.pedidos, {
@@ -413,9 +394,6 @@ export async function buscarPedido(numero: string): Promise<PedidoPublico | null
       total: fila.Total ?? 0,
       subtotal: fila.Subtotal ?? fila.Total ?? 0,
       items,
-      // De Notas solo se mira si dice transferencia: nada de datos de la persona.
-      medioPago: esPedidoPorTransferencia(fila) ? "transferencia" : "mercadopago",
-      fecha: fila.Fecha ?? null,
     };
   } catch (error) {
     // Airtable caído no puede romper la vuelta del cliente desde el pago.

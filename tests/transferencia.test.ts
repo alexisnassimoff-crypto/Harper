@@ -10,14 +10,12 @@ import { getProductos } from "../lib/catalogo";
 import { resolverCarrito } from "../lib/pedidos";
 import {
   aplicarTransferencia,
-  cbuValido,
   esPedidoPorTransferencia,
-  fechaDeVencimiento,
-  formatearCuit,
-  leerDatosTransferencia,
   leerMedioPago,
+  MEDIO_TRANSFERENCIA,
   NOTA_TRANSFERENCIA,
-  venceLaTransferencia,
+  TIPOS_EXCLUIDOS_TRANSFERENCIA,
+  unidadesParaCobrar,
 } from "../lib/transferencia";
 import type { ItemResuelto } from "../lib/tipos";
 
@@ -87,42 +85,35 @@ test("solo 'transferencia' es transferencia; cualquier otra cosa, Mercado Pago",
   assert.equal(leerMedioPago({}), "mercadopago");
 });
 
-test("el CBU se verifica con sus dos dígitos verificadores", () => {
-  assert.equal(cbuValido("2850590940904181352016"), true);
-  assert.equal(cbuValido("2850590940904181352017"), false, "último dígito cambiado");
-  assert.equal(cbuValido("2850591940904181352016"), false, "primer bloque cambiado");
-  assert.equal(cbuValido("285059094090418135201"), false, "21 dígitos");
+test("a Mercado Pago, en pesos enteros: el renglón se parte si no se divide justo", () => {
+  // Dos pares por $ 153.729: uno a $ 76.864 y otro a $ 76.865.
+  assert.deepEqual(unidadesParaCobrar({ subtotal: 153729, cantidad: 2 }), [
+    { precio: 76864, cantidad: 1 },
+    { precio: 76865, cantidad: 1 },
+  ]);
+  // Un renglón exacto (todos los de Mercado Pago de siempre) queda igual.
+  assert.deepEqual(unidadesParaCobrar({ subtotal: 80910 * 3, cantidad: 3 }), [{ precio: 80910, cantidad: 3 }]);
+  // Siempre suma exacto.
+  for (const [subtotal, cantidad] of [[230594, 3], [1000001, 7], [7609, 1], [68773 * 5 + 4, 5]]) {
+    const partes = unidadesParaCobrar({ subtotal, cantidad });
+    assert.equal(partes.reduce((t, u) => t + u.precio * u.cantidad, 0), subtotal);
+    assert.equal(partes.reduce((t, u) => t + u.cantidad, 0), cantidad);
+    assert.ok(partes.every((u) => Number.isInteger(u.precio)));
+  }
 });
 
-test("sin titular, alias o un CBU válido no se ofrece la transferencia", () => {
-  const completos: Record<string, string> = {
-    transferencia_titular: "FOCUS VISION SRL",
-    transferencia_cuit: "30718023161",
-    transferencia_banco: "Banco",
-    transferencia_cuenta: "CC 1",
-    transferencia_cbu: "2850 5909 4090 4181 3520 16",
-    transferencia_alias: "UN.ALIAS",
-  };
-  const leer = (datos: Record<string, string>) => leerDatosTransferencia((c) => datos[c]);
-
-  assert.equal(leer(completos)?.cbu, "2850590940904181352016", "el CBU se guarda sin espacios");
-  assert.equal(leer({ ...completos, transferencia_alias: "" }), null);
-  assert.equal(leer({ ...completos, transferencia_titular: " " }), null);
-  assert.equal(leer({ ...completos, transferencia_cbu: "2850590940904181352017" }), null);
-});
-
-test("CUIT con guiones, y el plazo de 24 horas en hora de Buenos Aires", () => {
-  assert.equal(formatearCuit("30718023161"), "30-71802316-1");
-  assert.equal(formatearCuit("algo"), "algo");
-
-  const creado = new Date("2026-10-26T18:40:00Z"); // lunes 15:40 en Buenos Aires
-  assert.equal(fechaDeVencimiento(venceLaTransferencia(creado)), "martes 27/10, 15:40");
+test("por transferencia Mercado Pago ofrece solo dinero en cuenta: tarjetas, efectivo y cuotas sin tarjeta afuera", () => {
+  for (const tipo of ["credit_card", "debit_card", "prepaid_card", "ticket", "digital_currency"]) {
+    assert.ok((TIPOS_EXCLUIDOS_TRANSFERENCIA as readonly string[]).includes(tipo), tipo);
+  }
+  assert.ok(!(TIPOS_EXCLUIDOS_TRANSFERENCIA as readonly string[]).includes("account_money"));
 });
 
 test("el pedido se reconoce como transferencia por su campo o por la nota", () => {
-  assert.equal(esPedidoPorTransferencia({ Medio_pago: "Transferencia" }), true);
-  assert.equal(esPedidoPorTransferencia({ Notas: `Cupón: X\n\n${NOTA_TRANSFERENCIA}\nConfirmar: url` }), true);
+  assert.equal(esPedidoPorTransferencia({ Medio_pago: MEDIO_TRANSFERENCIA }), true);
+  assert.equal(esPedidoPorTransferencia({ Notas: `Cupón: X\n\n${NOTA_TRANSFERENCIA}` }), true);
   assert.equal(esPedidoPorTransferencia({ Medio_pago: "Mercado Pago" }), false);
+  assert.equal(esPedidoPorTransferencia({ Notas: "DATOS DE FACTURACIÓN\nFactura B" }), false);
   assert.equal(esPedidoPorTransferencia({}), false);
 });
 
@@ -134,10 +125,9 @@ test("en el carrito real: la transferencia va junto al precio de siempre y no ca
   const chico = [{ productoSlug: "m500", varianteId: estuche.variantes[0].id, cantidad: 1 }];
 
   const con = await resolverCarrito(par, { cupon: "HARPER10" });
-  assert.ok(con.transferencia, "la cuenta de prueba está cargada en Config");
+  assert.ok(con.transferencia);
   assert.equal(con.transferencia.subtotal, Math.round(con.subtotal * 0.9));
   assert.equal(con.transferencia.ahorro, con.subtotal - con.transferencia.subtotal);
-  assert.equal(con.config.transferencia?.alias, "HARPER.PRUEBA.CUENTA");
 
   // Debajo del envío gratis: la transferencia no toca el envío.
   const chicoCon = await resolverCarrito(chico);
