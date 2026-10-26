@@ -13,10 +13,11 @@ const POR_DEFECTO = [
 ];
 
 export default function Header({
-  banner,
+  anuncios = [],
   categorias,
 }: {
-  banner?: string;
+  /** Los mensajes de la barra verde (lib/anuncios.ts). Uno queda fijo; varios pasan. */
+  anuncios?: string[];
   /** Las categorías con productos publicados, en orden (lib/categorias.ts). */
   categorias?: { nombre: string; slug: string }[];
 }) {
@@ -29,20 +30,26 @@ export default function Header({
 
   return (
     <>
-      {banner ? (
-        <div
-          style={{
-            background: "var(--verde)",
-            color: "var(--hueso)",
-            textAlign: "center",
-            padding: "0.6rem 1rem",
-            fontSize: "0.6875rem",
-            fontWeight: 600,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-          }}
-        >
-          {banner}
+      {anuncios.length === 1 ? (
+        <div className="anuncios">
+          <p className="anuncios__fijo">{anuncios[0]}</p>
+        </div>
+      ) : anuncios.length > 1 ? (
+        // Pasan de derecha a izquierda, en una cinta que se repite: la segunda
+        // copia es solo para que la vuelta no tenga un hueco.
+        <div className="anuncios" style={{ "--anuncios-duracion": `${anuncios.length * 7}s` } as React.CSSProperties}>
+          <div className="anuncios__pista">
+            <ul className="anuncios__grupo">
+              {anuncios.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+            <ul className="anuncios__grupo" aria-hidden="true">
+              {anuncios.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       ) : null}
 

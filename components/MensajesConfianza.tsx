@@ -25,7 +25,7 @@ export default function MensajesConfianza({
         const contenido = (
           <>
             <span className="confianza__icono" aria-hidden="true">
-              <Icono clave={m.clave} />
+              <IconoConfianza clave={m.clave} />
             </span>
             <span className="confianza__texto">
               <span>{m.texto}</span>
@@ -51,7 +51,7 @@ export default function MensajesConfianza({
 }
 
 /** Íconos de línea, trazados a mano para heredar el verde de la marca. */
-function Icono({ clave }: { clave: Confianza["clave"] }) {
+export function IconoConfianza({ clave }: { clave: Confianza["clave"] }) {
   const base = {
     viewBox: "0 0 24 24",
     width: 22,

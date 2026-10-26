@@ -7,6 +7,7 @@ import { configuracionDirecciones } from "@/lib/direcciones-servidor";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
 import { mercadoPagoListo } from "@/lib/mercadopago";
+import { diagnosticarMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { metaCapiConfigurada } from "@/lib/meta";
 import { esUrlPublica, urlDelSitio } from "@/lib/sitio";
 
@@ -47,6 +48,8 @@ export async function GET() {
   // La portada las verifica con lo más barato publicado de todo el catálogo.
   const todo = (await getProductos().catch(() => [])).map((p) => p.precio).filter((p) => p > 0);
   const cuotasPortada = todo.length ? await diagnosticarCuotas(Math.min(...todo)) : { anunciadas: null };
+  // Las opiniones y la reputación de Mercado Libre que muestra la portada.
+  const mercadoLibre = await diagnosticarMercadoLibre();
 
   const variables: Record<string, boolean> = {};
   for (const v of VARIABLES) {
@@ -93,6 +96,7 @@ export async function GET() {
     redis,
     cuotas,
     cuotasPortada,
+    mercadoLibre,
     variables,
     avisos: [
       !redis.configurado

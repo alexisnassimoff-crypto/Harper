@@ -41,6 +41,11 @@ export type ConfigTienda = {
    */
   portadaImagen: string;
   /**
+   * El modelo que protagoniza la portada (su slug), clave `portada_producto`.
+   * Vacío = el Citrino; "ninguno" = la portada de catálogo. Ver lib/portada.ts.
+   */
+  portadaProducto: string;
+  /**
    * El código del Formulario 960/D (Data Fiscal) tal como lo entrega ARCA,
    * clave `data_fiscal`. Vacío = no se muestra. Ver lib/data-fiscal.ts.
    */
@@ -84,6 +89,7 @@ const POR_DEFECTO: ConfigTienda = {
   portadaTitulo: "",
   portadaSubtitulo: "",
   portadaImagen: "",
+  portadaProducto: "",
   dataFiscal: "",
   impuestosNacionales: SIN_IMPUESTOS_CARGADOS,
   condicionIva: "",
@@ -144,6 +150,7 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
     portadaTitulo: texto("portada_titulo", POR_DEFECTO.portadaTitulo),
     portadaSubtitulo: texto("portada_subtitulo", POR_DEFECTO.portadaSubtitulo),
     portadaImagen: texto("portada_imagen", POR_DEFECTO.portadaImagen),
+    portadaProducto: texto("portada_producto", POR_DEFECTO.portadaProducto),
     dataFiscal: texto("data_fiscal", POR_DEFECTO.dataFiscal),
     impuestosNacionales: leerImpuestos(mapa),
     condicionIva: texto("condicion_iva", POR_DEFECTO.condicionIva),

@@ -2869,3 +2869,707 @@ p {
   outline: 2px solid var(--verde);
   outline-offset: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   Barra de anuncios (arriba de todo)
+
+   Un mensaje solo queda fijo. Varios pasan despacio de derecha a izquierda,
+   en una cinta repetida para que la vuelta no tenga hueco; se frena al
+   pasar el mouse. Con "reducir movimiento" no se mueve: se desliza a mano.
+--------------------------------------------------------------------------- */
+
+.anuncios {
+  overflow: hidden;
+  background: var(--verde);
+  color: var(--hueso);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.anuncios__fijo {
+  padding: 0.6rem 1rem;
+  text-align: center;
+}
+.anuncios__pista {
+  display: flex;
+  width: max-content;
+  animation: anuncios-pasan var(--anuncios-duracion, 28s) linear infinite;
+}
+.anuncios:hover .anuncios__pista {
+  animation-play-state: paused;
+}
+.anuncios__grupo {
+  display: flex;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.anuncios__grupo li {
+  position: relative;
+  padding: 0.6rem 1.6rem;
+  white-space: nowrap;
+}
+/* Un punto entre mensaje y mensaje. */
+.anuncios__grupo li::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+  transform: translateY(-50%);
+}
+@keyframes anuncios-pasan {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anuncios {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .anuncios__pista {
+    animation: none !important;
+  }
+  .anuncios__grupo[aria-hidden="true"] {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Portada con modelo estrella: la compra
+--------------------------------------------------------------------------- */
+
+/* En celular: el nombre, la foto y la compra, uno debajo del otro. En
+   escritorio, la foto a la izquierda y el nombre arriba de la compra; la
+   columna de compra es larga, así que la que acompaña al bajar es la foto. */
+.portada-compra {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "titulo" "galeria" "datos";
+  gap: 1rem;
+  padding-block: 1rem 3rem;
+}
+.portada-compra__titulo {
+  grid-area: titulo;
+  gap: 0.45rem;
+}
+.portada-compra__nombre {
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  line-height: 1.1;
+}
+.portada-compra__galeria {
+  grid-area: galeria;
+}
+.portada-compra__datos {
+  grid-area: datos;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+@media (min-width: 48rem) {
+  .portada-compra {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "galeria titulo" "galeria datos";
+    gap: 1.25rem 3.5rem;
+    padding-block: 2.5rem 4rem;
+  }
+  .portada-compra__galeria {
+    position: sticky;
+    top: 6rem;
+    align-self: start;
+  }
+  .portada-compra__datos {
+    margin-top: 0;
+    gap: 1.75rem;
+  }
+}
+
+/* Estrellas: la fila llena se recorta encima de la vacía. */
+.estrellas {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  line-height: 0;
+  color: color-mix(in srgb, var(--tinta) 16%, var(--fondo));
+}
+.estrellas__fondo,
+.estrellas__lleno {
+  display: inline-flex;
+  gap: 1px;
+}
+.estrellas__lleno {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+  color: var(--verde);
+}
+
+.calificacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+}
+.calificacion:hover span:last-child,
+.calificacion:focus-visible span:last-child {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- Packs ---------- */
+
+.packs {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.packs__titulo {
+  margin-bottom: 0.6rem;
+}
+.pack {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  background: var(--fondo);
+  cursor: pointer;
+  transition:
+    border-color var(--rapido) var(--curva),
+    background var(--rapido) var(--curva),
+    box-shadow var(--rapido) var(--curva);
+}
+.pack:hover:not([data-sin-stock]) {
+  border-color: color-mix(in srgb, var(--verde) 45%, var(--borde));
+}
+.pack[data-elegido] {
+  border-color: var(--verde);
+  background: color-mix(in srgb, var(--verde) 4%, var(--fondo));
+  box-shadow: inset 0 0 0 1px var(--verde);
+}
+.pack[data-sin-stock] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.pack:has(.pack__radio:focus-visible) {
+  outline: 2px solid var(--verde);
+  outline-offset: 2px;
+}
+.pack__radio {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--verde);
+}
+.pack__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.pack__nombre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.pack__etiqueta {
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radio-pill);
+  background: var(--verde);
+  color: var(--sobre-acento);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.pack__detalle {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--texto-suave);
+}
+.pack__precios {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  font-variant-numeric: tabular-nums;
+}
+.pack__total {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pack__lista {
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+  white-space: nowrap;
+}
+
+/* ---------- Un color por par ---------- */
+
+.pares {
+  display: grid;
+  gap: 0.5rem;
+}
+.par {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  transition: border-color var(--rapido) var(--curva);
+}
+.par[data-activo] {
+  border-color: color-mix(in srgb, var(--verde) 50%, var(--borde));
+}
+.par__titulo {
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+}
+.par__titulo strong {
+  font-weight: 600;
+  color: var(--texto);
+}
+.par__colores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+.par--extra {
+  margin-top: 0.75rem;
+  padding: 0;
+  border: 0;
+}
+.swatch--chico {
+  width: 2rem;
+  height: 2rem;
+}
+.swatch:disabled {
+  cursor: not-allowed;
+}
+
+/* ---------- El estuche opcional ---------- */
+
+.extra {
+  padding: 0.85rem 1rem;
+  border: 1px dashed color-mix(in srgb, var(--verde) 35%, var(--borde));
+  border-radius: 16px;
+  transition:
+    border-color var(--rapido) var(--curva),
+    background var(--rapido) var(--curva);
+}
+.extra[data-elegido] {
+  border-style: solid;
+  border-color: var(--verde);
+  background: color-mix(in srgb, var(--verde) 4%, var(--fondo));
+}
+.extra__opcion {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+.extra__casilla {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--verde);
+}
+.extra__foto {
+  position: relative;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 12px;
+  background: var(--fondo-alt);
+}
+.extra__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.extra__nombre {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.extra__detalle {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--texto-suave);
+}
+.extra__precio {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.extra__precio s {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--texto-suave);
+}
+
+/* ---------- Total ---------- */
+
+.resumen-pack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--borde);
+}
+.resumen-pack__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.resumen-pack__total {
+  font-size: 1.75rem;
+  line-height: 1.1;
+}
+.resumen-pack__lista {
+  font-size: 1rem;
+  color: var(--texto-suave);
+}
+.resumen-pack__ahorro {
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radio-pill);
+  background: color-mix(in srgb, var(--verde) 10%, var(--fondo));
+  color: var(--verde);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.resumen-pack__cuotas {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--verde);
+}
+.resumen-pack__dinero {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--texto-suave);
+}
+.resumen-pack__dinero strong {
+  font-weight: 600;
+  color: var(--texto);
+}
+.resumen-pack__extra {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radio-pill);
+  border: 1px solid color-mix(in srgb, var(--verde) 35%, var(--borde));
+  color: var(--verde);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ---------- Garantías, debajo del botón ---------- */
+
+.garantias {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 1.1rem 1.15rem;
+  list-style: none;
+  border-radius: 16px;
+  background: var(--fondo-alt);
+}
+.garantia {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.garantia__icono {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--verde);
+}
+.garantia__titulo {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.garantia__texto {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--texto-suave);
+}
+
+/* ---------------------------------------------------------------------------
+   Portada con modelo estrella: opiniones de Mercado Libre
+--------------------------------------------------------------------------- */
+
+.opiniones {
+  scroll-margin-top: 5.5rem;
+}
+.opiniones__flechas {
+  display: flex;
+  gap: 0.5rem;
+}
+.opiniones__flecha {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--borde);
+  border-radius: 50%;
+  background: var(--fondo);
+  color: var(--texto);
+  transition: border-color var(--rapido) var(--curva);
+}
+.opiniones__flecha:hover {
+  border-color: var(--verde);
+  color: var(--verde);
+}
+.opiniones__resumen {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+.opiniones__promedio {
+  font-size: 2.75rem;
+  line-height: 1;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+.opiniones__carril {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(82%, 21rem);
+  gap: 1rem;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0.25rem var(--gutter) 1rem;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.opiniones__carril::-webkit-scrollbar {
+  display: none;
+}
+.opinion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.15rem 1.2rem;
+  border: 1px solid var(--borde);
+  border-radius: 18px;
+  background: var(--fondo);
+  scroll-snap-align: start;
+}
+.opinion__titulo {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.opinion__texto {
+  flex: 1 1 auto;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.opinion__pie {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+.opinion__verificada {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radio-pill);
+  background: color-mix(in srgb, var(--verde) 9%, var(--fondo));
+  color: var(--verde);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+/* La reputación de Harper como vendedor en Mercado Libre. */
+.vendedor {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 26rem;
+  margin-top: 1.25rem;
+  padding: 1.15rem 1.2rem;
+  border: 1px solid var(--borde);
+  border-radius: 18px;
+}
+.vendedor__titulo {
+  font-weight: 600;
+}
+.vendedor__medalla {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--verde);
+}
+.vendedor__punto {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* El termómetro de Mercado Libre: cinco tramos, del rojo al verde. */
+.vendedor__termometro {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.vendedor__termometro span {
+  height: 6px;
+  border-radius: 3px;
+  opacity: 0.25;
+}
+.vendedor__termometro span[data-activo] {
+  opacity: 1;
+}
+.vendedor__termometro [data-nivel="1"] { background: #e2524a; }
+.vendedor__termometro [data-nivel="2"] { background: #f0943b; }
+.vendedor__termometro [data-nivel="3"] { background: #f2c94c; }
+.vendedor__termometro [data-nivel="4"] { background: #a5cf5a; }
+.vendedor__termometro [data-nivel="5"] { background: #39b54a; }
+.vendedor__datos {
+  display: flex;
+  gap: 2rem;
+  margin: 0;
+}
+.vendedor__datos dt {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+.vendedor__datos dd {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+/* ---------------------------------------------------------------------------
+   Portada con modelo estrella: cómo comprar, la banda de la marca y las
+   preguntas frecuentes
+--------------------------------------------------------------------------- */
+
+.pasos {
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 48rem) {
+  .pasos {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+}
+.paso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+.paso__numero {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 1px solid var(--verde);
+  color: var(--verde);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.paso__titulo {
+  font-weight: 600;
+}
+.paso__texto {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+
+/* La foto de la marca en el medio de la portada: más baja que el hero. */
+.hero--banda {
+  margin-top: 3.5rem;
+  min-height: min(62svh, 32rem);
+}
+@media (min-width: 48rem) {
+  .hero--banda {
+    margin-top: 5rem;
+    min-height: min(70svh, 38rem);
+  }
+}
+
+.preguntas__lista {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--borde);
+}
+.pregunta {
+  border-bottom: 1px solid var(--borde);
+}
+.pregunta__titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.05rem 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+.pregunta__titulo::-webkit-details-marker {
+  display: none;
+}
+/* Un + que se vuelve − al abrir. */
+.pregunta__titulo::after {
+  content: "+";
+  flex: 0 0 auto;
+  font-size: 1.25rem;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--verde);
+}
+.pregunta[open] .pregunta__titulo::after {
+  content: "−";
+}
+.pregunta__respuesta {
+  max-width: 44rem;
+  padding-bottom: 1.1rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--texto-suave);
+}
