@@ -91,13 +91,14 @@ export default function Galeria({
         tabIndex={medioActual ? 0 : undefined}
         aria-label={esFoto ? "Ampliar la foto" : undefined}
         onClick={() => esFoto && setVisorAbierto(true)}
+        // Las flechas las atiende la escucha de toda la página (arriba): si
+        // también se atendieran acá, cada flecha pasaría dos fotos.
         onKeyDown={(e) => {
           if (!medioActual) return;
           if (esFoto && (e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
             setVisorAbierto(true);
-          } else if (e.key === "ArrowRight") pasarMedio(1);
-          else if (e.key === "ArrowLeft") pasarMedio(-1);
+          }
         }}
         {...gestos}
       >

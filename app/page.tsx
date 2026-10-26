@@ -19,7 +19,7 @@ import { conEspera, verificarCuotas, verificarCuotasPara } from "@/lib/cuotas-se
 import { getTramos } from "@/lib/descuentos";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio } from "@/lib/formato";
-import { datosDeMercadoLibre } from "@/lib/ml-resenas-servidor";
+import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { paresDisponibles, totalesPosibles } from "@/lib/packs";
 import {
   DESCRIPCION_SITIO,
@@ -57,9 +57,14 @@ const FOTO_PORTADA = "/hero.webp";
  * Cuánto se espera a Mercado Pago (cuotas) y a Mercado Libre (opiniones) al
  * armar la portada. Son datos para mostrar: si tardan, la portada sale sin
  * ellos y la consulta queda en cache para la próxima.
+ *
+ * Mercado Libre tiene más margen: cada 6 horas hay que renovar el token y
+ * volver a preguntar todo, y al regenerar la portada Next espera el dato
+ * nuevo en vez de usar el viejo. Nadie espera por esto: mientras tanto se
+ * sigue sirviendo la portada anterior.
  */
 const ESPERA_CUOTAS_MS = 3_000;
-const ESPERA_OPINIONES_MS = 4_000;
+const ESPERA_OPINIONES_MS = 9_000;
 
 export default async function Home() {
   const [productos, config] = await Promise.all([getProductos(), getConfig()]);
@@ -101,7 +106,7 @@ async function PortadaEstrella({
     // Para los textos generales ("6 cuotas sin interés en anteojos"): con el
     // anteojo más barato, como la portada de catálogo.
     conEspera(verificarCuotasPara(anteojos.map((p) => p.precio)), ESPERA_CUOTAS_MS, null),
-    conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, null),
+    conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, ultimoDeMercadoLibre()),
   ]);
   const opiniones = mercadoLibre?.opiniones ?? null;
   const reputacion = mercadoLibre?.reputacion ?? null;

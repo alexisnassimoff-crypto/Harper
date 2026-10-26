@@ -60,7 +60,8 @@ export default function Header({
           <button
             type="button"
             className="anuncios__pausa"
-            aria-label={anunciosPausados ? "Seguir pasando los anuncios" : "Pausar los anuncios"}
+            // Botón de dos estados: la etiqueta queda fija y aria-pressed dice si está en pausa.
+            aria-label="Pausar los anuncios"
             aria-pressed={anunciosPausados}
             onClick={() => setAnunciosPausados((p) => !p)}
           >

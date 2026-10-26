@@ -40,7 +40,7 @@ async function pedirML(ruta: string, token: string): Promise<unknown> {
   const respuesta = await fetch(`${API}${ruta}`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
     cache: "no-store",
-    signal: AbortSignal.timeout(8_000),
+    signal: AbortSignal.timeout(5_000),
   });
   if (!respuesta.ok) throw new ErrorML(respuesta.status, ruta);
   return respuesta.json();
@@ -114,34 +114,34 @@ const mercadoLibreCacheado = unstable_cache(
 );
 
 /**
+ * Lo último que se trajo bien, en esta instancia: si una regeneración de la
+ * portada se queda sin tiempo esperando a Mercado Libre, muestra esto en vez
+ * de nada.
+ */
+let ultimoBueno: DatosMercadoLibre | null = null;
+
+/** Lo último que se trajo bien de Mercado Libre en esta instancia, o null. */
+export function ultimoDeMercadoLibre(): DatosMercadoLibre | null {
+  return ultimoBueno;
+}
+
+/**
  * Las opiniones de los anteojos Harper en Mercado Libre y la reputación de
  * Harper como vendedor. Null si la cuenta no está conectada o Mercado Libre
  * no contesta.
+ *
+ * La usa solo la portada, a propósito: el cache de Next distingue cada
+ * llamada por el código de la función, y otra ruta (un bundle distinto)
+ * podría tener su propia copia y renovar el token por su lado.
  */
 export async function datosDeMercadoLibre(): Promise<DatosMercadoLibre | null> {
   if (!mlConfigurado()) return null;
   try {
-    return await mercadoLibreCacheado();
+    const datos = await mercadoLibreCacheado();
+    ultimoBueno = datos;
+    return datos;
   } catch (error) {
     console.warn("[mercadolibre] no se pudieron traer las opiniones:", error instanceof Error ? error.message : error);
-    return null;
-  }
-}
-
-/**
- * Para /api/health: si la portada puede mostrar las opiniones y la
- * reputación, y si no, por qué (el mensaje de Mercado Libre, sin tokens).
- */
-export async function diagnosticarMercadoLibre() {
-  if (!mlConfigurado()) return { configurado: false };
-  try {
-    const { opiniones, reputacion } = await mercadoLibreCacheado();
-    return {
-      configurado: true,
-      opiniones: opiniones ? { total: opiniones.total, promedio: opiniones.promedio, destacadas: opiniones.destacadas.length } : null,
-      reputacion,
-    };
-  } catch (error) {
-    return { configurado: true, error: error instanceof Error ? error.message : String(error) };
+    return ultimoBueno;
   }
 }

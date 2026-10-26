@@ -257,7 +257,12 @@ export default function CompraPortada({
           </ul>
         ) : null}
 
-        <CuponBienvenida precio={producto.precio} estadoServidor={carritoResuelto?.cupon ?? null} />
+        {/* El cupón habla de la compra elegida (el pack), no de un par suelto. */}
+        <CuponBienvenida
+          precio={producto.precio}
+          estadoServidor={carritoResuelto?.cupon ?? null}
+          compra={{ conCupon: compra.conCupon, porcentaje: compra.porcentaje, ahorro: compra.ahorro, total: compra.total }}
+        />
 
         {/* ---------- Packs ---------- */}
         <fieldset className="packs">
@@ -486,9 +491,12 @@ export default function CompraPortada({
         <Garantias garantias={garantias} />
       </div>
 
+      {/* Con otros productos en el carrito la barra no aparece: su precio sería
+          el del pack, no el del checkout, y abajo hay grillas con otros
+          botones de compra que se podrían confundir con este. */}
       <CtaFija
-        visible={(!compraEnPantalla || avisoCookies) && !sinStock}
-        nombre={`${producto.nombre} · ${nombrePack(cantidad)}`}
+        visible={(!compraEnPantalla || avisoCookies) && !sinStock && !conOtrosProductos}
+        nombre={`${producto.nombre} · ${nombrePack(cantidad)}${conEstuche && estuche ? ` + estuche ${estuche.nombre}` : ""}`}
         precio={formatearPrecio(compra.total)}
         detalle={cuotas ? `${cuotas.cuotas} cuotas de ${precioConCentavos(cuotas.montoCuota)} · CFTEA ${cuotas.cftea}` : null}
         ocupado={enTransicion}
