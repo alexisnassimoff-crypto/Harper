@@ -2964,14 +2964,24 @@ p {
     transform: translateX(-50%);
   }
 }
+/* Con "reducir movimiento": quieta y con el primer mensaje entero, como era
+   la barra antes de que pasaran. */
 @media (prefers-reduced-motion: reduce) {
-  .anuncios {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
   .anuncios__pista {
+    width: auto;
     animation: none !important;
   }
+  .anuncios__grupo {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+  }
+  .anuncios__grupo li {
+    white-space: normal;
+    text-align: center;
+  }
+  .anuncios__grupo li:not(:first-child),
+  .anuncios__grupo li::after,
   .anuncios__grupo[aria-hidden="true"],
   .anuncios__pausa {
     display: none;

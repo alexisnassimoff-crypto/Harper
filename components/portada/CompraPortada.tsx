@@ -261,7 +261,11 @@ export default function CompraPortada({
         <CuponBienvenida
           precio={producto.precio}
           estadoServidor={carritoResuelto?.cupon ?? null}
-          compra={{ conCupon: compra.conCupon, porcentaje: compra.porcentaje, ahorro: compra.ahorro, total: compra.total }}
+          compra={
+            conOtrosProductos
+              ? "carrito"
+              : { conCupon: compra.conCupon, porcentaje: compra.porcentaje, ahorro: compra.ahorro, total: compra.total }
+          }
         />
 
         {/* ---------- Packs ---------- */}
@@ -465,17 +469,19 @@ export default function CompraPortada({
               <button type="button" className="boton boton--fantasma boton--bloque" onClick={agregarAlCarrito}>
                 {agregado ? "Agregado al carrito" : "Agregar al carrito"}
               </button>
-              {agregado ? (
-                <Link href="/carrito" className="label enlace-verde" style={{ alignSelf: "center" }}>
-                  Ver el carrito
-                </Link>
-              ) : conOtrosProductos ? (
+              {/* El aviso va siempre que el carrito tenga más que este pack,
+                  también después de "Agregar" (por ejemplo, si se tocó dos veces). */}
+              {conOtrosProductos ? (
                 <p className="apagado" style={{ fontSize: "0.8125rem" }}>
                   Tu carrito ya tiene otros productos: se suman a esta compra y el total final lo ves en el checkout.{" "}
                   <Link href="/carrito" className="enlace-verde">
                     Ver el carrito
                   </Link>
                 </p>
+              ) : agregado ? (
+                <Link href="/carrito" className="label enlace-verde" style={{ alignSelf: "center" }}>
+                  Ver el carrito
+                </Link>
               ) : null}
               {conPocas.map((v) => (
                 <p key={v.id} className="apagado" style={{ fontSize: "0.8125rem" }}>
