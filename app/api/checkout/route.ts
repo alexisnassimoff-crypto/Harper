@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createRecord, ErrorAirtable, esErrorPermanente, TABLAS, updateRecord } from "@/lib/airtable";
-import { guardarCliente } from "@/lib/clientes";
+import { guardarCliente, yaCompro } from "@/lib/clientes";
 import { getConfig } from "@/lib/config";
+import { buscarCupon, constanciaDelCupon, mensajeDelCupon } from "@/lib/cupones";
 import {
   camposDeFacturacion,
   ENCABEZADO_NOTAS,
@@ -12,12 +13,14 @@ import {
   normalizarFacturacion,
   validarFacturacion,
 } from "@/lib/facturacion";
+import { precio as formatearPrecio } from "@/lib/formato";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
 import { leerEleccionEnvio, nombreModo, nombreServicio } from "@/lib/envio-elegido";
 import { registroAceptacion } from "@/lib/legales";
 import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
+import { leerMedioPago, MEDIO_DINERO_MP, NOTA_DINERO_MP } from "@/lib/dinero-mp";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +42,8 @@ export async function POST(request: Request) {
     totalVisto?: unknown;
     origen?: unknown;
     facturacion?: unknown;
+    cupon?: unknown;
+    medioPago?: unknown;
   };
 
   try {
@@ -64,6 +69,8 @@ export async function POST(request: Request) {
 
   const cliente = normalizarCliente(cuerpo.cliente as Record<string, unknown>);
   const items = limpiarItems(cuerpo.items);
+  // Sin medio de pago (o con cualquier otra cosa) es Mercado Pago, como siempre.
+  const conDineroMP = leerMedioPago(cuerpo.medioPago) === "dineroMP";
 
   if (items.length === 0) {
     return NextResponse.json({ error: "Tu carrito está vacío." }, { status: 400 });
@@ -84,6 +91,7 @@ export async function POST(request: Request) {
       paraCobrar: true,
       cpDestino: cliente.cp,
       eleccion,
+      cupon: cuerpo.cupon,
     });
 
     if (carrito.items.length === 0) {
@@ -105,17 +113,42 @@ export async function POST(request: Request) {
       );
     }
 
+    // El cupón de bienvenida es para la primera compra: se mira si este email o
+    // este DNI ya tienen una compra confirmada. Si la tienen, no se cobra nada
+    // distinto de lo que vio: se le avisa y decide (el carrito se recalcula
+    // sin el cupón).
+    if (
+      carrito.cupon?.estado === "aplicado" &&
+      buscarCupon(carrito.cupon.codigo)?.soloPrimeraCompra &&
+      (await yaCompro(cliente.email, cliente.dni))
+    ) {
+      return NextResponse.json(
+        {
+          error: mensajeDelCupon({ ...carrito.cupon, estado: "no-primera-compra" }),
+          cuponRechazado: carrito.cupon.codigo,
+        },
+        { status: 409 }
+      );
+    }
+
+    // Con dinero en Mercado Pago se cobra el 10% adicional sobre los productos, que el
+    // servidor calculó junto con el resto (lib/dinero-mp.ts).
+    const dineroMP = conDineroMP ? carrito.dineroMP : null;
+    const cobro = dineroMP
+      ? { items: dineroMP.items, subtotal: dineroMP.subtotal, total: dineroMP.subtotal + carrito.envio }
+      : { items: carrito.items, subtotal: carrito.subtotal, total: carrito.total };
+
     // El comprador tiene que pagar exactamente lo que vio. Si el servidor
     // calcula otro total —cambió un precio, un tramo de descuento o la
     // cotización del envío mientras completaba los datos— no se lo manda a
     // pagar: se le muestra el total nuevo y decide.
     const totalVisto = typeof cuerpo.totalVisto === "number" ? cuerpo.totalVisto : null;
 
-    if (totalVisto !== null && Math.abs(carrito.total - totalVisto) > 1) {
+    if (totalVisto !== null && Math.abs(cobro.total - totalVisto) > 1) {
       return NextResponse.json(
         {
           error: "El total cambió mientras completabas los datos. Revisalo antes de pagar.",
-          totalNuevo: carrito.total,
+          totalNuevo: cobro.total,
         },
         { status: 409 }
       );
@@ -138,11 +171,11 @@ export async function POST(request: Request) {
       Numero: numero,
       Estado: "pendiente",
       Cliente: [clienteId],
-      Items: JSON.stringify(carrito.items, null, 2),
-      Resumen: resumirItems(carrito.items),
-      Subtotal: carrito.subtotal,
+      Items: JSON.stringify(cobro.items, null, 2),
+      Resumen: resumirItems(cobro.items),
+      Subtotal: cobro.subtotal,
       Envio: carrito.envio,
-      Total: carrito.total,
+      Total: cobro.total,
       Direccion: cliente.direccion,
       Ciudad: cliente.ciudad,
       Provincia: cliente.provincia,
@@ -156,17 +189,20 @@ export async function POST(request: Request) {
       Terminos_aceptados: registroAceptacion(ahora),
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     };
-    const pedido = await crearPedido(campos, factura);
+    const cupon = carrito.cupon?.estado === "aplicado" ? constanciaDelCupon(carrito.cupon, formatearPrecio) : null;
+    const pedido = await crearPedido(campos, factura, cupon, Boolean(dineroMP));
 
     pedidoId = pedido.id;
 
     const preferencia = await crearPreferencia({
       numeroPedido: numero,
       pedidoId: pedido.id,
-      items: carrito.items,
+      items: cobro.items,
       envio: carrito.envio,
       cliente,
       sitio: urlDelSitio(request),
+      // Con "Dinero en Mercado Pago", Mercado Pago ofrece solo el saldo de la cuenta.
+      soloDineroEnCuenta: Boolean(dineroMP),
     });
 
     await updateRecord<FilaPedido>(TABLAS.pedidos, pedido.id, {
@@ -195,21 +231,46 @@ export async function POST(request: Request) {
 }
 
 /**
- * Crea el pedido con sus datos de facturación. Si Airtable rechaza el pedido
- * con esos campos (porque faltan o alguien los cambió), la venta no se frena:
- * se crea como antes, sin ellos. Si la factura va a un CUIT, sus datos quedan
- * en Notas y el aviso interno los lee de ahí. Si el rechazo era por otra cosa,
- * el segundo intento falla igual que antes de este cambio.
+ * Crea el pedido con sus datos de facturación, el cupón y, si se pidió con el
+ * descuento por dinero en Mercado Pago, el medio de pago. Si Airtable rechaza esos
+ * campos (porque faltan o alguien los cambió), la venta no se frena y se
+ * pierde lo menos posible, en este orden:
+ *  1. Todo junto.
+ *  2. Con dinero en Mercado Pago y cupón, sin el campo Medio_pago: va a Notas.
+ *  3. Sin los campos Cupon ni Medio_pago: la facturación se guarda igual y el
+ *     cupón y el medio de pago van a Notas.
+ *  4. Como antes de estos cambios, sin Factura_, Cupon ni Medio_pago: si la
+ *     factura va a un CUIT, sus datos van a Notas (el aviso interno los lee
+ *     de ahí), y el cupón y el medio de pago aparte.
+ * Un pedido de Mercado Pago sin cupón hace un solo intento, como siempre.
+ * Si el rechazo era por otra cosa, el último intento falla igual que antes.
  */
-async function crearPedido(campos: FilaPedido, factura: FacturacionPedido) {
-  try {
-    return await createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...camposDeFacturacion(factura) });
-  } catch (error) {
-    if (!(error instanceof ErrorAirtable && error.status === 422)) throw error;
-    console.error("[checkout] Pedidos rechazó los datos de facturación; el pedido se crea sin esos campos:", error.message);
-    const notas = factura.cuit ? { Notas: `${ENCABEZADO_NOTAS}\n${lineasDeFacturacion(factura).join("\n")}` } : {};
-    return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...notas });
+async function crearPedido(campos: FilaPedido, factura: FacturacionPedido, cupon: string | null, conDineroMP: boolean) {
+  const facturacion = camposDeFacturacion(factura);
+  const conCupon = cupon ? { Cupon: cupon } : {};
+  const notaCupon = cupon ? `Cupón: ${cupon}` : null;
+  const notaMedio = conDineroMP ? NOTA_DINERO_MP : null;
+  const intentos: FilaPedido[] = [
+    { ...campos, ...facturacion, ...conCupon, ...(conDineroMP ? { Medio_pago: MEDIO_DINERO_MP } : {}) },
+    ...(conDineroMP && cupon ? [{ ...campos, ...facturacion, ...conCupon, Notas: NOTA_DINERO_MP }] : []),
+    ...(cupon || conDineroMP ? [{ ...campos, ...facturacion, Notas: [notaCupon, notaMedio].filter(Boolean).join("\n\n") }] : []),
+  ];
+
+  for (const fila of intentos) {
+    try {
+      return await createRecord<FilaPedido>(TABLAS.pedidos, fila);
+    } catch (error) {
+      if (!(error instanceof ErrorAirtable && error.status === 422)) throw error;
+      console.error("[checkout] Pedidos rechazó campos de facturación, cupón o medio de pago; se reintenta sin ellos:", error.message);
+    }
   }
+
+  const notas = [
+    factura.cuit ? `${ENCABEZADO_NOTAS}\n${lineasDeFacturacion(factura).join("\n")}` : null,
+    notaCupon,
+    notaMedio,
+  ].filter(Boolean);
+  return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...(notas.length ? { Notas: notas.join("\n\n") } : {}) });
 }
 
 /** Marca un pedido que nunca llegó a tener preferencia de pago. */

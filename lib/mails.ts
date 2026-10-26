@@ -124,6 +124,16 @@ function envoltorio(contenido: string, config: ConfigTienda) {
 </html>`;
 }
 
+/** "5% de descuento + 10% por dinero en Mercado Pago". Vacío si el ítem va a precio de lista. */
+function textoDescuento(item: ItemResuelto) {
+  return [
+    item.descuento > 0 ? `${item.descuento}% de descuento` : null,
+    item.descuentoDineroMP ? `${item.descuentoDineroMP}% por dinero en Mercado Pago` : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
+}
+
 function filasDeItems(items: ItemResuelto[], sitio: string) {
   return items
     .map((item) => {
@@ -141,14 +151,14 @@ function filasDeItems(items: ItemResuelto[], sitio: string) {
   <td style="padding:10px 0;vertical-align:top;font-size:14px;line-height:1.5;">
     <strong style="font-weight:500;">${escaparHtml(item.nombre)}</strong><br>
     <span style="color:#78756c;">${escaparHtml(item.color)} · ${item.cantidad} ${item.cantidad === 1 ? "unidad" : "unidades"}</span>${
-      item.descuento > 0
-        ? `<br><span style="color:#004226;">${item.descuento}% de descuento</span>`
+      textoDescuento(item)
+        ? `<br><span style="color:#004226;">${textoDescuento(item)}</span>`
         : ""
     }
   </td>
   <td align="right" style="padding:10px 0;vertical-align:top;font-size:14px;white-space:nowrap;">
     ${
-      item.descuento > 0
+      textoDescuento(item)
         ? `<span style="color:#78756c;text-decoration:line-through;font-size:12px;">${formatearPrecio(item.precioLista * item.cantidad)}</span><br>`
         : ""
     }${formatearPrecio(item.subtotal)}
@@ -188,6 +198,12 @@ export type DatosMail = {
   facturacion?: FacturacionPedido | null;
   /** Los mismos datos, ya escritos, cuando quedaron en Notas del pedido. */
   lineasFacturacion?: string[] | null;
+  /** El cupón aplicado, por ejemplo "HARPER10 (−$ 8.990)"; null si no hubo. */
+  cupon?: string | null;
+  /** Verdadero si se pidió con el descuento por dinero en Mercado Pago. */
+  conDineroMP?: boolean;
+  /** Algo que Harper tiene que revisar en esta venta, ya escrito. */
+  alerta?: string | null;
 };
 
 /**
@@ -239,7 +255,17 @@ ${totales(d.subtotal, d.envio, d.total)}
   const texto = `Gracias por tu compra.
 
 Pedido ${d.numero}
-${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color}: ${formatearPrecio(i.subtotal)}${i.descuento > 0 ? ` (${i.descuento}% off)` : ""}`).join("\n")}
+${d.items
+  .map((i) => {
+    const descuento = [
+      i.descuento > 0 ? `${i.descuento}% off` : null,
+      i.descuentoDineroMP ? `${i.descuentoDineroMP}% por dinero en Mercado Pago` : null,
+    ]
+      .filter(Boolean)
+      .join(" + ");
+    return `- ${i.cantidad}x ${i.nombre} ${i.color}: ${formatearPrecio(i.subtotal)}${descuento ? ` (${descuento})` : ""}`;
+  })
+  .join("\n")}
 
 Subtotal: ${formatearPrecio(d.subtotal)}
 Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
@@ -266,13 +292,17 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
   const aCuit = factura?.some((l) => l.startsWith("CUIT:")) ?? false;
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Venta nueva — ${escaparHtml(d.numero)}</h1>
-<p style="margin:0 0 24px;font-size:14px;color:#78756c;">${formatearPrecio(d.total)} · ${escaparHtml(d.cliente.provincia)}</p>
+<p style="margin:0 0 24px;font-size:14px;color:#78756c;">${formatearPrecio(d.total)} · ${escaparHtml(d.cliente.provincia)}${
+      d.conDineroMP ? " · dinero en Mercado Pago" : ""
+    }</p>
+${d.alerta ? `<p style="margin:0 0 24px;padding:12px 14px;border:1px solid #a1281b;color:#a1281b;font-size:14px;line-height:1.6;">${escaparHtml(d.alerta)}</p>` : ""}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   ${filasDeItems(d.items, d.sitio)}
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
+${d.cupon ? `<p style="margin:8px 0 0;font-size:13px;color:#004226;">Cupón ${escaparHtml(d.cupon)}</p>` : ""}
 ${
   factura
     ? `
@@ -301,10 +331,10 @@ ${
     d.config
   );
 
-  const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}
-
+  const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " (dinero en Mercado Pago)" : ""}
+${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}
 ${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join("\n")}
-
+${d.cupon ? `Cupón ${d.cupon}\n` : ""}
 ${d.cliente.nombre}
 ${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} - CP ${d.cliente.cp}
 ${d.cliente.dni ? `DNI ${d.cliente.dni} - ` : ""}Tel ${d.cliente.telefono} - ${d.cliente.email}
@@ -313,7 +343,7 @@ Airtable: ${d.pedidoUrl}`;
 
   return {
     para: d.config.emailPedidos,
-    asunto: `Venta ${d.numero} — ${formatearPrecio(d.total)}${aCuit ? " · factura a CUIT" : ""}`,
+    asunto: `${d.alerta ? "REVISAR " : ""}Venta ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " · dinero en Mercado Pago" : ""}${aCuit ? " · factura a CUIT" : ""}`,
     html,
     texto,
     responderA: d.cliente.email,

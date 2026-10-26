@@ -10,11 +10,13 @@ import { useCarrito } from "./CarritoContexto";
  * sin pagar, su carrito tiene que seguir intacto.
  */
 export default function VaciarCarrito() {
-  const { vaciar, listo, items } = useCarrito();
+  const { vaciar, listo, items, cupon, quitarCupon } = useCarrito();
 
   useEffect(() => {
     if (listo && items.length > 0) vaciar();
-  }, [listo, items.length, vaciar]);
+    // El cupón de bienvenida ya se usó en esta compra.
+    if (listo && cupon) quitarCupon();
+  }, [listo, items.length, vaciar, cupon, quitarCupon]);
 
   return null;
 }

@@ -23,6 +23,7 @@ export default function OfertaCantidad({
   cantidadEnCarrito,
   descuentoAplicado,
   variante = "ficha",
+  cuponPorcentaje = 0,
 }: {
   tramos: Tramo[];
   categoria: Categoria;
@@ -32,11 +33,18 @@ export default function OfertaCantidad({
   /** El mayor descuento que el servidor aplicó a esta categoría. */
   descuentoAplicado: number;
   variante?: "ficha" | "carrito";
+  /**
+   * El porcentaje del cupón que tiene aplicado el visitante (0 si no). Las
+   * promociones no se suman: si el cupón da lo mismo o más, esta no se
+   * anuncia, porque no le daría nada más.
+   */
+  cuponPorcentaje?: number;
 }) {
   if (!esCategoriaDeAnteojos(categoria)) return null;
 
   const oferta = ofertaPorCantidad(tramos, categoria, precioLista, cantidadEnCarrito, descuentoAplicado);
   if (!oferta) return null;
+  if (cuponPorcentaje > 0 && (oferta.estado === "aplicada" || oferta.porcentaje <= cuponPorcentaje)) return null;
 
   if (oferta.estado === "aplicada") {
     return variante === "ficha" ? (

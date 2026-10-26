@@ -9,6 +9,7 @@ import {
 } from "./cerrojo";
 import { marcarCompra } from "./clientes";
 import { getConfig } from "./config";
+import { cuponDeNotas } from "./cupones";
 import { facturacionDeFila, lineasDeNotas } from "./facturacion";
 import {
   enviarMail as enviarMailReal,
@@ -20,6 +21,7 @@ import {
 } from "./mails";
 import { obtenerPago as obtenerPagoReal, type PagoMP } from "./mercadopago";
 import { descontarStock } from "./stock";
+import { esPedidoConDineroMP, TIPO_DINERO_EN_CUENTA } from "./dinero-mp";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import {
   decidirNotificacion,
@@ -104,6 +106,10 @@ export type FilaPedido = {
   Factura_domicilio?: string;
   /** Si faltaban los campos Factura_, los datos de una factura a CUIT quedan acá. */
   Notas?: string;
+  /** El cupón aplicado, por ejemplo "HARPER10 (−$ 8.990)". */
+  Cupon?: string;
+  /** Solo en los pedidos con el descuento por dinero en Mercado Pago (ver lib/dinero-mp.ts). */
+  Medio_pago?: string;
 };
 
 type FilaCliente = {
@@ -525,6 +531,16 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
 
     const total = pedido.fields.Total ?? 0;
 
+    // Con el descuento por dinero en Mercado Pago, Mercado Pago solo ofrece dinero en
+    // cuenta. Si igual llegara cobrado con otra cosa, la venta sigue (el
+    // comprador pagó lo que vio) y Harper se entera en el aviso.
+    const conDineroMP = esPedidoConDineroMP(pedido.fields);
+    const medioInesperado =
+      conDineroMP && pago.payment_type_id && pago.payment_type_id !== TIPO_DINERO_EN_CUENTA ? pago.payment_type_id : null;
+    if (medioInesperado) {
+      console.error(`[webhook] el pedido ${numero} tenía el descuento por dinero en Mercado Pago y se cobró con ${medioInesperado}`);
+    }
+
     datosMail = {
       numero,
       items,
@@ -536,6 +552,11 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       sitio: deps.sitio,
       facturacion: facturacionDeFila(pedido.fields),
       lineasFacturacion: lineasDeNotas(pedido.fields.Notas),
+      cupon: pedido.fields.Cupon || cuponDeNotas(pedido.fields.Notas),
+      conDineroMP,
+      alerta: medioInesperado
+        ? `Tiene el 10% por dinero en Mercado Pago, pero Mercado Pago lo cobró con "${medioInesperado}" y no con el saldo de la cuenta.`
+        : null,
     };
 
     const datos = datosMail;

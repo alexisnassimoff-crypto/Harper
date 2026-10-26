@@ -9,9 +9,11 @@ import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 import { useCarritoResuelto } from "./useCarritoResuelto";
 import SugerenciasCarrito from "./SugerenciasCarrito";
+import CodigoDescuento from "@/components/checkout/CodigoDescuento";
+import { buscarCupon } from "@/lib/cupones";
 
 export default function VistaCarrito() {
-  const { cambiarCantidad, quitar, items: guardados } = useCarrito();
+  const { cambiarCantidad, quitar, items: guardados, cupon } = useCarrito();
   const { datos, cargando, actualizando, error, recargar } = useCarritoResuelto();
 
   if (cargando && !datos) {
@@ -46,7 +48,8 @@ export default function VistaCarrito() {
   }
 
   const resumen = desglosar(datos);
-  const faltaParaGratis = datos.envioGratisDesde - datos.subtotal;
+  // El envío gratis se mide sin el cupón, como en el servidor.
+  const faltaParaGratis = datos.envioGratisDesde - (datos.subtotalSinCupon ?? datos.subtotal);
 
   // Unidades y descuento aplicado por categoría, para la línea del segundo par.
   const porCategoria = new Map<Categoria, { unidades: number; precioLista: number; descuento: number }>();
@@ -186,12 +189,16 @@ export default function VistaCarrito() {
       <aside className="panel" aria-busy={actualizando} data-actualizando={actualizando || undefined}>
         <h2 className="label">Resumen</h2>
 
+        {/* El cupón aplicado en la ficha, con la opción de quitarlo. El campo
+            para escribir un código está en el checkout. */}
+        {cupon ? <CodigoDescuento estado={datos.cupon ?? null} /> : null}
+
         {/* La cuenta se lee de arriba abajo: lista − descuento + envío = total. */}
         <Fila etiqueta="Subtotal" valor={formatearPrecio(resumen.lista)} />
 
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>Descuento</span>
+            <span>{datos.cupon?.estado === "aplicado" ? `Cupón ${datos.cupon.codigo}` : "Descuento"}</span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}
@@ -211,6 +218,7 @@ export default function VistaCarrito() {
             cantidadEnCarrito={info.unidades}
             descuentoAplicado={info.descuento}
             variante="carrito"
+            cuponPorcentaje={datos.cupon?.estado === "aplicado" ? (buscarCupon(datos.cupon.codigo)?.porcentaje ?? 0) : 0}
           />
         ))}
 

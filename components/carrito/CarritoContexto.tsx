@@ -8,9 +8,12 @@ import {
   useMemo,
   useState,
 } from "react";
+import { normalizarCodigo } from "@/lib/cupones";
 import type { ItemCarrito } from "@/lib/tipos";
 
 const CLAVE = "harper.carrito.v1";
+/** El cupón aplicado (por ejemplo desde la ficha), hasta el pago. */
+const CLAVE_CUPON = "harper.cupon.v1";
 
 type ContextoCarrito = {
   items: ItemCarrito[];
@@ -22,6 +25,10 @@ type ContextoCarrito = {
   cambiarCantidad: (varianteId: string, cantidad: number) => void;
   quitar: (varianteId: string) => void;
   vaciar: () => void;
+  /** El código aplicado, o null. Cuánto descuenta lo decide el servidor. */
+  cupon: string | null;
+  aplicarCupon: (codigo: string) => void;
+  quitarCupon: () => void;
 };
 
 const Carrito = createContext<ContextoCarrito | null>(null);
@@ -52,13 +59,38 @@ function leerGuardado(): ItemCarrito[] {
 
 export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<ItemCarrito[]>([]);
+  const [cupon, setCupon] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
 
   // Carga inicial desde localStorage, después de hidratar.
   useEffect(() => {
     setItems(leerGuardado());
+    try {
+      setCupon(normalizarCodigo(window.localStorage.getItem(CLAVE_CUPON)) || null);
+    } catch {
+      // Sin almacenamiento, sin cupón guardado.
+    }
     setListo(true);
   }, []);
+
+  // Si se aplica o se quita en otra pestaña, esta se entera.
+  useEffect(() => {
+    function alCambiar(evento: StorageEvent) {
+      if (evento.key === CLAVE_CUPON) setCupon(normalizarCodigo(evento.newValue) || null);
+    }
+    window.addEventListener("storage", alCambiar);
+    return () => window.removeEventListener("storage", alCambiar);
+  }, []);
+
+  useEffect(() => {
+    if (!listo) return;
+    try {
+      if (cupon) window.localStorage.setItem(CLAVE_CUPON, cupon);
+      else window.localStorage.removeItem(CLAVE_CUPON);
+    } catch {
+      // El cupón sigue aplicado en memoria.
+    }
+  }, [cupon, listo]);
 
   // Persiste en cada cambio, pero recién cuando ya se leyó lo guardado:
   // si no, el primer render pisaría el carrito con un array vacío.
@@ -102,6 +134,9 @@ export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
 
   const vaciar = useCallback(() => setItems([]), []);
 
+  const aplicarCupon = useCallback((codigo: string) => setCupon(normalizarCodigo(codigo) || null), []);
+  const quitarCupon = useCallback(() => setCupon(null), []);
+
   const valor = useMemo<ContextoCarrito>(
     () => ({
       items,
@@ -111,8 +146,11 @@ export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
       cambiarCantidad,
       quitar,
       vaciar,
+      cupon,
+      aplicarCupon,
+      quitarCupon,
     }),
-    [items, listo, agregar, cambiarCantidad, quitar, vaciar]
+    [items, listo, agregar, cambiarCantidad, quitar, vaciar, cupon, aplicarCupon, quitarCupon]
   );
 
   return <Carrito.Provider value={valor}>{children}</Carrito.Provider>;

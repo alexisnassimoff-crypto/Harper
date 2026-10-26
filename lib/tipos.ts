@@ -96,6 +96,8 @@ export type ItemResuelto = {
   precioUnitario: number;
   /** Porcentaje aplicado, 0 si no llegó a ningún tramo. */
   descuento: number;
+  /** El 10% adicional por dinero en Mercado Pago, sobre el precio ya descontado (ver lib/dinero-mp.ts). */
+  descuentoDineroMP?: number;
   cantidad: number;
   subtotal: number;
   stockDisponible: number;

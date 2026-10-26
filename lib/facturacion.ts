@@ -209,7 +209,10 @@ export const ENCABEZADO_NOTAS = "DATOS DE FACTURACIÓN";
 /** Las líneas de facturación guardadas en Notas, si las hay. */
 export function lineasDeNotas(notas: unknown): string[] | null {
   if (typeof notas !== "string" || !notas.startsWith(ENCABEZADO_NOTAS)) return null;
-  const lineas = notas.split("\n").slice(1).map((l) => l.trim()).filter(Boolean);
+  // El bloque de facturación termina en la primera línea vacía (después puede
+  // venir el cupón).
+  const bloque = notas.split("\n\n")[0];
+  const lineas = bloque.split("\n").slice(1).map((l) => l.trim()).filter(Boolean);
   return lineas.length > 0 ? lineas : null;
 }
 

@@ -89,14 +89,20 @@ function rotar<T>(lista: T[], semilla: number): T[] {
 }
 
 export async function sugerirParaCarrito(
-  items: ItemResuelto[]
+  items: ItemResuelto[],
+  /**
+   * El porcentaje del cupón aplicado, si hay. Una promoción por cantidad que
+   * no lo supera no se anuncia: no se suman, así que no le daría nada más.
+   */
+  cuponPorcentaje = 0
 ): Promise<Sugerencia[]> {
   if (items.length === 0) return [];
 
   const [productos, tramos] = await Promise.all([getProductos(), getTramos()]);
+  const anunciables = tramos.filter((t) => t.porcentaje > cuponPorcentaje);
 
   // Cambia cada día: una misma persona que vuelve mañana ve otra cosa.
-  return elegirSugerencias(items, productos, Math.floor(Date.now() / 86_400_000), tramos);
+  return elegirSugerencias(items, productos, Math.floor(Date.now() / 86_400_000), anunciables);
 }
 
 /** La decisión, sin Airtable de por medio, para poder probarla. */
