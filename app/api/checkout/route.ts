@@ -219,29 +219,36 @@ export async function POST(request: Request) {
 
 /**
  * Crea el pedido con sus datos de facturación y el cupón. Si Airtable rechaza
- * el pedido con esos campos (porque faltan o alguien los cambió), la venta no
- * se frena: se crea como antes, sin ellos. Si la factura va a un CUIT o hubo
- * cupón, eso queda en Notas y el aviso interno lo lee de ahí. Si el rechazo
- * era por otra cosa, el segundo intento falla igual que antes de este cambio.
+ * esos campos (porque faltan o alguien los cambió), la venta no se frena y se
+ * pierde lo menos posible, en este orden:
+ *  1. Todo junto.
+ *  2. Sin el campo Cupon: la facturación se guarda igual y el cupón va a Notas.
+ *  3. Como antes de estos cambios, sin Factura_ ni Cupon: si la factura va a
+ *     un CUIT, sus datos van a Notas (el aviso interno los lee de ahí), y el
+ *     cupón aparte.
+ * Si el rechazo era por otra cosa, el último intento falla igual que antes.
  */
 async function crearPedido(campos: FilaPedido, factura: FacturacionPedido, cupon: string | null) {
-  try {
-    return await createRecord<FilaPedido>(TABLAS.pedidos, {
-      ...campos,
-      ...camposDeFacturacion(factura),
-      ...(cupon ? { Cupon: cupon } : {}),
-    });
-  } catch (error) {
-    if (!(error instanceof ErrorAirtable && error.status === 422)) throw error;
-    console.error("[checkout] Pedidos rechazó los campos de facturación o de cupón; el pedido se crea sin ellos:", error.message);
-    // Lo que se pierda de esos campos queda en Notas: la facturación primero
-    // (el aviso interno la lee de ahí) y el cupón aparte.
-    const notas = [
-      factura.cuit ? `${ENCABEZADO_NOTAS}\n${lineasDeFacturacion(factura).join("\n")}` : null,
-      cupon ? `Cupón: ${cupon}` : null,
-    ].filter(Boolean);
-    return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...(notas.length ? { Notas: notas.join("\n\n") } : {}) });
+  const facturacion = camposDeFacturacion(factura);
+  const intentos: FilaPedido[] = [
+    { ...campos, ...facturacion, ...(cupon ? { Cupon: cupon } : {}) },
+    ...(cupon ? [{ ...campos, ...facturacion, Notas: `Cupón: ${cupon}` }] : []),
+  ];
+
+  for (const fila of intentos) {
+    try {
+      return await createRecord<FilaPedido>(TABLAS.pedidos, fila);
+    } catch (error) {
+      if (!(error instanceof ErrorAirtable && error.status === 422)) throw error;
+      console.error("[checkout] Pedidos rechazó campos de facturación o de cupón; se reintenta sin ellos:", error.message);
+    }
   }
+
+  const notas = [
+    factura.cuit ? `${ENCABEZADO_NOTAS}\n${lineasDeFacturacion(factura).join("\n")}` : null,
+    cupon ? `Cupón: ${cupon}` : null,
+  ].filter(Boolean);
+  return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...(notas.length ? { Notas: notas.join("\n\n") } : {}) });
 }
 
 /** Marca un pedido que nunca llegó a tener preferencia de pago. */

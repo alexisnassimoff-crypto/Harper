@@ -737,7 +737,8 @@ p {
 .cupon__texto {
   font-size: 0.875rem;
   line-height: 1.45;
-  color: var(--texto-suave);
+  /* Más oscuro que --texto-suave: sobre el fondo teñido, el gris no llega al contraste AA. */
+  color: color-mix(in srgb, var(--texto) 72%, var(--fondo));
 }
 .cupon__texto strong {
   color: var(--texto);
@@ -762,9 +763,10 @@ p {
   background: var(--fondo);
   color: var(--texto);
   font: inherit;
-  font-size: 0.875rem;
+  /* 16px: con menos, el iPhone hace zoom al tocar el campo. */
+  font-size: 1rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .cupon__campo input:focus {
@@ -838,7 +840,7 @@ p {
   padding: 0.25rem 0;
   border: 0;
   background: none;
-  color: var(--texto-suave);
+  color: color-mix(in srgb, var(--texto) 72%, var(--fondo));
   font: inherit;
   font-size: 0.75rem;
   font-weight: 500;
@@ -855,11 +857,23 @@ p {
 }
 .cupon__nota {
   font-size: 0.75rem;
-  color: var(--texto-suave);
+  color: color-mix(in srgb, var(--texto) 72%, var(--fondo));
 }
 .cupon__error {
   font-size: 0.75rem;
   color: var(--alerta);
+}
+/* Solo para lectores de pantalla. */
+.visualmente-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 /* En el checkout y el carrito: un campo discreto, sin el bloque de la ficha. */
 .codigo-descuento {

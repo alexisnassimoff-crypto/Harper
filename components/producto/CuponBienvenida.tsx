@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
-import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
-import { buscarCupon, CUPON_BIENVENIDA, mensajeDelCupon, precioConCupon } from "@/lib/cupones";
+import { buscarCupon, CUPON_BIENVENIDA, mensajeDelCupon, precioConCupon, type CuponResuelto } from "@/lib/cupones";
 import { precio as formatearPrecio } from "@/lib/formato";
 
 /**
@@ -11,20 +10,37 @@ import { precio as formatearPrecio } from "@/lib/formato";
  *
  * Se aplica con un toque: queda guardado en el carrito y llega así al
  * checkout, sin volver a escribirlo. El ahorro que se muestra es el de este
- * producto, con la misma cuenta que usa el servidor al cobrar; el del pedido
- * completo lo calcula el servidor en el carrito.
+ * producto, con la misma cuenta que usa el servidor al cobrar. Si el carrito
+ * ya tiene una promoción mejor (no se suman), no se promete ningún ahorro:
+ * se dice que se aplica la otra.
  */
-export default function CuponBienvenida({ precio }: { precio: number }) {
+export default function CuponBienvenida({
+  precio,
+  estadoServidor,
+}: {
+  precio: number;
+  /** Lo que el servidor resolvió para el carrito actual (null si está vacío). */
+  estadoServidor: CuponResuelto | null;
+}) {
   const { cupon, aplicarCupon, quitarCupon, listo } = useCarrito();
-  const { datos } = useCarritoResuelto();
   const [codigo, setCodigo] = useState(CUPON_BIENVENIDA.codigo);
   const [error, setError] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+  // Al aplicar o quitar se reemplaza el control que tenía el foco: se lo
+  // lleva al control equivalente del nuevo estado.
+  const [enfocar, setEnfocar] = useState<"quitar" | "campo" | null>(null);
+  const botonQuitar = useRef<HTMLButtonElement>(null);
+  const campo = useRef<HTMLInputElement>(null);
 
   const aplicado = listo && cupon === CUPON_BIENVENIDA.codigo;
   const conCupon = precioConCupon(precio);
-  // Lo que dijo el servidor del carrito: si ya hay una promoción mejor, se avisa.
-  const aviso = aplicado && datos?.cupon && datos.cupon.estado !== "aplicado" ? mensajeDelCupon(datos.cupon) : null;
+  const otraPromocion = aplicado && estadoServidor?.codigo === cupon && estadoServidor.estado !== "aplicado";
+
+  useEffect(() => {
+    if (enfocar === "quitar") botonQuitar.current?.focus();
+    if (enfocar === "campo") campo.current?.focus();
+    if (enfocar) setEnfocar(null);
+  }, [enfocar]);
 
   function aplicar(evento: FormEvent) {
     evento.preventDefault();
@@ -35,6 +51,13 @@ export default function CuponBienvenida({ precio }: { precio: number }) {
     }
     setError(null);
     aplicarCupon(encontrado.codigo);
+    setEnfocar("quitar");
+  }
+
+  function quitar() {
+    quitarCupon();
+    setCodigo(CUPON_BIENVENIDA.codigo);
+    setEnfocar("campo");
   }
 
   async function copiar() {
@@ -59,22 +82,30 @@ export default function CuponBienvenida({ precio }: { precio: number }) {
       </p>
 
       {aplicado ? (
-        <div className="cupon__aplicado" role="status">
+        <div className="cupon__aplicado">
           <p className="cupon__ok">
-            <IconoCheck /> {CUPON_BIENVENIDA.codigo} aplicado
-            <button type="button" className="cupon__quitar" onClick={quitarCupon}>
+            {otraPromocion ? null : <IconoCheck />}
+            {otraPromocion ? cupon : `${cupon} aplicado`}
+            <button ref={botonQuitar} type="button" className="cupon__quitar" onClick={quitar}>
               Quitar
             </button>
           </p>
-          <p className="cupon__ahorro">
-            Ahorrás {formatearPrecio(precio - conCupon)} · Pagás <strong>{formatearPrecio(conCupon)}</strong>
-          </p>
-          <p className="cupon__nota">{aviso ?? "Queda aplicado en el carrito y en el checkout."}</p>
+          {otraPromocion ? (
+            <p className="cupon__nota">{mensajeDelCupon(estadoServidor!)}</p>
+          ) : (
+            <>
+              <p className="cupon__ahorro">
+                Ahorrás {formatearPrecio(precio - conCupon)} · Pagás <strong>{formatearPrecio(conCupon)}</strong>
+              </p>
+              <p className="cupon__nota">Queda aplicado en el carrito y en el checkout.</p>
+            </>
+          )}
         </div>
       ) : (
         <form className="cupon__form" onSubmit={aplicar} noValidate>
           <div className="cupon__campo" data-error={Boolean(error)}>
             <input
+              ref={campo}
               id="cupon-ficha"
               value={codigo}
               onChange={(e) => {
@@ -83,6 +114,7 @@ export default function CuponBienvenida({ precio }: { precio: number }) {
               }}
               aria-label="Código de descuento"
               aria-invalid={Boolean(error)}
+              aria-describedby={error ? "cupon-ficha-error" : undefined}
               autoCapitalize="characters"
               autoComplete="off"
               spellCheck={false}
@@ -97,11 +129,23 @@ export default function CuponBienvenida({ precio }: { precio: number }) {
         </form>
       )}
       {error ? (
-        <small className="cupon__error" role="alert">
+        <small id="cupon-ficha-error" className="cupon__error" role="alert">
           {error}
         </small>
       ) : null}
       {!aplicado ? <p className="cupon__nota">Válido en la primera compra. No se suma a otras promociones.</p> : null}
+
+      {/* Un solo aviso, siempre presente, para que los lectores de pantalla
+          oigan el resultado de aplicar, quitar o copiar. */}
+      <p className="visualmente-oculto" role="status" aria-live="polite">
+        {copiado
+          ? "Código copiado."
+          : aplicado
+            ? otraPromocion
+              ? mensajeDelCupon(estadoServidor!)
+              : `${cupon} aplicado. Ahorrás ${formatearPrecio(precio - conCupon)}.`
+            : ""}
+      </p>
     </section>
   );
 }

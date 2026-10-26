@@ -73,6 +73,15 @@ export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
     setListo(true);
   }, []);
 
+  // Si se aplica o se quita en otra pestaña, esta se entera.
+  useEffect(() => {
+    function alCambiar(evento: StorageEvent) {
+      if (evento.key === CLAVE_CUPON) setCupon(normalizarCodigo(evento.newValue) || null);
+    }
+    window.addEventListener("storage", alCambiar);
+    return () => window.removeEventListener("storage", alCambiar);
+  }, []);
+
   useEffect(() => {
     if (!listo) return;
     try {

@@ -394,7 +394,7 @@ export default function FichaProducto({
 
         {/* El beneficio de primera compra, junto al precio y antes de elegir:
             se ve sin buscarlo y se aplica con un toque. */}
-        <CuponBienvenida precio={producto.precio} />
+        <CuponBienvenida precio={producto.precio} estadoServidor={carritoResuelto?.cupon ?? null} />
 
         {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}
         {caracteristicas ? (

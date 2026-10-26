@@ -284,6 +284,17 @@ export default function FormularioCheckout({
     return () => observador.disconnect();
   }, [carrito]);
 
+  // Un aviso de error (por ejemplo, el cupón rechazado al pagar desde la barra
+  // fija) se lleva a la franja visible: en celular quedaba fuera de pantalla.
+  const avisoFallo = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const nodo = avisoFallo.current;
+    if (fallo && nodo) requestAnimationFrame(() => mostrarEntreCapasFijas(nodo));
+    // `mostrarEntreCapasFijas` solo mide el DOM: no es una dependencia real.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fallo]);
+
   function actualizar<K extends keyof DatosCliente>(campo: K, valor: DatosCliente[K]) {
     setForm((f) => ({ ...f, [campo]: valor }));
     setErrores((e) => ({ ...e, [campo]: undefined }));
@@ -600,6 +611,7 @@ export default function FormularioCheckout({
             <span>
               {productos} · <strong>{formatearPrecio(resumen.total)}</strong>
               {resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}
+              {resumen.descuento > 0 ? ` · ahorrás ${formatearPrecio(resumen.descuento)}` : ""}
             </span>
             <span className="checkout__ver">Ver detalle</span>
           </summary>
@@ -933,7 +945,7 @@ export default function FormularioCheckout({
         ) : null}
 
         {fallo ? (
-          <p role="alert" style={{ color: "var(--alerta)", fontSize: "0.8125rem" }}>
+          <p ref={avisoFallo} role="alert" style={{ color: "var(--alerta)", fontSize: "0.8125rem" }}>
             {fallo}
           </p>
         ) : null}
