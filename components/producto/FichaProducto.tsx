@@ -12,6 +12,8 @@ import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { useAvisoCookiesAbierto } from "@/components/AvisoCookies";
 import CtaFija from "./CtaFija";
 import ConsultaGraduados from "./ConsultaGraduados";
+import CuponBienvenida from "./CuponBienvenida";
+import { buscarCupon } from "@/lib/cupones";
 import OfertaCantidad from "./OfertaCantidad";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import type { Confianza } from "@/lib/confianza";
@@ -49,7 +51,7 @@ export default function FichaProducto({
   whatsapp?: string | null;
 }) {
   const router = useRouter();
-  const { items, agregar } = useCarrito();
+  const { items, agregar, cupon } = useCarrito();
   const [enTransicion, iniciarTransicion] = useTransition();
 
   const [indiceVariante, setIndiceVariante] = useState(
@@ -69,6 +71,10 @@ export default function FichaProducto({
   const unidadesEnCategoria = enCategoria.reduce((total, i) => total + i.cantidad, 0);
   // Lo que el servidor de verdad aplicó: "ya tenés el descuento" sale de acá.
   const descuentoAplicado = enCategoria.reduce((max, i) => Math.max(max, i.descuento), 0);
+  // Con el cupón aplicado (y salvo que el carrito ya tenga algo mejor), la
+  // promoción del segundo par no se anuncia: no se suman.
+  const cuponPorcentaje =
+    cupon && carritoResuelto?.cupon?.estado !== "no-conviene" ? (buscarCupon(cupon)?.porcentaje ?? 0) : 0;
 
   const fotos = useMemo(
     () => (variante.fotos.length > 0 ? variante.fotos : []),
@@ -386,6 +392,10 @@ export default function FichaProducto({
           {cuotaCondiciones ? <span className="cuotas-condiciones">{cuotaCondiciones}</span> : null}
         </div>
 
+        {/* El beneficio de primera compra, junto al precio y antes de elegir:
+            se ve sin buscarlo y se aplica con un toque. */}
+        <CuponBienvenida precio={producto.precio} />
+
         {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}
         {caracteristicas ? (
           <ul className="caracteristicas" aria-label="Características">
@@ -484,6 +494,7 @@ export default function FichaProducto({
           precioLista={producto.precio}
           cantidadEnCarrito={unidadesEnCategoria}
           descuentoAplicado={descuentoAplicado}
+          cuponPorcentaje={cuponPorcentaje}
         />
 
         {producto.incluye.length > 0 ? (

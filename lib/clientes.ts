@@ -29,6 +29,27 @@ async function buscarPorEmail(email: string) {
   return encontrados[0] ?? null;
 }
 
+/**
+ * Si ya hay una compra confirmada con este email o este DNI: lo que decide si
+ * el cupón de bienvenida corresponde. `Primera_compra` se escribe solo cuando
+ * Mercado Pago aprueba un pago (marcarCompra), así que un pedido pendiente o
+ * un pago rechazado no cuentan.
+ */
+export async function yaCompro(email: string, dni: string): Promise<boolean> {
+  const dniLimpio = dni.replace(/\D/g, "");
+  const consultas = [
+    listRecords<FilaCliente>(TABLAS.clientes, {
+      filterByFormula: `LOWER({Email}) = '${escaparFormula(email.trim().toLowerCase())}'`,
+      revalidate: 0,
+    }),
+    dniLimpio.length >= 7
+      ? listRecords<FilaCliente>(TABLAS.clientes, { filterByFormula: `{DNI} = '${escaparFormula(dniLimpio)}'`, revalidate: 0 })
+      : Promise.resolve([]),
+  ];
+  const encontrados = (await Promise.all(consultas)).flat();
+  return encontrados.some((c) => Boolean(c.fields.Primera_compra));
+}
+
 /** Crea o actualiza el cliente con los datos completos del checkout. */
 export async function guardarCliente(datos: DatosCliente): Promise<string> {
   const existente = await buscarPorEmail(datos.email);

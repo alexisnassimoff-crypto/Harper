@@ -22,6 +22,7 @@ import { validarCliente, type ErroresCliente } from "@/lib/validacion";
 import { useAvisoCookiesAbierto } from "@/components/AvisoCookies";
 import BarraPagar from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
+import CodigoDescuento from "./CodigoDescuento";
 import { PROVINCIAS } from "./provincias";
 import { useCotizacionEnvio } from "./useEnvio";
 
@@ -68,6 +69,8 @@ type RespuestaCheckout = {
   errores?: ErroresCliente & ErroresFacturacion;
   descartados?: { varianteId: string; motivo: string }[];
   totalNuevo?: number;
+  /** El cupón no corresponde (por ejemplo, no es la primera compra). */
+  cuponRechazado?: string;
 };
 
 const VACIO: DatosCliente = {
@@ -111,7 +114,7 @@ export default function FormularioCheckout({
   /** Verdadero si el servidor tiene Google Places: la dirección se busca. */
   buscador?: boolean;
 }) {
-  const { items, quitar } = useCarrito();
+  const { items, quitar, cupon, quitarCupon } = useCarrito();
   const {
     datos: carrito,
     cargando,
@@ -470,6 +473,8 @@ export default function FormularioCheckout({
           origen: origenParaElPedido(),
           // Para emitir la factura. No va a Mercado Pago ni a Meta.
           facturacion,
+          // Solo el código: cuánto descuenta lo calcula el servidor.
+          cupon,
         }),
       });
 
@@ -491,6 +496,16 @@ export default function FormularioCheckout({
       if (respuesta.status === 409 && cuerpo.descartados) {
         for (const d of cuerpo.descartados) quitar(d.varianteId);
         setFallo(cuerpo.error ?? "Tu carrito cambió: revisalo antes de pagar.");
+        setEnviando(false);
+        return;
+      }
+
+      // El cupón no corresponde (por ejemplo, ya hay una compra con ese email
+      // o DNI): se quita, el carrito se recalcula solo y ve el total real
+      // antes de pagar.
+      if (respuesta.status === 409 && cuerpo.cuponRechazado) {
+        quitarCupon();
+        setFallo(`${cuerpo.error ?? "El cupón no se pudo aplicar."} Revisá el total antes de pagar.`);
         setEnviando(false);
         return;
       }
@@ -887,6 +902,8 @@ export default function FormularioCheckout({
           {listaItems}
         </ul>
 
+        <CodigoDescuento estado={carrito.cupon ?? null} />
+
         {/* La cuenta se lee de arriba abajo: lista − descuento + envío = total. */}
         <div className="fila">
           <span className="apagado">Subtotal</span>
@@ -895,7 +912,7 @@ export default function FormularioCheckout({
 
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>Descuento</span>
+            <span>{carrito.cupon?.estado === "aplicado" ? `Cupón ${carrito.cupon.codigo}` : "Descuento"}</span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}
@@ -910,6 +927,10 @@ export default function FormularioCheckout({
           <span>Total</span>
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total)}</strong>
         </div>
+
+        {resumen.descuento > 0 ? (
+          <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.descuento)}!</p>
+        ) : null}
 
         {fallo ? (
           <p role="alert" style={{ color: "var(--alerta)", fontSize: "0.8125rem" }}>

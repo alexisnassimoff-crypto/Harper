@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { limpiarItems, resolverCarrito } from "@/lib/pedidos";
 import { sugerirParaCarrito } from "@/lib/sugerencias";
+import { buscarCupon } from "@/lib/cupones";
 
 export const dynamic = "force-dynamic";
 
@@ -19,16 +20,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
-  const items = (cuerpo as { items?: unknown })?.items;
+  const { items, cupon } = (cuerpo ?? {}) as { items?: unknown; cupon?: unknown };
 
   if (!Array.isArray(items)) {
     return NextResponse.json({ error: "Falta items" }, { status: 400 });
   }
 
-  const resuelto = await resolverCarrito(limpiarItems(items));
+  // El cupón se resuelve acá, en el servidor; si es de primera compra, eso lo
+  // comprueba el checkout, que es donde se sabe quién compra.
+  const resuelto = await resolverCarrito(limpiarItems(items), { cupon });
 
   // Las sugerencias no pueden romper el carrito: si fallan, se muestra igual.
-  const sugerencias = await sugerirParaCarrito(resuelto.items).catch((error) => {
+  const cuponAplicado = resuelto.cupon?.estado === "aplicado" ? (buscarCupon(resuelto.cupon.codigo)?.porcentaje ?? 0) : 0;
+  const sugerencias = await sugerirParaCarrito(resuelto.items, cuponAplicado).catch((error) => {
     console.error("[carrito] no se pudieron armar las sugerencias:", error);
     return [];
   });
@@ -44,6 +48,8 @@ export async function POST(request: Request) {
     envioCotizado: resuelto.envioCotizado,
     ahorro: resuelto.ahorro,
     tramos: resuelto.tramos,
+    cupon: resuelto.cupon,
+    subtotalSinCupon: resuelto.subtotalSinCupon,
     sugerencias,
   });
 }

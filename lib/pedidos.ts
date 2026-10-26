@@ -9,6 +9,7 @@ import {
   type ConfigTienda,
 } from "./config";
 import { buscarOpcion, correoConfigurado, cotizar } from "./correo";
+import { aplicarMejorPromocion, type CuponResuelto } from "./cupones";
 import {
   conDescuento,
   getTramos,
@@ -40,10 +41,17 @@ export type CarritoResuelto = {
   envioCotizado: boolean;
   /** La caja a despachar. `null` si falta peso o medidas, o si no entra en un bulto. */
   paquete: Paquete | null;
-  /** Lo que se ahorró por volumen. 0 si no llegó a ningún tramo. */
+  /**
+   * Lo que se ahorró: por volumen o con el cupón, el que se haya aplicado
+   * (nunca los dos). 0 si no hubo descuento.
+   */
   ahorro: number;
   /** Los tramos vigentes, para poder empujar al siguiente desde el carrito. */
   tramos: Tramo[];
+  /** Qué pasó con el cupón que mandó el navegador; null si no mandó ninguno. */
+  cupon: CuponResuelto | null;
+  /** El subtotal sin el cupón: la base del envío gratis, como siempre. */
+  subtotalSinCupon: number;
 };
 
 /** Tope por variante: evita que un bug o un curioso pida 9999 unidades. */
@@ -89,6 +97,8 @@ export async function resolverCarrito(
     paraCobrar?: boolean;
     cpDestino?: string;
     eleccion?: EleccionEnvio;
+    /** El código que escribió o aplicó el comprador (ver lib/cupones.ts). */
+    cupon?: unknown;
   } = {}
 ): Promise<CarritoResuelto> {
   // Para cobrar, las tres lecturas van sin cache y sin red de contención: si
@@ -101,7 +111,7 @@ export async function resolverCarrito(
     opciones.paraCobrar ? getTramosParaCobrar() : getTramos(),
   ]);
 
-  const items: ItemResuelto[] = [];
+  let items: ItemResuelto[] = [];
   const descartados: CarritoResuelto["descartados"] = [];
   const aEmpacar: ItemAEmpacar[] = [];
   const porCategoria = new Map<Categoria, number>();
@@ -173,6 +183,16 @@ export async function resolverCarrito(
     ahorro += (item.precioLista - item.precioUnitario) * item.cantidad;
   }
 
+  // El envío se calcula como siempre, con el subtotal sin el cupón: el cupón
+  // no cambia quién tiene envío gratis.
+  const subtotalParaEnvio = items.reduce((total, i) => total + i.subtotal, 0);
+
+  // El cupón y los descuentos por cantidad no se suman: queda el que le deje
+  // al comprador el total más bajo.
+  const promocion = aplicarMejorPromocion(items, opciones.cupon);
+  items = promocion.items;
+  if (promocion.cupon?.estado === "aplicado") ahorro = promocion.cupon.ahorro;
+
   const subtotal = items.reduce((total, i) => total + i.subtotal, 0);
   const paquete =
     items.length > 0
@@ -184,7 +204,7 @@ export async function resolverCarrito(
 
   const { envio, opcionesEnvio, envioCotizado } = await resolverEnvio({
     items: items.length,
-    subtotal,
+    subtotal: subtotalParaEnvio,
     config,
     paquete,
     cpDestino: opciones.cpDestino,
@@ -203,6 +223,8 @@ export async function resolverCarrito(
     paquete,
     ahorro,
     tramos,
+    cupon: promocion.cupon,
+    subtotalSinCupon: subtotalParaEnvio,
   };
 }
 

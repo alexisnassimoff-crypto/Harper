@@ -188,6 +188,8 @@ export type DatosMail = {
   facturacion?: FacturacionPedido | null;
   /** Los mismos datos, ya escritos, cuando quedaron en Notas del pedido. */
   lineasFacturacion?: string[] | null;
+  /** El cupón aplicado, por ejemplo "HARPER10 (−$ 8.990)"; null si no hubo. */
+  cupon?: string | null;
 };
 
 /**
@@ -273,6 +275,7 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
+${d.cupon ? `<p style="margin:8px 0 0;font-size:13px;color:#004226;">Cupón ${escaparHtml(d.cupon)}</p>` : ""}
 ${
   factura
     ? `
@@ -304,7 +307,7 @@ ${
   const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}
 
 ${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join("\n")}
-
+${d.cupon ? `Cupón ${d.cupon}\n` : ""}
 ${d.cliente.nombre}
 ${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} - CP ${d.cliente.cp}
 ${d.cliente.dni ? `DNI ${d.cliente.dni} - ` : ""}Tel ${d.cliente.telefono} - ${d.cliente.email}

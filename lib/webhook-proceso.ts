@@ -9,6 +9,7 @@ import {
 } from "./cerrojo";
 import { marcarCompra } from "./clientes";
 import { getConfig } from "./config";
+import { cuponDeNotas } from "./cupones";
 import { facturacionDeFila, lineasDeNotas } from "./facturacion";
 import {
   enviarMail as enviarMailReal,
@@ -104,6 +105,8 @@ export type FilaPedido = {
   Factura_domicilio?: string;
   /** Si faltaban los campos Factura_, los datos de una factura a CUIT quedan acá. */
   Notas?: string;
+  /** El cupón aplicado, por ejemplo "HARPER10 (−$ 8.990)". */
+  Cupon?: string;
 };
 
 type FilaCliente = {
@@ -536,6 +539,7 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       sitio: deps.sitio,
       facturacion: facturacionDeFila(pedido.fields),
       lineasFacturacion: lineasDeNotas(pedido.fields.Notas),
+      cupon: pedido.fields.Cupon || cuponDeNotas(pedido.fields.Notas),
     };
 
     const datos = datosMail;

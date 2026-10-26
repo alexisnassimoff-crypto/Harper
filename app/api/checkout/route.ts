@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createRecord, ErrorAirtable, esErrorPermanente, TABLAS, updateRecord } from "@/lib/airtable";
-import { guardarCliente } from "@/lib/clientes";
+import { guardarCliente, yaCompro } from "@/lib/clientes";
 import { getConfig } from "@/lib/config";
+import { buscarCupon, constanciaDelCupon, mensajeDelCupon } from "@/lib/cupones";
 import {
   camposDeFacturacion,
   ENCABEZADO_NOTAS,
@@ -12,6 +13,7 @@ import {
   normalizarFacturacion,
   validarFacturacion,
 } from "@/lib/facturacion";
+import { precio as formatearPrecio } from "@/lib/formato";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
 import { leerEleccionEnvio, nombreModo, nombreServicio } from "@/lib/envio-elegido";
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
     totalVisto?: unknown;
     origen?: unknown;
     facturacion?: unknown;
+    cupon?: unknown;
   };
 
   try {
@@ -84,6 +87,7 @@ export async function POST(request: Request) {
       paraCobrar: true,
       cpDestino: cliente.cp,
       eleccion,
+      cupon: cuerpo.cupon,
     });
 
     if (carrito.items.length === 0) {
@@ -100,6 +104,24 @@ export async function POST(request: Request) {
         {
           error: "Tu carrito cambió: revisalo antes de pagar.",
           descartados: carrito.descartados,
+        },
+        { status: 409 }
+      );
+    }
+
+    // El cupón de bienvenida es para la primera compra: se mira si este email o
+    // este DNI ya tienen una compra confirmada. Si la tienen, no se cobra nada
+    // distinto de lo que vio: se le avisa y decide (el carrito se recalcula
+    // sin el cupón).
+    if (
+      carrito.cupon?.estado === "aplicado" &&
+      buscarCupon(carrito.cupon.codigo)?.soloPrimeraCompra &&
+      (await yaCompro(cliente.email, cliente.dni))
+    ) {
+      return NextResponse.json(
+        {
+          error: mensajeDelCupon({ ...carrito.cupon, estado: "no-primera-compra" }),
+          cuponRechazado: carrito.cupon.codigo,
         },
         { status: 409 }
       );
@@ -156,7 +178,8 @@ export async function POST(request: Request) {
       Terminos_aceptados: registroAceptacion(ahora),
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     };
-    const pedido = await crearPedido(campos, factura);
+    const cupon = carrito.cupon?.estado === "aplicado" ? constanciaDelCupon(carrito.cupon, formatearPrecio) : null;
+    const pedido = await crearPedido(campos, factura, cupon);
 
     pedidoId = pedido.id;
 
@@ -195,20 +218,29 @@ export async function POST(request: Request) {
 }
 
 /**
- * Crea el pedido con sus datos de facturación. Si Airtable rechaza el pedido
- * con esos campos (porque faltan o alguien los cambió), la venta no se frena:
- * se crea como antes, sin ellos. Si la factura va a un CUIT, sus datos quedan
- * en Notas y el aviso interno los lee de ahí. Si el rechazo era por otra cosa,
- * el segundo intento falla igual que antes de este cambio.
+ * Crea el pedido con sus datos de facturación y el cupón. Si Airtable rechaza
+ * el pedido con esos campos (porque faltan o alguien los cambió), la venta no
+ * se frena: se crea como antes, sin ellos. Si la factura va a un CUIT o hubo
+ * cupón, eso queda en Notas y el aviso interno lo lee de ahí. Si el rechazo
+ * era por otra cosa, el segundo intento falla igual que antes de este cambio.
  */
-async function crearPedido(campos: FilaPedido, factura: FacturacionPedido) {
+async function crearPedido(campos: FilaPedido, factura: FacturacionPedido, cupon: string | null) {
   try {
-    return await createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...camposDeFacturacion(factura) });
+    return await createRecord<FilaPedido>(TABLAS.pedidos, {
+      ...campos,
+      ...camposDeFacturacion(factura),
+      ...(cupon ? { Cupon: cupon } : {}),
+    });
   } catch (error) {
     if (!(error instanceof ErrorAirtable && error.status === 422)) throw error;
-    console.error("[checkout] Pedidos rechazó los datos de facturación; el pedido se crea sin esos campos:", error.message);
-    const notas = factura.cuit ? { Notas: `${ENCABEZADO_NOTAS}\n${lineasDeFacturacion(factura).join("\n")}` } : {};
-    return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...notas });
+    console.error("[checkout] Pedidos rechazó los campos de facturación o de cupón; el pedido se crea sin ellos:", error.message);
+    // Lo que se pierda de esos campos queda en Notas: la facturación primero
+    // (el aviso interno la lee de ahí) y el cupón aparte.
+    const notas = [
+      factura.cuit ? `${ENCABEZADO_NOTAS}\n${lineasDeFacturacion(factura).join("\n")}` : null,
+      cupon ? `Cupón: ${cupon}` : null,
+    ].filter(Boolean);
+    return createRecord<FilaPedido>(TABLAS.pedidos, { ...campos, ...(notas.length ? { Notas: notas.join("\n\n") } : {}) });
   }
 }
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ItemResuelto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import type { Sugerencia } from "@/lib/sugerencias";
+import type { CuponResuelto } from "@/lib/cupones";
 import { useCarrito } from "./CarritoContexto";
 
 export type CarritoResueltoCliente = {
@@ -15,8 +16,12 @@ export type CarritoResueltoCliente = {
   envioGratisDesde: number;
   /** Falso cuando `envio` es la tarifa plana de respaldo, no una cotización. */
   envioCotizado: boolean;
-  /** Lo que se ahorró por volumen. 0 si no llegó a ningún tramo. */
+  /** Lo que se ahorró: por volumen o con el cupón (nunca los dos). */
   ahorro: number;
+  /** Qué pasó con el cupón aplicado; null si no hay. */
+  cupon: CuponResuelto | null;
+  /** El subtotal sin el cupón: la base del envío gratis. */
+  subtotalSinCupon: number;
   /** Los tramos vigentes, para poder empujar al siguiente. */
   tramos: Tramo[];
   /** Lo que le falta al carrito, según lo que ya eligió. */
@@ -39,7 +44,7 @@ export type CarritoResueltoCliente = {
  *    reintentar.
  */
 export function useCarritoResuelto() {
-  const { items, listo, quitar } = useCarrito();
+  const { items, listo, quitar, cupon } = useCarrito();
   const [datos, setDatos] = useState<CarritoResueltoCliente | null>(null);
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(false);
@@ -71,7 +76,7 @@ export function useCarritoResuelto() {
     fetch("/api/carrito/resolver", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, cupon }),
       signal: controlador.signal,
     })
       .then((r) => {
@@ -95,7 +100,7 @@ export function useCarritoResuelto() {
 
     return () => controlador.abort();
     // `quitar` es estable (useCallback) y `items` cambia por contenido.
-  }, [items, listo, quitar, intento]);
+  }, [items, listo, quitar, intento, cupon]);
 
   return { datos, cargando: cargando || !listo, actualizando, error, recargar };
 }

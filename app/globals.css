@@ -714,6 +714,174 @@ p {
 
 /* La promoción del segundo par: una línea sobria, sin tabla ni insignias.
    El detalle va en un gris que cumple contraste AA sobre el fondo de la caja. */
+/* ---------- Cupón de bienvenida (ficha) y código de descuento (checkout) ----------
+   Un bloque sobrio, con la identidad de Harper: no es un cartel de liquidación. */
+.cupon {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.95rem 1.1rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--verde) 22%, var(--borde));
+  border-radius: var(--radio);
+  background: color-mix(in srgb, var(--verde) 4%, var(--fondo));
+}
+.cupon__titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--verde);
+}
+.cupon__texto {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--texto-suave);
+}
+.cupon__texto strong {
+  color: var(--texto);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.cupon__form {
+  display: flex;
+  gap: 0.5rem;
+}
+.cupon__campo {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.cupon__campo input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 2.6rem 0 1rem;
+  border: 1px dashed color-mix(in srgb, var(--verde) 45%, var(--borde));
+  border-radius: var(--radio-pill);
+  background: var(--fondo);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.cupon__campo input:focus {
+  outline: none;
+  border-style: solid;
+  border-color: var(--verde);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--verde) 14%, transparent);
+}
+.cupon__campo[data-error="true"] input {
+  border-color: var(--alerta);
+}
+.cupon__copiar {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--texto-suave);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.cupon__copiar:hover,
+.cupon__copiar:focus-visible {
+  color: var(--verde);
+  background: color-mix(in srgb, var(--verde) 8%, transparent);
+}
+.cupon__aplicar {
+  flex-shrink: 0;
+  min-height: 2.75rem;
+  padding: 0 1.3rem;
+  border: 1px solid var(--verde);
+  border-radius: var(--radio-pill);
+  background: var(--verde);
+  color: var(--sobre-acento);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--rapido) var(--curva);
+}
+.cupon__aplicar:hover,
+.cupon__aplicar:focus-visible {
+  background: var(--verde-claro);
+}
+.cupon__aplicar:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.cupon__aplicado {
+  display: grid;
+  gap: 0.25rem;
+}
+.cupon__ok {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--verde);
+}
+.cupon__quitar {
+  margin-left: auto;
+  padding: 0.25rem 0;
+  border: 0;
+  background: none;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+.cupon__ahorro {
+  font-size: 0.9375rem;
+}
+.cupon__ahorro strong {
+  font-weight: 600;
+}
+.cupon__nota {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+.cupon__error {
+  font-size: 0.75rem;
+  color: var(--alerta);
+}
+/* En el checkout y el carrito: un campo discreto, sin el bloque de la ficha. */
+.codigo-descuento {
+  display: grid;
+  gap: 0.45rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--borde);
+}
+.codigo-descuento__etiqueta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.ahorro-total {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--verde);
+  text-align: right;
+}
+
 .oferta-cantidad {
   padding: 0.8rem 1.1rem;
   border: 1px solid var(--borde);
