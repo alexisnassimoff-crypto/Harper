@@ -1,15 +1,18 @@
 "use client";
 
 import { useRef } from "react";
-import { nombreMedalla, textoVentas, type OpinionesML, type ReputacionML } from "@/lib/ml-resenas";
+import { textoVentas, type OpinionesML, type ReputacionML } from "@/lib/ml-resenas";
 import Estrellas, { formatearPuntaje } from "./Estrellas";
 
 const MES = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" });
 
 /**
- * Lo que dicen quienes compraron anteojos Harper en Mercado Libre, y la
- * reputación de Harper como vendedor allá. Todo viene de la API de Mercado
- * Libre (lib/ml-resenas-servidor.ts); si no hay nada, la sección no aparece.
+ * Lo que dicen quienes compraron anteojos Harper, y cuánto vende Harper. Son
+ * las opiniones y las cifras reales de la cuenta de Harper en Mercado Libre
+ * (lib/ml-resenas-servidor.ts), pero en la página no se nombra a Mercado
+ * Libre: Ale no quiere decir que vende por ahí. Por eso no va la medalla de
+ * MercadoLíder ni el termómetro, que son de Mercado Libre. Si no hay nada, la
+ * sección no aparece.
  */
 export default function Opiniones({
   opiniones,
@@ -62,8 +65,8 @@ export default function Opiniones({
           <span className="pila" style={{ gap: "0.15rem" }}>
             <Estrellas puntaje={opiniones.promedio} tamano={18} />
             <span className="apagado" style={{ fontSize: "0.8125rem" }}>
-              {opiniones.total.toLocaleString("es-AR")} {opiniones.total === 1 ? "opinión" : "opiniones"} de anteojos Harper
-              en Mercado Libre
+              {opiniones.total.toLocaleString("es-AR")} {opiniones.total === 1 ? "opinión" : "opiniones"} de compradores de
+              anteojos Harper
             </span>
           </span>
         </p>
@@ -83,29 +86,15 @@ export default function Opiniones({
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="m5 12.5 4.5 4.5L19 7.5" />
                 </svg>
-                Compra verificada en Mercado Libre
+                Compra verificada
               </span>
             </li>
           ))}
         </ul>
       ) : null}
 
-      {reputacion ? (
+      {reputacion && (reputacion.ventas > 0 || reputacion.positivas !== null) ? (
         <div className="vendedor">
-          <p className="vendedor__titulo">Harper en Mercado Libre</p>
-          {reputacion.medalla ? (
-            <p className="vendedor__medalla">
-              <span className="vendedor__punto" aria-hidden="true" />
-              {nombreMedalla(reputacion.medalla)}
-            </p>
-          ) : null}
-          {reputacion.nivel ? (
-            <span className="vendedor__termometro" role="img" aria-label={`Reputación ${reputacion.nivel} de 5`}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <span key={n} data-nivel={n} data-activo={n === reputacion.nivel || undefined} />
-              ))}
-            </span>
-          ) : null}
           <dl className="vendedor__datos">
             {reputacion.ventas > 0 ? (
               <div>

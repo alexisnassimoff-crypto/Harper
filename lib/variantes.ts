@@ -13,7 +13,9 @@ import type { Producto } from "./tipos";
  * Si la URL pide un color —por SKU o por ID— y existe, manda ese aunque esté
  * agotado: el visitante tocó exactamente ese color en la grilla y tiene que
  * ver que no hay, no otro color distinto sin explicación. Si no pide ninguno,
- * el primero con stock; si están todos agotados, el primero.
+ * el primero con stock que tenga foto de portada (la de al sol y adentro, la
+ * que explica el producto); si ninguno la tiene, el primero con stock; si
+ * están todos agotados, el primero.
  */
 export function indiceVarianteInicial(producto: Producto, color?: string | null): number {
   const pedido = color?.trim().toLowerCase();
@@ -24,6 +26,9 @@ export function indiceVarianteInicial(producto: Producto, color?: string | null)
     );
     if (indice >= 0) return indice;
   }
+
+  const conPortada = producto.variantes.findIndex((v) => !v.agotada && Boolean(v.fotoPortada?.trim()));
+  if (conPortada >= 0) return conPortada;
 
   return Math.max(0, producto.variantes.findIndex((v) => !v.agotada));
 }

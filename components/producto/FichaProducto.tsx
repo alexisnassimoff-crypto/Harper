@@ -13,6 +13,7 @@ import CuponBienvenida from "./CuponBienvenida";
 import { buscarCupon } from "@/lib/cupones";
 import OfertaCantidad from "./OfertaCantidad";
 import { caracteristicasDe } from "@/lib/caracteristicas";
+import { parrafosDe } from "@/lib/descripcion";
 import type { Confianza } from "@/lib/confianza";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
@@ -154,6 +155,7 @@ export default function FichaProducto({
   // Qué se compra, dicho arriba: solo en los modelos con las características
   // confirmadas (lib/caracteristicas.ts).
   const caracteristicas = caracteristicasDe(producto);
+  const parrafos = parrafosDe(producto.descripcion);
 
   return (
     <div className="contenedor ficha-producto">
@@ -358,10 +360,14 @@ export default function FichaProducto({
           </section>
         ) : null}
 
-        {producto.descripcion ? (
+        {parrafos.length > 0 ? (
           <section className="pila ficha-producto__bloque">
             <h2 className="label">Descripción</h2>
-            <p style={{ maxWidth: "34rem", fontSize: "0.9375rem" }}>{producto.descripcion}</p>
+            <div className="descripcion">
+              {parrafos.map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
           </section>
         ) : null}
       </div>

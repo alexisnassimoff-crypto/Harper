@@ -25,8 +25,9 @@ export type RegistroFixture = {
 
 const CREADO = "2026-08-23T21:35:20.000Z";
 
+/** Dos renglones: la ficha y la portada los muestran como dos párrafos. */
 const DESCRIPCION_ANTEOJOS =
-  "Anteojos con filtro de luz azul y cristales fotocromáticos. Marco liviano con el logo Harper en hot printing plata. Incluyen estuche rígido Harper con paño de microfibra.";
+  "Anteojos con filtro de luz azul y cristales fotocromáticos.\nMarco liviano con el logo Harper en hot printing plata. Incluyen estuche rígido Harper con paño de microfibra.";
 
 function producto(
   id: string,

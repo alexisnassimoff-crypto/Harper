@@ -12,6 +12,7 @@ import CtaFija from "@/components/producto/CtaFija";
 import CuponBienvenida from "@/components/producto/CuponBienvenida";
 import Galeria from "@/components/producto/Galeria";
 import { caracteristicasDe } from "@/lib/caracteristicas";
+import { parrafosDe } from "@/lib/descripcion";
 import { buscarCupon, CUPON_BIENVENIDA } from "@/lib/cupones";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { conDescuento, type Tramo } from "@/lib/descuentos";
@@ -69,8 +70,9 @@ export default function CompraPortada({
   /** El estuche que se ofrece sumar, o null si no hay. */
   estuche: Producto | null;
   /**
-   * Las opiniones de Mercado Libre de todos los anteojos Harper (no solo de
-   * este modelo: así se dice), resumidas; null si no hay.
+   * Las opiniones de todos los anteojos Harper (no solo de este modelo: así
+   * se dice), resumidas; null si no hay. Salen de Mercado Libre, pero no se
+   * lo nombra.
    */
   calificacion: { promedio: number; total: number } | null;
   garantias: Garantia[];
@@ -132,6 +134,7 @@ export default function CompraPortada({
 
   const sinStock = colores.some((c) => c < 0) || (conEstuche && (!varianteEstuche || varianteEstuche.agotada));
   const caracteristicas = caracteristicasDe(producto);
+  const parrafos = parrafosDe(producto.descripcion);
 
   // Las variantes elegidas, agrupadas: dos pares negros son un renglón de 2.
   function lineas() {
@@ -293,7 +296,7 @@ export default function CompraPortada({
             <Estrellas puntaje={calificacion.promedio} />
             <span>
               {formatearPuntaje(calificacion.promedio)} · {calificacion.total.toLocaleString("es-AR")}{" "}
-              {calificacion.total === 1 ? "opinión" : "opiniones"} de anteojos Harper en Mercado Libre
+              {calificacion.total === 1 ? "opinión" : "opiniones"} de anteojos Harper
             </span>
           </a>
         ) : null}
@@ -557,6 +560,19 @@ export default function CompraPortada({
         {caracteristicas ? <ConsultaGraduados modelo={producto.nombre} whatsapp={whatsapp} /> : null}
 
         <Garantias garantias={garantias} />
+
+        {parrafos.length > 0 ? (
+          <section className="pila ficha-producto__bloque" aria-labelledby="portada-descripcion">
+            <h2 id="portada-descripcion" className="label">
+              Sobre {producto.nombre}
+            </h2>
+            <div className="descripcion">
+              {parrafos.map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
 
       {/* Con otros productos en el carrito la barra no aparece: su precio sería
