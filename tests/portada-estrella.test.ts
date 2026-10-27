@@ -33,7 +33,7 @@ test("las preguntas dicen solo lo confirmado", () => {
   assert.ok(!preguntas.some((p) => p.pregunta.includes("incluye")), "sin Incluye cargado no se pregunta");
   assert.equal(
     texto("¿Qué tienen"),
-    "Filtro de luz azul, cristales fotocromáticos que se adaptan a la luz solar y armazón apto para colocar cristales con aumento."
+    "Filtro de luz azul, cristales fotocromáticos que se adaptan a la luz solar, protección UV400 contra los rayos UVA y UVB y armazón apto para colocar cristales con aumento."
   );
   assert.match(texto("¿Les puedo poner"), /Harper no vende cristales graduados; si tenés dudas, consultanos por WhatsApp/);
   assert.match(texto("¿Cómo puedo pagar"), /6 cuotas sin interés con Visa y Mastercard \(CFTEA 0,00 %\)/);

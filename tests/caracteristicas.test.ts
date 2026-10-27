@@ -2,16 +2,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CARACTERISTICAS_ANTEOJOS, caracteristicasDe, RESUMEN_ANTEOJOS } from "../lib/caracteristicas";
 
-test("los cuatro modelos confirmados tienen las tres características y la línea corta", () => {
+test("los cuatro modelos confirmados tienen sus cuatro características y la línea corta", () => {
   for (const slug of ["amatista", "obsidiana", "cuarzo", "citrino"]) {
     const c = caracteristicasDe({ slug, categoria: "Anteojos" });
     assert.ok(c, slug);
     assert.deepEqual([...c.lista], [
       "Filtro de luz azul",
       "Cristales fotocromáticos que se adaptan a la luz solar",
+      "Protección UV400 contra los rayos UVA y UVB",
       "Armazón apto para colocar cristales con aumento",
     ]);
-    assert.equal(c.resumen, "Filtro azul · Fotocromáticos");
+    assert.equal(c.resumen, "Filtro azul · Fotocromáticos · UV400");
   }
   // Tolera mayúsculas o espacios en el slug de Airtable.
   assert.ok(caracteristicasDe({ slug: " Citrino ", categoria: "Anteojos" }));
