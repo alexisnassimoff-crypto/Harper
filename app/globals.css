@@ -432,6 +432,20 @@ p {
     box-shadow var(--rapido) var(--curva);
 }
 
+/* La raya de "agotado" sobre el color (ficha y portada). */
+.swatch__agotado {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--texto);
+}
+.swatch--chico .swatch__agotado {
+  font-size: 1.2rem;
+}
+
 .swatch:hover:not(:disabled) {
   transform: scale(1.12);
   box-shadow: var(--sombra-media);
@@ -2696,10 +2710,12 @@ p {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
+/* Abajo deja lugar para el globo de WhatsApp, que flota en la esquina en
+   todos los anchos: la línea de datos del vendedor no queda debajo. */
 .pie__legal {
   display: grid;
   gap: 0.9rem;
-  padding-block: 1.75rem 2rem;
+  padding-block: 1.75rem 5.5rem;
   border-top: 1px solid rgb(255 255 255 / 0.18);
 }
 /* Los sellos de pago y el Data Fiscal, en una fila que baja si no entra. */
@@ -2745,12 +2761,6 @@ p {
 }
 .pie__sin-corte {
   white-space: nowrap;
-}
-@media (max-width: 46rem) {
-  /* El globo de WhatsApp flota abajo a la derecha: los datos no se meten debajo. */
-  .pie__legal {
-    padding-bottom: 5.5rem;
-  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -3149,6 +3159,9 @@ p {
   height: 0.5rem;
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--tinta) 15%, transparent);
+}
+.modelo__colores span[data-agotada] {
+  opacity: 0.3;
 }
 
 /* Estrellas: la fila llena se recorta encima de la vacía. */

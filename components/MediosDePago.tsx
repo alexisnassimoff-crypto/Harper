@@ -28,7 +28,8 @@ function Sello({ nombre, fondo, children }: { nombre: string; fondo: string; chi
 
 export default function MediosDePago({ className }: { className?: string }) {
   return (
-    <ul className={className} aria-label="Medios de pago">
+    // role="list": Safari no anuncia como lista una <ul> sin viñetas.
+    <ul className={className} aria-label="Medios de pago" role="list">
       <Sello nombre="Mercado Pago" fondo="#009EE3">
         <svg x="9" y="3" width="28" height="24" viewBox="0 0 24 24">
           <path d={MERCADO_PAGO} fill="#fff" />

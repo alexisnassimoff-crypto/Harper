@@ -249,18 +249,7 @@ export default function FichaProducto({
                     </span>
                   ) : null}
                   {v.agotada ? (
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        display: "grid",
-                        placeItems: "center",
-                        fontSize: "1.5rem",
-                        lineHeight: 1,
-                        color: "var(--texto)",
-                      }}
-                    >
+                    <span className="swatch__agotado" aria-hidden="true">
                       ⁄
                     </span>
                   ) : null}

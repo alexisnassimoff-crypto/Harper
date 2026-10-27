@@ -135,6 +135,7 @@ export default function CompraPortada({
   const sinStock = colores.some((c) => c < 0) || (conEstuche && (!varianteEstuche || varianteEstuche.agotada));
   const caracteristicas = caracteristicasDe(producto);
   const parrafos = parrafosDe(producto.descripcion);
+  const agotados = producto.variantes.filter((v) => v.agotada);
 
   // Las variantes elegidas, agrupadas: dos pares negros son un renglón de 2.
   function lineas() {
@@ -276,11 +277,9 @@ export default function CompraPortada({
                 </span>
                 <span className="modelo__nombre">{m.nombre}</span>
                 <span className="modelo__colores" aria-hidden="true">
-                  {m.variantes
-                    .filter((v) => !v.agotada)
-                    .map((v) => (
-                      <span key={v.id} style={{ background: v.colorHex }} />
-                    ))}
+                  {m.variantes.map((v) => (
+                    <span key={v.id} style={{ background: v.colorHex }} data-agotada={v.agotada || undefined} />
+                  ))}
                 </span>
               </button>
             ))}
@@ -412,18 +411,27 @@ export default function CompraPortada({
                 <div className="par__colores">
                   {variantes.map((v, i) => {
                     const sinStock = v.agotada || v.stock <= (otros.get(i) ?? 0);
+                    // Agotado (Stock 0 en Airtable) no es lo mismo que "ya lo
+                    // eligieron los otros pares": el agotado va tachado.
+                    const estado = v.agotada ? "agotado" : sinStock ? "sin stock" : "";
                     return (
                       <button
                         key={v.id}
                         type="button"
                         className="swatch swatch--chico"
                         aria-pressed={i === elegido}
-                        aria-label={`${cantidad > 1 ? `Par ${par + 1}: ` : ""}${v.color}${sinStock ? ", sin stock" : ""}`}
-                        title={sinStock ? `${v.color} — sin stock` : v.color}
+                        aria-label={`${cantidad > 1 ? `Par ${par + 1}: ` : ""}${v.color}${estado ? `, ${estado}` : ""}`}
+                        title={estado ? `${v.color} — ${estado}` : v.color}
                         disabled={sinStock}
                         onClick={() => elegirColor(par, i)}
                         style={{ background: v.colorHex, opacity: sinStock ? 0.35 : 1 }}
-                      />
+                      >
+                        {v.agotada ? (
+                          <span className="swatch__agotado" aria-hidden="true">
+                            ⁄
+                          </span>
+                        ) : null}
+                      </button>
                     );
                   })}
                 </div>
@@ -431,6 +439,12 @@ export default function CompraPortada({
             );
           })}
         </div>
+
+        {agotados.length > 0 ? (
+          <p className="apagado" style={{ fontSize: "0.8125rem", marginTop: "-0.35rem" }}>
+            Agotado: {agotados.map((v) => v.color).join(", ")}.
+          </p>
+        ) : null}
 
         {/* ---------- El estuche, opcional ---------- */}
         {estuche && conElEstuche.precioExtra !== null ? (
