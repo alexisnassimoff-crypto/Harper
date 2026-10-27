@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import Logo from "./Logo";
 import { useCarrito } from "./carrito/CarritoContexto";
 
@@ -13,10 +14,11 @@ const POR_DEFECTO = [
 ];
 
 export default function Header({
-  banner,
+  anuncios = [],
   categorias,
 }: {
-  banner?: string;
+  /** Los mensajes de la barra verde (lib/anuncios.ts). Uno queda fijo; varios pasan. */
+  anuncios?: string[];
   /** Las categorías con productos publicados, en orden (lib/categorias.ts). */
   categorias?: { nombre: string; slug: string }[];
 }) {
@@ -26,23 +28,47 @@ export default function Header({
   }));
   const { unidades, listo } = useCarrito();
   const pathname = usePathname();
+  const [anunciosPausados, setAnunciosPausados] = useState(false);
 
   return (
     <>
-      {banner ? (
+      {anuncios.length === 1 ? (
+        <div className="anuncios">
+          <p className="anuncios__fijo">{anuncios[0]}</p>
+        </div>
+      ) : anuncios.length > 1 ? (
+        // Pasan de derecha a izquierda, en una cinta que se repite: la segunda
+        // copia es solo para que la vuelta no tenga un hueco. Se pueden frenar
+        // con el botón del costado (en celular no hay "pasar el mouse").
         <div
-          style={{
-            background: "var(--verde)",
-            color: "var(--hueso)",
-            textAlign: "center",
-            padding: "0.6rem 1rem",
-            fontSize: "0.6875rem",
-            fontWeight: 600,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-          }}
+          className="anuncios"
+          data-pausado={anunciosPausados || undefined}
+          style={{ "--anuncios-duracion": `${anuncios.length * 7}s` } as React.CSSProperties}
         >
-          {banner}
+          <div className="anuncios__pista">
+            <ul className="anuncios__grupo">
+              {anuncios.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+            <ul className="anuncios__grupo" aria-hidden="true">
+              {anuncios.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+          </div>
+          <button
+            type="button"
+            className="anuncios__pausa"
+            // Botón de dos estados: la etiqueta queda fija y aria-pressed dice si está en pausa.
+            aria-label="Pausar los anuncios"
+            aria-pressed={anunciosPausados}
+            onClick={() => setAnunciosPausados((p) => !p)}
+          >
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
+              {anunciosPausados ? <path d="M8 5.5v13l11-6.5z" /> : <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />}
+            </svg>
+          </button>
         </div>
       ) : null}
 

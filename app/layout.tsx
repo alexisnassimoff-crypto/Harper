@@ -12,7 +12,9 @@ import { DESCRIPCION_SITIO, TITULO_SITIO } from "@/lib/portada";
 import "./globals.css";
 import AvisoCookies from "@/components/AvisoCookies";
 import { getProductos } from "@/lib/catalogo";
-import { categoriasConProductos } from "@/lib/categorias";
+import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
+import { anunciosDelHeader } from "@/lib/anuncios";
+import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 
 const raleway = Raleway({
   subsets: ["latin"],
@@ -67,6 +69,13 @@ export default async function RootLayout({
   // El menú y el pie muestran solo las categorías con productos publicados:
   // las previstas (sol, Clip-On, receta) aparecen solas cuando tengan.
   const categorias = categoriasConProductos(productos).map((c) => ({ nombre: c.nombre, slug: c.slug }));
+  // La barra de arriba anuncia las cuotas solo si Mercado Pago las confirma
+  // para el anteojo más barato; si tarda, sale sin ellas.
+  const cuotas = await conEspera(
+    verificarCuotasPara(productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio)),
+    2_000,
+    null
+  );
 
   // Identidad del negocio para Google: es de donde sale el panel de marca en
   // los resultados, y el buscador interno del sitio.
@@ -126,7 +135,7 @@ export default async function RootLayout({
           <a className="saltar-al-contenido" href="#contenido">
             Saltar al contenido
           </a>
-          <Header banner={config.bannerTexto} categorias={categorias} />
+          <Header anuncios={anunciosDelHeader({ banner: config.bannerTexto, cuotas })} categorias={categorias} />
           <main id="contenido" tabIndex={-1}>
             <TransicionDePagina>{children}</TransicionDePagina>
           </main>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
-import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO } from "@/lib/confianza";
+import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA } from "@/lib/confianza";
 
 export const metadata: Metadata = {
   title: "Cambios y devoluciones",
@@ -53,7 +53,7 @@ export default async function Devoluciones() {
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Garantía</h2>
       <p>
-        Todos nuestros productos cuentan con 6 meses de garantía legal por
+        Todos nuestros productos cuentan con {MESES_GARANTIA} meses de garantía legal por
         defectos o fallas que afecten su funcionamiento, desde que los recibís,
         sin costo para vos.
       </p>

@@ -17,10 +17,20 @@ import { precio as formatearPrecio } from "@/lib/formato";
 export default function CuponBienvenida({
   precio,
   estadoServidor,
+  compra = null,
 }: {
   precio: number;
   /** Lo que el servidor resolvió para el carrito actual (null si está vacío). */
   estadoServidor: CuponResuelto | null;
+  /**
+   * En la portada, lo que pasa con el cupón en la compra elegida (un pack de
+   * varios pares, quizá con estuche), con la misma cuenta del carrito
+   * (lib/packs.ts): si se aplica, cuánto ahorra y cuánto se paga en total; si
+   * no, qué promoción se aplica en su lugar. Sin esto (la ficha), una unidad.
+   * "carrito": el carrito ya tiene otros productos, así que lo que pase con
+   * el cupón depende de todo el carrito y recién lo sabe el checkout.
+   */
+  compra?: { conCupon: boolean; porcentaje: number; ahorro: number; total: number } | "carrito" | null;
 }) {
   const { cupon, aplicarCupon, quitarCupon, listo } = useCarrito();
   const [codigo, setCodigo] = useState(CUPON_BIENVENIDA.codigo);
@@ -33,8 +43,21 @@ export default function CuponBienvenida({
   const campo = useRef<HTMLInputElement>(null);
 
   const aplicado = listo && cupon === CUPON_BIENVENIDA.codigo;
-  const conCupon = precioConCupon(precio);
-  const otraPromocion = aplicado && estadoServidor?.codigo === cupon && estadoServidor.estado !== "aplicado";
+  const delCarrito = compra === "carrito";
+  const deLaCompra = compra && compra !== "carrito" ? compra : null;
+  const conCupon = deLaCompra ? deLaCompra.total : precioConCupon(precio);
+  const ahorro = deLaCompra ? deLaCompra.ahorro : precio - conCupon;
+  const otraPromocion = delCarrito
+    ? false
+    : deLaCompra
+      ? aplicado && !deLaCompra.conCupon
+      : aplicado && estadoServidor?.codigo === cupon && estadoServidor.estado !== "aplicado";
+  const notaOtraPromocion = !otraPromocion
+    ? null
+    : deLaCompra
+      ? `En esta compra se aplica el ${deLaCompra.porcentaje}% OFF por cantidad: ${cupon} no se suma.`
+      : mensajeDelCupon(estadoServidor!);
+  const notaDelCarrito = `En el checkout se aplica si es la mejor promoción para todo tu carrito.`;
 
   useEffect(() => {
     if (enfocar === "quitar") botonQuitar.current?.focus();
@@ -90,12 +113,14 @@ export default function CuponBienvenida({
               Quitar
             </button>
           </p>
-          {otraPromocion ? (
-            <p className="cupon__nota">{mensajeDelCupon(estadoServidor!)}</p>
+          {delCarrito ? (
+            <p className="cupon__nota">{notaDelCarrito}</p>
+          ) : otraPromocion ? (
+            <p className="cupon__nota">{notaOtraPromocion}</p>
           ) : (
             <>
               <p className="cupon__ahorro">
-                Ahorrás {formatearPrecio(precio - conCupon)} · Pagás <strong>{formatearPrecio(conCupon)}</strong>
+                Ahorrás {formatearPrecio(ahorro)} · Pagás <strong>{formatearPrecio(conCupon)}</strong>
               </p>
               <p className="cupon__nota">Queda aplicado en el carrito y en el checkout.</p>
             </>
@@ -141,9 +166,11 @@ export default function CuponBienvenida({
         {copiado
           ? "Código copiado."
           : aplicado
-            ? otraPromocion
-              ? mensajeDelCupon(estadoServidor!)
-              : `${cupon} aplicado. Ahorrás ${formatearPrecio(precio - conCupon)}.`
+            ? delCarrito
+              ? `${cupon} aplicado. ${notaDelCarrito}`
+              : otraPromocion
+                ? notaOtraPromocion
+                : `${cupon} aplicado. Ahorrás ${formatearPrecio(ahorro)}.`
             : ""}
       </p>
     </section>

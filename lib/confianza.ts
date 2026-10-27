@@ -23,6 +23,8 @@ import { precio as formatearPrecio } from "./formato";
  */
 export const DIAS_ARREPENTIMIENTO = 10;
 export const DIAS_CAMBIO = 30;
+/** La garantía legal por defectos o fallas, desde que se recibe el producto. */
+export const MESES_GARANTIA = 6;
 
 export type Confianza = {
   /** Identificador estable, para el ícono y las pruebas. */

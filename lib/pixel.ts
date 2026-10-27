@@ -91,6 +91,22 @@ export function trackAgregarAlCarrito(datos: {
   });
 }
 
+/** AddToCart con varias variantes a la vez: un pack de la portada. */
+export function trackAgregarVarios(datos: {
+  items: { sku: string; cantidad: number; precioUnitario: number }[];
+  nombre: string;
+}) {
+  if (datos.items.length === 0) return false;
+
+  return trackPixel("AddToCart", {
+    ...datosDeCompra({
+      items: datos.items,
+      valor: datos.items.reduce((total, i) => total + i.precioUnitario * i.cantidad, 0),
+    }),
+    content_name: datos.nombre,
+  });
+}
+
 /** Lee una cookie por nombre. */
 function cookie(nombre: string): string | undefined {
   if (typeof document === "undefined") return undefined;

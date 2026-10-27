@@ -56,3 +56,12 @@ export async function diagnosticarCuotas(monto: number) {
     marcas: marcas.map(({ marca, detalle, error }) => ({ marca, ...(error ? { error } : { detalle }) })),
   };
 }
+
+/**
+ * Espera una promesa como máximo `ms`; si tarda más, sigue con `siTarda`.
+ * Para los datos que solo se muestran (las cuotas, las opiniones): si el
+ * servicio tarda, la página sale igual, sin anunciarlos.
+ */
+export function conEspera<T>(promesa: Promise<T>, ms: number, siTarda: T): Promise<T> {
+  return Promise.race([promesa, new Promise<T>((listo) => setTimeout(() => listo(siTarda), ms))]);
+}

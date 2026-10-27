@@ -7,6 +7,7 @@ import { configuracionDirecciones } from "@/lib/direcciones-servidor";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
 import { mercadoPagoListo } from "@/lib/mercadopago";
+import { mlConfigurado } from "@/lib/ml-auth";
 import { metaCapiConfigurada } from "@/lib/meta";
 import { esUrlPublica, urlDelSitio } from "@/lib/sitio";
 
@@ -47,6 +48,10 @@ export async function GET() {
   // La portada las verifica con lo más barato publicado de todo el catálogo.
   const todo = (await getProductos().catch(() => [])).map((p) => p.precio).filter((p) => p > 0);
   const cuotasPortada = todo.length ? await diagnosticarCuotas(Math.min(...todo)) : { anunciadas: null };
+  // Si la portada puede pedir las opiniones a Mercado Libre. Solo si está
+  // configurado: consultarlo desde acá sería otro consumidor del token (ver
+  // lib/ml-resenas-servidor.ts). Lo que trajo se ve en la misma portada.
+  const mercadoLibre = { configurado: mlConfigurado() };
 
   const variables: Record<string, boolean> = {};
   for (const v of VARIABLES) {
@@ -93,6 +98,7 @@ export async function GET() {
     redis,
     cuotas,
     cuotasPortada,
+    mercadoLibre,
     variables,
     avisos: [
       !redis.configurado

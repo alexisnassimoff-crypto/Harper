@@ -1,4 +1,5 @@
 import { TABLAS } from "../airtable";
+import { TABLA_IMPORTACION_ML } from "../ml-resenas";
 
 /**
  * Catálogo de prueba: una copia del contenido real de Airtable al 22/10/2026.
@@ -244,6 +245,35 @@ export const CONFIG: RegistroFixture[] = [
   // Solo para probar la clase de factura. La condición real de FOCUS VISION
   // SRL frente al IVA la confirma el contador.
   config("condicion_iva", "Responsable Inscripto"),
+  // La conexión con Mercado Libre, de mentira: solo se usa si la prueba de
+  // punta a punta levanta un Mercado Libre falso (ML_API_URL, ML_APP_ID y
+  // ML_APP_SECRET). Sin esas variables, la portada ni la mira.
+  config("ml_access_token", "TOKEN-DE-PRUEBA"),
+  config("ml_token_vence", "4102444800000"),
+];
+
+/**
+ * La tabla "Importacion ML" (las publicaciones de Mercado Libre de cada
+ * color), con los ID reales de las publicaciones de anteojos al 26/10/2026.
+ */
+function publicacionML(mlId: string, varianteId: string): RegistroFixture {
+  return { id: `recML${mlId}`, createdTime: CREADO, fields: { ML_id: mlId, Variante: [varianteId], Estado: "importado" } };
+}
+
+export const IMPORTACION_ML: RegistroFixture[] = [
+  publicacionML("MLA1951232513", "recq8UJEw6R0tYfQJ"), // CUARZO-NEGRO
+  publicacionML("MLA1951206617", "recb2RMRRnEwan2W5"), // CUARZO-AMBAR
+  publicacionML("MLA1951651985", "recLvS1Rce368QVeX"), // AMATISTA-NEGRO
+  publicacionML("MLA1951664871", "rec30C9Sgrhdtf2Kx"), // AMATISTA-AMBAR
+  publicacionML("MLA1951639359", "recKVFPGABlmfBNbk"), // AMATISTA-GRIS
+  publicacionML("MLA3731593484", "rect8rgXzLjIGbTge"), // OBSIDIANA-NEGRO
+  publicacionML("MLA3731541800", "rec93LwdHggqabwCq"), // OBSIDIANA-AMBAR
+  publicacionML("MLA3731593486", "recdMidk2XWxUf8fp"), // OBSIDIANA-GRIS
+  publicacionML("MLA3731603192", "rec5h3kW0JBY8Wd7y"), // CITRINO-NEGRO
+  publicacionML("MLA3731564450", "recYgPCGGRFSSYqo8"), // CITRINO-AMBAR
+  publicacionML("MLA3731564452", "recZOL5BGuIChtYo1"), // CITRINO-GRIS
+  publicacionML("MLA3731603194", "recOVWC0S1rbDJADU"), // CITRINO-CAREY
+  publicacionML("MLA3326800704", "recMyVTEzcVtTh64g"), // M500-MARRON: no es un anteojo
 ];
 
 function descuento(categoria: string, desde: number, porcentaje: number): RegistroFixture {
@@ -296,6 +326,7 @@ export function tablasIniciales(): Map<string, RegistroFixture[]> {
     [TABLAS.pedidos, estructurar(PEDIDOS)],
     [TABLAS.clientes, []],
     [TABLAS.arrepentimientos, []],
+    [TABLA_IMPORTACION_ML, estructurar(IMPORTACION_ML)],
   ]);
 }
 
