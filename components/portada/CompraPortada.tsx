@@ -17,6 +17,7 @@ import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { conDescuento, type Tramo } from "@/lib/descuentos";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
+import { fotosDeGaleria } from "@/lib/galeria";
 import { netoDe, type ImpuestosNacionales } from "@/lib/impuestos";
 import {
   armarPack,
@@ -27,7 +28,7 @@ import {
   repartirColores,
   type Pack,
 } from "@/lib/packs";
-import { trackAgregarVarios } from "@/lib/pixel";
+import { trackAgregarVarios, trackPixel } from "@/lib/pixel";
 import type { Producto } from "@/lib/tipos";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Garantia } from "@/lib/portada";
@@ -37,14 +38,16 @@ import { Garantias } from "./SeccionesPortada";
 /**
  * La compra del modelo estrella, arriba de todo en la portada: la galería,
  * los packs de 1, 2 o 4 pares con un color para cada par, el estuche
- * opcional y el botón.
+ * opcional y el botón. Arriba, los modelos: arranca en el modelo estrella y
+ * se puede pasar a cualquier otro sin salir de la portada.
  *
  * Los precios salen de lib/packs.ts, con la misma cuenta que el carrito; el
  * carrito igual los vuelve a calcular en el servidor al cobrar. Las cuotas se
  * anuncian solo para un total que Mercado Pago confirmó (`cuotasPorTotal`).
  */
 export default function CompraPortada({
-  producto,
+  modelos,
+  modeloInicial,
   tramos,
   cuotasPorTotal,
   impuestos,
@@ -54,7 +57,10 @@ export default function CompraPortada({
   garantias,
   whatsapp,
 }: {
-  producto: Producto;
+  /** Los anteojos con stock, el estrella primero. */
+  modelos: Producto[];
+  /** El slug del modelo con el que abre (Config.portada_producto). */
+  modeloInicial: string;
   tramos: Tramo[];
   /** Cuotas sin interés confirmadas por Mercado Pago, por total exacto. */
   cuotasPorTotal: Record<string, CuotasVerificadas>;
@@ -75,6 +81,8 @@ export default function CompraPortada({
   const { datos: carritoResuelto } = useCarritoResuelto();
   const [enTransicion, iniciarTransicion] = useTransition();
 
+  const [slug, setSlug] = useState(modeloInicial);
+  const producto = modelos.find((m) => m.slug === slug) ?? modelos[0];
   const variantes = producto.variantes;
   const inicial = useMemo(() => indiceVarianteInicial(producto), [producto]);
   const maximo = paresDisponibles(variantes);
@@ -95,7 +103,8 @@ export default function CompraPortada({
 
   // La galería muestra el color del último par que se tocó.
   const varianteVista = variantes[colores[Math.min(parActivo, cantidad - 1)]] ?? variantes[inicial];
-  const fotos = useMemo(() => varianteVista.fotos, [varianteVista]);
+  // La foto de portada del color (al sol y adentro) va primera.
+  const fotos = useMemo(() => fotosDeGaleria(varianteVista), [varianteVista]);
 
   // HARPER10, si está aplicado: cada pack se calcula con la misma regla que
   // el carrito (el cupón o la promoción por cantidad, la que convenga).
@@ -170,6 +179,25 @@ export default function CompraPortada({
     iniciarTransicion(() => router.push("/checkout"));
   }
 
+  function elegirModelo(nuevo: Producto) {
+    if (nuevo.slug === producto.slug) return;
+    setSlug(nuevo.slug);
+    // Cada modelo arranca con sus colores; la cantidad se mantiene si alcanza
+    // el stock del nuevo, y si no, el pack más grande que se pueda armar.
+    const disponibles = paresDisponibles(nuevo.variantes);
+    setCantidad((c) => (c <= disponibles ? c : ([...CANTIDADES_PACK].reverse().find((n) => n <= disponibles) ?? 1)));
+    setDeseados([]);
+    setParActivo(0);
+    setAgregado(false);
+    trackPixel("ViewContent", {
+      content_ids: [nuevo.variantes[indiceVarianteInicial(nuevo)]?.sku ?? nuevo.slug],
+      content_type: "product",
+      content_name: nuevo.nombre,
+      value: nuevo.precio,
+      currency: "ARS",
+    });
+  }
+
   function elegirPack(nueva: number) {
     setCantidad(nueva);
     setParActivo((p) => Math.min(p, nueva - 1));
@@ -222,7 +250,41 @@ export default function CompraPortada({
   }, []);
 
   return (
-    <div className="contenedor portada-compra">
+    <div className={modelos.length > 1 ? "contenedor portada-compra" : "contenedor portada-compra portada-compra--un-modelo"}>
+      {/* Los modelos, arriba de todo: se ve de entrada que no hay uno solo. */}
+      {modelos.length > 1 ? (
+        <div className="modelos surge">
+          <p className="label">{modelos.length} modelos · Elegí el tuyo</p>
+          <div className="modelos__lista" role="group" aria-label="Modelo">
+            {modelos.map((m) => (
+              <button
+                key={m.slug}
+                type="button"
+                className="modelo"
+                aria-pressed={m.slug === producto.slug}
+                onClick={() => elegirModelo(m)}
+              >
+                <span className="modelo__foto">
+                  {m.fotoPrincipal ? (
+                    // Las fotos de frente tienen mucho margen blanco: recortadas al
+                    // ancho, los anteojos se ven del tamaño de la tarjeta.
+                    <Image src={m.fotoPrincipal} alt="" fill sizes="120px" style={{ objectFit: "cover" }} />
+                  ) : null}
+                </span>
+                <span className="modelo__nombre">{m.nombre}</span>
+                <span className="modelo__colores" aria-hidden="true">
+                  {m.variantes
+                    .filter((v) => !v.agotada)
+                    .map((v) => (
+                      <span key={v.id} style={{ background: v.colorHex }} />
+                    ))}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {/* En celular, el nombre va arriba de la foto: se ve qué es y cuántas
           opiniones tiene sin bajar. En escritorio, arriba de la compra. */}
       <div className="pila surge portada-compra__titulo">

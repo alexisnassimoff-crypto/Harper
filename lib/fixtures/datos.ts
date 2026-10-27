@@ -182,6 +182,24 @@ const NEGRO = "#1D1D1B";
 const AMBAR = "#C98F45";
 const GRIS_TRASLUCIDO = "#9DA2A6";
 
+/**
+ * Los colores con foto de portada (al sol y adentro, con el estuche y el
+ * paño), como en Airtable (Variantes.Foto_portada).
+ */
+const CON_PORTADA = new Set([
+  "AMATISTA-NEGRO", "AMATISTA-AMBAR", "AMATISTA-GRIS",
+  "OBSIDIANA-NEGRO", "OBSIDIANA-AMBAR", "OBSIDIANA-GRIS",
+  "CUARZO-NEGRO", "CUARZO-AMBAR",
+  "CITRINO-AMBAR", "CITRINO-GRIS",
+]);
+
+function conPortada(registro: RegistroFixture): RegistroFixture {
+  const sku = String(registro.fields.SKU);
+  if (!CON_PORTADA.has(sku)) return registro;
+  const archivo = sku.toLowerCase().replace(/-(\w+)$/, (_, color: string) => `-${color}-portada.webp`);
+  return { ...registro, fields: { ...registro.fields, Foto_portada: `/productos/anteojos/${archivo}` } };
+}
+
 export const VARIANTES: RegistroFixture[] = [
   variante("recLvS1Rce368QVeX", "recPJzzJFhyEF0DMw", "AMATISTA-NEGRO", "Negro", NEGRO, 12, 1, fotosAnteojo("amatista", "negro")),
   variante("rec30C9Sgrhdtf2Kx", "recPJzzJFhyEF0DMw", "AMATISTA-AMBAR", "Ámbar traslúcido", AMBAR, 12, 2, fotosAnteojo("amatista", "ambar")),
@@ -218,7 +236,7 @@ export const VARIANTES: RegistroFixture[] = [
   variante("recV4xRvPsQ7iVMKu", "recSq5CS0vGVRrx4y", "PANO-ALTA-NEGRO", "Negro", "#0A0A0A", 100, 1, [5, 4, 3, 1, 2].map((n) => `/productos/panos/pano-${n}.webp`)),
   variante("recxeVU4Tza1ZbuRM", "recggN3YeAWONkJ81", "PANO-MEDIA-NEGRO", "Negro", "#0A0A0A", 100, 1, [4, 3, 5, 1, 2].map((n) => `/productos/panos/pano-${n}.webp`)),
   variante("recjv246Wi15lGAFP", "recjg70hw6KEjeukr", "PANO-MOSTRADOR-NEGRO", "Negro", "#0A0A0A", 100, 1, ["/productos/panos/mostrador-1.webp"]),
-];
+].map(conPortada);
 
 function config(clave: string, valor: string): RegistroFixture {
   return { id: `recCFG${clave}`, createdTime: CREADO, fields: { Clave: clave, Valor: valor } };

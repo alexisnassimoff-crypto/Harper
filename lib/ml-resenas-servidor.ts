@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { listRecords } from "./airtable";
 import { getProductosParaCobrar } from "./catalogo";
 import { esCategoriaDeAnteojos } from "./categorias";
+import { registrarIntentoML } from "./estado-ml";
 import { mlConfigurado, tokenVigente } from "./ml-auth";
 import {
   combinarOpiniones,
@@ -9,7 +10,6 @@ import {
   leerResenasDeItem,
   type OpinionesML,
   type ReputacionML,
-  type ResenasDeItem,
   TABLA_IMPORTACION_ML,
 } from "./ml-resenas";
 
@@ -74,20 +74,29 @@ async function publicacionesDeAnteojos(): Promise<{ id: string; modelo: string }
 }
 
 async function opinionesDe(publicaciones: { id: string; modelo: string }[], token: string): Promise<OpinionesML | null> {
-  const items = await Promise.all(
-    publicaciones.map(async (p) => {
-      try {
-        return leerResenasDeItem(await pedirML(`/reviews/item/${encodeURIComponent(p.id)}?limit=50`, token), p.modelo);
-      } catch (error) {
-        // Una publicación que ya no existe no tiene opiniones que sumar.
-        // Cualquier otro error corta todo: mejor reintentar que guardar
-        // 6 horas un total que se quedó corto.
-        if (error instanceof ErrorML && error.status === 404) return null;
-        throw error;
-      }
-    })
+  const resultados = await Promise.allSettled(
+    publicaciones.map(async (p) =>
+      leerResenasDeItem(await pedirML(`/reviews/item/${encodeURIComponent(p.id)}?limit=50`, token), p.modelo)
+    )
   );
-  return combinarOpiniones(items.filter((i): i is ResenasDeItem => i !== null));
+
+  // Una publicación que ya no existe (404) no tiene opiniones que sumar.
+  // Cualquier otro error corta todo: mejor reintentar que guardar 6 horas un
+  // total que se quedó corto. El mensaje junta lo que pasó con cada una, para
+  // /api/health.
+  const errores = resultados.flatMap((r) =>
+    r.status === "rejected" && !(r.reason instanceof ErrorML && r.reason.status === 404) ? [r.reason] : []
+  );
+  if (errores.length > 0) {
+    const bien = resultados.filter((r) => r.status === "fulfilled").length;
+    const primero = errores[0] instanceof Error ? errores[0].message : String(errores[0]);
+    throw new Error(
+      `Opiniones: ${bien} de ${resultados.length} publicaciones bien, ${errores.length} con error (el primero: ${primero})`
+    );
+  }
+
+  const items = resultados.flatMap((r) => (r.status === "fulfilled" && r.value ? [r.value] : []));
+  return combinarOpiniones(items);
 }
 
 export type DatosMercadoLibre = { opiniones: OpinionesML | null; reputacion: ReputacionML | null };
@@ -102,11 +111,28 @@ export type DatosMercadoLibre = { opiniones: OpinionesML | null; reputacion: Rep
  */
 const mercadoLibreCacheado = unstable_cache(
   async (): Promise<DatosMercadoLibre> => {
-    const [token, publicaciones] = await Promise.all([tokenVigente(), publicacionesDeAnteojos()]);
-    const [opiniones, reputacion] = await Promise.all([
-      opinionesDe(publicaciones, token),
-      pedirML("/users/me", token).then(leerReputacion),
-    ]);
+    let opiniones: OpinionesML | null;
+    let reputacion: ReputacionML | null;
+    try {
+      const [token, publicaciones] = await Promise.all([tokenVigente(), publicacionesDeAnteojos()]);
+      [opiniones, reputacion] = await Promise.all([
+        opinionesDe(publicaciones, token),
+        pedirML("/users/me", token).then(leerReputacion),
+      ]);
+    } catch (error) {
+      // La falla se anota acá adentro: cuando ya hay un dato viejo, Next lo
+      // sigue sirviendo y se traga el error, y afuera nunca se enteraría.
+      await registrarFalla(error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+    await registrarIntentoML({
+      ok: true,
+      cuando: new Date().toISOString(),
+      opiniones: opiniones?.total ?? 0,
+      destacadas: opiniones?.destacadas.length ?? 0,
+      medalla: reputacion?.medalla ?? null,
+      ventas: reputacion?.ventas ?? null,
+    });
     return { opiniones, reputacion };
   },
   ["ml-portada-v1"],
@@ -141,7 +167,21 @@ export async function datosDeMercadoLibre(): Promise<DatosMercadoLibre | null> {
     ultimoBueno = datos;
     return datos;
   } catch (error) {
-    console.warn("[mercadolibre] no se pudieron traer las opiniones:", error instanceof Error ? error.message : error);
+    const mensaje = error instanceof Error ? error.message : String(error);
+    console.warn("[mercadolibre] no se pudieron traer las opiniones:", mensaje);
+    await registrarFalla(mensaje);
     return ultimoBueno;
   }
+}
+
+/**
+ * Mientras Mercado Libre falla, cada regeneración de la portada lo vuelve a
+ * intentar: el mismo error se guarda a lo sumo cada 10 minutos por instancia.
+ */
+let ultimaFalla = { mensaje: "", cuando: 0 };
+async function registrarFalla(mensaje: string) {
+  const ahora = Date.now();
+  if (mensaje === ultimaFalla.mensaje && ahora - ultimaFalla.cuando < 10 * 60 * 1000) return;
+  ultimaFalla = { mensaje, cuando: ahora };
+  await registrarIntentoML({ ok: false, cuando: new Date(ahora).toISOString(), error: mensaje.slice(0, 500) });
 }

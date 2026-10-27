@@ -8,6 +8,7 @@ import { useCarrito } from "./carrito/CarritoContexto";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
+import { fotosDeGaleria } from "@/lib/galeria";
 import { rutaDeVariante } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 
@@ -31,7 +32,8 @@ export default function ProductoCard({
   const [agregado, setAgregado] = useState(false);
 
   const variante = producto.variantes[indice];
-  const fotos = variante?.fotos.length ? variante.fotos : [];
+  // Con la foto de portada primero (al sol y adentro), como en la ficha.
+  const fotos = variante ? fotosDeGaleria(variante) : [];
   const foto = fotos[indiceFoto] ?? fotos[0] ?? producto.fotoPrincipal;
 
   // El enlace lleva el color que se está viendo: antes la ficha abría siempre

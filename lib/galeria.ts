@@ -51,6 +51,12 @@ export function videoReproducible(datos: { url?: string | null; tipo?: string | 
  * Con varios videos van todos seguidos desde el tercer lugar, en el orden en
  * que estén cargados en Airtable.
  */
+/** Las fotos de un color para la galería: la de portada primero, si tiene. */
+export function fotosDeGaleria(variante: { fotos: string[]; fotoPortada?: string | null }): string[] {
+  const portada = variante.fotoPortada?.trim();
+  return portada ? [portada, ...variante.fotos.filter((f) => f !== portada)] : variante.fotos;
+}
+
 export function armarGaleria(
   fotos: string[],
   videos: string[],

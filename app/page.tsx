@@ -84,9 +84,10 @@ export default async function Home() {
 }
 
 /**
- * La portada con un modelo estrella: se compra ahí mismo, en packs, con las
- * opiniones de Mercado Libre, las garantías y las preguntas frecuentes. Los
- * demás modelos y los complementos quedan más abajo.
+ * La portada con un modelo estrella: se compra ahí mismo, en packs, y arriba
+ * se puede pasar a cualquier otro modelo. Con las opiniones de Mercado Libre,
+ * las garantías y las preguntas frecuentes. La grilla de todos los modelos y
+ * los complementos quedan más abajo.
  */
 async function PortadaEstrella({
   estrella,
@@ -98,6 +99,9 @@ async function PortadaEstrella({
   config: ConfigTienda;
 }) {
   const anteojos = productos.filter((p) => esCategoriaDeAnteojos(p.categoria));
+  // Los modelos que se pueden elegir en la compra: el estrella primero y los
+  // demás anteojos con stock, en el orden del catálogo.
+  const modelos = [estrella, ...anteojos.filter((p) => p.id !== estrella.id && paresDisponibles(p.variantes) > 0)];
   const estuche =
     productos.find((p) => p.slug === ESTUCHE_PORTADA && p.variantes.some((v) => !v.agotada)) ?? null;
 
@@ -111,15 +115,22 @@ async function PortadaEstrella({
   const opiniones = mercadoLibre?.opiniones ?? null;
   const reputacion = mercadoLibre?.reputacion ?? null;
 
-  // Las cuotas de cada total que la compra puede mostrar, confirmadas una por
-  // una con Mercado Pago: el anuncio de cada pack es cierto para ese monto.
-  const totales = totalesPosibles({
-    precio: estrella.precio,
-    tramos,
-    categoria: estrella.categoria,
-    cuponPorcentaje: CUPON_BIENVENIDA.porcentaje,
-    extra: estuche ? { precio: estuche.precio, categoria: estuche.categoria } : null,
-  });
+  // Las cuotas de cada total que la compra puede mostrar (de cualquier
+  // modelo), confirmadas una por una con Mercado Pago: el anuncio de cada
+  // pack es cierto para ese monto.
+  const totales = [
+    ...new Set(
+      modelos.flatMap((m) =>
+        totalesPosibles({
+          precio: m.precio,
+          tramos,
+          categoria: m.categoria,
+          cuponPorcentaje: CUPON_BIENVENIDA.porcentaje,
+          extra: estuche ? { precio: estuche.precio, categoria: estuche.categoria } : null,
+        })
+      )
+    ),
+  ];
   const verificadas = await conEspera(
     Promise.all(totales.map(async (total) => [String(total), await verificarCuotas(total)] as const)),
     ESPERA_CUOTAS_MS,
@@ -130,7 +141,6 @@ async function PortadaEstrella({
 
   const envioGratisTexto = formatearPrecio(config.envioGratisDesde);
   const caracteristicas = caracteristicasDe(estrella);
-  const otrosAnteojos = anteojos.filter((p) => p.id !== estrella.id);
   const complementos = productos.filter((p) => !esCategoriaDeAnteojos(p.categoria));
   const seccionesComplementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
 
@@ -158,7 +168,8 @@ async function PortadaEstrella({
       />
 
       <CompraPortada
-        producto={estrella}
+        modelos={modelos}
+        modeloInicial={estrella.slug}
         tramos={tramos}
         cuotasPorTotal={cuotasPorTotal}
         impuestos={config.impuestosNacionales}
@@ -202,7 +213,7 @@ async function PortadaEstrella({
           <div className="hero__contenido">
             <h2 className="hero__titulo">{titulo}</h2>
             {subtitulo ? <p className="hero__texto">{subtitulo}</p> : null}
-            {otrosAnteojos.length > 0 ? (
+            {anteojos.length > 1 ? (
               <a href="#modelos" className="boton hero__boton">
                 Ver todos los modelos
               </a>
@@ -211,15 +222,15 @@ async function PortadaEstrella({
         </div>
       </section>
 
-      {otrosAnteojos.length > 0 ? (
+      {anteojos.length > 1 ? (
         <section id="modelos" className="contenedor seccion">
           <div className="seccion__cabecera">
-            <h2 className="titulo titulo--chico">Otros modelos</h2>
+            <h2 className="titulo titulo--chico">Todos los modelos</h2>
             <Link href={rutaDeCategoria(estrella.categoria)} className="label enlace-verde">
               Ver todo
             </Link>
           </div>
-          <GrillaProductos productos={otrosAnteojos} animar />
+          <GrillaProductos productos={anteojos} animar />
         </section>
       ) : null}
 

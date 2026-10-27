@@ -61,6 +61,7 @@ type FilaVariante = {
   Stock?: number;
   Fotos?: Attachment[];
   Fotos_url?: string;
+  Foto_portada?: string;
   Activo?: boolean;
   Orden?: number;
 };
@@ -121,6 +122,7 @@ function armarVariante(registro: AirtableRecord<FilaVariante>): Variante {
     colorHex: registro.fields.Color_hex?.trim() || "#CCCCCC",
     stock,
     fotos: resolverFotos(registro.fields),
+    fotoPortada: registro.fields.Foto_portada?.trim() || null,
     agotada: stock <= 0,
   };
 }
