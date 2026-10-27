@@ -3001,6 +3001,10 @@ p {
   gap: 1rem;
   padding-block: 1rem 3rem;
 }
+/* Con un solo modelo no hay selector: sin su fila. */
+.portada-compra--un-modelo {
+  grid-template-areas: "titulo" "galeria" "datos";
+}
 .portada-compra__titulo {
   grid-area: titulo;
   gap: 0.45rem;
@@ -3024,6 +3028,10 @@ p {
     grid-template-areas: "galeria modelos" "galeria titulo" "galeria datos";
     gap: 1.25rem 3.5rem;
     padding-block: 2.5rem 4rem;
+  }
+  .portada-compra--un-modelo {
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "galeria titulo" "galeria datos";
   }
   .portada-compra__galeria {
     position: sticky;
@@ -3049,8 +3057,8 @@ p {
 .modelos__lista {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(4.75rem, 1fr);
-  gap: 0.5rem;
+  grid-auto-columns: minmax(4.5rem, 1fr);
+  gap: 0.4rem;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -3080,9 +3088,11 @@ p {
   background: color-mix(in srgb, var(--verde) 5%, var(--fondo));
   box-shadow: inset 0 0 0 1px var(--verde);
 }
+/* El anillo va por dentro: la lista desliza de costado y recortaría uno
+   que sobresalga. */
 .modelo:focus-visible {
   outline: 2px solid var(--verde);
-  outline-offset: 2px;
+  outline-offset: -4px;
 }
 .modelo__foto {
   position: relative;
@@ -3093,7 +3103,7 @@ p {
 .modelo__nombre {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
 }
 .modelo__colores {
   display: flex;

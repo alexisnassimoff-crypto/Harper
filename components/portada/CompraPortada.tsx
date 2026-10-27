@@ -84,7 +84,6 @@ export default function CompraPortada({
   const [slug, setSlug] = useState(modeloInicial);
   const producto = modelos.find((m) => m.slug === slug) ?? modelos[0];
   const variantes = producto.variantes;
-  const totalColores = modelos.reduce((total, m) => total + m.variantes.filter((v) => !v.agotada).length, 0);
   const inicial = useMemo(() => indiceVarianteInicial(producto), [producto]);
   const maximo = paresDisponibles(variantes);
 
@@ -251,13 +250,11 @@ export default function CompraPortada({
   }, []);
 
   return (
-    <div className="contenedor portada-compra">
+    <div className={modelos.length > 1 ? "contenedor portada-compra" : "contenedor portada-compra portada-compra--un-modelo"}>
       {/* Los modelos, arriba de todo: se ve de entrada que no hay uno solo. */}
       {modelos.length > 1 ? (
         <div className="modelos surge">
-          <p className="label">
-            {modelos.length} modelos · {totalColores} colores
-          </p>
+          <p className="label">{modelos.length} modelos · Elegí el tuyo</p>
           <div className="modelos__lista" role="group" aria-label="Modelo">
             {modelos.map((m) => (
               <button

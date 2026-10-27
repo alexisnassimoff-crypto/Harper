@@ -111,11 +111,20 @@ export type DatosMercadoLibre = { opiniones: OpinionesML | null; reputacion: Rep
  */
 const mercadoLibreCacheado = unstable_cache(
   async (): Promise<DatosMercadoLibre> => {
-    const [token, publicaciones] = await Promise.all([tokenVigente(), publicacionesDeAnteojos()]);
-    const [opiniones, reputacion] = await Promise.all([
-      opinionesDe(publicaciones, token),
-      pedirML("/users/me", token).then(leerReputacion),
-    ]);
+    let opiniones: OpinionesML | null;
+    let reputacion: ReputacionML | null;
+    try {
+      const [token, publicaciones] = await Promise.all([tokenVigente(), publicacionesDeAnteojos()]);
+      [opiniones, reputacion] = await Promise.all([
+        opinionesDe(publicaciones, token),
+        pedirML("/users/me", token).then(leerReputacion),
+      ]);
+    } catch (error) {
+      // La falla se anota acá adentro: cuando ya hay un dato viejo, Next lo
+      // sigue sirviendo y se traga el error, y afuera nunca se enteraría.
+      await registrarFalla(error instanceof Error ? error.message : String(error));
+      throw error;
+    }
     await registrarIntentoML({
       ok: true,
       cuando: new Date().toISOString(),
