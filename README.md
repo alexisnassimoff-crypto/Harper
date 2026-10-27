@@ -208,7 +208,7 @@ Datos fiscales en `Config` (vacíos = no se muestra nada; nunca se suponen):
 
 | Clave | Qué es | De dónde sale |
 |---|---|---|
-| `data_fiscal` | El código del Formulario 960/D (Data Fiscal) para harper.ar. Se muestra el logo con su enlace en "Información legal", al pie de la portada | ARCA → Mis Servicios → "Formulario 960 D" → sitio web → campo "Script", pegado tal cual. Solo se usan el enlace `qr.afip.gob.ar`/`qr.arca.gob.ar` y el logo de ARCA |
+| `data_fiscal` | El código del Formulario 960/D (Data Fiscal) para harper.ar. Se muestra el logo con su enlace al pie de todas las páginas, al lado de los medios de pago | ARCA → Mis Servicios → "Formulario 960 D" → sitio web → campo "Script", pegado tal cual. Solo se usan el enlace `qr.afip.gob.ar`/`qr.arca.gob.ar` y el logo de ARCA |
 | `impuestos_nacionales` | Porcentaje que suman el IVA y otros impuestos nacionales indirectos sobre el precio neto (por ejemplo `21`). Debajo de cada precio aparece "Precio sin impuestos nacionales" (Res. SIyC 4/2025) | El contador |
 | `impuestos_nacionales_<categoría>` | El mismo dato para una categoría con otra alícuota (`anteojos`, `estuches`, `panos`…) | El contador |
 | `condicion_iva` | La condición de FOCUS VISION SRL frente al IVA: `Responsable Inscripto`, `Monotributo` o `Exento`. Decide la clase de cada factura (ver "Datos de facturación") | El contador |

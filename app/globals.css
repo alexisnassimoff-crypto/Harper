@@ -2702,27 +2702,23 @@ p {
   padding-block: 1.75rem 2rem;
   border-top: 1px solid rgb(255 255 255 / 0.18);
 }
-.pie__datos {
+/* Los sellos de pago y el Data Fiscal, en una fila que baja si no entra. */
+.pie__sellos {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.75rem;
-  margin: 0;
-  font-size: 0.8125rem;
-  color: rgb(255 255 255 / 0.86);
+  align-items: center;
+  gap: 1rem 1.5rem;
 }
-.pie__datos > div {
+.pie__pagos {
   display: flex;
-  gap: 0.4rem;
-}
-.pie__datos dt {
-  color: rgb(255 255 255 / 0.62);
-}
-.pie__datos dd {
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.pie__datos a {
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
+.pie__pagos svg {
+  display: block;
 }
 /* Data Fiscal (F. 960/D de ARCA): el logo, chico y sobre blanco como lo entrega ARCA. */
 .pie__data-fiscal {
@@ -2740,7 +2736,15 @@ p {
 }
 .pie__copy {
   font-size: 0.75rem;
+  line-height: 1.6;
   color: rgb(255 255 255 / 0.62);
+}
+.pie__copy a {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.pie__sin-corte {
+  white-space: nowrap;
 }
 @media (max-width: 46rem) {
   /* El globo de WhatsApp flota abajo a la derecha: los datos no se meten debajo. */
