@@ -116,7 +116,9 @@ async function opinionesDe(publicaciones: { id: string; modelo: string }[], toke
     const primero = errores[0] instanceof Error ? errores[0].message : String(errores[0]);
     throw new ErrorOpiniones(
       `Opiniones: ${bien} de ${resultados.length} publicaciones bien, ${errores.length} con error (el primero: ${primero})`,
-      errores.every(esSinPermiso)
+      // "Sin permiso" solo si no cargó ninguna: con algunas bien y otra en
+      // 403 se reintenta, en vez de guardar 6 horas un total que se quedó corto.
+      bien === 0 && errores.every(esSinPermiso)
     );
   }
 

@@ -1839,7 +1839,7 @@ p {
   }
   /* El dibujo del carrito termina unos 4 px antes que el borde: la última
      categoría se corre lo mismo para que las letras terminen con el ícono. */
-  .cabecera__nav:not([data-muchas]) .nav-enlace:last-child {
+  .cabecera__nav:not([data-muchas]) .nav-enlace:last-child:not(:first-child) {
     justify-self: end;
     margin-right: 0.25rem;
   }
