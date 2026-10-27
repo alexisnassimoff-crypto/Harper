@@ -17,6 +17,7 @@ import type { Confianza } from "@/lib/confianza";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
+import { fotosDeGaleria } from "@/lib/galeria";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
@@ -71,10 +72,8 @@ export default function FichaProducto({
   const cuponPorcentaje =
     cupon && carritoResuelto?.cupon?.estado !== "no-conviene" ? (buscarCupon(cupon)?.porcentaje ?? 0) : 0;
 
-  const fotos = useMemo(
-    () => (variante.fotos.length > 0 ? variante.fotos : []),
-    [variante]
-  );
+  // La foto de portada del color (al sol y adentro) va primera.
+  const fotos = useMemo(() => fotosDeGaleria(variante), [variante]);
 
   // La barra fija de compra aparece cuando el bloque de botones sale de
   // pantalla, y se va cuando vuelve: nunca hay dos botones a la vista.

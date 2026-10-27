@@ -12,6 +12,14 @@ export type Variante = {
   colorHex: string;
   stock: number;
   fotos: string[];
+  /**
+   * La foto de portada del color (Airtable, Variantes.Foto_portada): los
+   * anteojos al sol y adentro, con el estuche y el paño. Es la que explica que
+   * son fotocromáticos: va primera en la galería y en las tarjetas. Las
+   * miniaturas chicas (carrito, checkout, mails) siguen con la primera de
+   * `fotos`, que se lee a 64 px. Null si no tiene.
+   */
+  fotoPortada?: string | null;
   agotada: boolean;
 };
 
