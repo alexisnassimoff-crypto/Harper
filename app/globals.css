@@ -2759,6 +2759,10 @@ p {
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }
+.pie__arrepentimiento {
+  color: rgb(255 255 255 / 0.9);
+  white-space: nowrap;
+}
 .pie__sin-corte {
   white-space: nowrap;
 }

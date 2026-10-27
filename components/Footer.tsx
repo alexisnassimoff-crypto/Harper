@@ -107,7 +107,12 @@ export default function Footer({
           © {anio} Harper, una marca de {config.razonSocial} ·{" "}
           <span className="pie__sin-corte">CUIT {config.cuit}</span>
           {config.domicilio ? <> · {config.domicilio}</> : null} ·{" "}
-          <a href={`mailto:${config.emailContacto}`}>{config.emailContacto}</a>
+          <a href={`mailto:${config.emailContacto}`}>{config.emailContacto}</a> ·{" "}
+          {/* Res. 424/2020: el botón de arrepentimiento, a la vista desde la
+              página de inicio. Además del enlace de la columna Ayuda. */}
+          <Link href="/legales/arrepentimiento" className="pie__arrepentimiento">
+            Botón de arrepentimiento
+          </Link>
         </p>
       </section>
     </footer>

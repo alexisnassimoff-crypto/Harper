@@ -177,7 +177,7 @@ categoría sin productos activos no aparece en el menú, el footer, la portada n
 el sitemap, y su página da 404. Un producto con una categoría que no está en la
 lista no se publica: queda un aviso en el log.
 
-**Características confirmadas.** "Filtro azul · Fotocromáticos", la lista de la
+**Características confirmadas.** "Filtro azul · Fotocromáticos · UV400", la lista de la
 ficha y la consulta por cristales graduados se muestran solo en los modelos
 confirmados de `lib/caracteristicas.ts` (AMATISTA, OBSIDIANA, CUARZO y
 CITRINO). Un modelo nuevo no hereda nada: hay que confirmarlo y sumarlo ahí. Mientras haya

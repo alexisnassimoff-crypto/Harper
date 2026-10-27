@@ -50,6 +50,6 @@ test("el catálogo lee la foto de portada de Airtable y deja la primera foto lim
   const negro = obsidiana.variantes.find((v) => v.sku === "OBSIDIANA-NEGRO")!;
   assert.equal(negro.fotoPortada, "/productos/anteojos/obsidiana-negro-portada.webp");
   assert.equal(negro.fotos[0], "/productos/anteojos/obsidiana-negro-1.webp", "el carrito y los mails siguen con la foto de frente");
-  const citrinoNegro = productos.find((p) => p.slug === "citrino")!.variantes.find((v) => v.sku === "CITRINO-NEGRO")!;
-  assert.equal(citrinoNegro.fotoPortada, null, "sin foto de portada cargada, null");
+  const estuche = productos.find((p) => p.slug === "r100")!.variantes.find((v) => v.sku === "R100-MARRON")!;
+  assert.equal(estuche.fotoPortada, null, "sin foto de portada cargada, null");
 });

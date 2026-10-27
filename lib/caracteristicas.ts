@@ -7,6 +7,7 @@ import type { Producto } from "./tipos";
  * AMATISTA, OBSIDIANA, CUARZO y CITRINO tienen cristales con filtro de luz
  * azul, cristales fotocromáticos (se oscurecen con la luz del sol) y un
  * armazón que admite reemplazar los cristales por otros con aumento.
+ * El 27/10/2026 Ale confirmó además que los cristales tienen protección UV400.
  *
  * Que el armazón admita cristales con aumento NO quiere decir que Harper
  * venda lentes recetados: la tienda no ofrece graduaciones ni configuraciones.
@@ -17,15 +18,16 @@ import type { Producto } from "./tipos";
  */
 const MODELOS_CONFIRMADOS = new Set(["amatista", "obsidiana", "cuarzo", "citrino"]);
 
-/** Los tres puntos de la ficha, debajo del precio. */
+/** Los puntos de la ficha, debajo del precio. */
 export const CARACTERISTICAS_ANTEOJOS = [
   "Filtro de luz azul",
   "Cristales fotocromáticos que se adaptan a la luz solar",
+  "Protección UV400 contra los rayos UVA y UVB",
   "Armazón apto para colocar cristales con aumento",
 ] as const;
 
 /** La línea discreta de las tarjetas de la grilla. */
-export const RESUMEN_ANTEOJOS = "Filtro azul · Fotocromáticos";
+export const RESUMEN_ANTEOJOS = "Filtro azul · Fotocromáticos · UV400";
 
 export type Caracteristicas = {
   lista: readonly string[];
