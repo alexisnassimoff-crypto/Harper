@@ -77,6 +77,10 @@ export default async function GrillaProductos({
  * con un cursor que va rotando el color de arranque y, si el elegido repite el
  * de la ficha anterior, salta al siguiente. Depende solo del orden del
  * catálogo, así que el servidor y el navegador llegan al mismo resultado.
+ *
+ * Si el modelo tiene colores con foto de portada (la que muestra que son
+ * fotocromáticos), la rotación es solo entre esos: ninguna ficha abre en un
+ * color sin ella mientras haya otro que la tenga.
  */
 function coloresIniciales(productos: Producto[]): number[] {
   const elegidos: number[] = [];
@@ -88,10 +92,14 @@ function coloresIniciales(productos: Producto[]): number[] {
       .map((variante, indice) => ({ variante, indice }))
       .filter(({ variante }) => !variante.agotada);
 
+    const conPortada = conStock.filter(({ variante }) => Boolean(variante.fotoPortada?.trim()));
+
     const opciones =
-      conStock.length > 0
-        ? conStock
-        : producto.variantes.map((variante, indice) => ({ variante, indice }));
+      conPortada.length > 0
+        ? conPortada
+        : conStock.length > 0
+          ? conStock
+          : producto.variantes.map((variante, indice) => ({ variante, indice }));
 
     if (opciones.length === 0) {
       elegidos.push(0);

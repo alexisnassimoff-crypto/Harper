@@ -11,11 +11,12 @@ import { verificarCuotas } from "@/lib/cuotas-servidor";
 import { netoDe } from "@/lib/impuestos";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import { rutaDeCategoria } from "@/lib/categorias";
+import { parrafosDe, resumenDe } from "@/lib/descripcion";
 
 /**
  * La página de producto, compartida por dos rutas:
  *
- *   /producto/[slug]          abre en el primer color con stock
+ *   /producto/[slug]          abre en el primer color con stock y foto de portada
  *   /producto/[slug]/[color]  abre en ese color (el SKU en minúsculas)
  *
  * La segunda existe para que la grilla pueda enlazar al color que muestra y
@@ -43,7 +44,7 @@ export async function metadataFicha(slug: string, color?: string): Promise<Metad
 
   const variante = color ? producto.variantes[indiceVarianteInicial(producto, color)] : null;
   const titulo = variante ? `${producto.nombre} — ${variante.color}` : producto.nombre;
-  const descripcion = producto.descripcion || `${producto.nombre} — Harper.`;
+  const descripcion = resumenDe(producto.descripcion) || `${producto.nombre} — Harper.`;
 
   return {
     title: titulo,
@@ -93,7 +94,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
       "@context": "https://schema.org",
       "@type": "Product",
       name: producto.nombre,
-      description: producto.descripcion || undefined,
+      description: parrafosDe(producto.descripcion).join(" ") || undefined,
       image: fotos,
       sku: producto.variantes[0]?.sku,
       brand: { "@type": "Brand", name: "Harper" },

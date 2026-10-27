@@ -58,3 +58,19 @@ test("todos agotados: abre en el primero", () => {
   assert.equal(indiceVarianteInicial(agotado), 0);
   assert.equal(rutaDeVariante(agotado, 0), "/producto/citrino");
 });
+
+test("sin color pedido, prefiere el primero con stock que tenga foto de portada", () => {
+  const conPortada = {
+    ...producto,
+    variantes: [
+      variante("recA", "CITRINO-NEGRO", 12),
+      { ...variante("recB", "CITRINO-AMBAR", 0), fotoPortada: "/ambar-portada.webp" },
+      { ...variante("recC", "CITRINO-GRIS", 12), fotoPortada: "/gris-portada.webp" },
+    ],
+  };
+  assert.equal(indiceVarianteInicial(conPortada), 2, "el ámbar tiene portada pero está agotado");
+  assert.equal(rutaDeVariante(conPortada, 2), "/producto/citrino");
+  assert.equal(indiceVarianteInicial(conPortada, "citrino-negro"), 0, "el color pedido manda");
+  const sinPortada = { ...conPortada, variantes: conPortada.variantes.map((v) => ({ ...v, fotoPortada: "  " })) };
+  assert.equal(indiceVarianteInicial(sinPortada), 0);
+});

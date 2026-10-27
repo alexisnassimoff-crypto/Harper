@@ -432,6 +432,20 @@ p {
     box-shadow var(--rapido) var(--curva);
 }
 
+/* La raya de "agotado" sobre el color (ficha y portada). */
+.swatch__agotado {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--texto);
+}
+.swatch--chico .swatch__agotado {
+  font-size: 1.2rem;
+}
+
 .swatch:hover:not(:disabled) {
   transform: scale(1.12);
   box-shadow: var(--sombra-media);
@@ -1821,9 +1835,27 @@ p {
     padding-block: 0.7rem 0.55rem;
     min-height: 0;
   }
-  .cabecera__nav {
-    justify-content: space-between;
+  /* Las categorías en columnas iguales: la del medio queda justo debajo de
+     HARPER, la primera contra el margen y la última a ras del carrito. Con
+     nombres de largo distinto, repartirlas con space-between corría la del
+     medio. (Con más de tres, se deslizan: ver [data-muchas].) */
+  .cabecera__nav:not([data-muchas]) {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
     gap: 1rem;
+  }
+  .cabecera__nav:not([data-muchas]) .nav-enlace {
+    justify-self: center;
+  }
+  .cabecera__nav:not([data-muchas]) .nav-enlace:first-child {
+    justify-self: start;
+  }
+  /* El dibujo del carrito termina unos 4 px antes que el borde: la última
+     categoría se corre lo mismo para que las letras terminen con el ícono. */
+  .cabecera__nav:not([data-muchas]) .nav-enlace:last-child:not(:first-child) {
+    justify-self: end;
+    margin-right: 0.25rem;
   }
   .cabecera__nav .nav-enlace {
     font-size: 0.6875rem;
@@ -2422,6 +2454,19 @@ p {
   border-top: 1px solid var(--borde);
 }
 
+/* La descripción del producto: un párrafo por renglón de Airtable. */
+.descripcion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  max-width: 34rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.descripcion p {
+  margin: 0;
+}
+
 .lista-incluye {
   display: flex;
   flex-direction: column;
@@ -2665,33 +2710,31 @@ p {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
+/* Abajo deja lugar para el globo de WhatsApp, que flota en la esquina en
+   todos los anchos: la línea de datos del vendedor no queda debajo. */
 .pie__legal {
   display: grid;
   gap: 0.9rem;
-  padding-block: 1.75rem 2rem;
+  padding-block: 1.75rem 5.5rem;
   border-top: 1px solid rgb(255 255 255 / 0.18);
 }
-.pie__datos {
+/* Los sellos de pago y el Data Fiscal, en una fila que baja si no entra. */
+.pie__sellos {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.75rem;
-  margin: 0;
-  font-size: 0.8125rem;
-  color: rgb(255 255 255 / 0.86);
+  align-items: center;
+  gap: 1rem 1.5rem;
 }
-.pie__datos > div {
+.pie__pagos {
   display: flex;
-  gap: 0.4rem;
-}
-.pie__datos dt {
-  color: rgb(255 255 255 / 0.62);
-}
-.pie__datos dd {
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.pie__datos a {
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
+.pie__pagos svg {
+  display: block;
 }
 /* Data Fiscal (F. 960/D de ARCA): el logo, chico y sobre blanco como lo entrega ARCA. */
 .pie__data-fiscal {
@@ -2709,13 +2752,15 @@ p {
 }
 .pie__copy {
   font-size: 0.75rem;
+  line-height: 1.6;
   color: rgb(255 255 255 / 0.62);
 }
-@media (max-width: 46rem) {
-  /* El globo de WhatsApp flota abajo a la derecha: los datos no se meten debajo. */
-  .pie__legal {
-    padding-bottom: 5.5rem;
-  }
+.pie__copy a {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.pie__sin-corte {
+  white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------------------
@@ -3114,6 +3159,9 @@ p {
   height: 0.5rem;
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--tinta) 15%, transparent);
+}
+.modelo__colores span[data-agotada] {
+  opacity: 0.3;
 }
 
 /* Estrellas: la fila llena se recorta encima de la vacía. */
@@ -3540,52 +3588,14 @@ p {
   font-weight: 600;
 }
 
-/* La reputación de Harper como vendedor en Mercado Libre. */
+/* Las cifras de Harper (ventas y calificaciones), debajo de las opiniones. */
 .vendedor {
-  display: grid;
-  gap: 0.75rem;
-  max-width: 26rem;
   margin-top: 1.25rem;
-  padding: 1.15rem 1.2rem;
+  padding: 1.1rem 1.2rem;
+  max-width: 26rem;
   border: 1px solid var(--borde);
   border-radius: 18px;
 }
-.vendedor__titulo {
-  font-weight: 600;
-}
-.vendedor__medalla {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--verde);
-}
-.vendedor__punto {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: currentColor;
-}
-/* El termómetro de Mercado Libre: cinco tramos, del rojo al verde. */
-.vendedor__termometro {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 4px;
-}
-.vendedor__termometro span {
-  height: 6px;
-  border-radius: 3px;
-  opacity: 0.25;
-}
-.vendedor__termometro span[data-activo] {
-  opacity: 1;
-}
-.vendedor__termometro [data-nivel="1"] { background: #e2524a; }
-.vendedor__termometro [data-nivel="2"] { background: #f0943b; }
-.vendedor__termometro [data-nivel="3"] { background: #f2c94c; }
-.vendedor__termometro [data-nivel="4"] { background: #a5cf5a; }
-.vendedor__termometro [data-nivel="5"] { background: #39b54a; }
 .vendedor__datos {
   display: flex;
   gap: 2rem;

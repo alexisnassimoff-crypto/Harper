@@ -30,10 +30,34 @@ const SEIS_HORAS = 6 * 60 * 60;
 class ErrorML extends Error {
   constructor(
     readonly status: number,
-    ruta: string
+    ruta: string,
+    detalle: string
   ) {
-    super(`Mercado Libre ${status} en ${ruta}`);
+    super(`Mercado Libre ${status} en ${ruta}${detalle ? ` (${detalle})` : ""}`);
   }
+}
+
+/**
+ * Sin permiso para ese dato (403): no se arregla reintentando, se arregla en
+ * la aplicación de Mercado Libre. Un 401 no entra: puede ser un token que
+ * venció en el medio, y eso sí se arregla en el próximo intento.
+ */
+const esSinPermiso = (error: unknown) =>
+  (error instanceof ErrorML && error.status === 403) || (error instanceof ErrorOpiniones && error.sinPermiso);
+
+/**
+ * El motivo que da Mercado Libre, para /api/health: "PolicyAgent:
+ * PA_UNAUTHORIZED_RESULT_FROM_POLICIES: …". Sus respuestas de error no
+ * traen el token.
+ */
+async function motivoML(respuesta: Response): Promise<string> {
+  const cuerpo = (await respuesta.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!cuerpo) return "";
+  return ["blocked_by", "code", "error", "message"]
+    .map((k) => (typeof cuerpo[k] === "string" ? (cuerpo[k] as string) : ""))
+    .filter(Boolean)
+    .join(": ")
+    .slice(0, 200);
 }
 
 async function pedirML(ruta: string, token: string): Promise<unknown> {
@@ -42,7 +66,7 @@ async function pedirML(ruta: string, token: string): Promise<unknown> {
     cache: "no-store",
     signal: AbortSignal.timeout(5_000),
   });
-  if (!respuesta.ok) throw new ErrorML(respuesta.status, ruta);
+  if (!respuesta.ok) throw new ErrorML(respuesta.status, ruta, await motivoML(respuesta));
   return respuesta.json();
 }
 
@@ -90,13 +114,26 @@ async function opinionesDe(publicaciones: { id: string; modelo: string }[], toke
   if (errores.length > 0) {
     const bien = resultados.filter((r) => r.status === "fulfilled").length;
     const primero = errores[0] instanceof Error ? errores[0].message : String(errores[0]);
-    throw new Error(
-      `Opiniones: ${bien} de ${resultados.length} publicaciones bien, ${errores.length} con error (el primero: ${primero})`
+    throw new ErrorOpiniones(
+      `Opiniones: ${bien} de ${resultados.length} publicaciones bien, ${errores.length} con error (el primero: ${primero})`,
+      // "Sin permiso" solo si no cargó ninguna: con algunas bien y otra en
+      // 403 se reintenta, en vez de guardar 6 horas un total que se quedó corto.
+      bien === 0 && errores.every(esSinPermiso)
     );
   }
 
   const items = resultados.flatMap((r) => (r.status === "fulfilled" && r.value ? [r.value] : []));
   return combinarOpiniones(items);
+}
+
+class ErrorOpiniones extends Error {
+  constructor(
+    mensaje: string,
+    /** Todas las publicaciones contestaron "sin permiso" (403). */
+    readonly sinPermiso: boolean
+  ) {
+    super(mensaje);
+  }
 }
 
 export type DatosMercadoLibre = { opiniones: OpinionesML | null; reputacion: ReputacionML | null };
@@ -113,12 +150,26 @@ const mercadoLibreCacheado = unstable_cache(
   async (): Promise<DatosMercadoLibre> => {
     let opiniones: OpinionesML | null;
     let reputacion: ReputacionML | null;
+    let aviso: string | undefined;
     try {
       const [token, publicaciones] = await Promise.all([tokenVigente(), publicacionesDeAnteojos()]);
-      [opiniones, reputacion] = await Promise.all([
+      const [deOpiniones, deReputacion] = await Promise.allSettled([
         opinionesDe(publicaciones, token),
         pedirML("/users/me", token).then(leerReputacion),
       ]);
+      // Las opiniones y la reputación van por separado: si Mercado Libre no
+      // da permiso para una (403, no cambia reintentando), se guarda sin ella
+      // y la otra se muestra igual. Cualquier otra falla corta todo y se
+      // reintenta en la próxima regeneración.
+      for (const r of [deOpiniones, deReputacion]) {
+        if (r.status === "rejected" && !esSinPermiso(r.reason)) throw r.reason;
+      }
+      opiniones = deOpiniones.status === "fulfilled" ? deOpiniones.value : null;
+      reputacion = deReputacion.status === "fulfilled" ? deReputacion.value : null;
+      const sinPermiso = [deOpiniones, deReputacion].flatMap((r) =>
+        r.status === "rejected" ? [r.reason instanceof Error ? r.reason.message : String(r.reason)] : []
+      );
+      if (sinPermiso.length > 0) aviso = `Sin permiso: ${sinPermiso.join(" | ")}`;
     } catch (error) {
       // La falla se anota acá adentro: cuando ya hay un dato viejo, Next lo
       // sigue sirviendo y se traga el error, y afuera nunca se enteraría.
@@ -132,10 +183,11 @@ const mercadoLibreCacheado = unstable_cache(
       destacadas: opiniones?.destacadas.length ?? 0,
       medalla: reputacion?.medalla ?? null,
       ventas: reputacion?.ventas ?? null,
+      ...(aviso ? { aviso: aviso.slice(0, 500) } : {}),
     });
     return { opiniones, reputacion };
   },
-  ["ml-portada-v1"],
+  ["ml-portada-v2"],
   { revalidate: SEIS_HORAS }
 );
 

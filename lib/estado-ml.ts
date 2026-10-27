@@ -15,7 +15,16 @@ const CLAVE = "harper:ml:ultimo-intento";
 const DURA_SEGUNDOS = 7 * 24 * 60 * 60;
 
 export type IntentoML =
-  | { ok: true; cuando: string; opiniones: number; destacadas: number; medalla: string | null; ventas: number | null }
+  | {
+      ok: true;
+      cuando: string;
+      opiniones: number;
+      destacadas: number;
+      medalla: string | null;
+      ventas: number | null;
+      /** Lo que no se pudo traer (por ejemplo, sin permiso para las opiniones). */
+      aviso?: string;
+    }
   | { ok: false; cuando: string; error: string };
 
 async function redis(comando: string[]): Promise<unknown> {

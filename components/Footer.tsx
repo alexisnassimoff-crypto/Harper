@@ -3,20 +3,17 @@ import type { ConfigTienda } from "@/lib/config";
 import { leerDataFiscal } from "@/lib/data-fiscal";
 import { EnlacePreferenciasCookies } from "./AvisoCookies";
 import Logo from "./Logo";
+import MediosDePago from "./MediosDePago";
 
 /**
- * El pie: editorial y con Harper como protagonista. La información legal
- * obligatoria (razón social, CUIT, domicilio, contactos, enlace a Defensa de
- * las y los Consumidores) está siempre a la vista en "Información legal", en
- * un tono más chico, sin esconderse detrás de un clic.
+ * El pie: editorial y con Harper como protagonista. Abajo, los medios de pago,
+ * el Data Fiscal de ARCA y una sola línea chica con los datos del vendedor.
+ *
+ * Esa línea no se saca: la Res. GMC 37/19 (Res. SCI 270/2020) pide razón
+ * social, CUIT, domicilio y correo "en ubicación de fácil visualización" y
+ * antes de la compra. Ale no quería el bloque grande de "Información legal"
+ * (27/10/2026): quedan los mismos datos, en un renglón y sin títulos.
  */
-
-/** "+54 9 11 4917-2061" a partir de "5491149172061"; si no es de ese formato, tal cual. */
-export function telefonoLegible(numero: string): string {
-  const d = numero.replace(/\D/g, "");
-  if (/^54911\d{8}$/.test(d)) return `+54 9 11 ${d.slice(5, 9)}-${d.slice(9)}`;
-  return d ? `+${d}` : "";
-}
 
 const DEFENSA_CONSUMIDOR = "https://autogestion.produccion.gob.ar/consumidores";
 
@@ -29,7 +26,6 @@ export default function Footer({
   categorias?: { nombre: string; slug: string }[];
 }) {
   const whatsapp = config.whatsapp ? `https://wa.me/${config.whatsapp}` : null;
-  const telefono = config.whatsapp ? telefonoLegible(config.whatsapp) : "";
   const anio = new Date().getFullYear();
   const dataFiscal = leerDataFiscal(config.dataFiscal);
 
@@ -85,63 +81,33 @@ export default function Footer({
         </nav>
       </div>
 
-      {/* Información legal del vendedor: obligatoria y siempre visible. */}
-      <section className="contenedor pie__legal" aria-labelledby="pie-informacion-legal">
-        <h2 id="pie-informacion-legal" className="pie__titulo">
-          Información legal
-        </h2>
-        <dl className="pie__datos">
-          <div>
-            <dt>Razón social</dt>
-            <dd>{config.razonSocial}</dd>
-          </div>
-          <div>
-            <dt>CUIT</dt>
-            <dd>{config.cuit}</dd>
-          </div>
-          {config.domicilio ? (
-            <div>
-              <dt>Domicilio</dt>
-              <dd>{config.domicilio}</dd>
-            </div>
+      <section className="contenedor pie__legal" aria-label="Medios de pago y datos del vendedor">
+        <div className="pie__sellos">
+          <MediosDePago className="pie__pagos" />
+          {dataFiscal ? (
+            // Formulario 960/D de ARCA: el logo y el enlace son los que entrega
+            // ARCA para harper.ar (Config.data_fiscal). Sin código, no se muestra.
+            <a
+              className="pie__data-fiscal"
+              href={dataFiscal.enlace}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Data Fiscal (ARCA): información fiscal del vendedor"
+            >
+              {dataFiscal.imagen ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={dataFiscal.imagen} alt="Data Fiscal" loading="lazy" decoding="async" />
+              ) : (
+                "Data Fiscal"
+              )}
+            </a>
           ) : null}
-          <div>
-            <dt>Email</dt>
-            <dd>
-              <a href={`mailto:${config.emailContacto}`}>{config.emailContacto}</a>
-            </dd>
-          </div>
-          {whatsapp ? (
-            <div>
-              <dt>WhatsApp</dt>
-              <dd>
-                <a href={whatsapp} target="_blank" rel="noopener noreferrer">
-                  {telefono}
-                </a>
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-        {dataFiscal ? (
-          // Formulario 960/D de ARCA: el logo y el enlace son los que entrega
-          // ARCA para harper.ar (Config.data_fiscal). Sin código, no se muestra.
-          <a
-            className="pie__data-fiscal"
-            href={dataFiscal.enlace}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Data Fiscal (ARCA): información fiscal del vendedor"
-          >
-            {dataFiscal.imagen ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={dataFiscal.imagen} alt="Data Fiscal" loading="lazy" decoding="async" />
-            ) : (
-              "Data Fiscal"
-            )}
-          </a>
-        ) : null}
+        </div>
         <p className="pie__copy">
-          © {anio} Harper. Harper es una marca de {config.razonSocial}.
+          © {anio} Harper, una marca de {config.razonSocial} ·{" "}
+          <span className="pie__sin-corte">CUIT {config.cuit}</span>
+          {config.domicilio ? <> · {config.domicilio}</> : null} ·{" "}
+          <a href={`mailto:${config.emailContacto}`}>{config.emailContacto}</a>
         </p>
       </section>
     </footer>
