@@ -79,7 +79,7 @@ export default function CompraPortada({
   whatsapp: string | null;
 }) {
   const router = useRouter();
-  const { items, agregar, cupon, listo } = useCarrito();
+  const { items, agregar, cupon, listo, abrirPanel } = useCarrito();
   const { datos: carritoResuelto } = useCarritoResuelto();
   const [enTransicion, iniciarTransicion] = useTransition();
 
@@ -169,6 +169,8 @@ export default function CompraPortada({
   function agregarAlCarrito() {
     sumar(lineas());
     setAgregado(true);
+    // En escritorio, el carrito se abre al costado con lo que lleva.
+    abrirPanel();
   }
 
   function comprarAhora() {

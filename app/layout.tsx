@@ -11,6 +11,7 @@ import { getConfig } from "@/lib/config";
 import { DESCRIPCION_SITIO, TITULO_SITIO } from "@/lib/portada";
 import "./globals.css";
 import AvisoCookies from "@/components/AvisoCookies";
+import PanelCarrito from "@/components/carrito/PanelCarrito";
 import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import { anunciosDelHeader } from "@/lib/anuncios";
@@ -142,6 +143,7 @@ export default async function RootLayout({
           <Footer config={config} categorias={categorias} />
           <WhatsApp numero={config.whatsapp} />
           <AvisoCookies />
+          <PanelCarrito />
         </ProveedorCarrito>
       </body>
     </html>

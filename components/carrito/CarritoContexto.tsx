@@ -12,6 +12,16 @@ import { normalizarCodigo } from "@/lib/cupones";
 import type { ItemCarrito } from "@/lib/tipos";
 
 const CLAVE = "harper.carrito.v1";
+
+/**
+ * Desde este ancho el carrito se muestra como panel lateral al agregar algo
+ * (es el mismo corte en el que la ficha y la portada pasan a dos columnas).
+ * Más angosto, todo sigue como siempre: «Agregado» y el enlace al carrito.
+ */
+export const ESCRITORIO = "(min-width: 48rem)";
+
+/** Donde el panel sobra: el carrito y el checkout ya muestran lo mismo. */
+const SIN_PANEL = ["/carrito", "/checkout", "/gracias"];
 /** El cupón aplicado (por ejemplo desde la ficha), hasta el pago. */
 const CLAVE_CUPON = "harper.cupon.v1";
 
@@ -29,6 +39,15 @@ type ContextoCarrito = {
   cupon: string | null;
   aplicarCupon: (codigo: string) => void;
   quitarCupon: () => void;
+  /** El panel lateral del carrito (escritorio). */
+  panelAbierto: boolean;
+  /**
+   * Lo abre si la pantalla es de escritorio y no se está en el carrito ni en
+   * el checkout; devuelve si lo abrió. Lo llama quien agrega algo a pedido
+   * del comprador, nunca `agregar`: «Comprar ahora» va directo al checkout.
+   */
+  abrirPanel: () => boolean;
+  cerrarPanel: () => void;
 };
 
 const Carrito = createContext<ContextoCarrito | null>(null);
@@ -137,6 +156,16 @@ export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
   const aplicarCupon = useCallback((codigo: string) => setCupon(normalizarCodigo(codigo) || null), []);
   const quitarCupon = useCallback(() => setCupon(null), []);
 
+  const [panelAbierto, setPanelAbierto] = useState(false);
+  const abrirPanel = useCallback(() => {
+    if (typeof window === "undefined" || !window.matchMedia?.(ESCRITORIO).matches) return false;
+    const ruta = window.location.pathname;
+    if (SIN_PANEL.some((r) => ruta === r || ruta.startsWith(`${r}/`))) return false;
+    setPanelAbierto(true);
+    return true;
+  }, []);
+  const cerrarPanel = useCallback(() => setPanelAbierto(false), []);
+
   const valor = useMemo<ContextoCarrito>(
     () => ({
       items,
@@ -149,8 +178,11 @@ export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
       cupon,
       aplicarCupon,
       quitarCupon,
+      panelAbierto,
+      abrirPanel,
+      cerrarPanel,
     }),
-    [items, listo, agregar, cambiarCantidad, quitar, vaciar, cupon, aplicarCupon, quitarCupon]
+    [items, listo, agregar, cambiarCantidad, quitar, vaciar, cupon, aplicarCupon, quitarCupon, panelAbierto, abrirPanel, cerrarPanel]
   );
 
   return <Carrito.Provider value={valor}>{children}</Carrito.Provider>;

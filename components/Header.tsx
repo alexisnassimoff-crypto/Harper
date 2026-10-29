@@ -26,7 +26,7 @@ export default function Header({
     href: `/${c.slug}`,
     texto: c.nombre,
   }));
-  const { unidades, listo } = useCarrito();
+  const { unidades, listo, abrirPanel } = useCarrito();
   const pathname = usePathname();
   const [anunciosPausados, setAnunciosPausados] = useState(false);
 
@@ -107,6 +107,12 @@ export default function Header({
               href="/carrito"
               className="carrito-enlace"
               data-activo={pathname === "/carrito"}
+              // En escritorio abre el panel lateral; en celular, con otra tecla
+              // apretada o en /carrito y /checkout, sigue siendo el enlace.
+              onClick={(evento) => {
+                if (evento.button !== 0 || evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return;
+                if (abrirPanel()) evento.preventDefault();
+              }}
               aria-label={
                 listo && unidades > 0
                   ? `Carrito, ${unidades} ${unidades === 1 ? "unidad" : "unidades"}`

@@ -45,7 +45,7 @@ export default function FichaProducto({
   whatsapp?: string | null;
 }) {
   const router = useRouter();
-  const { items, agregar, cupon } = useCarrito();
+  const { items, agregar, cupon, abrirPanel } = useCarrito();
   // Cuántas unidades de cada color de este producto hay en el carrito.
   const enCarrito = new Map<string, number>();
   for (const item of items) enCarrito.set(item.varianteId, (enCarrito.get(item.varianteId) ?? 0) + item.cantidad);
@@ -121,6 +121,8 @@ export default function FichaProducto({
   function agregarAlCarrito() {
     sumarAlCarrito();
     setAgregado(true);
+    // En escritorio, el carrito se abre al costado con lo que lleva.
+    abrirPanel();
   }
 
   function comprarAhora() {

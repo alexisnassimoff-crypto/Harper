@@ -26,7 +26,7 @@ export default function ProductoCard({
   /** Color con el que abre la ficha; lo reparte la grilla para no repetir. */
   inicial?: number;
 }) {
-  const { agregar } = useCarrito();
+  const { agregar, abrirPanel } = useCarrito();
   const [indice, setIndice] = useState(inicial);
   const [indiceFoto, setIndiceFoto] = useState(0);
   const [agregado, setAgregado] = useState(false);
@@ -68,6 +68,8 @@ export default function ProductoCard({
     });
     trackAgregarAlCarrito({ sku: variante.sku, nombre: producto.nombre, precio: producto.precio });
     setAgregado(true);
+    // En escritorio, el carrito se abre al costado con lo que lleva.
+    abrirPanel();
   }
 
   return (
