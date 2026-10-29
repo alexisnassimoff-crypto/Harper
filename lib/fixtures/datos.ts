@@ -250,7 +250,7 @@ export const CONFIG: RegistroFixture[] = [
   config("envio_gratis_desde", process.env.HARPER_FIXTURES_ENVIO_GRATIS_DESDE || "80000"),
   config("banner_texto", "Envio gratis en compras superiores a $80.000"),
   config("plazo_entrega", "3 a 7 dias habiles"),
-  config("whatsapp", "5491149172061"),
+  config("whatsapp", "5491173555065"),
   config("email_contacto", "harpercaseseyewear@gmail.com"),
   config("email_pedidos", "harpercaseseyewear@gmail.com"),
   config("razon_social", "FOCUS VISION SRL"),
@@ -262,7 +262,7 @@ export const CONFIG: RegistroFixture[] = [
   // El despacho, como en Airtable (Ale, 28/10/2026). Envia solo cotiza si la
   // prueba levanta un Envia de mentira (ENVIA_API_URL y ENVIA_TOKEN).
   config("envio_origen_nombre", "FOCUS VISION SRL"),
-  config("envio_origen_telefono", "1149172061"),
+  config("envio_origen_telefono", "1173555065"),
   config("envio_origen_calle", "Gorostiaga"),
   config("envio_origen_numero", "1635"),
   config("envio_origen_piso", "5"),
