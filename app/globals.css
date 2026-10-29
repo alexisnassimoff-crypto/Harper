@@ -1523,6 +1523,18 @@ p {
   cursor: pointer;
 }
 
+/* Con poca altura, el panel entero se desplaza: «Finalizar compra» siempre
+   se puede alcanzar. */
+@media (max-height: 36rem) {
+  .carrito-lateral__caja {
+    overflow-y: auto;
+  }
+  .carrito-lateral__cuerpo {
+    flex: none;
+    overflow: visible;
+  }
+}
+
 @keyframes carrito-entra {
   from {
     transform: translateX(100%);

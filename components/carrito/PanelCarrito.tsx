@@ -43,14 +43,15 @@ function Contenido({ alCerrar }: { alCerrar: () => void }) {
   const { cupon, unidades } = useCarrito();
   const { datos, cargando, actualizando, error, recargar } = useCarritoResuelto();
   const idTitulo = useId();
-  const caja = useRef<HTMLElement>(null);
+  const caja = useRef<HTMLDivElement>(null);
   const cerrar = useRef<HTMLButtonElement>(null);
 
   // Modal mientras está abierto: sin scroll de fondo (compensando la barra,
   // para que la página no salte), con el foco adentro y Escape para cerrar.
   // Al cerrarse, el foco vuelve a donde estaba (el botón que lo abrió).
   useEffect(() => {
-    const previo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const activo = document.activeElement;
+    const previo = activo instanceof HTMLElement && activo !== document.body ? activo : null;
     const cuerpo = document.body;
     const antes = { overflow: cuerpo.style.overflow, padding: cuerpo.style.paddingRight };
     const barra = window.innerWidth - document.documentElement.clientWidth;
@@ -94,12 +95,31 @@ function Contenido({ alCerrar }: { alCerrar: () => void }) {
     };
   }, [alCerrar]);
 
+  // Si lo que tenía el foco desaparece (quitó un producto o el cupón), el
+  // foco vuelve al panel: en un diálogo modal nunca queda afuera.
+  useEffect(() => {
+    const activo = document.activeElement;
+    if (caja.current && (!activo || activo === document.body)) caja.current.focus({ preventScroll: true });
+  });
+
   const hayProductos = Boolean(datos && datos.items.length > 0);
 
   return (
     <div className="carrito-lateral">
       <div className="carrito-lateral__fondo" onClick={alCerrar} aria-hidden="true" />
-      <aside ref={caja} className="carrito-lateral__caja" role="dialog" aria-modal="true" aria-labelledby={idTitulo}>
+      {/* Cualquier enlace de adentro (un producto, Finalizar compra) cierra el
+          panel: si lleva a la misma página, la ruta no cambia y quedaría abierto. */}
+      <div
+        ref={caja}
+        className="carrito-lateral__caja"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={idTitulo}
+        tabIndex={-1}
+        onClick={(evento) => {
+          if ((evento.target as Element).closest("a[href]")) alCerrar();
+        }}
+      >
         <div className="carrito-lateral__cabecera">
           <h2 id={idTitulo} className="label">
             Tu carrito{unidades > 0 ? ` · ${unidades} ${unidades === 1 ? "producto" : "productos"}` : ""}
@@ -129,23 +149,33 @@ function Contenido({ alCerrar }: { alCerrar: () => void }) {
               </button>
             </div>
           ) : (
-            <ul
-              className="pila"
-              style={{ gap: "1.25rem", listStyle: "none", margin: 0, padding: 0 }}
-              aria-busy={actualizando}
-              data-actualizando={actualizando || undefined}
-            >
-              {datos!.items.map((item) => (
-                <LineaCarrito key={item.varianteId} item={item} actualizando={actualizando} compacta />
-              ))}
-            </ul>
+            <>
+              {error ? (
+                <p className="aviso-carrito" role="status" style={{ marginBottom: "1rem" }}>
+                  No pudimos actualizar los precios. Mostramos lo último que vimos.{" "}
+                  <button type="button" className="enlace-verde aviso-carrito__accion" onClick={recargar}>
+                    Reintentar
+                  </button>
+                </p>
+              ) : null}
+              <ul
+                className="pila"
+                style={{ gap: "1.25rem", listStyle: "none", margin: 0, padding: 0 }}
+                aria-busy={actualizando}
+                data-actualizando={actualizando || undefined}
+              >
+                {datos!.items.map((item) => (
+                  <LineaCarrito key={item.varianteId} item={item} actualizando={actualizando} compacta />
+                ))}
+              </ul>
+            </>
           )}
         </div>
 
         {hayProductos && datos ? (
           <Resumen datos={datos} actualizando={actualizando} conCupon={Boolean(cupon)} alSeguir={alCerrar} />
         ) : null}
-      </aside>
+      </div>
     </div>
   );
 }

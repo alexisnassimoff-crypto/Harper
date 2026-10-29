@@ -14,11 +14,11 @@ import type { ItemCarrito } from "@/lib/tipos";
 const CLAVE = "harper.carrito.v1";
 
 /**
- * Desde este ancho el carrito se muestra como panel lateral al agregar algo
- * (es el mismo corte en el que la ficha y la portada pasan a dos columnas).
- * Más angosto, todo sigue como siempre: «Agregado» y el enlace al carrito.
+ * Una compu: desde este ancho (el corte en el que la ficha y la portada pasan
+ * a dos columnas) y con mouse. Así un celular acostado, que llega a ese
+ * ancho, sigue como siempre: «Agregado» y el enlace al carrito.
  */
-export const ESCRITORIO = "(min-width: 48rem)";
+export const ESCRITORIO = "(min-width: 48rem) and (hover: hover) and (pointer: fine)";
 
 /** Donde el panel sobra: el carrito y el checkout ya muestran lo mismo. */
 const SIN_PANEL = ["/carrito", "/checkout", "/gracias"];

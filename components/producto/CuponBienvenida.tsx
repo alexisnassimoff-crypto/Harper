@@ -74,9 +74,11 @@ export default function CuponBienvenida({
     }
     setError(null);
     aplicarCupon(encontrado.codigo);
-    // En escritorio y con algo en el carrito, se abre al costado con el
-    // descuento ya aplicado (y el foco va al panel); si no, al botón Quitar.
-    if (!(items.length > 0 && abrirPanel())) setEnfocar("quitar");
+    // El foco va a Quitar (el campo desaparece). En escritorio y con algo en
+    // el carrito, además se abre el carrito al costado con el descuento: toma
+    // el foco y, al cerrarse, lo devuelve a Quitar.
+    setEnfocar("quitar");
+    if (items.length > 0) abrirPanel();
   }
 
   function quitar() {

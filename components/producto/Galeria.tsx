@@ -64,6 +64,8 @@ export default function Galeria({
     function alTeclear(e: KeyboardEvent) {
       const objetivo = e.target as HTMLElement | null;
       if (objetivo && /^(INPUT|TEXTAREA|SELECT)$/.test(objetivo.tagName)) return;
+      // Con el carrito lateral abierto, las flechas son del panel, no de la foto de atrás.
+      if (document.body.dataset.carritoLateral !== undefined) return;
 
       if (e.key === "ArrowRight") pasarMedio(1);
       else if (e.key === "ArrowLeft") pasarMedio(-1);
