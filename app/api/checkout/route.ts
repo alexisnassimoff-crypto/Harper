@@ -31,13 +31,19 @@ type FilaPedido = Record<string, unknown>;
 
 /**
  * Cada intento de pago puede cotizar el envío con Envia (si no trae un
- * comprobante válido): un tope por IP y para toda la tienda, como el de
- * /api/envio/cotizar. Una persona nunca paga veinte veces en un minuto.
+ * comprobante válido): un tope por IP, como el de /api/envio/cotizar. Una
+ * persona nunca paga veinte veces en un minuto. El tope de toda la tienda
+ * está en lib/envia.ts: pasado ese, tarifa plana, y la venta sigue.
  */
 const LIMITE_POR_IP_MINUTO = 20;
-const LIMITE_TOTAL_MINUTO = 300;
 
 export async function POST(request: Request) {
+  // Solo desde el propio sitio: otra página no puede disparar pedidos (ni
+  // consultas a Envia) desde el navegador de sus visitantes.
+  if (request.headers.get("sec-fetch-site") === "cross-site") {
+    return NextResponse.json({ error: "Origen no permitido" }, { status: 403 });
+  }
+
   if (!mercadoPagoConfigurado()) {
     return NextResponse.json(
       { error: "Los pagos todavía no están habilitados." },
@@ -87,10 +93,7 @@ export async function POST(request: Request) {
   }
 
   const ip = claveDeIp(request.headers.get("x-forwarded-for")?.split(",")[0] ?? "");
-  const cuota = await consumirCuota([
-    { clave: `checkout-ip:${ip}`, ventanaMs: 60_000, limite: LIMITE_POR_IP_MINUTO },
-    { clave: "checkout-total", ventanaMs: 60_000, limite: LIMITE_TOTAL_MINUTO },
-  ]);
+  const cuota = await consumirCuota([{ clave: `checkout-ip:${ip}`, ventanaMs: 60_000, limite: LIMITE_POR_IP_MINUTO }]);
   if (cuota.excedida) {
     return NextResponse.json(
       { error: "Demasiados intentos seguidos. Esperá un minuto y probá de nuevo." },
@@ -174,7 +177,9 @@ export async function POST(request: Request) {
     // pagar: se le muestra el total nuevo y decide.
     const totalVisto = typeof cuerpo.totalVisto === "number" ? cuerpo.totalVisto : null;
 
-    if (totalVisto !== null && Math.abs(cobro.total - totalVisto) > 1) {
+    // Todos los montos son pesos enteros calculados en el servidor (el
+    // navegador muestra los mismos números): tiene que coincidir exacto.
+    if (totalVisto !== null && Math.abs(cobro.total - totalVisto) > 0.005) {
       return NextResponse.json(
         {
           error: "El total cambió mientras completabas los datos. Revisalo antes de pagar.",
@@ -276,9 +281,10 @@ export async function POST(request: Request) {
  *  4. Como antes de estos cambios, sin Factura_, Cupon ni Medio_pago: si la
  *     factura va a un CUIT, sus datos van a Notas (el aviso interno los lee
  *     de ahí), y el cupón y el medio de pago aparte.
- * Los campos del envío (Envio_*, Direccion_*) van en todos los intentos y se
- * sacan solo si el rechazo los nombra: entonces el envío va al final de
- * Notas, después de la facturación, que el aviso interno lee del principio.
+ * Los campos del envío (Envio_*, Direccion_*) van en todos los intentos; si
+ * el rechazo nombra uno, se saca solo ese y se reintenta. Si faltó alguno,
+ * el envío también va al final de Notas, después de la facturación, que el
+ * aviso interno lee del principio.
  * Si el rechazo era por otra cosa, el último intento falla igual que antes.
  */
 async function crearPedido(
@@ -303,11 +309,16 @@ async function crearPedido(
     { fila: campos, notas: [notaFactura, notaCupon, notaMedio] },
   ];
 
-  let conEnvio = true;
+  const camposEnvio: FilaPedido = { ...envio.campos };
+  let envioIncompleto = false;
   const armar = ({ fila, notas }: Intento): FilaPedido => {
-    const texto = [...notas, conEnvio ? null : envio.nota].filter(Boolean).join("\n\n");
-    return { ...fila, ...(conEnvio ? envio.campos : {}), ...(texto ? { Notas: texto } : {}) };
+    const texto = [...notas, envioIncompleto ? envio.nota : null].filter(Boolean).join("\n\n");
+    return { ...fila, ...camposEnvio, ...(texto ? { Notas: texto } : {}) };
   };
+  // El campo del envío que nombra el rechazo de Airtable ("Unknown field
+  // name: \"Direccion_piso\"", o "Field \"Envio_plazo\" cannot accept…").
+  const campoRechazado = (mensaje: string) =>
+    CAMPOS_ENVIO_NUEVOS.find((c) => c in camposEnvio && (mensaje.includes(`"${c}"`) || mensaje.includes(`\\"${c}\\"`)));
 
   for (const [i, intento] of intentos.entries()) {
     const ultimo = i === intentos.length - 1;
@@ -316,10 +327,12 @@ async function crearPedido(
         return await createRecord<FilaPedido>(TABLAS.pedidos, armar(intento));
       } catch (error) {
         if (!(error instanceof ErrorAirtable && error.status === 422)) throw error;
-        // Si nombra un campo del envío, se reintenta lo mismo sin ellos.
-        if (conEnvio && CAMPOS_ENVIO_NUEVOS.some((c) => error.message.includes(`"${c}`) || error.message.includes(`\\"${c}`))) {
-          console.error("[checkout] Pedidos rechazó campos de envío; el envío va a Notas:", error.message);
-          conEnvio = false;
+        // Si nombra un campo del envío, se saca ese y se reintenta lo mismo.
+        const campo = campoRechazado(error.message);
+        if (campo) {
+          console.error(`[checkout] Pedidos rechazó ${campo}; se reintenta sin ese campo y el envío va también a Notas:`, error.message);
+          delete camposEnvio[campo];
+          envioIncompleto = true;
           continue;
         }
         if (ultimo) throw error;

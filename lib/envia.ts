@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { consumirCuota } from "./cuota";
 import { codigoEnviaDeProvincia } from "./provincias-envia";
 import type { DestinoEnvio, OpcionEnvio, OrigenEnvio, Paquete } from "./tipos";
 
@@ -33,6 +34,15 @@ const TIMEOUT_MS = 8_000;
 const CACHE_MS = 10 * 60_000;
 const CACHE_MAX = 300;
 
+/**
+ * Consultas nuevas a Envia por minuto, para toda la tienda (cada una le
+ * pregunta a todos los transportistas). Lo que sale del cache no cuenta.
+ * Pasado el tope, la tarifa plana, como con Envia caído: la venta sigue.
+ * Los topes por IP están en las rutas, antes de llegar acá: una sola IP no
+ * puede gastar este.
+ */
+const CONSULTAS_POR_MINUTO = 200;
+
 /** Los nombres que ve el comprador. Si Envia agrega uno, se usa el suyo. */
 const NOMBRES: Record<string, string> = {
   andreani: "Andreani",
@@ -44,6 +54,14 @@ const NOMBRES: Record<string, string> = {
 
 export function enviaConfigurado() {
   return Boolean(process.env.ENVIA_TOKEN?.trim());
+}
+
+/**
+ * Si con esta Config se puede cotizar: token, origen completo y
+ * transportistas. Sin eso, el checkout ni lo intenta y se ve como siempre.
+ */
+export function puedeCotizar(config: { envioOrigen: OrigenEnvio | null; envioTransportistas: string[] }) {
+  return enviaConfigurado() && config.envioOrigen !== null && config.envioTransportistas.length > 0;
 }
 
 /** El token de Harper es de producción; `ENVIA_ENTORNO=prueba` usa el sandbox. */
@@ -291,11 +309,15 @@ const cache = new Map<string, { vence: number; resultado: ResultadoEnvia }>();
  */
 export async function cotizarEnvia(
   p: PedidoDeCotizacion,
-  opciones: { fetchImpl?: typeof fetch; ahora?: number } = {}
+  opciones: { fetchImpl?: typeof fetch; ahora?: number; consumir?: typeof consumirCuota } = {}
 ): Promise<ResultadoEnvia | null> {
   const token = process.env.ENVIA_TOKEN?.trim();
   if (!token || p.transportistas.length === 0) return null;
-  if (!codigoEnviaDeProvincia(p.origen.provincia) || !codigoEnviaDeProvincia(p.destino.provincia)) return null;
+  if (!codigoEnviaDeProvincia(p.origen.provincia)) {
+    console.warn("[envia] la provincia de origen de Config no es una de las 24: tarifa plana");
+    return null;
+  }
+  if (!codigoEnviaDeProvincia(p.destino.provincia)) return null;
   if (!cuatroDigitos(p.destino.cp) || !p.destino.ciudad || !p.destino.calle) return null;
 
   const ahora = opciones.ahora ?? Date.now();
@@ -306,6 +328,14 @@ export async function cotizarEnvia(
   const clave = JSON.stringify(consulta);
   const guardado = cache.get(clave);
   if (guardado && guardado.vence > ahora) return guardado.resultado;
+
+  const cuota = await (opciones.consumir ?? consumirCuota)([
+    { clave: "envia-consultas", ventanaMs: 60_000, limite: CONSULTAS_POR_MINUTO },
+  ]);
+  if (cuota.excedida) {
+    console.warn("[envia] tope de consultas por minuto de la tienda: tarifa plana");
+    return null;
+  }
 
   const fetchImpl = opciones.fetchImpl ?? fetch;
   const respuestas = await Promise.allSettled(

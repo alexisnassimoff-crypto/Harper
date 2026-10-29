@@ -1,4 +1,4 @@
-import { precio as formatearPrecio } from "./formato";
+import { precio as formatearPrecio, precioConCentavos } from "./formato";
 import type { DatosCliente, EnvioDelPedido } from "./tipos";
 
 /**
@@ -12,7 +12,7 @@ import type { DatosCliente, EnvioDelPedido } from "./tipos";
  * generar la etiqueta más adelante con exactamente lo mismo.
  */
 
-/** Los campos nuevos de Pedidos. Si Airtable no los tiene, el checkout los manda a Notas (ver `notaDeEnvio`). */
+/** Los campos nuevos de Pedidos. Si Airtable no tiene alguno, el checkout lo saca y el envío va también a Notas (ver `notaDeEnvio`). */
 export const CAMPOS_ENVIO_NUEVOS = [
   "Envio_transportista",
   "Envio_servicio_codigo",
@@ -42,13 +42,13 @@ export function camposDeEnvio(envio: EnvioDelPedido, cliente: Pick<DatosCliente,
   };
 }
 
-/** Lo mismo en texto, para Notas, si Pedidos todavía no tiene los campos. */
+/** Lo mismo en texto, para Notas, si a Pedidos le falta alguno de los campos. */
 export function notaDeEnvio(envio: EnvioDelPedido): string {
   const opcion = envio.opcion;
   if (!opcion) return `Envío: tarifa plana ${envio.cobrado === 0 ? "(gratis)" : formatearPrecio(envio.cobrado)}, sin cotizar.`;
   return [
     `Envío: ${opcion.transportistaNombre} (${opcion.id})`,
-    `Costo real: ${formatearPrecio(opcion.costo)}${envio.bonificado ? " · envío gratis: lo paga Harper" : ""}`,
+    `Costo real: ${precioConCentavos(opcion.costo)}${envio.bonificado ? " · envío gratis: lo paga Harper" : ""}`,
     opcion.plazo ? `Plazo: ${opcion.plazo}` : null,
     envio.cotizadoEn ? `Cotizado: ${envio.cotizadoEn}` : null,
   ]

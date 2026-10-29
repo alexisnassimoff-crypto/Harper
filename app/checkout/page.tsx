@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import FormularioCheckout from "@/components/checkout/FormularioCheckout";
+import { getConfig } from "@/lib/config";
 import { direccionesDisponibles } from "@/lib/direcciones-servidor";
 import { leerMedioPago } from "@/lib/dinero-mp";
+import { puedeCotizar } from "@/lib/envia";
 
 export const metadata: Metadata = {
   title: "Finalizar compra",
@@ -16,6 +18,9 @@ export default async function PaginaCheckout({
   const { error, medio } = await searchParams;
   // Si el pago rechazado era con dinero en Mercado Pago, vuelve con esa opción elegida.
   const conDineroMP = leerMedioPago(medio) === "dineroMP";
+  // Sin Envia (o sin origen o transportistas en Config), el checkout no
+  // intenta cotizar y se ve como siempre, con la tarifa plana.
+  const cotizaEnvio = puedeCotizar(await getConfig());
 
   // InitiateCheckout lo dispara el formulario, cuando el carrito ya está
   // resuelto (con valor e ítems) y solo si de verdad hay algo para comprar y
@@ -41,6 +46,7 @@ export default async function PaginaCheckout({
       <FormularioCheckout
         reintento={error === "pago"}
         buscador={direccionesDisponibles()}
+        cotizaEnvio={cotizaEnvio}
         medioInicial={conDineroMP ? "dineroMP" : "mercadopago"}
       />
     </section>

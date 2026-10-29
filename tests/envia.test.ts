@@ -253,6 +253,59 @@ test("si un transportista no contestó (red, 5xx), el resultado no se guarda y s
   }
 });
 
+test("pasado el tope de consultas de la tienda, no se le pregunta a Envia: tarifa plana", async () => {
+  vaciarCacheEnvia();
+  process.env.ENVIA_TOKEN = "token-de-prueba";
+  let llamadas = 0;
+  const contar = (async () => { llamadas++; return new Response("{}"); }) as unknown as typeof fetch;
+  const lleno = async () => ({ excedida: "envia-consultas", cuentas: [201] });
+  const original = console.warn;
+  const avisos: string[] = [];
+  console.warn = (...a: unknown[]) => avisos.push(a.join(" "));
+  try {
+    assert.equal(await cotizarEnvia(PEDIDO, { fetchImpl: contar, consumir: lleno }), null);
+    assert.equal(llamadas, 0);
+    assert.ok(avisos.some((a) => a.includes("tope de consultas")));
+  } finally {
+    console.warn = original;
+  }
+});
+
+test("lo que sale del cache no gasta el tope de la tienda", async () => {
+  vaciarCacheEnvia();
+  process.env.ENVIA_TOKEN = "token-de-prueba";
+  let topes = 0;
+  const consumir = async () => { topes++; return { excedida: null, cuentas: [topes] }; };
+  const fetchFalso = (async (_url: string, init: RequestInit) =>
+    new Response(JSON.stringify(respuesta(JSON.parse(String(init.body)).shipment.carrier)))) as unknown as typeof fetch;
+  const original = console.warn;
+  console.warn = () => {};
+  try {
+    await cotizarEnvia(PEDIDO, { fetchImpl: fetchFalso, consumir });
+    await cotizarEnvia(PEDIDO, { fetchImpl: fetchFalso, consumir });
+    assert.equal(topes, 1);
+  } finally {
+    console.warn = original;
+  }
+});
+
+test("si la provincia de origen de Config no es una de las 24, avisa y no cotiza", async () => {
+  vaciarCacheEnvia();
+  process.env.ENVIA_TOKEN = "token-de-prueba";
+  let llamadas = 0;
+  const contar = (async () => { llamadas++; return new Response("{}"); }) as unknown as typeof fetch;
+  const original = console.warn;
+  const avisos: string[] = [];
+  console.warn = (...a: unknown[]) => avisos.push(a.join(" "));
+  try {
+    assert.equal(await cotizarEnvia({ ...PEDIDO, origen: { ...ORIGEN, provincia: "C.A.B.A." } }, { fetchImpl: contar }), null);
+    assert.equal(llamadas, 0);
+    assert.ok(avisos.some((a) => a.includes("provincia de origen")));
+  } finally {
+    console.warn = original;
+  }
+});
+
 test("un precio con otra escritura no se adivina: esa tarifa se descarta", () => {
   const tarifas = leerTarifas({ meta: "rate", data: [
     { carrier: "andreani", service: "ground", totalPrice: "7.350,25", currency: "ARS" },

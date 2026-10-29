@@ -49,9 +49,8 @@ function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown) {
  * `listo` dice si la cotización que hay es la de esta dirección y este
  * carrito: mientras no lo sea, el checkout no manda a pagar (no se cobra un
  * envío calculado para otra dirección). Nunca falla hacia afuera: si algo
- * sale mal o tarda demasiado, no hay cotización y el checkout sigue con la
- * tarifa plana. Si el servidor pide esperar (429), se espera y se vuelve a
- * preguntar.
+ * sale mal, tarda demasiado o el servidor pide esperar (429), no hay
+ * cotización y el checkout sigue con la tarifa plana.
  */
 export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown) {
   const { items } = useCarrito();
@@ -68,7 +67,6 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown)
     }
 
     const controlador = new AbortController();
-    let reintento: number | undefined;
     setCargando(true);
 
     const consultar = () => {
@@ -80,13 +78,8 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown)
         signal: controlador.signal,
       })
         .then(async (r) => {
-          if (r.status === 429) {
-            // Demasiadas consultas desde esta conexión: se espera lo que pide
-            // el servidor. Mientras tanto el envío no está listo.
-            const segundos = Math.min(60, Math.max(1, Number(r.headers.get("Retry-After")) || 10));
-            reintento = window.setTimeout(consultar, segundos * 1000);
-            return;
-          }
+          // Cualquier otra respuesta (429 por demasiadas consultas, 5xx) es
+          // "sin cotizar": se sigue con la tarifa plana, sin trabar el pago.
           const datos = r.ok ? ((await r.json()) as Cotizacion) : null;
           if (controlador.signal.aborted) return;
           setEstado({ clave, cotizacion: datos });
@@ -105,7 +98,6 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown)
 
     return () => {
       window.clearTimeout(id);
-      window.clearTimeout(reintento);
       controlador.abort();
     };
     // `clave` resume lo que cambia el precio; `vuelta` fuerza otra cotización.

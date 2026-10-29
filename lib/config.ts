@@ -1,6 +1,7 @@
 import { listRecords, TABLAS } from "./airtable";
 import { aNumero } from "./formato";
 import { leerImpuestos, SIN_IMPUESTOS_CARGADOS, type ImpuestosNacionales } from "./impuestos";
+import { codigoEnviaDeProvincia } from "./provincias-envia";
 import type { OrigenEnvio } from "./tipos";
 
 /**
@@ -202,7 +203,16 @@ function leerOrigenEnvio(mapa: Map<string, string>): OrigenEnvio | null {
     provincia: dato("provincia"),
     cp: (dato("cp").match(/\d{4}/) ?? [""])[0],
   };
-  const completo = origen.nombre && origen.telefono.replace(/\D/g, "").length >= 8 && origen.calle && origen.numero && origen.ciudad && origen.provincia && origen.cp;
+  // La provincia tiene que ser una de las 24 (con el nombre del checkout): si
+  // no, Envia no puede cotizar y /api/health avisa que falta el origen.
+  const completo =
+    origen.nombre &&
+    origen.telefono.replace(/\D/g, "").length >= 8 &&
+    origen.calle &&
+    origen.numero &&
+    origen.ciudad &&
+    codigoEnviaDeProvincia(origen.provincia) &&
+    origen.cp;
   return completo ? origen : null;
 }
 

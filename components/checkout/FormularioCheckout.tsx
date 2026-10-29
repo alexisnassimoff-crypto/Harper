@@ -111,12 +111,18 @@ const VACIO: DatosCliente = {
 export default function FormularioCheckout({
   reintento = false,
   buscador = false,
+  cotizaEnvio = false,
   medioInicial = "mercadopago",
 }: {
   /** Verdadero cuando vuelve de un pago rechazado: no es un checkout nuevo. */
   reintento?: boolean;
   /** Verdadero si el servidor tiene Google Places: la dirección se busca. */
   buscador?: boolean;
+  /**
+   * Verdadero si el servidor puede cotizar con Envia (token, origen y
+   * transportistas). Si no, ni se intenta: el checkout se ve como siempre.
+   */
+  cotizaEnvio?: boolean;
   /** Al volver de un pago rechazado con dinero en Mercado Pago, sigue elegida. */
   medioInicial?: MedioPago;
 }) {
@@ -155,7 +161,10 @@ export default function FormularioCheckout({
   // manuales, juntos en la calle.
   const destino: DestinoEnvio | null = (() => {
     const cp = (form.cp.match(/\d{4}/) ?? [""])[0];
-    const calle = (modoDireccion === "buscador" ? (elegida?.calle ?? "") : form.direccion).trim();
+    // Como el servidor: la calle del buscador, o la dirección entera si la
+    // calle vino vacía o de una letra (calles numeradas como "7").
+    const calleElegida = (elegida?.calle ?? "").trim();
+    const calle = (modoDireccion === "buscador" && calleElegida.length >= 2 ? calleElegida : form.direccion).trim();
     const numeroCalle = modoDireccion === "buscador" ? (elegida?.numero || numero.trim()) : "";
     if (!cp || !form.provincia || form.ciudad.trim().length < 2 || calle.length < 2) return null;
     if (modoDireccion === "buscador" && !numeroCalle) return null;
@@ -171,7 +180,7 @@ export default function FormularioCheckout({
     activo: envioActivo,
     listo: envioListo,
     recotizar,
-  } = useCotizacionEnvio(destino, cupon);
+  } = useCotizacionEnvio(cotizaEnvio ? destino : null, cupon);
   // Si toca Pagar mientras se calcula el envío de su dirección, se guarda el
   // total que estaba viendo: al llegar la cotización se sigue solo si el
   // total no cambió.
@@ -187,7 +196,7 @@ export default function FormularioCheckout({
   // Si la última respuesta fue "sin cotizar" (Envia sin configurar o caído),
   // mientras se calcula otra dirección no se anuncia nada: el checkout se ve
   // como siempre, con la tarifa plana.
-  const [sinCotizar, setSinCotizar] = useState(false);
+  const [sinCotizar, setSinCotizar] = useState(!cotizaEnvio);
   useEffect(() => {
     if (envioListo) setSinCotizar(!cotizacion?.cotizado);
   }, [envioListo, cotizacion]);

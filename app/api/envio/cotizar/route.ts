@@ -7,10 +7,12 @@ import type { DestinoEnvio } from "@/lib/tipos";
 export const dynamic = "force-dynamic";
 
 const MINUTO = 60_000;
-/** Una persona que cambia la dirección unas cuantas veces entra holgada. */
+/**
+ * Una persona que cambia la dirección unas cuantas veces entra holgada. El
+ * tope de toda la tienda está en lib/envia.ts y cuenta solo las consultas
+ * que de verdad llegan a Envia: pasado ese, tarifa plana, nunca un 429.
+ */
 const LIMITE_POR_IP_MINUTO = 30;
-/** Para toda la tienda: cada cotización son varias consultas a Envia. */
-const LIMITE_TOTAL_MINUTO = 400;
 
 /** Las cuotas son un dato para mostrar: si Mercado Pago tarda, la cotización sale igual. */
 const ESPERA_CUOTAS_MS = 3_000;
@@ -30,8 +32,8 @@ function conLimite<T>(promesa: Promise<T>, ms: number, siTarda: T): Promise<T> {
  * cotizar. Si no se puede cotizar, devuelve la tarifa plana con
  * `cotizado: false`; nunca un error por eso.
  *
- * Solo atiende al propio sitio y con un límite por IP y para toda la tienda:
- * cada llamada son varias consultas a Envia.
+ * Solo atiende al propio sitio y con un límite por IP: cada llamada pueden
+ * ser varias consultas a Envia.
  */
 export async function POST(request: Request) {
   if (request.headers.get("sec-fetch-site") === "cross-site") {
@@ -62,10 +64,7 @@ export async function POST(request: Request) {
   };
 
   const ip = claveDeIp(request.headers.get("x-forwarded-for")?.split(",")[0] ?? "");
-  const cuota = await consumirCuota([
-    { clave: `envio-ip:${ip}`, ventanaMs: MINUTO, limite: LIMITE_POR_IP_MINUTO },
-    { clave: "envio-total", ventanaMs: MINUTO, limite: LIMITE_TOTAL_MINUTO },
-  ]);
+  const cuota = await consumirCuota([{ clave: `envio-ip:${ip}`, ventanaMs: MINUTO, limite: LIMITE_POR_IP_MINUTO }]);
   if (cuota.excedida) {
     return NextResponse.json(
       { error: "Demasiadas consultas seguidas. Esperá un momento." },

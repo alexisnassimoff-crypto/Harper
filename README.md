@@ -523,18 +523,21 @@ cobra Envia, con centavos), `Envio_bonificado`, `Envio_plazo`, `Envio_cotizado_e
 `Envio_cotizacion` (la consulta y la respuesta de Envia, sin la calle del comprador) y
 la dirección separada en `Direccion_calle`, `Direccion_numero` y `Direccion_piso`. Con
 eso, generar la etiqueta más adelante es una sola llamada más. Si a la tabla le faltara
-algún campo, el pedido se crea igual y el envío queda escrito en `Notas`.
+algún campo, el pedido se crea igual sin ese campo y el envío queda escrito también en
+`Notas`.
 
 **Si Envia no puede cotizar, la tienda cobra el `costo_envio` plano de la tabla
 `Config` y sigue vendiendo.** Eso pasa cuando falta el token, el origen o los
-transportistas, cuando a un producto le faltan el peso o las medidas, o cuando Envia no
-responde (8 segundos). Es a propósito: una caída de Envia puede costar unos pesos de
+transportistas (o la provincia de origen no es una de las 24), cuando a un producto le
+faltan el peso o las medidas, o cuando Envia no responde (8 segundos). Es a propósito: una caída de Envia puede costar unos pesos de
 diferencia en un envío, nunca la venta entera. En el pedido queda «Tarifa plana (sin
 cotizar)».
 
-**Límites.** `/api/envio/cotizar` atiende solo al propio sitio, hasta 30 consultas por
-minuto por IP y 400 por minuto en total. Cada cotización se guarda 10 minutos: la misma
-dirección con el mismo carrito no vuelve a consultar a Envia.
+**Límites.** `/api/envio/cotizar` y `/api/checkout` atienden solo al propio sitio, hasta
+30 y 20 pedidos por minuto por IP. Para toda la tienda, como mucho 200 consultas nuevas
+a Envia por minuto: pasado eso, la tarifa plana, nunca un error. Cada cotización se
+guarda 10 minutos por código postal, provincia y localidad: corregir la calle o el número
+no vuelve a consultar a Envia (el precio no depende de eso).
 
 Para probar contra el entorno de pruebas de Envia: `ENVIA_ENTORNO=prueba` (con un token
 de ese entorno).
