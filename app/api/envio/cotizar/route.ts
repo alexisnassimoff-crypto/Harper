@@ -13,6 +13,8 @@ const MINUTO = 60_000;
  * que de verdad llegan a Envia: pasado ese, tarifa plana, nunca un 429.
  */
 const LIMITE_POR_IP_MINUTO = 30;
+/** Pedidos por minuto en una instancia, pasados los cuales los topes por IP se cuentan solo en memoria. */
+const LIMITE_INSTANCIA_MINUTO = 1_000;
 
 /** Las cuotas son un dato para mostrar: si Mercado Pago tarda, la cotización sale igual. */
 const ESPERA_CUOTAS_MS = 3_000;
@@ -64,7 +66,14 @@ export async function POST(request: Request) {
   };
 
   const ip = claveDeIp(request.headers.get("x-forwarded-for")?.split(",")[0] ?? "");
-  const cuota = await consumirCuota([{ clave: `envio-ip:${ip}`, ventanaMs: MINUTO, limite: LIMITE_POR_IP_MINUTO }]);
+  // Un contador de la instancia, solo en memoria y sin frenar a nadie: con
+  // una inundación de IPs distintas, los topes por IP dejan de gastar
+  // comandos de Redis (el mismo que confirma los pagos).
+  const instancia = await consumirCuota([{ clave: "envio-instancia", ventanaMs: MINUTO, limite: LIMITE_INSTANCIA_MINUTO }], { soloMemoria: true });
+  const cuota = await consumirCuota(
+    [{ clave: `envio-ip:${ip}`, ventanaMs: MINUTO, limite: LIMITE_POR_IP_MINUTO }],
+    { soloMemoria: Boolean(instancia.excedida) }
+  );
   if (cuota.excedida) {
     return NextResponse.json(
       { error: "Demasiadas consultas seguidas. Esperá un momento." },

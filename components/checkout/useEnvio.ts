@@ -51,8 +51,13 @@ function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown) {
  * envío calculado para otra dirección). Nunca falla hacia afuera: si algo
  * sale mal, tarda demasiado o el servidor pide esperar (429), no hay
  * cotización y el checkout sigue con la tarifa plana.
+ *
+ * Con `consultar` en falso (el servidor no puede cotizar) no pregunta nada,
+ * pero igual puede `adoptar` la cotización que manda el checkout cuando
+ * frena por un total distinto: así el comprador ve enseguida lo que el
+ * servidor va a cobrar, sin volver a preguntar.
  */
-export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown) {
+export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown, consultar = true) {
   const { items } = useCarrito();
   const [estado, setEstado] = useState<{ clave: string; cotizacion: Cotizacion | null } | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -61,7 +66,7 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown)
   const clave = destino && items.length > 0 ? claveDe(destino, items, cupon) : null;
 
   useEffect(() => {
-    if (!clave || !destino) {
+    if (!clave || !destino || !consultar) {
       setCargando(false);
       return;
     }
@@ -69,7 +74,7 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown)
     const controlador = new AbortController();
     setCargando(true);
 
-    const consultar = () => {
+    const pedir = () => {
       const limite = window.setTimeout(() => controlador.abort(TIEMPO_AGOTADO), ESPERA_MAXIMA_MS);
       fetch("/api/envio/cotizar", {
         method: "POST",
@@ -94,7 +99,7 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown)
         .finally(() => window.clearTimeout(limite));
     };
 
-    const id = window.setTimeout(consultar, ESPERA_MS);
+    const id = window.setTimeout(pedir, ESPERA_MS);
 
     return () => {
       window.clearTimeout(id);
@@ -102,19 +107,28 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown)
     };
     // `clave` resume lo que cambia el precio; `vuelta` fuerza otra cotización.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clave, vuelta]);
+  }, [clave, vuelta, consultar]);
 
   const actual = estado && estado.clave === clave ? estado.cotizacion : null;
+
+  const activo = consultar && clave !== null;
 
   return {
     cotizacion: actual,
     cargando,
-    /** Hay una dirección completa y un carrito para cotizar. */
-    activo: clave !== null,
+    /** Hay una dirección completa y un carrito, y el servidor puede cotizar. */
+    activo,
     /** La respuesta que hay es la de esta dirección y este carrito (aunque sea "sin cotizar"). */
-    listo: clave !== null && estado?.clave === clave && !cargando,
+    listo: activo && estado?.clave === clave && !cargando,
     /** Volver a cotizar, por ejemplo si el checkout dice que el total cambió. */
     recotizar: () => setVuelta((v) => v + 1),
+    /** Usar la cotización que mandó el servidor para esta misma dirección y carrito. */
+    adoptar: (cotizacion: Cotizacion) => {
+      if (clave) {
+        setEstado({ clave, cotizacion });
+        setCargando(false);
+      }
+    },
   };
 }
 

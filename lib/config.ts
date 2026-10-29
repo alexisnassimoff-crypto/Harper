@@ -186,6 +186,9 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
   };
 }
 
+/** Para avisar una sola vez por instancia de una provincia de origen mal escrita. */
+let provinciaAvisada = "";
+
 /**
  * El origen de los envíos. Todos los datos que pide Envia son obligatorios
  * (el piso no): si falta uno, null, y se cobra la tarifa plana en vez de
@@ -205,6 +208,10 @@ function leerOrigenEnvio(mapa: Map<string, string>): OrigenEnvio | null {
   };
   // La provincia tiene que ser una de las 24 (con el nombre del checkout): si
   // no, Envia no puede cotizar y /api/health avisa que falta el origen.
+  if (origen.provincia && !codigoEnviaDeProvincia(origen.provincia) && provinciaAvisada !== origen.provincia) {
+    provinciaAvisada = origen.provincia;
+    console.warn(`[config] envio_origen_provincia "${origen.provincia.slice(0, 60)}" no es una de las 24 provincias: se cobra la tarifa plana`);
+  }
   const completo =
     origen.nombre &&
     origen.telefono.replace(/\D/g, "").length >= 8 &&

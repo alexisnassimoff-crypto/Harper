@@ -137,7 +137,7 @@ export async function GET() {
         ? null
         : "Sin GOOGLE_PLACES_API_KEY el checkout pide la dirección con los campos manuales (se vende igual)",
       envia.configurado && !envia.origenCompleto
-        ? "Envia: falta el origen en Config (envio_origen_nombre, telefono, calle, numero, ciudad, provincia y cp): se cobra la tarifa plana"
+        ? "Envia: falta el origen en Config (envio_origen_nombre, telefono, calle, numero, ciudad, provincia —una de las 24, con el nombre del checkout— y cp): se cobra la tarifa plana"
         : null,
       envia.configurado && envia.transportistas.length === 0
         ? "Envia: falta envio_transportistas en Config: se cobra la tarifa plana"

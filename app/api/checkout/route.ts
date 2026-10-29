@@ -36,6 +36,8 @@ type FilaPedido = Record<string, unknown>;
  * está en lib/envia.ts: pasado ese, tarifa plana, y la venta sigue.
  */
 const LIMITE_POR_IP_MINUTO = 20;
+/** Pedidos por minuto en una instancia, pasados los cuales los topes por IP se cuentan solo en memoria. */
+const LIMITE_INSTANCIA_MINUTO = 1_000;
 
 export async function POST(request: Request) {
   // Solo desde el propio sitio: otra página no puede disparar pedidos (ni
@@ -93,7 +95,13 @@ export async function POST(request: Request) {
   }
 
   const ip = claveDeIp(request.headers.get("x-forwarded-for")?.split(",")[0] ?? "");
-  const cuota = await consumirCuota([{ clave: `checkout-ip:${ip}`, ventanaMs: 60_000, limite: LIMITE_POR_IP_MINUTO }]);
+  // Como en /api/envio/cotizar: con una inundación, los topes por IP se
+  // cuentan solo en memoria para no gastar comandos de Redis.
+  const instancia = await consumirCuota([{ clave: "checkout-instancia", ventanaMs: 60_000, limite: LIMITE_INSTANCIA_MINUTO }], { soloMemoria: true });
+  const cuota = await consumirCuota(
+    [{ clave: `checkout-ip:${ip}`, ventanaMs: 60_000, limite: LIMITE_POR_IP_MINUTO }],
+    { soloMemoria: Boolean(instancia.excedida) }
+  );
   if (cuota.excedida) {
     return NextResponse.json(
       { error: "Demasiados intentos seguidos. Esperá un minuto y probá de nuevo." },
@@ -184,6 +192,19 @@ export async function POST(request: Request) {
         {
           error: "El total cambió mientras completabas los datos. Revisalo antes de pagar.",
           totalNuevo: cobro.total,
+          // Si el envío se cotizó ahora, sus opciones (con comprobante): el
+          // checkout las muestra tal cual, sin volver a preguntar.
+          ...(carrito.opcionesEnvio.length > 0
+            ? {
+                envio: {
+                  opciones: carrito.opcionesEnvio,
+                  cotizado: true,
+                  envio: carrito.envio,
+                  bonificado: carrito.envioBonificado,
+                  cuotas: {},
+                },
+              }
+            : {}),
         },
         { status: 409 }
       );
@@ -309,8 +330,17 @@ async function crearPedido(
     { fila: campos, notas: [notaFactura, notaCupon, notaMedio] },
   ];
 
+  // Los campos que Pedidos ya rechazó en esta instancia no se vuelven a
+  // mandar: cada intento fallido es un pedido más a Airtable (5 por segundo).
   const camposEnvio: FilaPedido = { ...envio.campos };
   let envioIncompleto = false;
+  for (const campo of camposEnvioRechazados) {
+    if (campo in camposEnvio) {
+      delete camposEnvio[campo];
+      envioIncompleto = true;
+    }
+  }
+  let rechazosEnvio = 0;
   const armar = ({ fila, notas }: Intento): FilaPedido => {
     const texto = [...notas, envioIncompleto ? envio.nota : null].filter(Boolean).join("\n\n");
     return { ...fila, ...camposEnvio, ...(texto ? { Notas: texto } : {}) };
@@ -331,8 +361,11 @@ async function crearPedido(
         const campo = campoRechazado(error.message);
         if (campo) {
           console.error(`[checkout] Pedidos rechazó ${campo}; se reintenta sin ese campo y el envío va también a Notas:`, error.message);
+          camposEnvioRechazados.add(campo);
           delete camposEnvio[campo];
           envioIncompleto = true;
+          // Si ya van dos, faltan varios: se sacan todos los del envío de una vez.
+          if (++rechazosEnvio >= 2) for (const c of CAMPOS_ENVIO_NUEVOS) delete camposEnvio[c];
           continue;
         }
         if (ultimo) throw error;
@@ -345,6 +378,9 @@ async function crearPedido(
   // No se llega: el último intento devuelve el pedido o tira.
   throw new Error("No se pudo crear el pedido");
 }
+
+/** Campos del envío que Pedidos rechazó (por instancia): no se vuelven a mandar. */
+const camposEnvioRechazados = new Set<string>();
 
 /** Marca un pedido que nunca llegó a tener preferencia de pago. */
 async function anularPedido(pedidoId: string) {

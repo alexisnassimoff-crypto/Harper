@@ -25,7 +25,7 @@ import BarraPagar, { TextoPagoSeguro } from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import CodigoDescuento from "./CodigoDescuento";
 import { PROVINCIAS } from "./provincias";
-import { useCotizacionEnvio } from "./useEnvio";
+import { useCotizacionEnvio, type Cotizacion } from "./useEnvio";
 
 const CLAVE_DATOS = "harper.datos.v1";
 /** La dirección elegida en el buscador, con su piso: no hace falta buscarla otra vez. */
@@ -70,6 +70,8 @@ type RespuestaCheckout = {
   errores?: ErroresCliente & ErroresFacturacion;
   descartados?: { varianteId: string; motivo: string }[];
   totalNuevo?: number;
+  /** Con el 409 del total: el envío que cotizó el servidor para esta dirección. */
+  envio?: Cotizacion;
   /** El cupón no corresponde (por ejemplo, no es la primera compra). */
   cuponRechazado?: string;
 };
@@ -180,7 +182,8 @@ export default function FormularioCheckout({
     activo: envioActivo,
     listo: envioListo,
     recotizar,
-  } = useCotizacionEnvio(cotizaEnvio ? destino : null, cupon);
+    adoptar: adoptarEnvio,
+  } = useCotizacionEnvio(destino, cupon, cotizaEnvio);
   // Si toca Pagar mientras se calcula el envío de su dirección, se guarda el
   // total que estaba viendo: al llegar la cotización se sigue solo si el
   // total no cambió.
@@ -625,10 +628,13 @@ export default function FormularioCheckout({
       }
 
       // El total cambió (un precio, un descuento, el envío): se vuelve a
-      // resolver el carrito y el comprador ve el nuevo antes de pagar.
+      // resolver el carrito y el comprador ve el nuevo antes de pagar. Si el
+      // servidor cotizó el envío, manda sus opciones y se usan esas: no
+      // depende de volver a preguntar (que puede no estar disponible).
       if (respuesta.status === 409 && typeof cuerpo.totalNuevo === "number") {
         recargar();
-        recotizar();
+        if (cuerpo.envio?.cotizado) adoptarEnvio(cuerpo.envio);
+        else recotizar();
         setFallo(
           `${cuerpo.error ?? "El total cambió: revisalo antes de pagar."} El total actualizado es ${formatearPrecio(cuerpo.totalNuevo)}.`
         );
