@@ -113,10 +113,9 @@ export default function VistaCarrito() {
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}
-        <Fila
-          etiqueta={datos.envioCotizado ? "Envío" : "Envío a domicilio"}
-          valor={resumen.envio === 0 ? "Gratis" : formatearPrecio(resumen.envio)}
-        />
+        {/* El envío se cotiza en el checkout con la dirección (Envia): acá no
+            se anuncia un precio que puede cambiar, salvo cuando es gratis. */}
+        <Fila etiqueta="Envío a domicilio" valor={resumen.envio === 0 ? "Gratis" : "Se calcula en el checkout"} />
 
         {/* Solo la promoción del segundo par, en una línea. Sin tabla de
             tramos: el descuento que corresponda ya se ve en la fila de arriba. */}
@@ -140,8 +139,8 @@ export default function VistaCarrito() {
         ) : null}
 
         <div className="fila fila--total">
-          <span>Total</span>
-          <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total)}</strong>
+          <span>{resumen.envio === 0 ? "Total" : "Total sin envío"}</span>
+          <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total - resumen.envio)}</strong>
         </div>
 
         <Link href="/checkout" className="boton boton--bloque">
