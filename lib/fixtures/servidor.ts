@@ -1,4 +1,5 @@
 import { TABLAS } from "../airtable";
+import { CAMPOS_ENVIO_NUEVOS } from "../envio-pedido";
 import { cumpleFormula } from "./formula";
 import { tablasIniciales, type RegistroFixture } from "./datos";
 
@@ -84,9 +85,12 @@ function crear(id: string, fields: Record<string, unknown>) {
   // medio de pago (que se crean juntos): Airtable contesta 422.
   const sinFactura = process.env.HARPER_FIXTURES_PEDIDOS_SIN_FACTURA === "1" && id === TABLAS.pedidos;
   const sinCupon = process.env.HARPER_FIXTURES_PEDIDOS_SIN_CUPON === "1" && id === TABLAS.pedidos;
+  // Y una sin los campos del envío con Envia (Envio_transportista y demás).
+  const sinEnvio = process.env.HARPER_FIXTURES_PEDIDOS_SIN_ENVIO === "1" && id === TABLAS.pedidos;
   const desconocido =
     (sinFactura ? Object.keys(fields).find((k) => k.startsWith("Factura_")) : undefined) ??
-    (sinCupon ? ["Cupon", "Medio_pago"].find((k) => k in fields) : undefined);
+    (sinCupon ? ["Cupon", "Medio_pago"].find((k) => k in fields) : undefined) ??
+    (sinEnvio ? (CAMPOS_ENVIO_NUEVOS as readonly string[]).find((k) => k in fields) : undefined);
   if (desconocido) {
     throw respuesta(422, JSON.stringify({ error: { type: "UNKNOWN_FIELD_NAME", message: `Unknown field name: "${desconocido}"` } }));
   }

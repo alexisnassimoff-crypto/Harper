@@ -18,14 +18,14 @@ import {
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
-import type { DatosCliente, EleccionEnvio } from "@/lib/tipos";
+import type { DatosCliente, DestinoEnvio, EleccionEnvio } from "@/lib/tipos";
 import type { MedioPago } from "@/lib/dinero-mp";
 import { validarCliente, type ErroresCliente } from "@/lib/validacion";
 import BarraPagar, { TextoPagoSeguro } from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import CodigoDescuento from "./CodigoDescuento";
 import { PROVINCIAS } from "./provincias";
-import { useCotizacionEnvio } from "./useEnvio";
+import { useCotizacionEnvio, type Cotizacion } from "./useEnvio";
 
 const CLAVE_DATOS = "harper.datos.v1";
 /** La dirección elegida en el buscador, con su piso: no hace falta buscarla otra vez. */
@@ -70,6 +70,8 @@ type RespuestaCheckout = {
   errores?: ErroresCliente & ErroresFacturacion;
   descartados?: { varianteId: string; motivo: string }[];
   totalNuevo?: number;
+  /** Con el 409 del total: el envío que cotizó el servidor para esta dirección. */
+  envio?: Cotizacion;
   /** El cupón no corresponde (por ejemplo, no es la primera compra). */
   cuponRechazado?: string;
 };
@@ -103,18 +105,26 @@ const VACIO: DatosCliente = {
  * configurado, o si el comprador no encuentra su dirección, están los campos
  * de siempre.
  *
- * Solo hay envío a domicilio, a tarifa fija (o gratis desde el mínimo): no se
- * ofrecen sucursales ni servicios que todavía no existen.
+ * El envío es solo a domicilio. Con la dirección completa se cotiza con Envia
+ * y el comprador elige transportista (precio y plazo de cada uno); con envío
+ * gratis se muestra la opción más barata con el precio tachado. Si no se
+ * puede cotizar, la tarifa plana de siempre.
  */
 export default function FormularioCheckout({
   reintento = false,
   buscador = false,
+  cotizaEnvio = false,
   medioInicial = "mercadopago",
 }: {
   /** Verdadero cuando vuelve de un pago rechazado: no es un checkout nuevo. */
   reintento?: boolean;
   /** Verdadero si el servidor tiene Google Places: la dirección se busca. */
   buscador?: boolean;
+  /**
+   * Verdadero si el servidor puede cotizar con Envia (token, origen y
+   * transportistas). Si no, ni se intenta: el checkout se ve como siempre.
+   */
+  cotizaEnvio?: boolean;
   /** Al volver de un pago rechazado con dinero en Mercado Pago, sigue elegida. */
   medioInicial?: MedioPago;
 }) {
@@ -148,20 +158,58 @@ export default function FormularioCheckout({
   const [piso, setPiso] = useState("");
   const faltan: Faltante[] = elegida ? faltantes(elegida) : [];
 
-  // Envío a domicilio. Si Correo Argentino cotiza (cuando esté configurado),
-  // se toma la opción a domicilio más barata sin preguntar nada; si no, la
-  // tarifa fija del carrito. Nunca se ofrecen sucursales ni servicios.
-  const { cotizacion } = useCotizacionEnvio(form.cp);
-  const opcionDomicilio =
-    (cotizacion?.opciones ?? [])
-      .filter((o) => o.modo === "D")
-      .sort((a, b) => a.precio - b.precio)[0] ?? null;
+  // El destino para cotizar el envío, cuando ya está completo. Con el
+  // buscador, la calle y el número van por separado; con los campos
+  // manuales, juntos en la calle.
+  const destino: DestinoEnvio | null = (() => {
+    const cp = (form.cp.match(/\d{4}/) ?? [""])[0];
+    // Como el servidor: la calle del buscador, o la dirección entera si la
+    // calle vino vacía o de una letra (calles numeradas como "7").
+    const calleElegida = (elegida?.calle ?? "").trim();
+    const calle = (modoDireccion === "buscador" && calleElegida.length >= 2 ? calleElegida : form.direccion).trim();
+    const numeroCalle = modoDireccion === "buscador" ? (elegida?.numero || numero.trim()) : "";
+    if (!cp || !form.provincia || form.ciudad.trim().length < 2 || calle.length < 2) return null;
+    if (modoDireccion === "buscador" && !numeroCalle) return null;
+    return { cp, provincia: form.provincia, ciudad: form.ciudad.trim(), calle, numero: numeroCalle };
+  })();
+
+  // Envío a domicilio cotizado con Envia para esa dirección. Elige el
+  // comprador; si no eligió, la más barata. Sin cotización, la tarifa del
+  // carrito (la plana, o gratis desde el mínimo).
+  const {
+    cotizacion,
+    cargando: cotizandoEnvio,
+    activo: envioActivo,
+    listo: envioListo,
+    recotizar,
+    adoptar: adoptarEnvio,
+  } = useCotizacionEnvio(destino, cupon, cotizaEnvio);
+  // Si toca Pagar mientras se calcula el envío de su dirección, se guarda el
+  // total que estaba viendo: al llegar la cotización se sigue solo si el
+  // total no cambió.
+  const [pagarAlCotizar, setPagarAlCotizar] = useState<number | null>(null);
+  // Lo mismo, para leerlo en el acto: el envío automático del formulario sale
+  // en el mismo render en que se limpia el estado.
+  const esperandoEnvio = useRef(false);
+  const formulario = useRef<HTMLFormElement>(null);
+  const [idEnvio, setIdEnvio] = useState<string | null>(null);
+  const opcionesEnvio = cotizacion?.cotizado ? cotizacion.opciones : [];
+  const opcionEnvio = opcionesEnvio.find((o) => o.id === idEnvio) ?? opcionesEnvio[0] ?? null;
+
+  // Si la última respuesta fue "sin cotizar" (Envia sin configurar o caído),
+  // mientras se calcula otra dirección no se anuncia nada: el checkout se ve
+  // como siempre, con la tarifa plana.
+  const [sinCotizar, setSinCotizar] = useState(!cotizaEnvio);
+  useEffect(() => {
+    if (envioListo) setSinCotizar(!cotizacion?.cotizado);
+  }, [envioListo, cotizacion]);
+  const calculandoEnvio = envioActivo && !envioListo && !sinCotizar;
 
   // El envío bonificado gana sobre cualquier cotización: el pedido llegó al
   // mínimo y lo paga Harper.
   const envio = cotizacion?.bonificado
     ? 0
-    : (opcionDomicilio?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
+    : (opcionEnvio?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
 
   // Los dos precios vienen del servidor: cambiar de medio de pago no espera
   // ninguna consulta.
@@ -181,9 +229,15 @@ export default function FormularioCheckout({
   const resumen = medioPago === "dineroMP" && resumenDineroMP ? resumenDineroMP : resumenMercadoPago;
 
   // Las cuotas sin interés, solo si Mercado Pago las confirmó para el total
-  // de esta compra con tarjeta (con su envío). Si el total cambió (por
-  // ejemplo, con otra cotización del envío), no se anuncian.
-  const cuotas = carrito?.cuotas && carrito.cuotas.monto === resumenMercadoPago.total ? carrito.cuotas : null;
+  // de esta compra con tarjeta (con su envío): las del envío elegido, o las
+  // del carrito con la tarifa plana. Si el total es otro, no se anuncian.
+  const cuotasDelEnvio = opcionEnvio ? (cotizacion?.cuotas?.[opcionEnvio.id] ?? null) : null;
+  const cuotas =
+    cuotasDelEnvio && cuotasDelEnvio.monto === resumenMercadoPago.total
+      ? cuotasDelEnvio
+      : carrito?.cuotas && carrito.cuotas.monto === resumenMercadoPago.total
+        ? carrito.cuotas
+        : null;
   const cuotaTexto = cuotas ? `${cuotas.cuotas} cuotas sin interés de ${precioConCentavos(cuotas.montoCuota)}` : null;
   const cuotaCondiciones = cuotas
     ? `Precio de contado ${formatearPrecio(cuotas.monto)} · CFTEA ${cuotas.cftea} · ${NOMBRE_MARCAS}`
@@ -293,6 +347,27 @@ export default function FormularioCheckout({
   }, [carrito, reintento]);
 
 
+  // Tocó Pagar antes de que llegara el envío de su dirección: con el envío ya
+  // calculado, si el total es el que vio se paga; si cambió, se le muestra.
+  useEffect(() => {
+    if (pagarAlCotizar === null) return;
+    // La dirección quedó incompleta o el carrito se vació: no se paga solo.
+    if (!envioActivo) {
+      esperandoEnvio.current = false;
+      setPagarAlCotizar(null);
+      return;
+    }
+    // Se espera también al carrito, por si cambió el cupón mientras tanto.
+    if (!envioListo || actualizando) return;
+    esperandoEnvio.current = false;
+    setPagarAlCotizar(null);
+    if (resumen.total === pagarAlCotizar) {
+      formulario.current?.requestSubmit();
+    } else {
+      setFallo(`Con el envío a tu dirección, el total es ${formatearPrecio(resumen.total)}. Revisalo y tocá Pagar.`);
+    }
+  }, [pagarAlCotizar, envioActivo, envioListo, actualizando, resumen.total]);
+
   // Un aviso de error (por ejemplo, el cupón rechazado al pagar desde la barra
   // fija) se lleva a la franja visible: en celular quedaba fuera de pantalla.
   const avisoFallo = useRef<HTMLParagraphElement>(null);
@@ -365,9 +440,10 @@ export default function FormularioCheckout({
     window.setTimeout(() => document.getElementById("direccion")?.focus(), 0);
   }
 
+  /** El envío elegido, con el comprobante de su cotización. Nunca un precio. */
   function eleccion(): EleccionEnvio | undefined {
-    if (!opcionDomicilio) return undefined;
-    return { modo: opcionDomicilio.modo, servicio: opcionDomicilio.servicio };
+    if (!opcionEnvio) return undefined;
+    return { id: opcionEnvio.id, comprobante: opcionEnvio.comprobante };
   }
 
   /**
@@ -434,15 +510,26 @@ export default function FormularioCheckout({
     return { tipo: "cuit", ...datos };
   }
 
-  /** Los datos del pedido tal como viajan: con el piso o depto en la dirección. */
+  /**
+   * Los datos del pedido tal como viajan: con el piso o depto en la
+   * dirección y, con el buscador, también la calle, el número y el piso por
+   * separado (para cotizar y, más adelante, para la etiqueta).
+   */
   function clienteAEnviar(): DatosCliente {
-    if (modoDireccion !== "buscador") return form;
+    const { calle: _calle, numero: _numero, piso: _piso, ...base } = form;
+    if (modoDireccion !== "buscador") return base;
     const extra = piso.trim();
-    return { ...form, direccion: extra ? `${form.direccion}, ${extra}` : form.direccion };
+    return {
+      ...base,
+      direccion: extra ? `${form.direccion}, ${extra}` : form.direccion,
+      ...(elegida ? { calle: elegida.calle, numero: elegida.numero || numero.trim(), ...(extra ? { piso: extra } : {}) } : {}),
+    };
   }
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
+    // Ya tocó Pagar y se está calculando el envío: sigue solo al llegar.
+    if (esperandoEnvio.current) return;
     setFallo(null);
 
     const cliente = clienteAEnviar();
@@ -465,6 +552,14 @@ export default function FormularioCheckout({
     if (Object.keys(encontrados).length > 0) {
       setErrores(encontrados);
       enfocarPrimerError(encontrados);
+      return;
+    }
+
+    // El envío de esta dirección todavía se está calculando: se espera, para
+    // no cobrar uno calculado para otra dirección, y se sigue solo al llegar.
+    if (envioActivo && !envioListo) {
+      esperandoEnvio.current = true;
+      setPagarAlCotizar(resumen.total);
       return;
     }
 
@@ -533,10 +628,16 @@ export default function FormularioCheckout({
       }
 
       // El total cambió (un precio, un descuento, el envío): se vuelve a
-      // resolver el carrito y el comprador ve el nuevo antes de pagar.
+      // resolver el carrito y el comprador ve el nuevo antes de pagar. Si el
+      // servidor cotizó el envío, manda sus opciones y se usan esas: no
+      // depende de volver a preguntar (que puede no estar disponible).
       if (respuesta.status === 409 && typeof cuerpo.totalNuevo === "number") {
         recargar();
-        setFallo(cuerpo.error ?? "El total cambió: revisalo antes de pagar.");
+        if (cuerpo.envio?.cotizado) adoptarEnvio(cuerpo.envio);
+        else recotizar();
+        setFallo(
+          `${cuerpo.error ?? "El total cambió: revisalo antes de pagar."} El total actualizado es ${formatearPrecio(cuerpo.totalNuevo)}.`
+        );
         setEnviando(false);
         return;
       }
@@ -585,11 +686,25 @@ export default function FormularioCheckout({
 
   const cantidadTotal = carrito.items.reduce((n, i) => n + i.cantidad, 0);
   const productos = `${cantidadTotal} ${cantidadTotal === 1 ? "producto" : "productos"}`;
-  const envioTexto = resumen.envio === 0 ? "Gratis" : formatearPrecio(resumen.envio);
-  const notaEnvio =
-    carrito.envioGratisDesde > 0
-      ? `Correo Argentino a domicilio. Gratis desde ${formatearPrecio(carrito.envioGratisDesde)}.`
-      : "Correo Argentino a domicilio.";
+  // Con envío gratis y cotizado, el precio real tachado: lo paga Harper.
+  // Mientras se cotiza la dirección, no se anuncia un precio que va a cambiar.
+  const envioTexto = calculandoEnvio ? (
+    <span className="apagado">Calculando…</span>
+  ) : resumen.envio === 0 ? (
+    cotizacion?.bonificado && opcionEnvio ? (
+      <>
+        <PrecioTachado precio={opcionEnvio.precio} /> Gratis
+      </>
+    ) : (
+      "Gratis"
+    )
+  ) : (
+    formatearPrecio(resumen.envio)
+  );
+  const gratisDesde = carrito.envioGratisDesde > 0 ? ` Gratis desde ${formatearPrecio(carrito.envioGratisDesde)}.` : "";
+  const notaEnvio = opcionEnvio
+    ? `${opcionEnvio.transportistaNombre}${opcionEnvio.plazo ? ` · llega en ${opcionEnvio.plazo}` : ""}.${gratisDesde}`
+    : `Envío a domicilio.${gratisDesde}`;
 
   const listaItems = (
     <>
@@ -613,7 +728,7 @@ export default function FormularioCheckout({
   );
 
   return (
-    <form id={ID_FORMULARIO} className="checkout__form" onSubmit={enviar} noValidate>
+    <form ref={formulario} id={ID_FORMULARIO} className="checkout__form" onSubmit={enviar} noValidate>
       <div className="checkout__campos">
         {/* En celular el resumen queda abajo de todo: esta línea adelanta lo
             esencial y se despliega para ver el detalle. */}
@@ -803,6 +918,47 @@ export default function FormularioCheckout({
             ) : null}
           </>
         )}
+
+        {/* El envío: las opciones a domicilio que cotizó Envia para esta
+            dirección, con precio y plazo. Con envío gratis, la más barata con
+            su precio tachado. Mismo diseño que el medio de pago. */}
+        {opcionesEnvio.length > 0 || calculandoEnvio ? (
+          <fieldset className="medio-pago" disabled={enviando} aria-busy={cotizandoEnvio}>
+            <legend className="label">Envío a domicilio</legend>
+            {opcionesEnvio.length > 0 ? (
+              opcionesEnvio.map((o) => (
+                <label key={o.id} className="medio-pago__opcion" data-elegida={o.id === opcionEnvio?.id}>
+                  <input
+                    type="radio"
+                    name="envio"
+                    value={o.id}
+                    checked={o.id === opcionEnvio?.id}
+                    onChange={() => setIdEnvio(o.id)}
+                  />
+                  <span className="medio-pago__texto">
+                    <span className="medio-pago__nombre">{o.transportistaNombre}</span>
+                    <span className="medio-pago__detalle">
+                      {[o.servicioNombre, o.plazo ? `llega en ${o.plazo}` : null].filter(Boolean).join(" · ")}
+                    </span>
+                  </span>
+                  <span className="medio-pago__precio">
+                    {cotizacion?.bonificado ? (
+                      <>
+                        <PrecioTachado precio={o.precio} /> Envío gratis
+                      </>
+                    ) : (
+                      formatearPrecio(o.precio)
+                    )}
+                  </span>
+                </label>
+              ))
+            ) : (
+              <p className="apagado checkout__envio-nota" role="status">
+                Calculando el envío a tu dirección…
+              </p>
+            )}
+          </fieldset>
+        ) : null}
 
         {/* Datos de facturación: por defecto, consumidor final. Si la factura
             va a nombre de una empresa u otro titular con CUIT, sus datos son
@@ -1032,8 +1188,13 @@ export default function FormularioCheckout({
 
         {/* En celular este botón no se muestra: lo reemplaza la barra fija,
             siempre a la vista, con el mismo texto y el total. */}
-        <button type="submit" className="boton boton--bloque checkout__pagar" disabled={enviando}>
-          {enviando ? "Redirigiendo…" : <TextoPagoSeguro total={formatearPrecio(resumen.total)} />}
+        <button
+          type="submit"
+          className="boton boton--bloque checkout__pagar"
+          disabled={enviando}
+          aria-disabled={pagarAlCotizar !== null || undefined}
+        >
+          {enviando ? "Redirigiendo…" : pagarAlCotizar !== null ? "Calculando el envío…" : <TextoPagoSeguro total={formatearPrecio(resumen.total)} />}
         </button>
 
         {medioPago === "dineroMP" ? (
@@ -1050,8 +1211,24 @@ export default function FormularioCheckout({
         )}
       </aside>
 
-      <BarraPagar visible formulario={ID_FORMULARIO} total={formatearPrecio(resumen.total)} ocupado={enviando} />
+      <BarraPagar
+        visible
+        formulario={ID_FORMULARIO}
+        total={formatearPrecio(resumen.total)}
+        ocupado={enviando}
+        esperando={pagarAlCotizar !== null ? "Calculando el envío…" : undefined}
+      />
     </form>
+  );
+}
+
+/** El precio del envío que paga Harper, tachado (y dicho como "antes" para lectores de pantalla). */
+function PrecioTachado({ precio }: { precio: number }) {
+  return (
+    <s className="apagado">
+      <span className="visualmente-oculto">Antes </span>
+      {formatearPrecio(precio)}
+    </s>
   );
 }
 

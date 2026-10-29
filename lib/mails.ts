@@ -1,5 +1,5 @@
 import type { ConfigTienda } from "./config";
-import { precio as formatearPrecio } from "./formato";
+import { precio as formatearPrecio, precioConCentavos } from "./formato";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import { caracteristicasDe } from "./caracteristicas";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
@@ -202,6 +202,14 @@ export type DatosMail = {
   cupon?: string | null;
   /** Verdadero si se pidió con el descuento por dinero en Mercado Pago. */
   conDineroMP?: boolean;
+  /** Con qué se envía, cuánto cuesta de verdad y el plazo (ver lib/envio-pedido.ts). Null en pedidos anteriores. */
+  envioDetalle?: {
+    transportista: string;
+    servicio: string;
+    plazo: string;
+    costoReal: number | null;
+    bonificado: boolean;
+  } | null;
   /** Algo que Harper tiene que revisar en esta venta, ya escrito. */
   alerta?: string | null;
 };
@@ -214,6 +222,22 @@ export type DatosMail = {
 export function enlaceGraduadosDelPedido(d: Pick<DatosMail, "numero" | "items" | "config">): string | null {
   const lleva = d.items.some((i) => caracteristicasDe({ slug: i.productoSlug, categoria: i.categoria }) !== null);
   return lleva ? enlaceWhatsApp(d.config.whatsapp, mensajeGraduadosPedido(d.numero)) : null;
+}
+
+/** "Lo enviamos por Andreani · plazo estimado: 2-4 días.", para el comprador. */
+function envioCliente(d: Pick<DatosMail, "envioDetalle">): string | null {
+  const e = d.envioDetalle;
+  if (!e || e.transportista.startsWith("Tarifa plana")) return null;
+  return `Lo enviamos por ${e.transportista}${e.plazo ? ` · plazo estimado: ${e.plazo}` : ""}.`;
+}
+
+/** "Envío: Andreani (andreani:ground) · costo real $ 8.120,40 · cobrado $ 8.121", para Harper. */
+function envioInterno(d: Pick<DatosMail, "envioDetalle" | "envio">): string | null {
+  const e = d.envioDetalle;
+  if (!e) return null;
+  const costo = e.costoReal !== null ? ` · costo real ${precioConCentavos(e.costoReal)}` : "";
+  const cobrado = e.bonificado ? " · envío gratis: lo paga Harper" : ` · cobrado ${formatearPrecio(d.envio)}`;
+  return `Envío: ${e.transportista}${e.servicio ? ` (${e.servicio})` : ""}${costo}${cobrado}${e.plazo ? ` · plazo ${e.plazo}` : ""}`;
 }
 
 /** 1 — Confirmación de compra para el cliente. */
@@ -238,7 +262,12 @@ ${totales(d.subtotal, d.envio, d.total)}
   <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#78756c;margin-bottom:6px;">Envío a</div>
   <div style="font-size:14px;line-height:1.6;">
     ${escaparHtml(d.cliente.nombre)}<br>${escaparHtml(direccion)}
-  </div>
+  </div>${
+    envioCliente(d)
+      ? `
+  <div style="margin-top:8px;font-size:13px;line-height:1.6;color:#78756c;">${escaparHtml(envioCliente(d)!)}</div>`
+      : ""
+  }
 </div>${
       graduados
         ? `
@@ -271,7 +300,7 @@ Subtotal: ${formatearPrecio(d.subtotal)}
 Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
 Total: ${formatearPrecio(d.total)}
 
-Envio a: ${d.cliente.nombre}, ${direccion}
+Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
 ${graduados ? `\n${TEXTO_GRADUADOS_PEDIDO}\nWhatsApp: ${graduados}\n` : ""}
 Consultas: ${d.config.emailContacto}`;
 
@@ -322,7 +351,7 @@ ${
   ${escaparHtml(d.cliente.direccion)}<br>
   ${escaparHtml(d.cliente.ciudad)}, ${escaparHtml(d.cliente.provincia)} — CP ${escaparHtml(d.cliente.cp)}<br>
   ${d.cliente.dni ? `DNI ${escaparHtml(d.cliente.dni)} · ` : ""}Tel ${escaparHtml(d.cliente.telefono)}<br>
-  ${escaparHtml(d.cliente.email)}
+  ${escaparHtml(d.cliente.email)}${envioInterno(d) ? `<br><br><strong style="font-weight:600;">${escaparHtml(envioInterno(d)!)}</strong>` : ""}
 </div>
 
 <p style="margin:24px 0 0;">
@@ -338,7 +367,7 @@ ${d.cupon ? `Cupón ${d.cupon}\n` : ""}
 ${d.cliente.nombre}
 ${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} - CP ${d.cliente.cp}
 ${d.cliente.dni ? `DNI ${d.cliente.dni} - ` : ""}Tel ${d.cliente.telefono} - ${d.cliente.email}
-${factura ? `\nDATOS DE FACTURACIÓN\n${factura.join("\n")}\n` : ""}
+${envioInterno(d) ? `${envioInterno(d)}\n` : ""}${factura ? `\nDATOS DE FACTURACIÓN\n${factura.join("\n")}\n` : ""}
 Airtable: ${d.pedidoUrl}`;
 
   return {

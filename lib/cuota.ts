@@ -55,10 +55,13 @@ function podar(ahora: number, ventanas: Ventana[]) {
 /**
  * Suma uno a cada ventana y dice si alguna pasó su límite. Las ventanas se
  * evalúan en el orden dado: la primera excedida es la que se informa.
+ *
+ * Con `soloMemoria` no se toca Redis: sirve para un tope de la instancia
+ * que solo cuenta, y para no gastar comandos cuando ese tope ya se pasó.
  */
 export async function consumirCuota(
   ventanas: Ventana[],
-  opciones: { fetchImpl?: typeof fetch; ahora?: number } = {}
+  opciones: { fetchImpl?: typeof fetch; ahora?: number; soloMemoria?: boolean } = {}
 ): Promise<ResultadoCuota> {
   const ahora = opciones.ahora ?? Date.now();
   const claves = ventanas.map((v) => claveRanura(v, ahora));
@@ -74,7 +77,7 @@ export async function consumirCuota(
   const yaExcedida = ventanas.findIndex((v, i) => enMemoria[i] > v.limite);
   if (yaExcedida >= 0) return { excedida: ventanas[yaExcedida].clave, cuentas: enMemoria };
 
-  const config = configuracionRedis();
+  const config = opciones.soloMemoria ? null : configuracionRedis();
   let cuentas = enMemoria;
 
   if (config) {

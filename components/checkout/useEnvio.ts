@@ -2,73 +2,134 @@
 
 import { useEffect, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
-import type { OpcionEnvio } from "@/lib/tipos";
+import type { CuotasVerificadas } from "@/lib/cuotas";
+import type { DestinoEnvio, OpcionEnvio } from "@/lib/tipos";
 import type { Sucursal } from "@/lib/correo";
 
 /** Lo que contesta /api/envio/cotizar. */
 export type Cotizacion = {
+  /** Las opciones a domicilio, más barata primero, cada una con su comprobante. */
   opciones: OpcionEnvio[];
-  /** Falso cuando `envio` es el precio plano de respaldo. */
+  /** Falso cuando `envio` es la tarifa plana de respaldo. */
   cotizado: boolean;
   envio: number;
-  subtotal: number;
-  total: number;
   /** El pedido llega al mínimo y el envío lo paga Harper. */
   bonificado: boolean;
+  /** Cuotas sin interés verificadas para el total con cada opción. */
+  cuotas: Record<string, (CuotasVerificadas & { monto: number }) | null>;
 };
 
-/** Espera antes de cotizar, para no pegarle a Correo Argentino en cada tecla. */
+/** Espera antes de cotizar, para no consultar a Envia en cada tecla. */
 const ESPERA_MS = 700;
 
-/**
- * Cotiza el envío contra Correo Argentino a medida que el comprador escribe su
- * código postal.
- *
- * Nunca falla hacia afuera: si algo sale mal devuelve `null` y el checkout
- * sigue mostrando el precio plano que ya venía del carrito.
- */
-export function useCotizacionEnvio(cp: string) {
-  const { items } = useCarrito();
-  const [cotizacion, setCotizacion] = useState<Cotizacion | null>(null);
-  const [cargando, setCargando] = useState(false);
+/** Si el servidor no contesta en este tiempo, se sigue con la tarifa plana. */
+const ESPERA_MAXIMA_MS = 15_000;
+const TIEMPO_AGOTADO = "tiempo-agotado";
 
-  const limpio = cp.replace(/\D/g, "");
+/** Sin tildes ni mayúsculas, como lo compara el servidor. */
+function normalizar(texto: string) {
+  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * La clave de una cotización: lo que cambia el precio (los cuatro números del
+ * CP, la provincia y la localidad), el carrito y el cupón. La calle y el
+ * número viajan en la consulta, pero corregirlos no vuelve a cotizar: el
+ * servidor tampoco los firma en el comprobante.
+ */
+function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown) {
+  const cp = (destino.cp.match(/\d{4}/) ?? [""])[0];
+  return JSON.stringify([cp, normalizar(destino.provincia), normalizar(destino.ciudad), items, cupon ?? null]);
+}
+
+/**
+ * Cotiza el envío con Envia para la dirección que está cargando el
+ * comprador, cuando ya tiene código postal, provincia, localidad y calle.
+ *
+ * `listo` dice si la cotización que hay es la de esta dirección y este
+ * carrito: mientras no lo sea, el checkout no manda a pagar (no se cobra un
+ * envío calculado para otra dirección). Nunca falla hacia afuera: si algo
+ * sale mal, tarda demasiado o el servidor pide esperar (429), no hay
+ * cotización y el checkout sigue con la tarifa plana.
+ *
+ * Con `consultar` en falso (el servidor no puede cotizar) no pregunta nada,
+ * pero igual puede `adoptar` la cotización que manda el checkout cuando
+ * frena por un total distinto: así el comprador ve enseguida lo que el
+ * servidor va a cobrar, sin volver a preguntar.
+ */
+export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown, consultar = true) {
+  const { items } = useCarrito();
+  const [estado, setEstado] = useState<{ clave: string; cotizacion: Cotizacion | null } | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [vuelta, setVuelta] = useState(0);
+
+  const clave = destino && items.length > 0 ? claveDe(destino, items, cupon) : null;
 
   useEffect(() => {
-    if (limpio.length < 4 || items.length === 0) {
-      setCotizacion(null);
+    if (!clave || !destino || !consultar) {
+      setCargando(false);
       return;
     }
 
     const controlador = new AbortController();
     setCargando(true);
 
-    const id = window.setTimeout(() => {
+    const pedir = () => {
+      const limite = window.setTimeout(() => controlador.abort(TIEMPO_AGOTADO), ESPERA_MAXIMA_MS);
       fetch("/api/envio/cotizar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cp: limpio, items }),
+        body: JSON.stringify({ destino, items, cupon }),
         signal: controlador.signal,
       })
-        .then((r) => (r.ok ? (r.json() as Promise<Cotizacion>) : null))
-        .then((datos) => {
-          if (datos) setCotizacion(datos);
+        .then(async (r) => {
+          // Cualquier otra respuesta (429 por demasiadas consultas, 5xx) es
+          // "sin cotizar": se sigue con la tarifa plana, sin trabar el pago.
+          const datos = r.ok ? ((await r.json()) as Cotizacion) : null;
+          if (controlador.signal.aborted) return;
+          setEstado({ clave, cotizacion: datos });
+          setCargando(false);
         })
         .catch(() => {
-          // Sin cotización se sigue con el precio plano. No es un error visible.
+          // Si se abortó porque cambió la dirección, no se marca nada: viene otra.
+          if (controlador.signal.aborted && controlador.signal.reason !== TIEMPO_AGOTADO) return;
+          setEstado({ clave, cotizacion: null });
+          setCargando(false);
         })
-        .finally(() => setCargando(false));
-    }, ESPERA_MS);
+        .finally(() => window.clearTimeout(limite));
+    };
+
+    const id = window.setTimeout(pedir, ESPERA_MS);
 
     return () => {
       window.clearTimeout(id);
       controlador.abort();
-      setCargando(false);
     };
-    // `items` cambia por contenido, no por identidad.
-  }, [limpio, items]);
+    // `clave` resume lo que cambia el precio; `vuelta` fuerza otra cotización.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave, vuelta, consultar]);
 
-  return { cotizacion, cargando };
+  const actual = estado && estado.clave === clave ? estado.cotizacion : null;
+
+  const activo = consultar && clave !== null;
+
+  return {
+    cotizacion: actual,
+    cargando,
+    /** Hay una dirección completa y un carrito, y el servidor puede cotizar. */
+    activo,
+    /** La respuesta que hay es la de esta dirección y este carrito (aunque sea "sin cotizar"). */
+    listo: activo && estado?.clave === clave && !cargando,
+    /** Volver a cotizar, por ejemplo si el checkout dice que el total cambió. */
+    recotizar: () => setVuelta((v) => v + 1),
+    /** Usar la cotización que mandó el servidor para esta misma dirección y carrito. */
+    adoptar: (cotizacion: Cotizacion) => {
+      if (clave) {
+        setEstado({ clave, cotizacion });
+        setCargando(false);
+      }
+    },
+  };
 }
 
 /**

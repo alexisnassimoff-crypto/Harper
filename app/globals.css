@@ -1438,6 +1438,121 @@ p {
   font-size: 1.125rem;
 }
 
+/* ---------- Carrito lateral (escritorio) ---------- */
+/* Se abre al agregar un producto o aplicar el cupón, y desde el ícono del
+   carrito. Por encima de WhatsApp y del aviso de cookies (70), por debajo
+   del visor de fotos (200). */
+
+.carrito-lateral {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.carrito-lateral__fondo {
+  position: absolute;
+  inset: 0;
+  background: rgb(22 21 15 / 0.32);
+  animation: carrito-fondo var(--medio) var(--curva) both;
+}
+
+.carrito-lateral__caja {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(27rem, 100%);
+  background: var(--fondo);
+  box-shadow: var(--sombra-alta);
+  animation: carrito-entra var(--medio) var(--curva) both;
+}
+
+.carrito-lateral__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--borde);
+}
+
+.carrito-lateral__cerrar {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--borde);
+  border-radius: 50%;
+  background: var(--fondo);
+  color: var(--verde);
+  cursor: pointer;
+  transition:
+    background var(--rapido) var(--curva),
+    border-color var(--rapido) var(--curva);
+}
+.carrito-lateral__cerrar:hover {
+  background: color-mix(in srgb, var(--verde) 10%, var(--fondo));
+  border-color: var(--verde);
+}
+
+.carrito-lateral__cuerpo {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.5rem;
+}
+
+.carrito-lateral__pie {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-top: 1px solid var(--borde);
+  background: var(--fondo);
+}
+
+.carrito-lateral__seguir {
+  align-self: center;
+  background: none;
+  border: 0;
+  padding: 0.25rem;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Con poca altura, el panel entero se desplaza: «Finalizar compra» siempre
+   se puede alcanzar. */
+@media (max-height: 36rem) {
+  .carrito-lateral__caja {
+    overflow-y: auto;
+  }
+  .carrito-lateral__cuerpo {
+    flex: none;
+    overflow: visible;
+  }
+}
+
+@keyframes carrito-entra {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes carrito-fondo {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carrito-lateral__fondo,
+  .carrito-lateral__caja {
+    animation: none;
+  }
+}
+
 /* ---------- Logo y flotantes ---------- */
 
 .logo-enlace {

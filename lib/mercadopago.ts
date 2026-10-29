@@ -87,6 +87,10 @@ export async function crearPreferencia(opciones: {
   pedidoId: string;
   items: ItemResuelto[];
   envio: number;
+  /** El renglón del envío: "Envío a domicilio — Andreani". */
+  envioDescripcion?: string;
+  /** El total que vio el comprador y quedó en el pedido: la preferencia tiene que sumar exactamente eso. */
+  total?: number;
   cliente: DatosCliente;
   sitio: string;
   soloDineroEnCuenta?: boolean;
@@ -104,6 +108,30 @@ export async function crearPreferencia(opciones: {
       picture_url: i.foto ?? undefined,
     }))
   );
+
+  // El envío va como un renglón más, no en `shipments`: así el monto que
+  // cobra Mercado Pago (`transaction_amount`, lo que compara el webhook) es
+  // la suma de los renglones, envío incluido, sin depender de cómo Mercado
+  // Pago trata `shipments.cost`.
+  if (opciones.envio > 0) {
+    items.push({
+      id: "envio",
+      title: opciones.envioDescripcion ?? "Envío a domicilio",
+      quantity: 1,
+      unit_price: opciones.envio,
+      currency_id: "ARS",
+      picture_url: undefined,
+    });
+  }
+
+  // Antes de pedirle nada a Mercado Pago: los renglones tienen que sumar el
+  // total del pedido. Si no, mejor no cobrar que cobrar otra cosa.
+  if (typeof opciones.total === "number") {
+    const suma = items.reduce((total, i) => total + i.unit_price * i.quantity, 0);
+    if (Math.abs(suma - opciones.total) > 0.005) {
+      throw new Error(`La preferencia suma ${suma} y el pedido ${opciones.numeroPedido} es de ${opciones.total}`);
+    }
+  }
 
   const ahora = new Date();
   const publica = esUrlPublica(opciones.sitio);
@@ -124,17 +152,8 @@ export async function crearPreferencia(opciones: {
         zip_code: opciones.cliente.cp,
       },
     },
-    // El envío viaja aparte para que Mercado Pago lo muestre discriminado.
-    shipments: {
-      cost: opciones.envio,
-      mode: "not_specified",
-      receiver_address: {
-        zip_code: opciones.cliente.cp,
-        street_name: opciones.cliente.direccion,
-        city_name: opciones.cliente.ciudad,
-        state_name: opciones.cliente.provincia,
-      },
-    },
+    // Sin `shipments`: el envío ya es un renglón (ver arriba). La dirección
+    // de entrega viaja en `payer.address`.
     // Es la llave con la que el webhook encuentra el pedido en Airtable.
     external_reference: opciones.pedidoId,
     back_urls: {

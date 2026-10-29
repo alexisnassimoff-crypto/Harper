@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { isAirtableConfigured, modoFixtures } from "@/lib/airtable";
 import { getProductos } from "@/lib/catalogo";
 import { verificarRedis } from "@/lib/cerrojo";
+import { getConfig } from "@/lib/config";
+import { enviaConfigurado, entornoEnvia } from "@/lib/envia";
 import { diagnosticarCuotas } from "@/lib/cuotas-servidor";
 import { configuracionDirecciones } from "@/lib/direcciones-servidor";
 import { blobConfigurado } from "@/lib/media";
@@ -31,6 +33,8 @@ const VARIABLES = [
   { nombre: "RESEND_API_KEY", deUnaVez: false },
   { nombre: "AIRTABLE_TOKEN", deUnaVez: false },
   { nombre: "AIRTABLE_BASE_ID", deUnaVez: false },
+  // Para cotizar envíos con Envia. Sin él se cobra la tarifa plana.
+  { nombre: "ENVIA_TOKEN", deUnaVez: false },
 ] as const;
 
 /** Smoke test del deploy: muestra qué integraciones están conectadas. */
@@ -54,6 +58,16 @@ export async function GET() {
   // Consultar a Mercado Libre desde acá sería otro consumidor del token (ver
   // lib/ml-resenas-servidor.ts).
   const mercadoLibre = { configurado: mlConfigurado(), ultimoIntento: await leerIntentoML() };
+  // Envia: si hay token y si Config tiene lo que hace falta para cotizar.
+  // Sin consultar a Envia: eso lo hace el checkout.
+  const config = await getConfig();
+  const envia = {
+    configurado: enviaConfigurado(),
+    entorno: entornoEnvia(),
+    origenCompleto: config.envioOrigen !== null,
+    transportistas: config.envioTransportistas,
+    pesoMinimoKg: config.envioPesoMinimoKg,
+  };
 
   const variables: Record<string, boolean> = {};
   for (const v of VARIABLES) {
@@ -96,11 +110,14 @@ export async function GET() {
       // El buscador de direcciones del checkout (Google Places, clave solo en
       // el servidor). Sin él la dirección se carga a mano: se vende igual.
       googlePlaces: configuracionDirecciones() !== null,
+      // Cotización de envíos (token, origen y transportistas). Sin eso, tarifa plana.
+      envia: envia.configurado && envia.origenCompleto && envia.transportistas.length > 0,
     },
     redis,
     cuotas,
     cuotasPortada,
     mercadoLibre,
+    envia,
     variables,
     avisos: [
       !redis.configurado
@@ -119,6 +136,12 @@ export async function GET() {
       configuracionDirecciones()
         ? null
         : "Sin GOOGLE_PLACES_API_KEY el checkout pide la dirección con los campos manuales (se vende igual)",
+      envia.configurado && !envia.origenCompleto
+        ? "Envia: falta el origen en Config (envio_origen_nombre, telefono, calle, numero, ciudad, provincia —una de las 24, con el nombre del checkout— y cp): se cobra la tarifa plana"
+        : null,
+      envia.configurado && envia.transportistas.length === 0
+        ? "Envia: falta envio_transportistas en Config: se cobra la tarifa plana"
+        : null,
       conBasura.length > 0
         ? `Con espacios o saltos de línea al final: ${conBasura.join(", ")}`
         : null,

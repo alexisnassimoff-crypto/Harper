@@ -1,3 +1,4 @@
+import { codigoEnviaDeProvincia } from "./provincias-envia";
 import type { DatosCliente } from "./tipos";
 
 /** Validación compartida entre el formulario y la API. */
@@ -34,10 +35,12 @@ export function validarCliente(datos: Partial<DatosCliente>): ErroresCliente {
   if (texto(datos.ciudad).length < 2) {
     errores.ciudad = "Ingresá la localidad";
   }
-  if (!texto(datos.provincia)) {
+  // Una de las 24: el envío se cotiza con la provincia.
+  if (!codigoEnviaDeProvincia(texto(datos.provincia))) {
     errores.provincia = "Elegí la provincia";
   }
-  if (texto(datos.cp).length < 4) {
+  // Los cuatro números del código postal (con o sin las letras del CPA).
+  if (!/\d{4}/.test(texto(datos.cp))) {
     errores.cp = "Ingresá el código postal";
   }
   // Mayoría de edad (o autorización del representante legal) y Términos:
@@ -62,6 +65,10 @@ export function normalizarCliente(datos: Partial<DatosCliente>): DatosCliente {
     ciudad: t(datos.ciudad),
     provincia: t(datos.provincia),
     cp: t(datos.cp),
+    // Opcionales: solo llegan con el buscador de direcciones.
+    ...(t(datos.calle) ? { calle: t(datos.calle).slice(0, 120) } : {}),
+    ...(t(datos.numero) ? { numero: t(datos.numero).slice(0, 20) } : {}),
+    ...(t(datos.piso) ? { piso: t(datos.piso).slice(0, 40) } : {}),
     aceptaPromos: Boolean(datos.aceptaPromos),
     aceptaTerminos: datos.aceptaTerminos === true,
   };

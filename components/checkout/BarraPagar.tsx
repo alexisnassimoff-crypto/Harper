@@ -18,12 +18,18 @@ export default function BarraPagar({
   formulario,
   total,
   ocupado = false,
+  esperando,
 }: {
   visible: boolean;
   /** El id del <form> que envía. */
   formulario: string;
   total: string;
   ocupado?: boolean;
+  /**
+   * Ya tocó Pagar y falta algo (el envío de su dirección): el texto de la
+   * espera. El botón no se deshabilita, para no perder el foco.
+   */
+  esperando?: string;
 }) {
   const [montado, setMontado] = useState(false);
 
@@ -44,8 +50,14 @@ export default function BarraPagar({
 
   return createPortal(
     <div className="cta-fija cta-fija--pago" data-visible={visible || undefined} inert={!visible}>
-      <button type="submit" form={formulario} className="boton boton--bloque" disabled={ocupado}>
-        {ocupado ? "Redirigiendo…" : <TextoPagoSeguro total={total} />}
+      <button
+        type="submit"
+        form={formulario}
+        className="boton boton--bloque"
+        disabled={ocupado}
+        aria-disabled={(!ocupado && Boolean(esperando)) || undefined}
+      >
+        {ocupado ? "Redirigiendo…" : (esperando ?? <TextoPagoSeguro total={total} />)}
       </button>
     </div>,
     document.body

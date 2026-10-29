@@ -34,6 +34,30 @@ export type CarritoResueltoCliente = {
 };
 
 /**
+ * Las consultas en curso, compartidas: si dos partes de la página piden lo
+ * mismo a la vez (la ficha y el carrito lateral, al agregar un producto), va
+ * una sola al servidor y las dos usan la respuesta.
+ */
+const enCurso = new Map<string, Promise<CarritoResueltoCliente>>();
+
+function resolver(cuerpo: string): Promise<CarritoResueltoCliente> {
+  const existente = enCurso.get(cuerpo);
+  if (existente) return existente;
+  const promesa = fetch("/api/carrito/resolver", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: cuerpo,
+  })
+    .then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<CarritoResueltoCliente>;
+    })
+    .finally(() => enCurso.delete(cuerpo));
+  enCurso.set(cuerpo, promesa);
+  return promesa;
+}
+
+/**
  * Resuelve el carrito guardado en el navegador contra el servidor.
  *
  * Los precios y el stock que se muestran salen siempre de acá, nunca de
@@ -74,36 +98,34 @@ export function useCarritoResuelto({ cuotas = false }: { cuotas?: boolean } = {}
       return;
     }
 
-    const controlador = new AbortController();
+    // Si el carrito cambia antes de que llegue la respuesta, esa respuesta ya
+    // no sirve: no toca nada (ni siquiera "ya cargó", que haría parpadear un
+    // carrito vacío mientras llega la nueva).
+    let vigente = true;
     if (tieneDatos.current) setActualizando(true);
     else setCargando(true);
 
-    fetch("/api/carrito/resolver", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items, cupon, ...(cuotas ? { cuotas: true } : {}) }),
-      signal: controlador.signal,
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<CarritoResueltoCliente>;
-      })
+    resolver(JSON.stringify({ items, cupon, ...(cuotas ? { cuotas: true } : {}) }))
       .then((resuelto) => {
+        if (!vigente) return;
         setDatos(resuelto);
         setError(false);
         // Limpia del carrito lo que ya no se puede comprar. Solo con respuesta
         // buena: un error del servidor no es "este producto no existe".
         for (const d of resuelto.descartados) quitar(d.varianteId);
       })
-      .catch((e) => {
-        if (e.name !== "AbortError") setError(true);
+      .catch(() => {
+        if (vigente) setError(true);
       })
       .finally(() => {
+        if (!vigente) return;
         setCargando(false);
         setActualizando(false);
       });
 
-    return () => controlador.abort();
+    return () => {
+      vigente = false;
+    };
     // `quitar` es estable (useCallback) y `items` cambia por contenido.
   }, [items, listo, quitar, intento, cupon, cuotas]);
 

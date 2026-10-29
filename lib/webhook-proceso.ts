@@ -110,6 +110,12 @@ export type FilaPedido = {
   Cupon?: string;
   /** Solo en los pedidos con el descuento por dinero en Mercado Pago (ver lib/dinero-mp.ts). */
   Medio_pago?: string;
+  /** El envío cotizado con Envia (ver lib/envio-pedido.ts). */
+  Envio_transportista?: string;
+  Envio_servicio_codigo?: string;
+  Envio_costo_real?: number;
+  Envio_bonificado?: boolean;
+  Envio_plazo?: string;
 };
 
 type FilaCliente = {
@@ -554,6 +560,15 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       lineasFacturacion: lineasDeNotas(pedido.fields.Notas),
       cupon: pedido.fields.Cupon || cuponDeNotas(pedido.fields.Notas),
       conDineroMP,
+      envioDetalle: pedido.fields.Envio_transportista
+        ? {
+            transportista: pedido.fields.Envio_transportista,
+            servicio: pedido.fields.Envio_servicio_codigo ?? "",
+            plazo: pedido.fields.Envio_plazo ?? "",
+            costoReal: typeof pedido.fields.Envio_costo_real === "number" ? pedido.fields.Envio_costo_real : null,
+            bonificado: pedido.fields.Envio_bonificado === true,
+          }
+        : null,
       alerta: medioInesperado
         ? `Tiene el 10% por dinero en Mercado Pago, pero Mercado Pago lo cobró con "${medioInesperado}" y no con el saldo de la cuenta.`
         : null,

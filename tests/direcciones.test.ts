@@ -353,6 +353,23 @@ test("con Redis: un solo viaje por consulta (pipeline), contador compartido con 
   }
 });
 
+test("con soloMemoria no se toca Redis aunque esté configurado, y el límite vale igual", async () => {
+  process.env.KV_REST_API_URL = "http://redis.prueba";
+  process.env.KV_REST_API_TOKEN = "t";
+  try {
+    let viajes = 0;
+    const contar: typeof fetch = (async () => { viajes++; return new Response("[]"); }) as typeof fetch;
+    const ventanas: Ventana[] = [{ clave: "ip:m", ventanaMs: 60_000, limite: 2 }];
+    assert.deepEqual(await consumirCuota(ventanas, { fetchImpl: contar, ahora: 5_000, soloMemoria: true }), { excedida: null, cuentas: [1] });
+    assert.deepEqual(await consumirCuota(ventanas, { fetchImpl: contar, ahora: 5_000, soloMemoria: true }), { excedida: null, cuentas: [2] });
+    assert.equal((await consumirCuota(ventanas, { fetchImpl: contar, ahora: 5_000, soloMemoria: true })).excedida, "ip:m");
+    assert.equal(viajes, 0);
+  } finally {
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+  }
+});
+
 test("si Redis falla, valen los contadores en memoria: el límite no desaparece", async () => {
   process.env.KV_REST_API_URL = "http://redis.prueba";
   process.env.KV_REST_API_TOKEN = "t";

@@ -32,7 +32,7 @@ export default function CuponBienvenida({
    */
   compra?: { conCupon: boolean; porcentaje: number; ahorro: number; total: number } | "carrito" | null;
 }) {
-  const { cupon, aplicarCupon, quitarCupon, listo } = useCarrito();
+  const { cupon, aplicarCupon, quitarCupon, listo, items, abrirPanel } = useCarrito();
   const [codigo, setCodigo] = useState(CUPON_BIENVENIDA.codigo);
   const [error, setError] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
@@ -74,7 +74,11 @@ export default function CuponBienvenida({
     }
     setError(null);
     aplicarCupon(encontrado.codigo);
+    // El foco va a Quitar (el campo desaparece). En escritorio y con algo en
+    // el carrito, además se abre el carrito al costado con el descuento: toma
+    // el foco y, al cerrarse, lo devuelve a Quitar.
     setEnfocar("quitar");
+    if (items.length > 0) abrirPanel();
   }
 
   function quitar() {
