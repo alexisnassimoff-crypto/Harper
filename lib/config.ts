@@ -1,6 +1,7 @@
 import { listRecords, TABLAS } from "./airtable";
 import { aNumero } from "./formato";
 import { leerImpuestos, SIN_IMPUESTOS_CARGADOS, type ImpuestosNacionales } from "./impuestos";
+import type { OrigenEnvio } from "./tipos";
 
 /**
  * Ajustes de la tienda, editables desde la tabla Config de Airtable
@@ -28,6 +29,24 @@ export type ConfigTienda = {
   embalajeMargenCm: number;
   /** Gramos que suman el sobre o la caja, el relleno y la etiqueta. */
   embalajePesoG: number;
+  /**
+   * Desde dónde se despacha, para cotizar con Envia (claves envio_origen_*).
+   * Null si falta algún dato obligatorio: sin origen no se cotiza y se cobra
+   * la tarifa plana. No tiene valores por defecto a propósito.
+   */
+  envioOrigen: OrigenEnvio | null;
+  /**
+   * Peso mínimo del paquete en kg, clave `envio_peso_kg` (Ale, 28/10/2026:
+   * 0,5 kg). Se cotiza con este peso o con el calculado, el mayor. 0 = solo
+   * el calculado.
+   */
+  envioPesoMinimoKg: number;
+  /**
+   * Transportistas que se cotizan con Envia, como los nombra Envia, clave
+   * `envio_transportistas` ("rueddo, andreani, correoArgentino"). Vacío = no
+   * se cotiza.
+   */
+  envioTransportistas: string[];
   /**
    * Textos e imagen de la portada. Vacíos = la portada usa los suyos, armados
    * con datos del catálogo. Están en Config para cambiar el mensaje de una
@@ -86,6 +105,9 @@ const POR_DEFECTO: ConfigTienda = {
   // Valores de sobre de burbuja. Con caja serían 2 y 80.
   embalajeMargenCm: 1,
   embalajePesoG: 30,
+  envioOrigen: null,
+  envioPesoMinimoKg: 0,
+  envioTransportistas: [],
   portadaTitulo: "",
   portadaSubtitulo: "",
   portadaImagen: "",
@@ -147,6 +169,12 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
       POR_DEFECTO.embalajeMargenCm
     ),
     embalajePesoG: aNumero(mapa.get("embalaje_peso_g"), POR_DEFECTO.embalajePesoG),
+    envioOrigen: leerOrigenEnvio(mapa),
+    envioPesoMinimoKg: kilos(mapa.get("envio_peso_kg")),
+    envioTransportistas: (mapa.get("envio_transportistas") ?? "")
+      .split(/[\s,;]+/)
+      .map((t) => t.trim())
+      .filter((t) => /^[A-Za-z][A-Za-z0-9_]{1,40}$/.test(t)),
     portadaTitulo: texto("portada_titulo", POR_DEFECTO.portadaTitulo),
     portadaSubtitulo: texto("portada_subtitulo", POR_DEFECTO.portadaSubtitulo),
     portadaImagen: texto("portada_imagen", POR_DEFECTO.portadaImagen),
@@ -158,11 +186,38 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
 }
 
 /**
+ * El origen de los envíos. Todos los datos que pide Envia son obligatorios
+ * (el piso no): si falta uno, null, y se cobra la tarifa plana en vez de
+ * cotizar con un origen a medias.
+ */
+function leerOrigenEnvio(mapa: Map<string, string>): OrigenEnvio | null {
+  const dato = (clave: string) => (mapa.get(`envio_origen_${clave}`) ?? "").trim();
+  const origen: OrigenEnvio = {
+    nombre: dato("nombre"),
+    telefono: dato("telefono").replace(/[^\d+]/g, ""),
+    calle: dato("calle"),
+    numero: dato("numero"),
+    piso: dato("piso"),
+    ciudad: dato("ciudad"),
+    provincia: dato("provincia"),
+    cp: (dato("cp").match(/\d{4}/) ?? [""])[0],
+  };
+  const completo = origen.nombre && origen.telefono.replace(/\D/g, "").length >= 8 && origen.calle && origen.numero && origen.ciudad && origen.provincia && origen.cp;
+  return completo ? origen : null;
+}
+
+/** "0,5" o "0.5" kg; vacío o inválido = 0. */
+function kilos(valor: string | undefined): number {
+  const n = Number.parseFloat((valor ?? "").replace(",", ".").replace(/[^\d.]/g, ""));
+  return Number.isFinite(n) && n > 0 && n <= 50 ? n : 0;
+}
+
+/**
  * Costo de envío de respaldo, plano.
  *
- * Es lo que se cobra cuando Correo Argentino no puede cotizar: sin credenciales,
- * con la API caída, o con un pedido que excede sus límites. Nunca deja a la
- * tienda sin poder vender.
+ * Es lo que se cobra cuando Envia no puede cotizar: sin token u origen, con la
+ * API caída, sin transportistas para ese destino, o con un pedido sin peso y
+ * medidas. Nunca deja a la tienda sin poder vender.
  */
 export function calcularEnvio(subtotal: number, config: ConfigTienda) {
   if (envioBonificado(subtotal, config)) return 0;
@@ -173,7 +228,7 @@ export function calcularEnvio(subtotal: number, config: ConfigTienda) {
  * Verdadero si el pedido llega al mínimo para envío gratis.
  *
  * Es una promoción, no un cálculo: cuando aplica, Harper se hace cargo del costo
- * real que cobre Correo Argentino.
+ * real que cobre el transportista, y ese costo igual queda en el pedido.
  */
 export function envioBonificado(subtotal: number, config: ConfigTienda) {
   return config.envioGratisDesde > 0 && subtotal >= config.envioGratisDesde;

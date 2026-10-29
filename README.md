@@ -226,7 +226,7 @@ precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
 |---|---|
 | `GET /api/health` | Muestra qué integraciones están conectadas |
 | `POST /api/carrito/resolver` | Devuelve el carrito con precios y stock reales |
-| `POST /api/envio/cotizar` | Precios reales de Correo Argentino para un código postal |
+| `POST /api/envio/cotizar` | Opciones de envío a domicilio de Envia para una dirección, con su comprobante |
 | `GET /api/envio/sucursales` | Sucursales donde retirar, por provincia |
 | `POST /api/checkout` | Crea el pedido y la preferencia de Mercado Pago |
 | `POST /api/mercadopago/webhook` | Confirma el pago, descuenta stock y manda mails |
@@ -307,8 +307,8 @@ comprador.
       aviso interno; si falta, se revisa en Resend → Logs)
 - [ ] Cargar el stock real de los paños (hoy son valores provisorios)
 - [ ] Cargar `Peso_g`, `Largo_cm`, `Ancho_cm` y `Alto_cm` de cada producto
-- [ ] Credenciales de la API de MiCorreo, para cotizar el envío real
-- [ ] Generar la etiqueta de despacho (`POST /shipping/import`) desde Airtable
+- [x] Cotización real del envío con Envia (`ENVIA_TOKEN` en Vercel)
+- [ ] Generar la etiqueta de despacho con Envia desde Airtable
 - [ ] Conectar `harper.ar` a Vercel: `NEXT_PUBLIC_SITE_URL`, la URL del webhook en
       Mercado Pago y redeploy, los tres juntos
 
@@ -476,23 +476,71 @@ Google.
 
 ## Envíos
 
-El envío se cotiza contra la API de **MiCorreo** de Correo Argentino según el código
-postal del comprador, con entrega a domicilio o retiro en sucursal, en servicio
-Clásico o Expreso.
+El envío a domicilio se cotiza con la API de **[Envia](https://docs.envia.com)** apenas
+el comprador completa su dirección (calle y número, localidad, provincia y código
+postal). El checkout muestra cada transportista con su servicio, el precio y el plazo
+estimado, de la más barata a la más cara. Sirve igual para uno, dos o más pares: se
+cotiza el paquete del pedido entero.
 
-**Si Correo Argentino no puede cotizar, la tienda cobra el `costo_envio` plano de la
-tabla `Config` y sigue vendiendo.** Eso pasa cuando faltan las credenciales, cuando a
-un producto le faltan el peso o las medidas, cuando el pedido no entra en un solo bulto
-(más de 25 kg, o algún lado de más de 150 cm), o cuando la API no responde. Es a
-propósito: una caída de Correo Argentino puede costar unos pesos de diferencia en un
-envío, nunca la venta entera.
+Solo se usa la ruta de **cotizar** (`POST /ship/rate/`). La tienda no genera etiquetas,
+no da de alta envíos ni pide retiros: eso sigue a mano.
 
-**El precio del envío lo calcula el servidor.** El navegador manda solo *qué* eligió el
-comprador —domicilio o sucursal, Clásico o Expreso—, nunca cuánto sale.
-`/api/checkout` vuelve a cotizar antes de crear la preferencia de pago.
+**Qué se configura en `Config`:**
+
+| Clave | Qué es |
+|---|---|
+| `envio_transportistas` | Con quién cotizar, separados por coma, con el código de Envia: `rueddo, andreani, correoArgentino` |
+| `envio_origen_nombre`, `_telefono`, `_calle`, `_numero`, `_piso`, `_ciudad`, `_provincia`, `_cp` | Desde dónde sale el paquete. Todos obligatorios menos el piso |
+| `envio_peso_kg` | Peso mínimo del paquete en kg (`0.5`). Si el calculado es mayor, va el calculado |
+| `envio_gratis_desde` | Desde qué subtotal el envío es gratis |
+| `costo_envio` | La tarifa plana de respaldo |
+
+Y en Vercel, `ENVIA_TOKEN` (ver `.env.example`). El token vive solo en el servidor:
+no llega nunca al navegador, ni a los logs, ni a `/api/health` (que solo dice si está).
+
+**Solo entregas a domicilio.** Se descartan los servicios a sucursal y Mercado Libre
+Flex. Si un transportista no llega a ese código postal, simplemente no aparece.
+
+**El precio lo fija el servidor, con un comprobante firmado.** Cada opción cotizada
+viaja con un comprobante (HMAC, válido 30 minutos) atado al destino, al carrito y a ese
+precio. Al pagar, el navegador manda solo *qué opción* eligió y su comprobante, nunca
+cuánto sale. Si el comprobante no corresponde —vencido, tocado, de otra dirección u otro
+carrito—, el servidor vuelve a cotizar y, si el total cambió, frena la compra con un 409
+para que el comprador vea el total nuevo.
+
+**Mercado Pago cobra exactamente lo que dice el resumen.** El envío va como un renglón
+más («Envío a domicilio — Andreani») y antes de crear la preferencia se comprueba que la
+suma de los renglones dé el total del pedido. El webhook vuelve a comparar lo pagado con
+el total guardado.
+
+**Envío gratis.** Desde `envio_gratis_desde` (sobre el subtotal, antes de cupones) se
+cotiza igual, se ofrece la opción más barata con su precio tachado y «Envío gratis», y
+el envío se cobra $ 0. Lo que cuesta de verdad queda en el pedido: es lo que paga Harper.
+
+**Qué queda en cada pedido** (`Pedidos`): `Envio_transportista`,
+`Envio_servicio_codigo` (por ejemplo `andreani:ground`), `Envio_costo_real` (lo que
+cobra Envia, con centavos), `Envio_bonificado`, `Envio_plazo`, `Envio_cotizado_en`,
+`Envio_cotizacion` (la consulta y la respuesta de Envia, sin la calle del comprador) y
+la dirección separada en `Direccion_calle`, `Direccion_numero` y `Direccion_piso`. Con
+eso, generar la etiqueta más adelante es una sola llamada más. Si a la tabla le faltara
+algún campo, el pedido se crea igual y el envío queda escrito en `Notas`.
+
+**Si Envia no puede cotizar, la tienda cobra el `costo_envio` plano de la tabla
+`Config` y sigue vendiendo.** Eso pasa cuando falta el token, el origen o los
+transportistas, cuando a un producto le faltan el peso o las medidas, o cuando Envia no
+responde (8 segundos). Es a propósito: una caída de Envia puede costar unos pesos de
+diferencia en un envío, nunca la venta entera. En el pedido queda «Tarifa plana (sin
+cotizar)».
+
+**Límites.** `/api/envio/cotizar` atiende solo al propio sitio, hasta 30 consultas por
+minuto por IP y 400 por minuto en total. Cada cotización se guarda 10 minutos: la misma
+dirección con el mismo carrito no vuelve a consultar a Envia.
+
+Para probar contra el entorno de pruebas de Envia: `ENVIA_ENTORNO=prueba` (con un token
+de ese entorno).
 
 **El embalaje se suma aparte.** Lo que viaja nunca es el producto desnudo: va dentro de
-un sobre o una caja. Como Correo Argentino cobra por peso volumétrico —el espacio que
+un sobre o una caja. Como los transportistas cobran por peso volumétrico —el espacio que
 ocupa el bulto, no lo que pesa—, ignorarlo sería cobrarle al cliente menos de lo que
 después paga Harper. Se configura en `Config` con `embalaje_margen_cm` (cm que se suman
 a cada lado) y `embalaje_peso_g`. Los valores por defecto, `1` y `30`, corresponden a
@@ -503,5 +551,5 @@ El peso y las medidas se cargan en `Productos` y son **de una unidad**, sin emba
 `Alto_cm` es el lado que se apila: para un pedido de varias unidades la web suma los
 altos y deja largo y ancho en el mayor de los productos.
 
-El envío gratis desde `envio_gratis_desde` sigue siendo una promoción: cuando aplica,
-el costo real lo absorbe Harper.
+Las rutas de MiCorreo que ya existían (`/api/envio/sucursales` y
+`/api/pedidos/importar-envio`) no se tocaron.

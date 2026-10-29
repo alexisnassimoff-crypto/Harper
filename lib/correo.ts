@@ -1,4 +1,4 @@
-import type { ModoEnvio, OpcionEnvio, Paquete, ServicioEnvio } from "./tipos";
+import type { ModoEnvio, OpcionCorreo, Paquete, ServicioEnvio } from "./tipos";
 
 /**
  * Cliente de la API MiCorreo de Correo Argentino.
@@ -140,7 +140,7 @@ export async function cotizar(opciones: {
   cpOrigen: string;
   cpDestino: string;
   paquete: Paquete;
-}): Promise<OpcionEnvio[] | null> {
+}): Promise<OpcionCorreo[] | null> {
   const activa = await obtenerSesion();
   if (!activa) return null;
 
@@ -179,7 +179,7 @@ export async function cotizar(opciones: {
   }
 }
 
-function mapearTarifa(tarifa: TarifaAPI): OpcionEnvio[] {
+function mapearTarifa(tarifa: TarifaAPI): OpcionCorreo[] {
   const modo = tarifa.deliveredType as ModoEnvio | undefined;
   const servicio = tarifa.productType as ServicioEnvio | undefined;
   const precio = tarifa.price;
@@ -206,10 +206,10 @@ function mapearTarifa(tarifa: TarifaAPI): OpcionEnvio[] {
  * servidor. Un precio que venga del navegador no se mira nunca.
  */
 export function buscarOpcion(
-  opciones: OpcionEnvio[],
+  opciones: OpcionCorreo[],
   modo: ModoEnvio,
   servicio: ServicioEnvio
-): OpcionEnvio | null {
+): OpcionCorreo | null {
   return opciones.find((o) => o.modo === modo && o.servicio === servicio) ?? null;
 }
 

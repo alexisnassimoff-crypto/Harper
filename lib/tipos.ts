@@ -120,6 +120,14 @@ export type DatosCliente = {
   ciudad: string;
   provincia: string;
   cp: string;
+  /**
+   * Calle, número y piso por separado, cuando la dirección salió del
+   * buscador. Opcionales: con los campos manuales viaja solo `direccion`.
+   * Sirven para cotizar y, más adelante, para la etiqueta.
+   */
+  calle?: string;
+  numero?: string;
+  piso?: string;
   aceptaPromos: boolean;
   /**
    * Confirmó ser mayor de edad (o tener autorización de su representante
@@ -145,18 +153,91 @@ export type ModoEnvio = "D" | "S";
 /** Servicio contratado: Clásico o Expreso. */
 export type ServicioEnvio = "CP" | "EP";
 
-/** Lo que el navegador puede pedir. Nunca incluye un precio. */
-export type EleccionEnvio = {
+/**
+ * Una opción ya cotizada contra MiCorreo (Correo Argentino directo). Hoy no
+ * se usa en el checkout, que cotiza con Envia; queda para la importación de
+ * etiquetas de lib/correo.ts.
+ */
+export type OpcionCorreo = {
   modo: ModoEnvio;
   servicio: ServicioEnvio;
-  /** Solo cuando `modo` es "S". */
   sucursal?: string;
-};
-
-/** Una opción de envío ya cotizada contra Correo Argentino. */
-export type OpcionEnvio = EleccionEnvio & {
   nombre: string;
   precio: number;
+};
+
+/**
+ * Una opción de envío a domicilio cotizada con Envia (ver lib/envia.ts).
+ * Los precios salen siempre del servidor.
+ */
+export type OpcionEnvio = {
+  /** Transportista y servicio como los nombra Envia: "andreani:ground". */
+  id: string;
+  transportista: string;
+  /** "Andreani", "Correo Argentino", "Rueddo". */
+  transportistaNombre: string;
+  servicio: string;
+  /** La descripción del servicio que da Envia, por ejemplo "Estándar". */
+  servicioNombre: string;
+  /** Lo que cobra el transportista según Envia (`totalPrice`), con centavos. */
+  costo: number;
+  /** Lo que paga el comprador si no tiene envío gratis: el costo en pesos enteros, redondeado hacia arriba. */
+  precio: number;
+  /** El plazo que informa el transportista, por ejemplo "2-4 días". Null si no lo informa. */
+  plazo: string | null;
+  /**
+   * Comprobante firmado por el servidor con este precio, el destino y el
+   * carrito (ver lib/cotizacion-envio.ts). El checkout cobra con él, sin
+   * volver a cotizar; el navegador no lo puede modificar.
+   */
+  comprobante: string;
+};
+
+/** Lo que el navegador manda de la opción elegida. Nunca un precio. */
+export type EleccionEnvio = {
+  /** "andreani:ground". */
+  id?: string;
+  comprobante?: string;
+};
+
+/** Hacia dónde se cotiza: lo justo para el precio, sin nombre, mail ni DNI. */
+export type DestinoEnvio = {
+  cp: string;
+  provincia: string;
+  ciudad: string;
+  calle: string;
+  numero: string;
+};
+
+/** Desde dónde se despacha. Sale de Config (claves envio_origen_*). */
+export type OrigenEnvio = {
+  nombre: string;
+  telefono: string;
+  calle: string;
+  numero: string;
+  piso: string;
+  ciudad: string;
+  /** Nombre completo, como en el checkout: "Ciudad Autónoma de Buenos Aires". */
+  provincia: string;
+  cp: string;
+};
+
+/**
+ * El envío tal como queda en el pedido: lo cobrado, el costo real que
+ * cotizó el transportista (aunque sea gratis para el comprador) y la copia
+ * de la cotización para generar después la etiqueta con lo mismo.
+ */
+export type EnvioDelPedido = {
+  /** "envia": cotizado; "plano": la tarifa de Config, porque no se pudo cotizar. */
+  origen: "envia" | "plano";
+  opcion: Omit<OpcionEnvio, "comprobante"> | null;
+  /** Lo que paga el comprador: 0 con envío gratis. */
+  cobrado: number;
+  bonificado: boolean;
+  /** Cuándo se cotizó (ISO). Null en la tarifa plana. */
+  cotizadoEn: string | null;
+  /** Copia de lo cotizado (paquete, destino sin datos personales, opción). */
+  cotizacion: Record<string, unknown> | null;
 };
 
 /** La caja que se despacha, ya sumadas todas las unidades del pedido. */
