@@ -29,6 +29,8 @@ export type ConfigTienda = {
   envioAmbaTarifas: TarifasRueddo;
   /** Lo que se le suma a esa tarifa con IVA, en %, clave `envio_amba_recargo` (hoy 20). */
   envioAmbaRecargo: number;
+  /** Lo que se le suma a lo que cotiza Envia fuera de AMBA, en %, clave `envio_resto_recargo` (hoy 10). */
+  envioRestoRecargo: number;
   bannerTexto: string;
   whatsapp: string;
   /** El Instagram de Harper, como URL completa; vacío = no se muestra el acceso en el pie. */
@@ -117,6 +119,7 @@ const POR_DEFECTO: ConfigTienda = {
   envioGratisAmbaDesde: 0,
   envioAmbaTarifas: TARIFAS_RUEDDO_POR_DEFECTO,
   envioAmbaRecargo: RECARGO_AMBA_POR_DEFECTO,
+  envioRestoRecargo: 10,
   bannerTexto: "",
   whatsapp: "",
   instagram: "",
@@ -188,6 +191,7 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
       : 0,
     envioAmbaTarifas: leerTarifasRueddo(mapa.get("envio_amba_tarifas")),
     envioAmbaRecargo: porcentaje(mapa.get("envio_amba_recargo"), POR_DEFECTO.envioAmbaRecargo),
+    envioRestoRecargo: porcentaje(mapa.get("envio_resto_recargo"), POR_DEFECTO.envioRestoRecargo),
     bannerTexto: texto("banner_texto", POR_DEFECTO.bannerTexto),
     whatsapp: texto("whatsapp", POR_DEFECTO.whatsapp).replace(/\D/g, ""),
     instagram: urlDeInstagram(mapa.get("instagram")),

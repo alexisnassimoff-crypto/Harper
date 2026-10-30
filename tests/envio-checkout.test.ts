@@ -84,16 +84,16 @@ function abrir(comprobante: string) {
   return leerComprobante(comprobante, claveDeComprobantes()!, { entorno: entornoEnvia() })!;
 }
 
-test("al resto del país, una sola opción: la más barata", async () => {
+test("al resto del país, una sola opción: la más barata, con el 10 % de recargo (7350,25 × 1,10 = 8085,28 → $ 8.086)", async () => {
   reiniciar();
   const carrito = await resolverCarrito([m500(1)], { destino: CORDOBA });
   assert.equal(carrito.envioCotizado, true);
   assert.equal(carrito.envioZona, "resto");
   assert.equal(carrito.envioBonificado, false);
-  assert.deepEqual(carrito.opcionesEnvio.map((o) => [o.id, o.precio]), [["correoArgentino:standard_dom", 7351]]);
+  assert.deepEqual(carrito.opcionesEnvio.map((o) => [o.id, o.precio]), [["correoArgentino:standard_dom", 8086]]);
   assert.ok(carrito.opcionesEnvio[0].comprobante.length > 20);
-  assert.equal(carrito.envio, 7351);
-  assert.equal(carrito.total, carrito.subtotal + 7351);
+  assert.equal(carrito.envio, 8086);
+  assert.equal(carrito.total, carrito.subtotal + 8086);
   assert.equal(carrito.envioDelPedido.opcion?.costo, 7350.25);
 });
 
@@ -101,7 +101,7 @@ test("un par a Córdoba paga el envío y se le dice cuánto le falta; dos pares,
   reiniciar();
   const unPar = await resolverCarrito([citrino(1)], { destino: CORDOBA });
   assert.equal(unPar.envioBonificado, false);
-  assert.equal(unPar.envio, 7351);
+  assert.equal(unPar.envio, 8086);
   const visto = cotizacionParaComprador(unPar, UMBRALES);
   assert.equal(visto.gratisDesde, 150000);
   assert.equal(visto.falta, 150000 - 89900);
@@ -216,7 +216,7 @@ test("con el comprobante se cobra eso sin volver a cotizar", async () => {
     eleccion: { id: "domicilio", comprobante: opcion.comprobante },
   });
   assert.equal(consultas, 0);
-  assert.equal(cobrado.envio, 7351);
+  assert.equal(cobrado.envio, 8086);
   assert.equal(cobrado.envioZona, "resto");
   assert.equal(cobrado.envioDelPedido.opcion?.id, "correoArgentino:standard_dom");
   assert.equal(cobrado.envioDelPedido.cotizadoEn, cotizado.envioDelPedido.cotizadoEn);
@@ -232,7 +232,7 @@ test("un comprobante tocado, de otro destino o de otro carrito no se acepta: se 
   const tocado = [iv, bytes.toString("base64url"), etiqueta].join(".");
 
   const conTocado = await resolverCarrito([m500(1)], { destino: CORDOBA, eleccion: { comprobante: tocado } });
-  assert.equal(conTocado.envio, 7351);
+  assert.equal(conTocado.envio, 8086);
   assert.ok(conTocado.opcionesEnvio.length > 0, "se volvió a cotizar (del cache de Envia, que es lo mismo)");
 
   const otroDestino = await resolverCarrito([m500(1)], { destino: CABA, eleccion: { comprobante: opcion.comprobante } });
@@ -253,7 +253,7 @@ test("un comprobante firmado para otro caso de envío gratis no se acepta: se co
   const gratis = firmarComprobante({ ...datos, bonificado: true }, claveDeComprobantes()!);
   consultas = 0;
   const cobrado = await resolverCarrito([m500(1)], { paraCobrar: true, destino: CORDOBA, eleccion: { comprobante: gratis } });
-  assert.equal(cobrado.envio, 7351);
+  assert.equal(cobrado.envio, 8086);
   assert.equal(cobrado.envioBonificado, false);
   assert.ok(cobrado.opcionesEnvio.length > 0, "se volvió a cotizar");
 

@@ -517,7 +517,8 @@ ese precio se ve tachado. Vale para paquetes de hasta 5 kg y 40 × 40 × 40 cm.
 
 **El resto se cotiza con Envia.** Si el reparto cotiza una dirección que no está en el
 mapa (una localidad que no reconocemos), igual es **AMBA**, con la tarifa de las zonas
-lejanas. Si no, la más barata de las demás: **resto del país**, al precio de Envia.
+lejanas. Si no, la más barata de las demás: **resto del país**, al precio de Envia más
+el recargo de Config (hoy 10 %).
 
 Solo se usa la ruta de **cotizar** (`POST /ship/rate/`). La tienda no genera etiquetas,
 no da de alta envíos ni pide retiros: eso sigue a mano.
@@ -533,6 +534,7 @@ no da de alta envíos ni pide retiros: eso sigue a mano.
 | `envio_gratis_amba_desde` | Desde qué subtotal es gratis en AMBA (`60000`). Vacío o 0: sin regla propia para AMBA |
 | `envio_amba_tarifas` | La tarifa de Rueddo por zona, **sin IVA**: `CABA 3709 · GBA 1 5370 · GBA 2 7500 · GBA 3 7500` (GBA 3 = zonas lejanas). Vacío: las del tarifario de octubre de 2026 |
 | `envio_amba_recargo` | Cuánto se le suma a esa tarifa con IVA, en % (`20`) |
+| `envio_resto_recargo` | Cuánto se le suma a lo que cotiza Envia fuera de AMBA, en % (`10`). El costo que queda en el pedido es el de Envia |
 | `costo_envio` | La tarifa plana de respaldo |
 
 Y en Vercel, `ENVIA_TOKEN` (ver `.env.example`). El token vive solo en el servidor:

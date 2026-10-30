@@ -453,7 +453,18 @@ async function resolverEnvio(datos: {
   // tarifa, con lo que cotizó). Si no, la más barata (vienen ordenadas).
   const reparto = resultado.tarifas.find((t) => esRepartoAmba(t.opcion.transportista));
   if (reparto) return conComprobante("amba", tarifaReparto("GBA 3") ?? reparto, resultado.cotizadoEn);
-  return conComprobante("resto", resultado.tarifas[0], resultado.cotizadoEn);
+  return conComprobante("resto", conRecargo(resultado.tarifas[0], datos.config.envioRestoRecargo), resultado.cotizadoEn);
+}
+
+/**
+ * Fuera de AMBA el comprador paga lo que cotiza Envia más el recargo de
+ * Config (`envio_resto_recargo`, hoy 10 %), en pesos enteros y hacia arriba.
+ * El costo que queda en el pedido sigue siendo el de Envia: lo que paga Harper.
+ */
+function conRecargo(tarifa: TarifaEnvia, recargo: number): TarifaEnvia {
+  if (!(recargo > 0)) return tarifa;
+  const precio = Math.ceil((Math.round(tarifa.opcion.costo * 100) * (100 + recargo)) / 10_000 - 1e-9);
+  return { ...tarifa, opcion: { ...tarifa.opcion, precio }, detalle: { ...tarifa.detalle, recargoPorciento: recargo } };
 }
 
 /** "tarifa" si la opción es la tarifa directa del reparto de AMBA; si no, "envia". */

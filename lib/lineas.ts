@@ -10,8 +10,9 @@ import { infoCategoria, type Categoria } from "./categorias";
  * categoría de Airtable; hasta entonces, si tiene modelos anunciados acá, sale
  * como «Próximamente» en la portada. Acá van solo nombres y colores: nada de
  * precios, códigos de fábrica ni costos. Lo que se afirma de cada línea es lo
- * que dicen las órdenes (polarizados, filtro de luz azul, tres apliques con
- * imán); certificaciones y origen, no, hasta tener la documentación.
+ * que dicen las órdenes y confirmó Ale el 30/10/2026: armazón de TR,
+ * polarizados categoría 3 con ISO 12312-1, filtro de luz azul con ISO 12870,
+ * tres apliques con imán. El origen no se publica.
  */
 
 export type ModeloQueViene = {
@@ -29,6 +30,10 @@ export type Linea = {
   corto: string;
   /** Una línea: qué tiene, sin adjetivos de más. */
   promesa: string;
+  /** Material, cristales y norma, en una línea corta. */
+  ficha: string;
+  /** Verdadero si a la línea se le pueden poner cristales con aumento: se invita a consultar. */
+  conAumento: boolean;
   categoria: Categoria;
   /** Los modelos en camino; vacío = la línea no se anuncia hasta tener productos. */
   enCamino: ModeloQueViene[];
@@ -63,6 +68,8 @@ export const LINEAS: Linea[] = [
     nombre: "Fotocromáticos",
     corto: "Fotocromáticos",
     promesa: "Claros adentro, oscuros al sol. Con filtro de luz azul.",
+    ficha: "Fotocromáticos · Filtro de luz azul · UV400",
+    conAumento: true,
     categoria: "Anteojos",
     enCamino: [],
   },
@@ -70,7 +77,9 @@ export const LINEAS: Linea[] = [
     clave: "sol",
     nombre: "De sol polarizados",
     corto: "Sol",
-    promesa: "Polarizados: menos reflejo del agua, el asfalto y los vidrios.",
+    promesa: "Polarizados, categoría 3: menos reflejo del agua, el asfalto y los vidrios.",
+    ficha: "Armazón de TR · Polarizados cat. 3 · ISO 12312-1",
+    conAumento: false,
     categoria: "Anteojos de sol",
     enCamino: [
       { nombre: "TURMALINA", colores: [C.negro, C.carey, C.marronTraslucido, C.naranja, C.marronDegrade] },
@@ -89,7 +98,9 @@ export const LINEAS: Linea[] = [
     clave: "receta",
     nombre: "De receta",
     corto: "Receta",
-    promesa: "Con filtro de luz azul. Si usás aumento, tu óptica les pone tus cristales.",
+    promesa: "Vienen con filtro de luz azul: para la compu, la tele y cualquier pantalla.",
+    ficha: "Armazón de TR · Filtro de luz azul · ISO 12870",
+    conAumento: true,
     categoria: "Anteojos de receta",
     enCamino: [
       { nombre: "TURQUESA", colores: [C.cristal, C.verdeTraslucido, C.azulMate] },
@@ -101,7 +112,9 @@ export const LINEAS: Linea[] = [
     clave: "clip-on",
     nombre: "Clip-on",
     corto: "Clip-on",
-    promesa: "Un armazón y tres apliques que se ponen con imán. Viene con estuche.",
+    promesa: "Un armazón con filtro de luz azul y tres apliques que se ponen con imán. Viene con estuche.",
+    ficha: "Filtro de luz azul · 3 apliques con imán · ISO 12312-1",
+    conAumento: false,
     categoria: "Clip-On",
     enCamino: [
       { nombre: "AGUAMARINA", colores: [C.negro, C.verdeTraslucido, C.azulTraslucido, C.cristal, C.grisDegrade] },

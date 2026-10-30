@@ -17,6 +17,7 @@ import { getTramos } from "@/lib/descuentos";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { LINEAS, lineasDeLaPortada } from "@/lib/lineas";
+import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { armarPack, CANTIDADES_PACK, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
@@ -230,6 +231,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const ambaConUnPar = precio !== null && gratisAmba(precio);
   const paisConDos = pack2 ? gratisPais(pack2.totalParaEnvio) : false;
   const complementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
+  // Los cristales con aumento los vende Harper: se consultan por WhatsApp (Ale, 30/10/2026).
+  const consultaAumento = enlaceWhatsApp(config.whatsapp, mensajeGraduadosModelo(""));
 
   return (
     <>
@@ -273,6 +276,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                     <span className="linea__estado">{l.estado === "disponible" ? "Ya disponibles" : "Próximamente"}</span>
                     <span className="linea__nombre">{l.nombre}</span>
                     <span className="linea__promesa">{l.promesa}</span>
+                    <span className="linea__ficha">{l.ficha}</span>
                     <span className="etiqueta-mono linea__cuenta">
                       {l.modelos} {l.modelos === 1 ? "modelo" : "modelos"} · {l.colores} colores
                     </span>
@@ -312,7 +316,12 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                 ))}
               </ol>
               <p className="asi-llega__tira">
-                UV400: UVA y UVB · ¿Usás aumento? El armazón admite cristales recetados; te los pone tu óptica.
+                UV400: UVA y UVB · ¿Usás aumento? Te ponemos los cristales oftálmicos.{" "}
+                {consultaAumento ? (
+                  <a href={consultaAumento} target="_blank" rel="noopener noreferrer">
+                    Consultanos por WhatsApp.
+                  </a>
+                ) : null}
               </p>
               {precio ? (
                 <p className="asi-llega__cierre">Todo eso, {formatearPrecio(precio)}. Te van a preguntar dónde los compraste.</p>
@@ -367,6 +376,15 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                 </span>
               </div>
               <p className="apagado viene__promesa">{l.promesa}</p>
+              <p className="etiqueta-mono viene__ficha">{l.ficha}</p>
+              {l.conAumento && consultaAumento ? (
+                <p className="viene__aumento">
+                  ¿Usás aumento? Te ponemos los cristales oftálmicos.{" "}
+                  <a href={consultaAumento} target="_blank" rel="noopener noreferrer">
+                    Consultanos por WhatsApp.
+                  </a>
+                </p>
+              ) : null}
               <ul className="viene__modelos">
                 {l.enCamino.map((m) => (
                   <li key={m.nombre}>

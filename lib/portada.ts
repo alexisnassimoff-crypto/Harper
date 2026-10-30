@@ -98,8 +98,8 @@ export function preguntasDePortada(datos: {
     });
     preguntas.push({
       pregunta: "¿Les puedo poner cristales con aumento?",
-      respuesta: `Sí: el armazón es apto para colocar cristales con aumento. Harper no vende cristales graduados${
-        datos.hayWhatsapp ? "; si tenés dudas, consultanos por WhatsApp y te asesoramos." : "."
+      respuesta: `Sí: el armazón es apto para cristales con aumento, y los cristales oftálmicos te los ponemos nosotros${
+        datos.hayWhatsapp ? ": consultanos por WhatsApp con tu receta." : "."
       }`,
     });
   }
