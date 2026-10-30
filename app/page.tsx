@@ -6,6 +6,7 @@ import GrillaProductos from "@/components/GrillaProductos";
 import MensajesConfianza from "@/components/MensajesConfianza";
 import Revelar from "@/components/Revelar";
 import CompraPortada from "@/components/portada/CompraPortada";
+import PortadaVitrina from "@/components/portada/PortadaVitrina";
 import Opiniones from "@/components/portada/Opiniones";
 import { ComoComprar, PreguntasFrecuentes } from "@/components/portada/SeccionesPortada";
 import { caracteristicasDe } from "@/lib/caracteristicas";
@@ -27,12 +28,12 @@ import {
   garantiasDePortada,
   pasosDeCompra,
   preguntasDePortada,
-  slugDePortada,
   subtituloDeLaPortada,
   TITULO_SITIO,
 } from "@/lib/portada";
 import type { Producto } from "@/lib/tipos";
 import { indiceVarianteInicial } from "@/lib/variantes";
+import { modoDePortada } from "@/lib/vitrina";
 
 export const revalidate = 60;
 
@@ -69,16 +70,14 @@ const ESPERA_OPINIONES_MS = 9_000;
 export default async function Home() {
   const [productos, config] = await Promise.all([getProductos(), getConfig()]);
 
-  // El modelo estrella (Config.portada_producto, el Citrino si está vacío),
-  // solo si es un anteojo publicado y le queda stock. Si no, la portada de
-  // catálogo de siempre.
-  const slug = slugDePortada(config.portadaProducto);
-  const estrella = slug
-    ? productos.find(
-        (p) => p.slug === slug && esCategoriaDeAnteojos(p.categoria) && paresDisponibles(p.variantes) > 0
-      )
-    : undefined;
+  // Config.portada_producto: vacío, la vitrina de los modelos; el slug de un
+  // anteojo, la portada de ese modelo en packs (la de antes); "ninguno", la de
+  // catálogo. Sin anteojos con stock, la de catálogo, que no se rompe.
+  const modo = modoDePortada(config.portadaProducto);
+  const conStock = (p: Producto) => esCategoriaDeAnteojos(p.categoria) && paresDisponibles(p.variantes) > 0;
 
+  if (modo.tipo === "vitrina" && productos.some(conStock)) return <PortadaVitrina productos={productos} config={config} />;
+  const estrella = modo.tipo === "estrella" ? productos.find((p) => p.slug === modo.slug && conStock(p)) : undefined;
   if (!estrella) return <PortadaCatalogo productos={productos} config={config} />;
   return <PortadaEstrella estrella={estrella} productos={productos} config={config} />;
 }

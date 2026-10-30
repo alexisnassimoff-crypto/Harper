@@ -37,20 +37,8 @@ export function subtituloDeLaPortada(
 }
 
 // ---------------------------------------------------------------------------
-// La portada con un modelo estrella
-
-/**
- * El modelo que protagoniza la portada, clave `portada_producto` de Config.
- * Vacío = el Citrino, el que eligió Ale el 26/10/2026. "ninguno" (o un slug
- * que no esté publicado o no tenga stock) = la portada de catálogo de antes.
- */
-export const PRODUCTO_PORTADA_POR_DEFECTO = "citrino";
-
-export function slugDePortada(delConfig: string): string | null {
-  const valor = delConfig.trim().toLowerCase();
-  if (!valor) return PRODUCTO_PORTADA_POR_DEFECTO;
-  return valor === "ninguno" ? null : valor;
-}
+// La portada con un modelo estrella (Config `portada_producto` con un slug;
+// qué portada va según esa clave está en lib/vitrina.ts, modoDePortada)
 
 /** El estuche que se ofrece sumar al pack, si está publicado y tiene stock. */
 export const ESTUCHE_PORTADA = "m500";

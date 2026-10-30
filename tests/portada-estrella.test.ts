@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import { anunciosDelHeader } from "../lib/anuncios";
 import { CARACTERISTICAS_ANTEOJOS } from "../lib/caracteristicas";
-import { garantiasDePortada, pasosDeCompra, preguntasDePortada, slugDePortada } from "../lib/portada";
+import { garantiasDePortada, pasosDeCompra, preguntasDePortada } from "../lib/portada";
+import { modoDePortada } from "../lib/vitrina";
 
 const BASE = {
   incluye: [],
@@ -21,9 +22,9 @@ const BASE = {
 };
 
 test("el modelo de la portada sale de Config, con el Citrino por defecto", () => {
-  assert.equal(slugDePortada(""), "citrino");
-  assert.equal(slugDePortada(" Cuarzo "), "cuarzo");
-  assert.equal(slugDePortada("ninguno"), null);
+  assert.deepEqual(modoDePortada(""), { tipo: "vitrina" });
+  assert.deepEqual(modoDePortada(" Cuarzo "), { tipo: "estrella", slug: "cuarzo" });
+  assert.deepEqual(modoDePortada("ninguno"), { tipo: "catalogo" });
 });
 
 test("las preguntas dicen solo lo confirmado", () => {

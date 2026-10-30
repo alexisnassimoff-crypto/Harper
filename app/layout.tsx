@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Raleway } from "next/font/google";
+import { IBM_Plex_Mono, Instrument_Serif, Raleway } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
@@ -21,6 +21,23 @@ const raleway = Raleway({
   subsets: ["latin"],
   display: "swap",
   variable: "--fuente-raleway",
+});
+
+// La serif de los títulos de la portada (conversa con el logo) y la mono de
+// las etiquetas y la numeración. Solo los pesos que se usan.
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  display: "swap",
+  variable: "--fuente-serif",
+});
+
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
+  variable: "--fuente-mono",
 });
 
 const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";
@@ -117,7 +134,7 @@ export default async function RootLayout({
   ];
 
   return (
-    <html lang="es" className={raleway.variable}>
+    <html lang="es" className={`${raleway.variable} ${serif.variable} ${mono.variable}`}>
       <head>
         <script
           type="application/ld+json"
