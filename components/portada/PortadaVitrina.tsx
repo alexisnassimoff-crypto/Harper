@@ -136,12 +136,18 @@ export default async function PortadaVitrina({ productos, config }: { productos:
     gratisPais(monto) ? "Envío gratis a todo el país" : gratisAmba(monto) ? "Envío gratis en AMBA" : null;
 
   // Qué son y cuánto salen, sin contar modelos ni colores: la colección crece (Ale, 30/10/2026).
+  const tramo2 = pack2 ? tramoDe(pack2.cantidad) : null;
   const bajada =
     config.portadaSubtitulo ||
     [
-      confirmados ? TEXTOS.portada.bajada : null,
-      precio ? `${TEXTOS.portada.precio} ${formatearPrecio(precio)}.` : null,
-      precio && cuota2 && nombrePromo ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}.` : null,
+      (confirmados ? TEXTOS.portada.bajada : TEXTOS.portada.bajadaSinConfirmar)(precio ? formatearPrecio(precio) : null),
+      precio && pack2 && cuota2
+        ? tramo2?.paga
+          ? TEXTOS.portada.promo(tramo2.desdeUnidades, tramo2.paga, formatearPrecio(pack2.total), cuota2.cuotas, precioConCentavos(cuota2.montoCuota))
+          : nombrePromo
+            ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}.`
+            : null
+        : null,
     ]
       .filter(Boolean)
       .join(" ");
@@ -332,7 +338,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               <ol className="lista-numerada">
                 <li>{TEXTOS.asiLlega.alSol}</li>
                 <li>{TEXTOS.asiLlega.adentro}</li>
-                {incluye.length > 0 ? <li>{mayuscula(enumerar(incluye.map(minuscula)))}, incluidos.</li> : null}
+                {incluye.length > 0 ? <li>{TEXTOS.asiLlega.incluye(enumerar(incluye.map(minuscula)))}</li> : null}
               </ol>
               <p className="asi-llega__tira">
                 UV400: UVA y UVB · ¿Usás aumento? Te ponemos los cristales oftálmicos.{" "}
@@ -344,7 +350,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               </p>
               {precio ? (
                 <p className="asi-llega__cierre">
-                  Todo eso, {formatearPrecio(precio)}. {TEXTOS.asiLlega.cierre}
+                  {TEXTOS.asiLlega.cierre(formatearPrecio(precio))}
                 </p>
               ) : null}
             </div>
@@ -396,8 +402,11 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           </h2>
           {/* Una sola vez cuánto llega: lo que dice cada línea ya está en la tira de arriba. */}
           <p className="apagado">
-            {mayuscula(enumerar(proximas.map((l) => l.nombre.toLowerCase())))}: {proximas.reduce((n, l) => n + l.modelos, 0)} modelos,{" "}
-            {proximas.reduce((n, l) => n + l.colores, 0)} colores. {TEXTOS.viene.cierre}
+            {TEXTOS.viene.bajada(
+              enumerar(proximas.map((l) => l.nombre.toLowerCase())),
+              proximas.reduce((n, l) => n + l.modelos, 0),
+              proximas.reduce((n, l) => n + l.colores, 0),
+            )}
           </p>
           {proximas.map((l) => (
             <div key={l.clave} id={`viene-${l.clave}`} className="viene">
@@ -516,9 +525,9 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           </h2>
           {precio ? (
             <p>
-              {TEXTOS.cierre.precio} {formatearPrecio(precio)}.
+              {TEXTOS.cierre.precio(formatearPrecio(precio))}
               {escala[0]
-                ? ` Y si te llevás ${enLetras(escala[0].desdeUnidades)}, pagás ${enLetras(escala[0].paga ?? escala[0].desdeUnidades)}.`
+                ? TEXTOS.cierre.escala(enLetras(escala[0].desdeUnidades), enLetras(escala[0].paga ?? escala[0].desdeUnidades))
                 : paisConDos && paresPaisGratis
                   ? ` Con ${enLetras(paresPaisGratis)}, envío gratis a todo el país.`
                   : ""}

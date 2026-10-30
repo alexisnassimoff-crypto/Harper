@@ -9,7 +9,7 @@
 
 /** Descripción del sitio para buscadores y redes. Anteojos primero. */
 export const DESCRIPCION_SITIO =
-  "Anteojos fotocromáticos Harper con filtro de luz azul y UV400: se oscurecen solos al sol y se aclaran adentro. Elegí tu forma y tu color.";
+  "Anteojos fotocromáticos Harper con filtro de luz azul y UV400: se oscurecen solos al sol y se aclaran adentro. Varios modelos y colores.";
 
 export const TITULO_SITIO = "Harper — Anteojos fotocromáticos con filtro de luz azul";
 

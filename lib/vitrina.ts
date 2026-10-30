@@ -32,10 +32,10 @@ export function tinteDe(slug: string, indice: number): string {
  * línea hasta que alguien la escriba.
  */
 export const FORMAS: Record<string, string> = {
-  citrino: "Cuadrado de bordes suaves, dos remaches al frente. Te lo ponés y ya estás.",
-  amatista: "Geométrico, con un quiebre en las esquinas. Para que te miren dos veces.",
-  obsidiana: "Rectangular, de esquinas redondeadas. No busca la mirada: la tiene.",
-  cuarzo: "Cuadrado, con la línea de arriba recta. Llegás y ya dijiste algo.",
+  citrino: "Cuadrado, de bordes suaves y con dos remaches al frente. Combina con todo.",
+  amatista: "Geométrico, con un quiebre en las esquinas. Es el que más se hace notar.",
+  obsidiana: "Rectangular, de esquinas redondeadas. Clásico y discreto: nunca falla.",
+  cuarzo: "Cuadrado, con la línea de arriba recta. Tiene mucha presencia.",
 };
 
 /** "/productos/anteojos/citrino-carey-1.webp" → "citrino-carey"; null si no es una foto de anteojos de la tienda. */

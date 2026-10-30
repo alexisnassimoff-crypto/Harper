@@ -2,10 +2,10 @@
  * Los textos de la marca, en un solo lugar.
  *
  * Ale, 30/10/2026: «no quiero vender el producto, sino la sensación que tenés
- * cuando los usás». La idea rectora es el momento de salir a la calle: el sol
- * los oscurece solos, vos seguís con lo tuyo y te miran. Se eligió entre cinco
- * estilos (escalera de beneficios, micro-escenas, manifiesto, anuncios e
- * identidad) puntuados por tres criterios: deseo, anuncios de Meta y marca.
+ * cuando los usás». La idea es el momento de salir a la calle y que se
+ * oscurezcan solos. Y escrito como habla la gente de acá: oraciones enteras,
+ * nada de frases sueltas ni metáforas que suenan a traducción (Ale: «parece
+ * que las escribió alguien que no sabe castellano»).
  *
  * Reglas que siguen valiendo para cualquier cambio:
  * - Solo se afirma lo confirmado (lib/caracteristicas.ts, lib/lineas.ts):
@@ -17,88 +17,93 @@
 
 export const TEXTOS = {
   portada: {
-    titulo: "Salís. Se oscurecen solos. Te miran.",
-    /** Solo si todos los modelos tienen las características confirmadas. */
-    bajada: "Anteojos fotocromáticos con filtro de luz azul.",
-    /** Va seguida del precio del par y, si hay, de la promoción con sus cuotas. */
-    precio: "Un par para todo el día:",
-    nota: "Probalos al sol y adentro. El tono final depende de la luz.",
+    titulo: "Salís a la calle y se oscurecen solos.",
+    /** «Anteojos fotocromáticos con filtro de luz azul, a $ 89.900 el par.» Solo con las características confirmadas. */
+    bajada: (precio: string | null) => `Anteojos fotocromáticos con filtro de luz azul${precio ? `, a ${precio} el par` : ""}.`,
+    bajadaSinConfirmar: (precio: string | null) => `Anteojos Harper${precio ? `, a ${precio} el par` : ""}.`,
+    /** «Si te llevás 3, pagás 2: $ 179.800 en 6 cuotas sin interés de $ 29.966,67.» */
+    promo: (lleva: number, paga: number, total: string, cuotas: number, cuota: string) =>
+      `Si te llevás ${lleva}, pagás ${paga}: ${total} en ${cuotas} cuotas sin interés de ${cuota}.`,
+    nota: "Tocá «Al sol» o «Adentro» para ver cómo cambian. El tono final depende de la luz.",
     boton: "Quiero los míos",
   },
   lineas: {
-    titulo: "Un par para cada luz.",
+    titulo: "Un par para cada ocasión.",
   },
   modelos: {
-    titulo: "Un precio. Tu forma.",
-    tituloSinPrecio: "Elegí tu forma.",
-    bajada: "Tocá un color.",
-    bajadaConSol: "Tocá un color. Pasalo al sol.",
-    todos: "¿Para qué elegir uno?",
-    todosBoton: "Sumá uno de cada",
+    titulo: "Todos cuestan lo mismo. Elegí el que más te guste.",
+    tituloSinPrecio: "Elegí el que más te guste.",
+    bajada: "Tocá un color para verlo.",
+    bajadaConSol: "Tocá un color para verlo, al sol o adentro.",
+    todos: "¿No te decidís?",
+    todosBoton: "Llevate uno de cada modelo",
   },
   asiLlega: {
     etiqueta: "Qué trae cada par",
-    titulo: "No cambiás de anteojos. Cambian ellos.",
-    texto: "Son fotocromáticos: el sol los oscurece solos y, cuando volvés a entrar, se aclaran. Vos seguís con lo tuyo.",
+    titulo: "No tenés que cambiar de anteojos: cambian solos.",
+    texto: "Son fotocromáticos: con el sol se oscurecen y, cuando entrás, se vuelven a aclarar.",
     alSol: "Al sol, se oscurecen solos.",
     adentro: "Adentro, claros y con filtro de luz azul.",
-    /** Va después del precio: «Todo eso, $ 89.900. …». */
-    cierre: "De esas compras que dan ganas de mostrar.",
+    /** «Vienen con estuche rígido Harper y paño de microfibra.» */
+    incluye: (lista: string) => `Vienen con ${lista}.`,
+    cierre: (precio: string) => `Todo eso por ${precio}. Y preparate, porque te van a preguntar dónde los compraste.`,
   },
   pack: {
-    bajada: "Uno para la semana. Otro para el finde. Otro porque sí. Mezclá modelos y colores: el descuento se aplica solo.",
+    bajada: "Uno para la semana, otro para el finde y otro para regalar. Podés mezclar modelos y colores, y el descuento se aplica solo.",
   },
   viene: {
     titulo: "Esto recién empieza.",
-    /** Va después de las líneas y de cuántos modelos y colores llegan. */
-    cierre: "Andá haciendo lugar.",
+    /** «Se vienen anteojos de sol polarizados, de receta y clip-on: 25 modelos nuevos en 95 colores.» */
+    bajada: (lineas: string, modelos: number, colores: number) =>
+      `Se vienen anteojos ${lineas}: ${modelos} modelos nuevos en ${colores} colores.`,
     boton: "Enterate primero en Instagram",
   },
   unDia: {
     etiqueta: "Un día cualquiera",
-    titulo: "Del cortado al partido, siempre a tono.",
-    cafe: "Pedís adentro, claros. Salís con el vaso a la vereda: oscuros.",
-    oficina: "Pantalla toda la tarde, filtro de luz azul. Y cara de tenerla clara.",
-    futbol: "Ganes o pierdas, el tercer tiempo es con ellos puestos.",
-    brunch: "Mesa afuera, sol de mediodía. Los del lunes, ahora oscuros.",
+    titulo: "Del café al partido, con el mismo par.",
+    cafe: "Adentro del café están claros. Salís a la vereda y se oscurecen.",
+    oficina: "Toda la tarde frente a la compu, con filtro de luz azul.",
+    futbol: "Para jugar quedan en el bolso. Para el tercer tiempo, te los ponés.",
+    brunch: "Mesa afuera al mediodía, con los mismos anteojos de toda la semana.",
   },
   cierre: {
     titulo: "¿Cuál te llevás? ¿O cuáles?",
-    /** «El que elijas, $ 89.900.» */
-    precio: "El que elijas,",
+    precio: (precio: string) => `Cada par cuesta ${precio}.`,
+    /** « Y si te llevás tres, pagás dos.» */
+    escala: (lleva: string, paga: string) => ` Y si te llevás ${lleva}, pagás ${paga}.`,
     boton: "Elegir los míos",
   },
   pie: {
-    lema: "Para ver bien. Y para que te vean.",
+    lema: "Diseño para todos los días.",
   },
   nosotros: {
-    titulo: "Antes de salir, elegís los anteojos.",
+    titulo: "Los anteojos también se eligen como la ropa.",
     bajada:
-      "Durante años fueron algo que había que usar. Hoy vuelven a ser un accesorio: se eligen como una campera o un reloj, por el color, la forma y con qué los combinás.",
-    frase: ["Para ver la calle.", "Y que la calle te vea."],
+      "Durante años fueron algo que había que usar. Hoy vuelven a ser un accesorio: los elegís por el color, por la forma y por cómo los combinás con lo que te ponés.",
+    frase: ["Para ver bien.", "Y para que te vean."],
     manifiesto: [
       {
         titulo: "Color, primero.",
-        texto: "Abrís el placard: el jean de siempre, la camisa blanca, el buzo del domingo. Los colores están pensados para eso.",
+        texto: "Colores pensados para combinar con lo que ya tenés en el placard: el jean de siempre, la camisa blanca, el buzo del domingo.",
       },
       {
         titulo: "Formas de ahora.",
-        texto: "Te cruzás con tu reflejo en una vidriera y te gusta lo que ves. Líneas limpias, contemporáneas, nada de más.",
+        texto: "Líneas simples y actuales, sin nada recargado. Diseño de hoy para usar todos los días.",
       },
       {
         titulo: "Lindos, y además funcionan.",
-        texto: "Se oscurecen solos al sol, filtran parte de la luz azul y tienen UV400. Te los ponés por cómo quedan; te quedás por todo lo demás.",
+        texto: "Se oscurecen solos al sol, filtran parte de la luz azul de las pantallas y tienen protección UV400.",
       },
       {
         titulo: "Sin caras famosas.",
-        texto: "Ni celebridades ni campañas con modelos. Acá la única cara que importa es la tuya.",
+        texto: "Ni celebridades ni campañas con modelos. Acá los protagonistas son los anteojos, y el estilo lo ponés vos.",
       },
     ],
     paleta: "¿Con cuál salís hoy?",
-    paletaBajada: "Tocá un color y miralo de cerca, como frente al espejo.",
-    viene: "Lo que viene es más grande:",
+    paletaBajada: "Tocá un color para verlo de cerca.",
+    /** «Se vienen más anteojos: de sol polarizados, de receta y clip-on.» */
+    viene: (lineas: string) => `Se vienen más anteojos: ${lineas}.`,
     vieneBoton: "Ver lo que viene",
-    cierre: "Para cada luz de la ciudad. Buenos Aires, Argentina.",
+    cierre: "Anteojos para combinar. Buenos Aires, Argentina.",
   },
-} as const;
-
+};
