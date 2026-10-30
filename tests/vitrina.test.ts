@@ -62,3 +62,31 @@ test("la barra «Tus pares» empuja el próximo par con lo que de verdad gana", 
   );
   assert.equal(empujeDeLaBarra({ ...base, pares: 0, actual: 0, proximo: null, subtotalSinCupon: 0 }), null);
 });
+
+test("las líneas: disponibles con stock; mientras no, «Próximamente» con los modelos anunciados", async () => {
+  const { LINEAS, lineasDeLaPortada } = await import("../lib/lineas");
+  const anteojo = (categoria: string, agotada = false) => ({ categoria, variantes: [{ agotada }, { agotada: false }] }) as never;
+
+  const hoy = lineasDeLaPortada([anteojo("Anteojos"), anteojo("Anteojos"), anteojo("Estuches")]);
+  assert.deepEqual(
+    hoy.map((l) => [l.clave, l.estado, l.modelos]),
+    [
+      ["fotocromaticos", "disponible", 2],
+      ["sol", "proximamente", 10],
+      ["receta", "proximamente", 3],
+      ["clip-on", "proximamente", 5],
+    ],
+  );
+  assert.equal(hoy.find((l) => l.clave === "sol")?.colores, 37);
+  assert.equal(hoy.find((l) => l.clave === "receta")?.colores, 10);
+  assert.equal(hoy.find((l) => l.clave === "clip-on")?.colores, 21);
+
+  // Cuando se cargan los de sol en Airtable, la línea pasa sola a disponible, con su sección.
+  const conSol = lineasDeLaPortada([anteojo("Anteojos"), anteojo("Anteojos de sol")]);
+  const sol = conSol.find((l) => l.clave === "sol");
+  assert.equal(sol?.estado, "disponible");
+  assert.equal(sol?.ruta, "/anteojos-de-sol");
+
+  // Nada de precios ni códigos de fábrica en lo que se publica.
+  assert.ok(!/KG\d|K0\d|RMB|\d{2,}\s*(?:yuan|元)/.test(JSON.stringify(LINEAS)));
+});

@@ -16,6 +16,7 @@ import { conEspera, verificarCuotas } from "@/lib/cuotas-servidor";
 import { getTramos } from "@/lib/descuentos";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
+import { LINEAS, lineasDeLaPortada } from "@/lib/lineas";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { armarPack, CANTIDADES_PACK, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
@@ -64,8 +65,12 @@ function textoCuota(c: CuotasVerificadas | undefined): string | null {
 }
 
 export default async function PortadaVitrina({ productos, config }: { productos: Producto[]; config: ConfigTienda }) {
-  const anteojos = productos.filter((p) => esCategoriaDeAnteojos(p.categoria));
-  const modelos = anteojos.filter((p) => paresDisponibles(p.variantes) > 0);
+  // La vitrina es de los fotocromáticos (la primera línea); las demás líneas
+  // van en la tira de abajo y, mientras no tengan productos, en «Lo que viene».
+  const lineaVitrina = LINEAS[0];
+  const lineas = lineasDeLaPortada(productos);
+  const proximas = lineas.filter((l) => l.estado === "proximamente");
+  const modelos = productos.filter((p) => p.categoria === lineaVitrina.categoria && paresDisponibles(p.variantes) > 0);
   const precio = precioUnico(modelos);
   const estuche = productos.find((p) => p.slug === ESTUCHE_PORTADA) ?? null;
   const varianteEstuche = estuche?.variantes.find((v) => !v.agotada) ?? null;
@@ -125,10 +130,10 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const bajada =
     config.portadaSubtitulo ||
     (precio
-      ? `${mayuscula(enLetras(modelos.length))} modelos, ${enLetras(colores)} colores y un solo precio: ${formatearPrecio(precio)} el par.${
+      ? `${mayuscula(enLetras(modelos.length))} ${lineaVitrina.nombre.toLowerCase()}, ${enLetras(colores)} colores y un solo precio: ${formatearPrecio(precio)} el par.${
           cuota2 ? ` Dos pares, en ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}.` : ""
         }`
-      : `${mayuscula(enLetras(modelos.length))} modelos y ${enLetras(colores)} colores.`);
+      : `${mayuscula(enLetras(modelos.length))} ${lineaVitrina.nombre.toLowerCase()} y ${enLetras(colores)} colores.`);
 
   const filas: FilaDeADos[] = packs.map((p) => {
     const cuota = textoCuota(cuotasDe(p.total));
@@ -231,7 +236,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       <Vitrina
         modelos={vitrina}
         datos={{
-          etiqueta: confirmados ? "Fotocromáticos · Filtro de luz azul · UV400" : "Anteojos Harper",
+          etiqueta: lineas.length > 1 ? lineas.map((l) => l.corto).join(" · ") : "Anteojos Harper",
+          linea: lineaVitrina.nombre,
           titulo: config.portadaTitulo || "El problema va a ser elegir uno.",
           bajada,
           precio: precio ? formatearPrecio(precio) : null,
@@ -245,7 +251,38 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               }
             : null,
         }}
-      />
+      >
+        {lineas.length > 1 ? (
+          <section className="lineas" aria-labelledby="lineas-titulo">
+            <div className="contenedor">
+              <p className="etiqueta-mono">Las líneas</p>
+              <h2 id="lineas-titulo" className="titulo-serif">
+                Un par para cada plan.
+              </h2>
+            </div>
+            <ul className="lineas__carril">
+              {lineas.map((l) => (
+                <li key={l.clave}>
+                  <a
+                    href={
+                      l.estado === "proximamente" ? `#viene-${l.clave}` : l.clave === lineaVitrina.clave ? "#los-modelos" : (l.ruta ?? "#")
+                    }
+                    className="linea"
+                    data-estado={l.estado}
+                  >
+                    <span className="linea__estado">{l.estado === "disponible" ? "Ya disponibles" : "Próximamente"}</span>
+                    <span className="linea__nombre">{l.nombre}</span>
+                    <span className="linea__promesa">{l.promesa}</span>
+                    <span className="etiqueta-mono linea__cuenta">
+                      {l.modelos} {l.modelos === 1 ? "modelo" : "modelos"} · {l.colores} colores
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </Vitrina>
 
       {confirmados && portadaAsiLlega ? (
         <section className="asi-llega" aria-labelledby="asi-llega-titulo">
@@ -309,6 +346,48 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           }
           totales={Object.fromEntries(packs.map((p) => [p.cantidad, formatearPrecio(p.total)]))}
         />
+      ) : null}
+
+      {proximas.length > 0 ? (
+        <section id="lo-que-viene" className="contenedor seccion lo-que-viene" aria-labelledby="lo-que-viene-titulo">
+          <p className="etiqueta-mono">Próximamente</p>
+          <h2 id="lo-que-viene-titulo" className="titulo-serif">
+            Lo que viene.
+          </h2>
+          <p className="apagado">
+            {proximas.reduce((n, l) => n + l.modelos, 0)} modelos nuevos en camino, en {proximas.reduce((n, l) => n + l.colores, 0)}{" "}
+            colores.
+          </p>
+          {proximas.map((l) => (
+            <div key={l.clave} id={`viene-${l.clave}`} className="viene">
+              <div className="viene__cabecera">
+                <h3 className="viene__titulo">{l.nombre}</h3>
+                <span className="etiqueta-mono">
+                  {l.modelos} modelos · {l.colores} colores
+                </span>
+              </div>
+              <p className="apagado viene__promesa">{l.promesa}</p>
+              <ul className="viene__modelos">
+                {l.enCamino.map((m) => (
+                  <li key={m.nombre}>
+                    <span className="viene__nombre">{m.nombre}</span>
+                    <span className="viene__colores" aria-label={`${m.colores.length || m.cantidadDeColores} colores`}>
+                      {m.colores.map((c, i) => (
+                        <i key={i} style={{ background: c }} />
+                      ))}
+                      {m.colores.length === 0 && m.cantidadDeColores ? <small>{m.cantidadDeColores} colores</small> : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {config.instagram ? (
+            <a href={config.instagram} target="_blank" rel="noopener noreferrer" className="boton boton--contorno lo-que-viene__boton">
+              Enterate primero en Instagram
+            </a>
+          ) : null}
+        </section>
       ) : null}
 
       <Opiniones opiniones={opiniones} reputacion={reputacion} />

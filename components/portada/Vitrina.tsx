@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import Estrellas, { formatearPuntaje } from "./Estrellas";
 import { precio as formatearPrecio } from "@/lib/formato";
@@ -45,6 +45,8 @@ export type ModeloVitrina = {
 
 export type DatosVitrina = {
   etiqueta: string;
+  /** El nombre de la línea de la vitrina ("Fotocromáticos"), arriba de los mosaicos. */
+  linea: string;
   titulo: string;
   bajada: string;
   /** "$ 89.900", o null si los modelos no cuestan lo mismo. */
@@ -62,7 +64,8 @@ export type DatosVitrina = {
 
 type Estado = "sol" | "adentro";
 
-export default function Vitrina({ modelos, datos }: { modelos: ModeloVitrina[]; datos: DatosVitrina }) {
+/** `children` va entre la portada y las fichas: las líneas de Harper. */
+export default function Vitrina({ modelos, datos, children }: { modelos: ModeloVitrina[]; datos: DatosVitrina; children?: ReactNode }) {
   const { agregar, abrirPanel } = useCarrito();
   const [estado, setEstado] = useState<Estado>("sol");
   const [elegidos, setElegidos] = useState<Record<string, number>>(() => Object.fromEntries(modelos.map((m) => [m.slug, m.inicial])));
@@ -142,6 +145,7 @@ export default function Vitrina({ modelos, datos }: { modelos: ModeloVitrina[]; 
           </div>
 
           <div className="vitrina-portada__vitrina">
+            <p className="etiqueta-mono vitrina-portada__linea">{datos.linea} · ya disponibles</p>
             {hayAlSol ? (
               <div className="vitrina-portada__control">
                 {interruptor("vitrina-portada__interruptor")}
@@ -192,10 +196,14 @@ export default function Vitrina({ modelos, datos }: { modelos: ModeloVitrina[]; 
         </div>
       </section>
 
+      {children}
+
       {/* ---------- Los modelos, uno por uno ---------- */}
       <section id="los-modelos" className="contenedor seccion vitrina-modelos" aria-labelledby="los-modelos-titulo">
         <div className="vitrina-modelos__cabecera">
-          <p className="etiqueta-mono">Los {modelos.length === 4 ? "cuatro" : modelos.length}</p>
+          <p className="etiqueta-mono">
+            {datos.linea} · {modelos.length === 4 ? "los cuatro" : `${modelos.length} modelos`}
+          </p>
           <h2 id="los-modelos-titulo" className="titulo-serif">
             {datos.precio ? "Mismo precio. " : ""}
             {modelos.length === 4 ? "Cuatro formas." : "Elegí la tuya."}
