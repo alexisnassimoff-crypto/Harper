@@ -219,9 +219,15 @@ export default function FichaProducto({
       </div>
 
       {/* ---------- Datos y compra ----------
-          Orden pensado para el celular: nombre, precio, color, botón; después
-          lo que da confianza; después lo que da más información. */}
+          Orden pensado para el celular: el cupón; nombre, precio, color,
+          botón; después lo que da confianza; después lo que da más
+          información. */}
       <div className="pila surge surge-1 ficha-producto__datos">
+        {/* El beneficio de primera compra, arriba de todo (Ale, 30/10/2026):
+            se ve sin buscarlo, se aplica con un toque y no se mete entre el
+            modelo, el precio, el color y las características. */}
+        <CuponBienvenida precio={producto.precio} estadoServidor={carritoResuelto?.cupon ?? null} />
+
         <div className="pila" style={{ gap: "0.6rem" }}>
           {calificacion ? (
             <a href="#opiniones" className="calificacion">
@@ -264,10 +270,6 @@ export default function FichaProducto({
           ) : null}
           {cuotaCondiciones ? <span className="cuotas-condiciones">{cuotaCondiciones}</span> : null}
         </div>
-
-        {/* El beneficio de primera compra, junto al precio y antes de elegir:
-            se ve sin buscarlo y se aplica con un toque. */}
-        <CuponBienvenida precio={producto.precio} estadoServidor={carritoResuelto?.cupon ?? null} />
 
         {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}
         {caracteristicas ? (
