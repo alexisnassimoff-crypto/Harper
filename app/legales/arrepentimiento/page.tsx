@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import FormularioArrepentimiento from "@/components/FormularioArrepentimiento";
 import { getConfig } from "@/lib/config";
+import { DIAS_ARREPENTIMIENTO } from "@/lib/confianza";
 
 export const metadata: Metadata = {
   title: "Botón de arrepentimiento",
@@ -22,14 +24,19 @@ export default async function Arrepentimiento() {
 
       <p>
         Si te arrepentiste de tu compra, tenés{" "}
-        <strong style={{ fontWeight: 500 }}>10 días corridos</strong> desde que
+        <strong style={{ fontWeight: 500 }}>{DIAS_ARREPENTIMIENTO} días corridos</strong> desde que
         recibiste el producto para revocarla, sin costo y sin necesidad de dar
         explicaciones.
       </p>
 
       <p className="apagado">
-        Podés abrir el paquete y probarte los anteojos normalmente, y no hace
-        falta conservar el empaque original.
+        El producto tiene que volver como lo recibiste: sin uso, sin daños,
+        completo y en su empaque original. Podés abrirlo y probártelo para ver
+        cómo te queda, como en un local. Ver las{" "}
+        <Link href="/legales/devoluciones" style={{ textDecoration: "underline" }}>
+          condiciones de devolución
+        </Link>
+        .
       </p>
 
       <p className="apagado">
@@ -40,7 +47,7 @@ export default async function Arrepentimiento() {
       </p>
 
       <p className="apagado">
-        Este botón es para cancelar la compra dentro del plazo legal. Los cambios
+        Este botón es para cancelar la compra dentro de esos {DIAS_ARREPENTIMIENTO} días. Los cambios
         voluntarios de color o modelo se gestionan por WhatsApp.
       </p>
 
@@ -62,10 +69,6 @@ export default async function Arrepentimiento() {
         </p>
       </div>
 
-      <p className="apagado" style={{ fontSize: "0.8125rem", marginTop: "1rem" }}>
-        {config.razonSocial} — CUIT {config.cuit}
-        {config.domicilio ? ` — ${config.domicilio}` : ""}
-      </p>
     </>
   );
 }

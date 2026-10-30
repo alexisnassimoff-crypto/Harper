@@ -18,10 +18,12 @@ import { precio as formatearPrecio } from "./formato";
 /**
  * Plazos de la política de cambios y devoluciones.
  *
- * Son la fuente única: los usa esta lista y la página /legales/devoluciones,
- * así nunca dicen cosas distintas.
+ * Son la fuente única: los usan esta lista, la portada y las páginas de
+ * /legales, así nunca dicen cosas distintas. 30 días para devolver y para
+ * cambiar, como Mercado Libre (decisión de Ale, 30/10/2026): la ley pide al
+ * menos 10 para arrepentirse, y dar más está permitido.
  */
-export const DIAS_ARREPENTIMIENTO = 10;
+export const DIAS_ARREPENTIMIENTO = 30;
 export const DIAS_CAMBIO = 30;
 /** La garantía legal por defectos o fallas, desde que se recibe el producto. */
 export const MESES_GARANTIA = 6;
@@ -85,8 +87,14 @@ export function mensajesDeConfianza(
 
   mensajes.push({
     clave: "cambios",
-    texto: `Cambios hasta ${DIAS_CAMBIO} días`,
-    detalle: `Devolución sin costo dentro de los ${DIAS_ARREPENTIMIENTO} días`,
+    texto:
+      DIAS_CAMBIO === DIAS_ARREPENTIMIENTO
+        ? `Cambios y devoluciones hasta ${DIAS_CAMBIO} días`
+        : `Cambios hasta ${DIAS_CAMBIO} días`,
+    detalle:
+      DIAS_CAMBIO === DIAS_ARREPENTIMIENTO
+        ? "Devolución sin costo, sin uso y en su empaque"
+        : `Devolución sin costo dentro de los ${DIAS_ARREPENTIMIENTO} días`,
     href: "/legales/devoluciones",
   });
 

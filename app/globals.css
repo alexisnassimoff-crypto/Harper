@@ -2883,6 +2883,14 @@ p {
   }
 }
 
+/* Listas de las páginas legales (condiciones de devolución, garantía). */
+.lista-legal {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
 /* ---------------------------------------------------------------------------
    Pie: Harper protagonista, información legal siempre visible
 --------------------------------------------------------------------------- */
@@ -2968,24 +2976,40 @@ p {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
-/* Abajo deja lugar para el globo de WhatsApp, que flota en la esquina en
-   todos los anchos: la línea de datos del vendedor no queda debajo. */
-.pie__legal {
-  display: grid;
-  gap: 0.9rem;
-  padding-block: 1.75rem 5.5rem;
-  border-top: 1px solid rgb(255 255 255 / 0.18);
-}
-/* Los sellos de pago y el Data Fiscal, en una fila que baja si no entra. */
-.pie__sellos {
+/* Instagram, WhatsApp y mail: accesos directos debajo del logo. */
+.pie__contacto {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem 1.5rem;
+  gap: 0.6rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.pie__contacto a {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 50%;
+  transition:
+    background var(--rapido) var(--curva),
+    border-color var(--rapido) var(--curva);
+}
+.pie__contacto a:hover,
+.pie__contacto a:focus-visible {
+  background: rgb(255 255 255 / 0.12);
+  border-color: #fff;
+}
+/* Los medios de pago, centrados, arriba de la línea. */
+.pie__medios {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 1.75rem;
 }
 .pie__pagos {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.5rem;
   margin: 0;
   padding: 0;
@@ -2994,9 +3018,18 @@ p {
 .pie__pagos svg {
   display: block;
 }
+/* Debajo de la línea: el Data Fiscal y los datos del vendedor, centrados.
+   Abajo deja lugar para el globo de WhatsApp, que flota en la esquina. */
+.pie__legal {
+  display: grid;
+  justify-items: center;
+  gap: 0.9rem;
+  padding-block: 1.75rem 5.5rem;
+  border-top: 1px solid rgb(255 255 255 / 0.18);
+  text-align: center;
+}
 /* Data Fiscal (F. 960/D de ARCA): el logo, chico y sobre blanco como lo entrega ARCA. */
 .pie__data-fiscal {
-  justify-self: start;
   display: inline-flex;
   font-size: 0.8125rem;
   text-decoration: underline;
@@ -3009,6 +3042,7 @@ p {
   border-radius: 2px;
 }
 .pie__copy {
+  max-width: 40rem;
   font-size: 0.75rem;
   line-height: 1.6;
   color: rgb(255 255 255 / 0.62);
@@ -3016,10 +3050,6 @@ p {
 .pie__copy a {
   text-decoration: underline;
   text-underline-offset: 0.18em;
-}
-.pie__arrepentimiento {
-  color: rgb(255 255 255 / 0.9);
-  white-space: nowrap;
 }
 .pie__sin-corte {
   white-space: nowrap;

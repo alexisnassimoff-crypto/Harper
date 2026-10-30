@@ -22,6 +22,8 @@ export type ConfigTienda = {
   envioGratisAmbaDesde: number;
   bannerTexto: string;
   whatsapp: string;
+  /** El Instagram de Harper, como URL completa; vacío = no se muestra el acceso en el pie. */
+  instagram: string;
   emailContacto: string;
   emailPedidos: string;
   razonSocial: string;
@@ -106,6 +108,7 @@ const POR_DEFECTO: ConfigTienda = {
   envioGratisAmbaDesde: 0,
   bannerTexto: "",
   whatsapp: "",
+  instagram: "",
   emailContacto: "hola@harper.ar",
   emailPedidos: "hola@harper.ar",
   razonSocial: "HARPER",
@@ -174,6 +177,7 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
       : 0,
     bannerTexto: texto("banner_texto", POR_DEFECTO.bannerTexto),
     whatsapp: texto("whatsapp", POR_DEFECTO.whatsapp).replace(/\D/g, ""),
+    instagram: urlDeInstagram(mapa.get("instagram")),
     emailContacto: texto("email_contacto", POR_DEFECTO.emailContacto),
     emailPedidos: texto("email_pedidos", POR_DEFECTO.emailPedidos),
     razonSocial: texto("razon_social", POR_DEFECTO.razonSocial),
@@ -197,6 +201,17 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
     impuestosNacionales: leerImpuestos(mapa),
     condicionIva: texto("condicion_iva", POR_DEFECTO.condicionIva),
   };
+}
+
+/**
+ * El Instagram de Config (clave `instagram`), como venga: "@harper",
+ * "harper" o la URL. Siempre una URL de instagram.com, o vacío si no tiene
+ * forma de usuario.
+ */
+export function urlDeInstagram(valor: string | undefined): string {
+  const texto = (valor ?? "").trim();
+  const usuario = (texto.match(/instagram\.com\/([A-Za-z0-9._]{1,30})/i)?.[1] ?? texto.replace(/^@/, "")).replace(/\/$/, "");
+  return /^[A-Za-z0-9._]{1,30}$/.test(usuario) ? `https://www.instagram.com/${usuario}/` : "";
 }
 
 /** Para avisar una sola vez por instancia de una provincia de origen mal escrita. */

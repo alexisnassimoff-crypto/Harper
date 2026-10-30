@@ -145,7 +145,11 @@ export function preguntasDePortada(datos: {
 
   preguntas.push({
     pregunta: "¿Puedo cambiarlos o devolverlos?",
-    respuesta: `Tenés ${datos.diasArrepentimiento} días desde que recibís el pedido para devolverlo sin costo y ${datos.diasCambio} días para cambiar de color o modelo, sin uso. Además, ${datos.mesesGarantia} meses de garantía por defectos o fallas.`,
+    respuesta: `${
+      datos.diasArrepentimiento === datos.diasCambio
+        ? `Tenés ${datos.diasCambio} días desde que recibís el pedido para devolverlo sin costo o cambiarlo por otro color o modelo`
+        : `Tenés ${datos.diasArrepentimiento} días desde que recibís el pedido para devolverlo sin costo y ${datos.diasCambio} días para cambiar de color o modelo`
+    }, sin uso, completo y en su empaque. Además, ${datos.mesesGarantia} meses de garantía por defectos de fabricación.`,
     enlace: { href: "/legales/devoluciones", texto: "Ver la política de cambios" },
   });
 
@@ -219,7 +223,10 @@ export function garantiasDePortada(datos: {
     {
       clave: "cambios",
       titulo: "Comprá seguro",
-      texto: `${datos.diasArrepentimiento} días para devolverlo sin costo, ${datos.diasCambio} para cambiarlo y ${datos.mesesGarantia} meses de garantía.`,
+      texto:
+        datos.diasArrepentimiento === datos.diasCambio
+          ? `${datos.diasCambio} días para devolverlo sin costo o cambiarlo, y ${datos.mesesGarantia} meses de garantía por defectos de fabricación.`
+          : `${datos.diasArrepentimiento} días para devolverlo sin costo, ${datos.diasCambio} para cambiarlo y ${datos.mesesGarantia} meses de garantía.`,
       href: "/legales/devoluciones",
     },
     {
