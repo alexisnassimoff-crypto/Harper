@@ -12,7 +12,8 @@ import { infoCategoria, type Categoria } from "./categorias";
  * precios, códigos de fábrica ni costos. Lo que se afirma de cada línea es lo
  * que dicen las órdenes y confirmó Ale el 30/10/2026: armazón de TR,
  * polarizados categoría 3 con ISO 12312-1, filtro de luz azul con ISO 12870,
- * tres apliques con imán. El origen no se publica.
+ * tres apliques con imán, y que el clip-on se usa con graduación. El origen
+ * no se publica.
  */
 
 export type ModeloQueViene = {
@@ -125,9 +126,10 @@ export const LINEAS: Linea[] = [
     clave: "clip-on",
     nombre: "Clip-on",
     corto: "Clip-on",
-    promesa: "Un armazón con filtro de luz azul y tres apliques que se ponen con imán. Viene con estuche.",
+    // El anteojo de uso diario, con graduación; los apliques van encima (Ale, 30/10/2026).
+    promesa: "El anteojo de todos los días, con tu graduación. Encima, un aplique con imán para cada ocasión: vienen tres.",
     ficha: "Filtro de luz azul · 3 apliques con imán · ISO 12312-1",
-    conAumento: false,
+    conAumento: true,
     categoria: "Clip-On",
     enCamino: [
       { nombre: "AGUAMARINA", colores: [C.negro, C.verdeTraslucido, C.azulTraslucido, C.cristal, C.grisDegrade] },
