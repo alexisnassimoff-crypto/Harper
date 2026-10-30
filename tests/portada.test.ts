@@ -72,3 +72,12 @@ test("los textos que llevan datos se arman bien", async () => {
   );
   assert.equal(TEXTOS.cierre.precio("$ 89.900") + TEXTOS.cierre.escala("tres", "dos"), "Cada par cuesta $ 89.900. Y si te llevás tres, pagás dos.");
 });
+
+test("en la ficha, «Incluye» arranca por el anteojo mismo, solo en los modelos confirmados", async () => {
+  const { caracteristicasDe } = await import("../lib/caracteristicas");
+  assert.equal(
+    caracteristicasDe({ slug: "citrino", categoria: "Anteojos" })?.incluido,
+    "1 anteojo de TR90 con cristales fotocromáticos, filtro de luz azul y protección UV400",
+  );
+  assert.equal(caracteristicasDe({ slug: "nuevo", categoria: "Anteojos" }), null, "un modelo sin confirmar no afirma nada");
+});

@@ -180,6 +180,8 @@ export default function FichaProducto({
   // Qué se compra, dicho arriba: solo en los modelos con las características
   // confirmadas (lib/caracteristicas.ts).
   const caracteristicas = caracteristicasDe(producto);
+  // Primero el anteojo mismo, y después lo que viene con él (Ale, 30/10/2026).
+  const incluye = caracteristicas ? [caracteristicas.incluido, ...producto.incluye] : producto.incluye;
   const parrafos = parrafosDe(producto.descripcion);
 
   // Selector de color. Arriba de cada color, cuántos de ese color hay en el
@@ -370,11 +372,11 @@ export default function FichaProducto({
           />
         )}
 
-        {producto.incluye.length > 0 ? (
+        {incluye.length > 0 ? (
           <section className="pila ficha-producto__bloque">
             <h2 className="label">Incluye</h2>
             <ul className="lista-incluye">
-              {producto.incluye.map((item) => (
+              {incluye.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
