@@ -22,6 +22,7 @@ import { fotosDeGaleria } from "@/lib/galeria";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
+import Estrellas, { formatearPuntaje } from "@/components/portada/Estrellas";
 
 export default function FichaProducto({
   producto,
@@ -31,6 +32,7 @@ export default function FichaProducto({
   cuotas = null,
   precioSinImpuestos = null,
   whatsapp = null,
+  calificacion = null,
 }: {
   producto: Producto;
   tramos?: Tramo[];
@@ -43,6 +45,8 @@ export default function FichaProducto({
   precioSinImpuestos?: number | null;
   /** WhatsApp de la tienda, para la consulta por cristales graduados. */
   whatsapp?: string | null;
+  /** El promedio y la cantidad de opiniones de todos los productos Harper; null si no hay. */
+  calificacion?: { promedio: number; total: number } | null;
 }) {
   const router = useRouter();
   const { items, agregar, cupon, abrirPanel } = useCarrito();
@@ -177,6 +181,15 @@ export default function FichaProducto({
           lo que da confianza; después lo que da más información. */}
       <div className="pila surge surge-1 ficha-producto__datos">
         <div className="pila" style={{ gap: "0.6rem" }}>
+          {calificacion ? (
+            <a href="#opiniones" className="calificacion">
+              <Estrellas puntaje={calificacion.promedio} />
+              <span>
+                {formatearPuntaje(calificacion.promedio)} · {calificacion.total.toLocaleString("es-AR")}{" "}
+                {calificacion.total === 1 ? "opinión" : "opiniones"} de clientes Harper
+              </span>
+            </a>
+          ) : null}
           <span className="label">{producto.categoria}</span>
           <h1 style={{ fontSize: "clamp(2rem, 5vw, 2.75rem)" }}>
             {producto.nombre}

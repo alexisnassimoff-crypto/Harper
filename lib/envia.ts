@@ -43,7 +43,19 @@ const CACHE_MAX = 300;
  */
 const CONSULTAS_POR_MINUTO = 200;
 
-/** Los nombres que ve el comprador. Si Envia agrega uno, se usa el suyo. */
+/**
+ * El transportista con el que Harper reparte en AMBA, en 24 h. Si cotiza un
+ * destino, ese destino es AMBA: la zona sale de la cobertura real del
+ * reparto, no de una lista de códigos postales. El comprador no lo ve.
+ */
+export const REPARTO_AMBA = "rueddo";
+
+/** Si ese código de transportista es el reparto de AMBA (Envia o Config pueden escribirlo con mayúsculas). */
+export function esRepartoAmba(transportista: string) {
+  return transportista.toLowerCase() === REPARTO_AMBA;
+}
+
+/** Los nombres de cada transportista (para Harper: el comprador no los ve). */
 const NOMBRES: Record<string, string> = {
   andreani: "Andreani",
   correoargentino: "Correo Argentino",
@@ -134,6 +146,12 @@ export type ResultadoEnvia = {
   consulta: Record<string, unknown>;
   /** Transportistas que no contestaron o contestaron error (para el log). */
   fallas: string[];
+  /**
+   * Los que no contestaron (red, tiempo, 5xx, 429), a diferencia de los que
+   * contestaron que no llegan a ese destino. Así se distingue "el reparto de
+   * AMBA no llega acá" de "el reparto de AMBA no contestó".
+   */
+  sinRespuesta: string[];
   /** Cuándo contestó Envia (ISO): del cache sale con la hora real de la consulta. */
   cotizadoEn: string;
 };
@@ -362,6 +380,7 @@ export async function cotizarEnvia(
 
   const tarifas: TarifaEnvia[] = [];
   const fallas: string[] = [];
+  const sinRespuesta: string[] = [];
   // Sin respuesta (red, tiempo, 5xx): el resultado está incompleto y no se
   // guarda, para que la próxima consulta le vuelva a preguntar a ese
   // transportista (con envío gratis se ofrece la más barata de todas).
@@ -369,7 +388,10 @@ export async function cotizarEnvia(
   respuestas.forEach((r, i) => {
     if (r.status === "fulfilled") tarifas.push(...r.value);
     else {
-      if (!(r.reason as { definitiva?: boolean })?.definitiva) incompleto = true;
+      if (!(r.reason as { definitiva?: boolean })?.definitiva) {
+        incompleto = true;
+        sinRespuesta.push(p.transportistas[i]);
+      }
       fallas.push(`${p.transportistas[i]}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
     }
   });
@@ -378,7 +400,7 @@ export async function cotizarEnvia(
   if (tarifas.length === 0) return null;
   tarifas.sort((a, b) => a.opcion.costo - b.opcion.costo);
 
-  const resultado: ResultadoEnvia = { tarifas, consulta, fallas, cotizadoEn: new Date(ahora).toISOString() };
+  const resultado: ResultadoEnvia = { tarifas, consulta, fallas, sinRespuesta, cotizadoEn: new Date(ahora).toISOString() };
   if (!incompleto) {
     if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
     cache.set(clave, { vence: ahora + CACHE_MS, resultado });

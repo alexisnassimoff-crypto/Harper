@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { anunciosDelHeader } from "../lib/anuncios";
 import { CARACTERISTICAS_ANTEOJOS } from "../lib/caracteristicas";
-import { pasosDeCompra, preguntasDePortada, slugDePortada } from "../lib/portada";
+import { garantiasDePortada, pasosDeCompra, preguntasDePortada, slugDePortada } from "../lib/portada";
 
 const BASE = {
   incluye: [],
@@ -73,4 +73,22 @@ test("la barra de anuncios: el banner de Config primero, las cuotas solo si est�
     "10% OFF extra pagando con dinero en Mercado Pago",
     "HARPER10: 10% OFF en tu primera compra",
   ]);
+});
+
+test("con envío gratis en AMBA, la portada lo dice junto al de todo el país, y «Comprá seguro»", () => {
+  const conAmba = { envioGratisDesde: 150000, envioGratisTexto: "$ 150.000", envioGratisAmbaTexto: "$ 60.000" };
+  const envio = preguntasDePortada({ ...BASE, ...conAmba }).find((p) => p.pregunta === "¿Cuánto cuesta el envío?");
+  assert.match(envio?.respuesta ?? "", /^Es gratis en AMBA en compras desde \$ 60\.000 y en todo el país desde \$ 150\.000\./);
+  assert.ok(!/rueddo|correo|andreani/i.test(envio?.respuesta ?? ""), "sin nombrar con quién despachamos");
+
+  const pasos = pasosDeCompra({ cuotas: null, nombreMarcas: "Visa y Mastercard", porcentajeDineroMP: 10, diasCambio: 30, ...conAmba });
+  assert.equal(pasos[2].texto, "Preparamos tu pedido de lunes a viernes. Envío gratis en AMBA desde $ 60.000 y en todo el país desde $ 150.000.");
+
+  const garantias = garantiasDePortada({ diasArrepentimiento: 10, diasCambio: 30, mesesGarantia: 6, ...conAmba });
+  assert.equal(garantias[0].titulo, "Comprá seguro");
+  assert.equal(garantias[2].titulo, "Envío gratis en AMBA desde $ 60.000");
+  assert.equal(garantias[2].texto, "En todo el país, gratis desde $ 150.000. Despachamos de lunes a viernes.");
+
+  const sinAmba = garantiasDePortada({ diasArrepentimiento: 10, diasCambio: 30, mesesGarantia: 6, envioGratisDesde: 150000, envioGratisTexto: "$ 150.000" });
+  assert.equal(sinAmba[2].titulo, "Envío gratis desde $ 150.000");
 });

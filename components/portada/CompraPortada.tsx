@@ -16,6 +16,7 @@ import { parrafosDe } from "@/lib/descripcion";
 import { buscarCupon, CUPON_BIENVENIDA } from "@/lib/cupones";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { conDescuento, type Tramo } from "@/lib/descuentos";
+import { esEnvioGratis } from "@/lib/envio-gratis";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { fotosDeGaleria } from "@/lib/galeria";
@@ -53,6 +54,7 @@ export default function CompraPortada({
   cuotasPorTotal,
   impuestos,
   envioGratisDesde,
+  envioGratisAmbaDesde = 0,
   estuche,
   calificacion,
   garantias,
@@ -67,6 +69,8 @@ export default function CompraPortada({
   cuotasPorTotal: Record<string, CuotasVerificadas>;
   impuestos: ImpuestosNacionales;
   envioGratisDesde: number;
+  /** Desde cuánto es gratis en AMBA (0 = sin regla propia). */
+  envioGratisAmbaDesde?: number;
   /** El estuche que se ofrece sumar, o null si no hay. */
   estuche: Producto | null;
   /**
@@ -124,7 +128,14 @@ export default function CompraPortada({
   const varianteEstuche = estuche?.variantes[colorEstuche] ?? null;
   const cuotas = cuotasPorTotal[String(compra.total)] ?? null;
   const conDineroMP = conDescuento(compra.total, PORCENTAJE_DINERO_MP);
-  const envioGratis = (pack: Pack) => envioGratisDesde > 0 && pack.totalParaEnvio >= envioGratisDesde;
+  // Gratis en todo el país, o al menos en AMBA (sin dirección, no se sabe dónde vive).
+  const umbrales = { amba: envioGratisAmbaDesde, nacional: envioGratisDesde };
+  const envioGratis = (pack: Pack) =>
+    esEnvioGratis(pack.totalParaEnvio, "resto", umbrales)
+      ? "Envío gratis"
+      : esEnvioGratis(pack.totalParaEnvio, "amba", umbrales)
+        ? "Envío gratis en AMBA"
+        : null;
 
   // Res. SIyC 4/2025: el precio sin impuestos nacionales de lo que se compra.
   const netoPares = netoDe(impuestos, producto.categoria, compra.precioUnitario * cantidad);
@@ -297,7 +308,7 @@ export default function CompraPortada({
             <Estrellas puntaje={calificacion.promedio} />
             <span>
               {formatearPuntaje(calificacion.promedio)} · {calificacion.total.toLocaleString("es-AR")}{" "}
-              {calificacion.total === 1 ? "opinión" : "opiniones"} de anteojos Harper
+              {calificacion.total === 1 ? "opinión" : "opiniones"} de clientes Harper
             </span>
           </a>
         ) : null}
@@ -379,7 +390,7 @@ export default function CompraPortada({
                       : [
                           pack.cantidad > 1 ? `${formatearPrecio(pack.precioUnitario)} c/u` : null,
                           descuento,
-                          envioGratis(pack) ? "Envío gratis" : null,
+                          envioGratis(pack),
                         ]
                           .filter(Boolean)
                           .join(" · ") || "Precio por unidad"}

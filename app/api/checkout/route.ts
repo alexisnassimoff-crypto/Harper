@@ -18,7 +18,8 @@ import { precio as formatearPrecio } from "@/lib/formato";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
 import { leerEleccionEnvio } from "@/lib/envio-elegido";
-import { CAMPOS_ENVIO_NUEVOS, camposDeEnvio, descripcionDelEnvio, notaDeEnvio } from "@/lib/envio-pedido";
+import { cotizacionParaComprador, type CotizacionEnvio } from "@/lib/envio-gratis";
+import { CAMPOS_ENVIO_NUEVOS, camposDeEnvio, DESCRIPCION_ENVIO, notaDeEnvio } from "@/lib/envio-pedido";
 import { registroAceptacion } from "@/lib/legales";
 import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
@@ -192,17 +193,20 @@ export async function POST(request: Request) {
         {
           error: "El total cambió mientras completabas los datos. Revisalo antes de pagar.",
           totalNuevo: cobro.total,
-          // Si el envío se cotizó ahora, sus opciones (con comprobante): el
-          // checkout las muestra tal cual, sin volver a preguntar.
-          ...(carrito.opcionesEnvio.length > 0
+          // El envío del servidor, para que el checkout lo muestre tal cual
+          // sin volver a preguntar: el cotizado ahora (con su comprobante), o
+          // el que se cobra sin cotizar (la tarifa plana, o gratis en la
+          // Ciudad). No va si se cobró con el comprobante del navegador: ese
+          // el checkout ya lo tiene.
+          ...(carrito.opcionesEnvio.length > 0 || !carrito.envioCotizado
             ? {
                 envio: {
-                  opciones: carrito.opcionesEnvio,
-                  cotizado: true,
-                  envio: carrito.envio,
-                  bonificado: carrito.envioBonificado,
-                  cuotas: {},
-                },
+                  ...cotizacionParaComprador(carrito, {
+                    amba: carrito.config.envioGratisAmbaDesde,
+                    nacional: carrito.config.envioGratisDesde,
+                  }),
+                  cuotas: null,
+                } satisfies CotizacionEnvio,
               }
             : {}),
         },
@@ -256,7 +260,7 @@ export async function POST(request: Request) {
       pedidoId: pedido.id,
       items: cobro.items,
       envio: carrito.envio,
-      envioDescripcion: descripcionDelEnvio(carrito.envioDelPedido),
+      envioDescripcion: DESCRIPCION_ENVIO,
       // Lo que se mostró y se guardó: la preferencia se arma solo si suma eso.
       total: cobro.total,
       cliente,

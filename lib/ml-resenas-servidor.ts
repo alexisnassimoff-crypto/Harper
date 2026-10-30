@@ -1,16 +1,19 @@
 import { unstable_cache } from "next/cache";
 import { listRecords } from "./airtable";
 import { getProductosParaCobrar } from "./catalogo";
-import { esCategoriaDeAnteojos } from "./categorias";
-import { registrarIntentoML } from "./estado-ml";
+import { guardarDatosML, leerDatosML, registrarIntentoML } from "./estado-ml";
 import { mlConfigurado, tokenVigente } from "./ml-auth";
 import {
   combinarOpiniones,
+  etiquetaDeProducto,
+  leerPublicacionesDeLaCuenta,
   leerReputacion,
   leerResenasDeItem,
+  type DatosMercadoLibre,
   type OpinionesML,
   type ReputacionML,
   TABLA_IMPORTACION_ML,
+  unirPublicaciones,
 } from "./ml-resenas";
 
 /**
@@ -71,36 +74,59 @@ async function pedirML(ruta: string, token: string): Promise<unknown> {
 }
 
 type FilaImportacion = { ML_id?: string; Variante?: string[] };
+type Publicacion = { id: string; producto: string | null };
 
 /**
- * Las publicaciones de Mercado Libre de los anteojos publicados en la tienda,
- * con su modelo. El catálogo se lee con `getProductosParaCobrar`, que explota
- * si Airtable falla (`getProductos` devolvería una lista vacía): un catálogo
- * vacío por un error no puede quedar guardado 6 horas como "sin opiniones".
+ * Todas las publicaciones de Mercado Libre de la tabla "Importacion ML"
+ * (anteojos, estuches y paños), con lo que se compró en cada una cuando
+ * están enlazadas a un producto publicado. El catálogo se lee con
+ * `getProductosParaCobrar`, que explota si Airtable falla (`getProductos`
+ * devolvería una lista vacía): un catálogo vacío por un error no puede
+ * quedar guardado 6 horas sin las etiquetas.
  */
-async function publicacionesDeAnteojos(): Promise<{ id: string; modelo: string }[]> {
+async function publicacionesDeLaTabla(): Promise<Publicacion[]> {
   const [filas, productos] = await Promise.all([
     listRecords<FilaImportacion>(TABLA_IMPORTACION_ML, { revalidate: SEIS_HORAS }),
     getProductosParaCobrar(),
   ]);
-  const modeloDeVariante = new Map(
-    productos
-      .filter((p) => esCategoriaDeAnteojos(p.categoria))
-      .flatMap((p) => p.variantes.map((v) => [v.id, p.nombre] as const))
+  const productoDeVariante = new Map(
+    productos.flatMap((p) => p.variantes.map((v) => [v.id, etiquetaDeProducto(p.nombre, p.categoria)] as const))
   );
   const publicaciones = filas.flatMap((f) => {
     const id = f.fields.ML_id?.trim();
-    const modelo = (f.fields.Variante ?? []).map((v) => modeloDeVariante.get(v)).find(Boolean);
-    return id && modelo ? [{ id, modelo }] : [];
+    const producto = (f.fields.Variante ?? []).map((v) => productoDeVariante.get(v)).find(Boolean) ?? null;
+    return id ? [{ id, producto }] : [];
   });
-  if (publicaciones.length === 0) throw new Error("Ninguna publicación de Importacion ML enlazada a un anteojo publicado");
+  if (publicaciones.length === 0) throw new Error("La tabla Importacion ML no tiene publicaciones");
   return publicaciones;
 }
 
-async function opinionesDe(publicaciones: { id: string; modelo: string }[], token: string): Promise<OpinionesML | null> {
+/** Hasta 500 publicaciones de la cuenta: de sobra para Harper. */
+const MAXIMO_DE_LA_CUENTA = 500;
+
+/**
+ * Las publicaciones de la cuenta de Harper en Mercado Libre, también las que
+ * no están en la tabla (otro color, otro paño). Si Mercado Libre no las da,
+ * se sigue con las de la tabla: es un agregado, no una condición.
+ */
+async function publicacionesDeLaCuenta(usuario: unknown, token: string): Promise<string[]> {
+  const id = (usuario as { id?: unknown } | null)?.id;
+  if (typeof id !== "number" && typeof id !== "string") return [];
+  const ids: string[] = [];
+  for (let desde = 0; desde < MAXIMO_DE_LA_CUENTA; desde += 100) {
+    const pagina = leerPublicacionesDeLaCuenta(
+      await pedirML(`/users/${encodeURIComponent(String(id))}/items/search?limit=100&offset=${desde}`, token)
+    );
+    ids.push(...pagina.ids);
+    if (pagina.ids.length === 0 || desde + 100 >= pagina.total) break;
+  }
+  return ids;
+}
+
+async function opinionesDe(publicaciones: Publicacion[], token: string): Promise<OpinionesML | null> {
   const resultados = await Promise.allSettled(
     publicaciones.map(async (p) =>
-      leerResenasDeItem(await pedirML(`/reviews/item/${encodeURIComponent(p.id)}?limit=50`, token), p.modelo)
+      leerResenasDeItem(await pedirML(`/reviews/item/${encodeURIComponent(p.id)}?limit=50`, token), p.producto)
     )
   );
 
@@ -136,7 +162,7 @@ class ErrorOpiniones extends Error {
   }
 }
 
-export type DatosMercadoLibre = { opiniones: OpinionesML | null; reputacion: ReputacionML | null };
+export type { DatosMercadoLibre };
 
 /**
  * Las opiniones y la reputación, juntas y con un solo token: si se pidieran
@@ -152,10 +178,19 @@ const mercadoLibreCacheado = unstable_cache(
     let reputacion: ReputacionML | null;
     let aviso: string | undefined;
     try {
-      const [token, publicaciones] = await Promise.all([tokenVigente(), publicacionesDeAnteojos()]);
+      const [token, deLaTabla] = await Promise.all([tokenVigente(), publicacionesDeLaTabla()]);
+      const usuario = pedirML("/users/me", token);
+      let avisoCuenta: string | undefined;
       const [deOpiniones, deReputacion] = await Promise.allSettled([
-        opinionesDe(publicaciones, token),
-        pedirML("/users/me", token).then(leerReputacion),
+        usuario
+          .then((u) => publicacionesDeLaCuenta(u, token))
+          .catch((error) => {
+            // Sin la lista de la cuenta, las de la tabla alcanzan.
+            avisoCuenta = `Publicaciones de la cuenta: ${error instanceof Error ? error.message : String(error)}`;
+            return [] as string[];
+          })
+          .then((deLaCuenta) => opinionesDe(unirPublicaciones(deLaTabla, deLaCuenta), token)),
+        usuario.then(leerReputacion),
       ]);
       // Las opiniones y la reputación van por separado: si Mercado Libre no
       // da permiso para una (403, no cambia reintentando), se guarda sin ella
@@ -170,12 +205,15 @@ const mercadoLibreCacheado = unstable_cache(
         r.status === "rejected" ? [r.reason instanceof Error ? r.reason.message : String(r.reason)] : []
       );
       if (sinPermiso.length > 0) aviso = `Sin permiso: ${sinPermiso.join(" | ")}`;
+      if (avisoCuenta) aviso = [aviso, avisoCuenta].filter(Boolean).join(" | ");
     } catch (error) {
       // La falla se anota acá adentro: cuando ya hay un dato viejo, Next lo
       // sigue sirviendo y se traga el error, y afuera nunca se enteraría.
       await registrarFalla(error instanceof Error ? error.message : String(error));
       throw error;
     }
+    // La copia para las fichas, que no le preguntan a Mercado Libre.
+    if (opiniones || reputacion) await guardarDatosML({ opiniones, reputacion });
     await registrarIntentoML({
       ok: true,
       cuando: new Date().toISOString(),
@@ -187,7 +225,7 @@ const mercadoLibreCacheado = unstable_cache(
     });
     return { opiniones, reputacion };
   },
-  ["ml-portada-v2"],
+  ["ml-portada-v3"],
   { revalidate: SEIS_HORAS }
 );
 
@@ -204,9 +242,9 @@ export function ultimoDeMercadoLibre(): DatosMercadoLibre | null {
 }
 
 /**
- * Las opiniones de los anteojos Harper en Mercado Libre y la reputación de
- * Harper como vendedor. Null si la cuenta no está conectada o Mercado Libre
- * no contesta.
+ * Las opiniones de todos los productos Harper en Mercado Libre y la
+ * reputación de Harper como vendedor. Null si la cuenta no está conectada o
+ * Mercado Libre no contesta.
  *
  * La usa solo la portada, a propósito: el cache de Next distingue cada
  * llamada por el código de la función, y otra ruta (un bundle distinto)
@@ -236,4 +274,14 @@ async function registrarFalla(mensaje: string) {
   if (mensaje === ultimaFalla.mensaje && ahora - ultimaFalla.cuando < 10 * 60 * 1000) return;
   ultimaFalla = { mensaje, cuando: ahora };
   await registrarIntentoML({ ok: false, cuando: new Date(ahora).toISOString(), error: mensaje.slice(0, 500) });
+}
+
+/**
+ * Para las fichas: la copia que guardó la portada la última vez que le
+ * preguntó bien a Mercado Libre (en Redis), sin consultar a Mercado Libre.
+ * Null si todavía no hay copia o Redis no contesta.
+ */
+export async function datosGuardadosDeMercadoLibre(): Promise<DatosMercadoLibre | null> {
+  if (!mlConfigurado()) return null;
+  return (await leerDatosML()) ?? ultimoBueno;
 }

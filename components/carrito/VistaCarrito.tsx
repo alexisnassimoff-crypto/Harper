@@ -11,6 +11,7 @@ import LineaCarrito from "./LineaCarrito";
 import SugerenciasCarrito from "./SugerenciasCarrito";
 import CodigoDescuento from "@/components/checkout/CodigoDescuento";
 import { buscarCupon } from "@/lib/cupones";
+import { envioEnElCarrito } from "@/lib/envio-gratis";
 
 export default function VistaCarrito() {
   const { items: guardados, cupon } = useCarrito();
@@ -48,8 +49,12 @@ export default function VistaCarrito() {
   }
 
   const resumen = desglosar(datos);
-  // El envío gratis se mide sin el cupón, como en el servidor.
-  const faltaParaGratis = datos.envioGratisDesde - (datos.subtotalSinCupon ?? datos.subtotal);
+  // El envío gratis se mide sin el cupón, como en el servidor, y depende de
+  // la zona: acá todavía no hay dirección.
+  const envio = envioEnElCarrito(datos.subtotalSinCupon ?? datos.subtotal, resumen.envio, {
+    amba: datos.envioGratisAmbaDesde ?? 0,
+    nacional: datos.envioGratisDesde,
+  });
 
   // Unidades y descuento aplicado por categoría, para la línea del segundo par.
   const porCategoria = new Map<Categoria, { unidades: number; precioLista: number; descuento: number }>();
@@ -115,7 +120,7 @@ export default function VistaCarrito() {
         ) : null}
         {/* El envío se cotiza en el checkout con la dirección (Envia): acá no
             se anuncia un precio que puede cambiar, salvo cuando es gratis. */}
-        <Fila etiqueta="Envío a domicilio" valor={resumen.envio === 0 ? "Gratis" : "Se calcula en el checkout"} />
+        <Fila etiqueta="Envío a domicilio" valor={envio.valor} />
 
         {/* Solo la promoción del segundo par, en una línea. Sin tabla de
             tramos: el descuento que corresponda ya se ve en la fila de arriba. */}
@@ -132,14 +137,14 @@ export default function VistaCarrito() {
           />
         ))}
 
-        {resumen.envio > 0 && faltaParaGratis > 0 ? (
+        {envio.nota ? (
           <p className="apagado" style={{ fontSize: "0.8125rem" }}>
-            Te faltan {formatearPrecio(faltaParaGratis)} para el envío gratis.
+            {envio.nota}
           </p>
         ) : null}
 
         <div className="fila fila--total">
-          <span>{resumen.envio === 0 ? "Total" : "Total sin envío"}</span>
+          <span>{envio.total}</span>
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total - resumen.envio)}</strong>
         </div>
 

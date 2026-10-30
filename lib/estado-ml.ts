@@ -1,4 +1,5 @@
 import { configuracionRedis } from "./cerrojo";
+import { leerDatosGuardados, type DatosMercadoLibre } from "./ml-resenas";
 
 /**
  * El resultado del último intento de traer las opiniones de Mercado Libre,
@@ -58,6 +59,34 @@ export async function leerIntentoML(): Promise<IntentoML | null> {
   try {
     const crudo = await redis(["GET", CLAVE]);
     return typeof crudo === "string" ? (JSON.parse(crudo) as IntentoML) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Las opiniones y la reputación de la última consulta que salió bien, para
+ * las fichas. Solo la portada le pregunta a Mercado Libre (un solo
+ * consumidor del token); las fichas leen esta copia.
+ */
+const CLAVE_DATOS = "harper:ml:opiniones";
+/** Un mes: si la portada deja de preguntar, las opiniones viejas siguen siendo reales. */
+const DATOS_DURAN_SEGUNDOS = 30 * 24 * 60 * 60;
+
+/** Guarda la copia. Nunca falla: sin Redis, las fichas no muestran opiniones y nada más. */
+export async function guardarDatosML(datos: DatosMercadoLibre): Promise<void> {
+  try {
+    await redis(["SET", CLAVE_DATOS, JSON.stringify(datos), "EX", String(DATOS_DURAN_SEGUNDOS)]);
+  } catch {
+    // Sin Redis no hay copia para las fichas.
+  }
+}
+
+/** La copia guardada, o null (sin Redis, sin datos todavía o con otra forma). */
+export async function leerDatosML(): Promise<DatosMercadoLibre | null> {
+  try {
+    const crudo = await redis(["GET", CLAVE_DATOS]);
+    return typeof crudo === "string" ? leerDatosGuardados(JSON.parse(crudo)) : null;
   } catch {
     return null;
   }

@@ -24,48 +24,75 @@ export default async function Devoluciones() {
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1rem" }}>Devoluciones</h2>
       <p>
-        Podés solicitar la devolución de tu compra dentro de los{" "}
+        Podés devolver tu compra dentro de los{" "}
         <strong style={{ fontWeight: 500 }}>{DIAS_ARREPENTIMIENTO} días corridos</strong> desde que
-        recibís el pedido, sin necesidad de justificar el motivo. Harper se hace
-        cargo del costo del envío de devolución. Te devolvemos el dinero por el
-        mismo medio de pago, a través de Mercado Pago.
+        la recibís, sin necesidad de explicar el motivo. Harper se hace cargo del
+        envío de la devolución y te reintegramos el dinero por el mismo medio de
+        pago, a través de Mercado Pago.
       </p>
+      <p>El producto tiene que volver en las mismas condiciones en que lo recibiste:</p>
+      <ul className="lista-legal">
+        <li>
+          <strong style={{ fontWeight: 500 }}>Sin uso.</strong> Podés abrirlo y probártelo para ver
+          cómo te queda, como en un local, pero no usarlo.
+        </li>
+        <li>
+          <strong style={{ fontWeight: 500 }}>Sin daños:</strong> sin rayaduras, marcas, golpes ni
+          piezas flojas.
+        </li>
+        <li>
+          <strong style={{ fontWeight: 500 }}>Completo:</strong> con el estuche, el paño y todo lo
+          que venía en la caja.
+        </li>
+        <li>
+          <strong style={{ fontWeight: 500 }}>En su empaque original</strong>, sin daños.
+        </li>
+      </ul>
       <p>
-        Cuando recibamos el producto devuelto, verificaremos su estado general,
-        integridad y accesorios incluidos. Podés abrir el paquete y probarte los
-        anteojos normalmente. Si detectamos daños atribuibles a un uso indebido o
-        faltantes imputables al comprador, evaluaremos la situación conforme a la
-        legislación vigente.
+        Cuando nos llega, lo revisamos. Si tiene señales de uso, daños o le falta
+        algo, no podemos aceptar la devolución: te lo avisamos y te lo enviamos de
+        vuelta.
       </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Cambios</h2>
       <p>
-        Para cambios de color o modelo, contás con {DIAS_CAMBIO} días desde que
-        recibís el pedido, siempre que el producto esté sin uso, en buen estado y
-        sujeto a disponibilidad.
+        Para cambiarlo por otro color o modelo también tenés {DIAS_CAMBIO} días desde
+        que recibís el pedido, con las mismas condiciones (sin uso, sin daños,
+        completo y en su empaque) y según el stock disponible.
       </p>
       <p>
-        En los cambios voluntarios de color o modelo, los gastos de envío de
-        devolución y del nuevo producto corren por cuenta del comprador. Si hubo
-        un error de Harper o un defecto cubierto por la garantía, Harper asume los
-        costos correspondientes.
+        En los cambios de color o modelo, el envío de ida y vuelta lo paga quien
+        compra. Si el error fue nuestro o el producto tiene un defecto de
+        fabricación, lo pagamos nosotros.
       </p>
 
-      <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Garantía</h2>
+      <h2 id="garantia" style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>
+        Garantía
+      </h2>
       <p>
-        Todos nuestros productos cuentan con {MESES_GARANTIA} meses de garantía legal por
-        defectos o fallas que afecten su funcionamiento, desde que los recibís,
+        Todos nuestros productos tienen {MESES_GARANTIA} meses de garantía legal por{" "}
+        <strong style={{ fontWeight: 500 }}>defectos de fabricación</strong>, desde que los recibís.
+        Si tu producto tiene un defecto de fabricación, lo reparamos o lo cambiamos
         sin costo para vos.
       </p>
+      <p>La garantía no cubre:</p>
+      <ul className="lista-legal">
+        <li>el uso indebido, descuidado o distinto del normal;</li>
+        <li>golpes, caídas, aplastamientos, torceduras o rayaduras;</li>
+        <li>daños por calor, humedad, productos químicos o una limpieza inadecuada;</li>
+        <li>el desgaste natural por el uso;</li>
+        <li>
+          cambios o arreglos hechos por terceros, incluidos los daños al colocar
+          cristales con aumento en una óptica.
+        </li>
+      </ul>
 
       <p style={{ marginTop: "1.5rem" }}>
-        Para solicitar un cambio o devolución, contactanos por {whatsapp} o
-        utilizá nuestro{" "}
+        Para una devolución, usá el{" "}
         <Link href="/legales/arrepentimiento" style={{ textDecoration: "underline" }}>
           Botón de arrepentimiento
         </Link>
-        . El Botón de arrepentimiento es para cancelar la compra dentro del plazo
-        legal. Los cambios voluntarios se gestionan por WhatsApp.
+        . Para un cambio o una consulta por garantía, escribinos por {whatsapp}.
       </p>
     </>
   );

@@ -7,6 +7,7 @@ import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
 import { NOMBRE_MARCAS } from "@/lib/cuotas";
+import { esEnvioGratis, textoEnvioGratis } from "@/lib/envio-gratis";
 import {
   CONDICIONES_IVA,
   CONSUMIDOR_FINAL,
@@ -20,16 +21,32 @@ import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, DestinoEnvio, EleccionEnvio } from "@/lib/tipos";
 import type { MedioPago } from "@/lib/dinero-mp";
-import { validarCliente, type ErroresCliente } from "@/lib/validacion";
+import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
+import type { DatosRecordados } from "@/lib/reconocer-cliente";
 import BarraPagar, { TextoPagoSeguro } from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import CodigoDescuento from "./CodigoDescuento";
 import { PROVINCIAS } from "./provincias";
+import ReconocerComprador from "./ReconocerComprador";
+import { marcarCuponBienvenidaUsado } from "@/components/carrito/cuponUsado";
+import { buscarCupon } from "@/lib/cupones";
 import { useCotizacionEnvio, type Cotizacion } from "./useEnvio";
 
 const CLAVE_DATOS = "harper.datos.v1";
 /** La dirección elegida en el buscador, con su piso: no hace falta buscarla otra vez. */
 const CLAVE_DOMICILIO = "harper.domicilio.v1";
+
+const CAMPOS_DATOS = ["email", "nombre", "telefono", "dni"] as const;
+const CAMPOS_DIRECCION = ["domicilio", "direccion", "ciudad", "provincia", "cp"] as const;
+
+/** Qué bloques del checkout están completos y bien, para mostrarlos resumidos. */
+function bloquesCompletos(datos: DatosCliente) {
+  const errores = validarCliente({ ...datos, aceptaTerminos: true });
+  return {
+    datos: CAMPOS_DATOS.every((c) => !errores[c]),
+    direccion: (["direccion", "ciudad", "provincia", "cp"] as const).every((c) => !errores[c]),
+  };
+}
 const ID_FORMULARIO = "formulario-checkout";
 
 /** Lo que se guarda de la dirección elegida para la próxima compra. */
@@ -106,9 +123,10 @@ const VACIO: DatosCliente = {
  * de siempre.
  *
  * El envío es solo a domicilio. Con la dirección completa se cotiza con Envia
- * y el comprador elige transportista (precio y plazo de cada uno); con envío
- * gratis se muestra la opción más barata con el precio tachado. Si no se
- * puede cotizar, la tarifa plana de siempre.
+ * y se muestra una sola opción, «Envío a domicilio», con el plazo y el precio
+ * (sin decir con quién se despacha). Es gratis desde un mínimo que depende
+ * de la zona —AMBA o el resto del país—: con envío gratis, el precio tachado;
+ * si no llega, cuánto le falta. Si no se puede cotizar, la tarifa plana.
  */
 export default function FormularioCheckout({
   reintento = false,
@@ -138,6 +156,15 @@ export default function FormularioCheckout({
   } = useCarritoResuelto({ cuotas: true });
 
   const [form, setForm] = useState<DatosCliente>(VACIO);
+  // Con los datos completos (de una compra anterior en este navegador, o con
+  // el código por mail), cada bloque se ve resumido con «Cambiar»: quien ya
+  // compró solo revisa y paga.
+  const [editandoDatos, setEditandoDatos] = useState(true);
+  const [editandoDireccion, setEditandoDireccion] = useState(true);
+  // El mail se ofrece reconocer recién cuando terminó de escribirlo.
+  const [emailListo, setEmailListo] = useState(false);
+  // El mail cuyos datos ya se completaron: no se le vuelve a ofrecer el código.
+  const [recordadoDe, setRecordadoDe] = useState<string | null>(null);
   // Aparte de los del comprador: no se guardan para la próxima compra, así
   // que cada compra arranca como consumidor final.
   const [factura, setFactura] = useState<DatosFactura>(FACTURA_VACIA);
@@ -173,9 +200,8 @@ export default function FormularioCheckout({
     return { cp, provincia: form.provincia, ciudad: form.ciudad.trim(), calle, numero: numeroCalle };
   })();
 
-  // Envío a domicilio cotizado con Envia para esa dirección. Elige el
-  // comprador; si no eligió, la más barata. Sin cotización, la tarifa del
-  // carrito (la plana, o gratis desde el mínimo).
+  // Envío a domicilio cotizado con Envia para esa dirección. Sin cotización,
+  // la tarifa del carrito (la plana, o gratis desde el mínimo).
   const {
     cotizacion,
     cargando: cotizandoEnvio,
@@ -192,9 +218,7 @@ export default function FormularioCheckout({
   // en el mismo render en que se limpia el estado.
   const esperandoEnvio = useRef(false);
   const formulario = useRef<HTMLFormElement>(null);
-  const [idEnvio, setIdEnvio] = useState<string | null>(null);
-  const opcionesEnvio = cotizacion?.cotizado ? cotizacion.opciones : [];
-  const opcionEnvio = opcionesEnvio.find((o) => o.id === idEnvio) ?? opcionesEnvio[0] ?? null;
+  const opcionEnvio = (cotizacion?.cotizado ? cotizacion.opciones[0] : null) ?? null;
 
   // Si la última respuesta fue "sin cotizar" (Envia sin configurar o caído),
   // mientras se calcula otra dirección no se anuncia nada: el checkout se ve
@@ -205,11 +229,17 @@ export default function FormularioCheckout({
   }, [envioListo, cotizacion]);
   const calculandoEnvio = envioActivo && !envioListo && !sinCotizar;
 
+  // Sin la dirección todavía no se sabe la zona, y con ella el precio (puede
+  // ser gratis en AMBA): el total se muestra sin el envío hasta saberlo. Si
+  // ya es gratis en todo el país, no hay nada que esperar.
+  const envioPorConocer = cotizaEnvio && !sinCotizar && (!envioActivo || calculandoEnvio) && (carrito?.envio ?? 0) > 0;
+
   // El envío bonificado gana sobre cualquier cotización: el pedido llegó al
-  // mínimo y lo paga Harper.
-  const envio = cotizacion?.bonificado
-    ? 0
-    : (opcionEnvio?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
+  // mínimo de su zona y lo paga Harper.
+  const envio =
+    envioPorConocer || cotizacion?.bonificado
+      ? 0
+      : (opcionEnvio?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
 
   // Los dos precios vienen del servidor: cambiar de medio de pago no espera
   // ninguna consulta.
@@ -229,15 +259,13 @@ export default function FormularioCheckout({
   const resumen = medioPago === "dineroMP" && resumenDineroMP ? resumenDineroMP : resumenMercadoPago;
 
   // Las cuotas sin interés, solo si Mercado Pago las confirmó para el total
-  // de esta compra con tarjeta (con su envío): las del envío elegido, o las
-  // del carrito con la tarifa plana. Si el total es otro, no se anuncian.
-  const cuotasDelEnvio = opcionEnvio ? (cotizacion?.cuotas?.[opcionEnvio.id] ?? null) : null;
+  // exacto de esta compra con tarjeta: las del envío a esta dirección, las
+  // del carrito con la tarifa plana o las del total sin envío (todavía sin
+  // dirección). Si el total es otro, no se anuncian.
   const cuotas =
-    cuotasDelEnvio && cuotasDelEnvio.monto === resumenMercadoPago.total
-      ? cuotasDelEnvio
-      : carrito?.cuotas && carrito.cuotas.monto === resumenMercadoPago.total
-        ? carrito.cuotas
-        : null;
+    [cotizacion?.cuotas, carrito?.cuotas, carrito?.cuotasSinEnvio].find(
+      (c) => c && c.monto === resumenMercadoPago.total
+    ) ?? null;
   const cuotaTexto = cuotas ? `${cuotas.cuotas} cuotas sin interés de ${precioConCentavos(cuotas.montoCuota)}` : null;
   const cuotaCondiciones = cuotas
     ? `Precio de contado ${formatearPrecio(cuotas.monto)} · CFTEA ${cuotas.cftea} · ${NOMBRE_MARCAS}`
@@ -256,6 +284,13 @@ export default function FormularioCheckout({
         delete previos.aceptaPromos;
         delete previos.aceptaTerminos;
         setForm((f) => ({ ...f, ...previos }));
+        const completos = bloquesCompletos({ ...VACIO, ...previos });
+        if (completos.datos) {
+          setEditandoDatos(false);
+          setRecordadoDe((previos.email ?? "").trim().toLowerCase());
+        }
+        // Con el buscador, la dirección completa es la elegida (abajo).
+        if (completos.direccion && !buscador) setEditandoDireccion(false);
       }
 
       if (buscador) {
@@ -266,9 +301,11 @@ export default function FormularioCheckout({
           // La dirección ya elegida vuelve resuelta: ni se busca ni se paga otra vez.
           aplicarDireccion(previo.elegida, previo.numero ?? "");
           setPiso(previo.piso ?? "");
+          if (previo.elegida.numero || (previo.numero ?? "").trim()) setEditandoDireccion(false);
         } else if (previos?.direccion || previos?.ciudad) {
           // Una compra anterior con los campos manuales: se respeta tal cual.
           setModoDireccion("manual");
+          if (bloquesCompletos({ ...VACIO, ...previos }).direccion) setEditandoDireccion(false);
         }
       }
     } catch {
@@ -382,6 +419,45 @@ export default function FormularioCheckout({
   function actualizar<K extends keyof DatosCliente>(campo: K, valor: DatosCliente[K]) {
     setForm((f) => ({ ...f, [campo]: valor }));
     setErrores((e) => ({ ...e, [campo]: undefined }));
+  }
+
+  /**
+   * Los datos de la última compra, verificados con el código del mail: se
+   * completan y cada bloque queda resumido. La dirección va a los campos
+   * manuales, tal como se guardó (con el piso).
+   */
+  function usarDatosRecordados(d: DatosRecordados) {
+    const nuevos = {
+      email: d.email || form.email,
+      nombre: d.nombre,
+      telefono: d.telefono,
+      dni: d.dni,
+      ...(d.direccion && d.ciudad ? { direccion: d.direccion, ciudad: d.ciudad, provincia: d.provincia, cp: d.cp } : {}),
+    };
+    setForm((f) => ({ ...f, ...nuevos }));
+    setErrores({});
+    const completos = bloquesCompletos({ ...form, ...nuevos });
+    if (completos.datos) setEditandoDatos(false);
+    if (d.direccion && d.ciudad) {
+      setElegida(null);
+      setNumero("");
+      setPiso("");
+      setModoDireccion("manual");
+      try {
+        window.localStorage.removeItem(CLAVE_DOMICILIO);
+      } catch {
+        // Sin almacenamiento, nada que borrar.
+      }
+      if (completos.direccion) setEditandoDireccion(false);
+    }
+    setRecordadoDe(nuevos.email.trim().toLowerCase());
+    // Ya compró antes: el cupón de primera compra no le corresponde. Se lo
+    // dice ahora, antes de pagar, en vez de rechazarlo al tocar Pagar.
+    marcarCuponBienvenidaUsado();
+    if (cupon && buscarCupon(cupon)?.soloPrimeraCompra) {
+      quitarCupon();
+      setFallo(`${cupon} es para la primera compra, y vos ya compraste en Harper: no se aplica.`);
+    }
   }
 
   /**
@@ -551,7 +627,11 @@ export default function FormularioCheckout({
 
     if (Object.keys(encontrados).length > 0) {
       setErrores(encontrados);
-      enfocarPrimerError(encontrados);
+      // Un error en un bloque resumido lo abre, y el foco va después de pintarlo.
+      const claves = Object.keys(encontrados);
+      if (claves.some((c) => (CAMPOS_DATOS as readonly string[]).includes(c))) setEditandoDatos(true);
+      if (claves.some((c) => (CAMPOS_DIRECCION as readonly string[]).includes(c))) setEditandoDireccion(true);
+      window.setTimeout(() => enfocarPrimerError(encontrados), 0);
       return;
     }
 
@@ -622,6 +702,8 @@ export default function FormularioCheckout({
       // antes de pagar.
       if (respuesta.status === 409 && cuerpo.cuponRechazado) {
         quitarCupon();
+        // Ya compró: que la ficha deje de ofrecérselo.
+        if (buscarCupon(cuerpo.cuponRechazado)?.soloPrimeraCompra) marcarCuponBienvenidaUsado();
         setFallo(`${cuerpo.error ?? "El cupón no se pudo aplicar."} Revisá el total antes de pagar.`);
         setEnviando(false);
         return;
@@ -633,7 +715,10 @@ export default function FormularioCheckout({
       // depende de volver a preguntar (que puede no estar disponible).
       if (respuesta.status === 409 && typeof cuerpo.totalNuevo === "number") {
         recargar();
-        if (cuerpo.envio?.cotizado) adoptarEnvio(cuerpo.envio);
+        // El envío que calculó el servidor: cotizado (con su comprobante) o
+        // sin cotizar. Se adopta también sin Envia en el navegador, si no el
+        // total visto nunca coincidiría.
+        if (cuerpo.envio && (!cuerpo.envio.cotizado || cuerpo.envio.opciones.length > 0)) adoptarEnvio(cuerpo.envio);
         else recotizar();
         setFallo(
           `${cuerpo.error ?? "El total cambió: revisalo antes de pagar."} El total actualizado es ${formatearPrecio(cuerpo.totalNuevo)}.`
@@ -686,10 +771,21 @@ export default function FormularioCheckout({
 
   const cantidadTotal = carrito.items.reduce((n, i) => n + i.cantidad, 0);
   const productos = `${cantidadTotal} ${cantidadTotal === 1 ? "producto" : "productos"}`;
+  // El envío gratis según la zona: en AMBA desde un mínimo, en todo el país
+  // desde otro (los dos sobre el subtotal sin el cupón, como el servidor).
+  const umbrales = { amba: carrito.envioGratisAmbaDesde ?? 0, nacional: carrito.envioGratisDesde };
+  const gratisEnAmba = esEnvioGratis(carrito.subtotalSinCupon ?? carrito.subtotal, "amba", umbrales);
+
   // Con envío gratis y cotizado, el precio real tachado: lo paga Harper.
   // Mientras se cotiza la dirección, no se anuncia un precio que va a cambiar.
   const envioTexto = calculandoEnvio ? (
     <span className="apagado">Calculando…</span>
+  ) : envioPorConocer ? (
+    gratisEnAmba ? (
+      "Gratis en AMBA"
+    ) : (
+      <span className="apagado">Con tu dirección</span>
+    )
   ) : resumen.envio === 0 ? (
     cotizacion?.bonificado && opcionEnvio ? (
       <>
@@ -701,11 +797,14 @@ export default function FormularioCheckout({
   ) : (
     formatearPrecio(resumen.envio)
   );
-  const gratisDesde = carrito.envioGratisDesde > 0 ? ` Gratis desde ${formatearPrecio(carrito.envioGratisDesde)}.` : "";
   const notaEnvio = opcionEnvio
-    ? `${opcionEnvio.transportistaNombre}${opcionEnvio.plazo ? ` · llega en ${opcionEnvio.plazo}` : ""}.${gratisDesde}`
-    : `Envío a domicilio.${gratisDesde}`;
-
+    ? (opcionEnvio.plazo ? `${opcionEnvio.plazo}.` : "Envío a domicilio.") +
+      (cotizacion && !cotizacion.bonificado && cotizacion.gratisDesde > 0 ? ` Gratis desde ${formatearPrecio(cotizacion.gratisDesde)}.` : "")
+    : // Sin cotizar para una dirección que no se sabe si es AMBA: no se le
+      // anuncia el mínimo de AMBA al lado de un envío que se cobra.
+      textoEnvioGratis(cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales);
+  // El total del botón: mientras falta saber el envío, se aclara que se suma.
+  const totalBoton = `${formatearPrecio(resumen.total)}${envioPorConocer && !gratisEnAmba ? " + envío" : ""}`;
   const listaItems = (
     <>
       {carrito.items.map((item) => (
@@ -736,7 +835,11 @@ export default function FormularioCheckout({
           <summary>
             <span>
               {productos} · <strong>{formatearPrecio(resumen.total)}</strong>
-              {resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}
+              {envioPorConocer
+                ? gratisEnAmba
+                  ? " · envío gratis en AMBA"
+                  : " · sin envío"
+                : resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}
               {resumen.ahorroTotal > 0 ? ` · ahorrás ${formatearPrecio(resumen.ahorroTotal)}` : ""}
             </span>
             <span className="checkout__ver">Ver detalle</span>
@@ -754,326 +857,363 @@ export default function FormularioCheckout({
           </div>
         </details>
 
-        <Campo
-          id="email"
-          etiqueta="Email"
-          tipo="email"
-          autoComplete="email"
-          inputMode="email"
-          enterKeyHint="next"
-          valor={form.email}
-          error={errores.email}
-          onChange={(v) => actualizar("email", v)}
-        />
+        {/* ---------- 1. Tus datos ---------- */}
+        <section className="checkout__paso" aria-labelledby="paso-datos">
+          <h2 id="paso-datos" className="checkout__paso-titulo">
+            <span className="checkout__paso-numero" aria-hidden="true">1</span> Tus datos
+          </h2>
+          {editandoDatos ? (
+            <>
+              <Campo
+                id="email"
+                etiqueta="Email"
+                tipo="email"
+                autoComplete="email"
+                inputMode="email"
+                enterKeyHint="next"
+                valor={form.email}
+                error={errores.email}
+                onChange={(v) => {
+                  actualizar("email", v);
+                  setEmailListo(false);
+                }}
+                onBlur={() => setEmailListo(emailValido(form.email))}
+              />
+              {emailListo && emailValido(form.email) && form.email.trim().toLowerCase() !== recordadoDe ? (
+                <ReconocerComprador email={form.email.trim().toLowerCase()} onDatos={usarDatosRecordados} />
+              ) : null}
 
-        <Campo
-          id="nombre"
-          etiqueta="Nombre y apellido"
-          autoComplete="name"
-          enterKeyHint="next"
-          valor={form.nombre}
-          error={errores.nombre}
-          onChange={(v) => actualizar("nombre", v)}
-        />
+              <Campo
+                id="nombre"
+                etiqueta="Nombre y apellido"
+                autoComplete="name"
+                enterKeyHint="next"
+                valor={form.nombre}
+                error={errores.nombre}
+                onChange={(v) => actualizar("nombre", v)}
+              />
 
-        <div className="checkout__par">
-          <Campo
-            id="telefono"
-            etiqueta="Teléfono"
-            tipo="tel"
-            autoComplete="tel"
-            inputMode="tel"
-            enterKeyHint="next"
-            valor={form.telefono}
-            error={errores.telefono}
-            onChange={(v) => actualizar("telefono", v)}
-          />
-          <Campo
-            id="dni"
-            etiqueta="DNI"
-            inputMode="numeric"
-            enterKeyHint="next"
-            valor={form.dni}
-            error={errores.dni}
-            onChange={(v) => actualizar("dni", v)}
-          />
-        </div>
-
-        {modoDireccion === "buscador" ? (
-          <>
-            <CampoDireccion
-              elegida={elegida}
-              onElegir={(d) => aplicarDireccion(d, "")}
-              onCambiar={cambiarDireccion}
-              onNoDisponible={cargarAMano}
-              onManual={cargarAMano}
-              error={
-                errores.domicilio ??
-                (!faltan.includes("numero") ? errores.direccion : undefined) ??
-                (!faltan.includes("localidad") ? errores.ciudad : undefined) ??
-                (!faltan.includes("provincia") ? errores.provincia : undefined) ??
-                (!faltan.includes("cp") ? errores.cp : undefined)
-              }
+              <div className="checkout__par">
+                <Campo
+                  id="telefono"
+                  etiqueta="Teléfono"
+                  tipo="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
+                  enterKeyHint="next"
+                  valor={form.telefono}
+                  error={errores.telefono}
+                  onChange={(v) => actualizar("telefono", v)}
+                />
+                <Campo
+                  id="dni"
+                  etiqueta="DNI"
+                  inputMode="numeric"
+                  enterKeyHint="next"
+                  valor={form.dni}
+                  error={errores.dni}
+                  onChange={(v) => actualizar("dni", v)}
+                />
+              </div>
+            </>
+          ) : (
+            <Resumido
+              lineas={[form.nombre, form.email, `${form.telefono} · DNI ${form.dni}`]}
+              etiqueta="tus datos"
+              onCambiar={() => setEditandoDatos(true)}
             />
+          )}
+        </section>
 
-            {elegida ? (
-              // El piso va solo, a todo el ancho; si además falta el número,
-              // los dos van en un par.
-              <div className={faltan.includes("numero") ? "checkout__par checkout__par--piso" : undefined}>
-                {faltan.includes("numero") ? (
+        {/* ---------- 2. Entrega ---------- */}
+        <section className="checkout__paso" aria-labelledby="paso-entrega">
+          <h2 id="paso-entrega" className="checkout__paso-titulo">
+            <span className="checkout__paso-numero" aria-hidden="true">2</span> Entrega
+          </h2>
+          {editandoDireccion ? (
+            <>
+            {modoDireccion === "buscador" ? (
+              <>
+                <CampoDireccion
+                  elegida={elegida}
+                  onElegir={(d) => aplicarDireccion(d, "")}
+                  onCambiar={cambiarDireccion}
+                  onNoDisponible={cargarAMano}
+                  onManual={cargarAMano}
+                  error={
+                    errores.domicilio ??
+                    (!faltan.includes("numero") ? errores.direccion : undefined) ??
+                    (!faltan.includes("localidad") ? errores.ciudad : undefined) ??
+                    (!faltan.includes("provincia") ? errores.provincia : undefined) ??
+                    (!faltan.includes("cp") ? errores.cp : undefined)
+                  }
+                />
+
+                {elegida ? (
+                  // El piso va solo, a todo el ancho; si además falta el número,
+                  // los dos van en un par.
+                  <div className={faltan.includes("numero") ? "checkout__par checkout__par--piso" : undefined}>
+                    {faltan.includes("numero") ? (
+                      <Campo
+                        id="numero"
+                        etiqueta="Número"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        enterKeyHint="next"
+                        valor={numero}
+                        error={errores.direccion}
+                        onChange={cambiarNumero}
+                      />
+                    ) : null}
+                    <Campo
+                      id="piso"
+                      etiqueta="Piso / depto (opcional)"
+                      autoComplete="off"
+                      placeholder="5° B"
+                      enterKeyHint="next"
+                      valor={piso}
+                      onChange={setPiso}
+                    />
+                  </div>
+                ) : null}
+
+                {/* Solo lo que Google no trajo. En Argentina suele ser el código postal. */}
+                {elegida && faltan.includes("cp") ? (
                   <Campo
-                    id="numero"
-                    etiqueta="Número"
+                    id="cp"
+                    etiqueta="Código postal"
+                    autoComplete="postal-code"
                     inputMode="numeric"
-                    autoComplete="off"
                     enterKeyHint="next"
-                    valor={numero}
-                    error={errores.direccion}
-                    onChange={cambiarNumero}
+                    valor={form.cp}
+                    error={errores.cp}
+                    onChange={(v) => actualizar("cp", v)}
                   />
                 ) : null}
+                {elegida && faltan.includes("localidad") ? (
+                  <Campo
+                    id="ciudad"
+                    etiqueta="Localidad"
+                    autoComplete="address-level2"
+                    enterKeyHint="next"
+                    valor={form.ciudad}
+                    error={errores.ciudad}
+                    onChange={(v) => actualizar("ciudad", v)}
+                  />
+                ) : null}
+                {elegida && faltan.includes("provincia") ? (
+                  <SelectorProvincia valor={form.provincia} error={errores.provincia} onChange={(v) => actualizar("provincia", v)} />
+                ) : null}
+              </>
+            ) : (
+              <>
                 <Campo
-                  id="piso"
-                  etiqueta="Piso / depto (opcional)"
-                  autoComplete="off"
-                  placeholder="5° B"
+                  id="direccion"
+                  etiqueta="Calle y número"
+                  autoComplete="address-line1"
+                  placeholder="Av. Cabildo 1234, 5° B"
                   enterKeyHint="next"
-                  valor={piso}
-                  onChange={setPiso}
+                  valor={form.direccion}
+                  error={errores.direccion}
+                  onChange={(v) => actualizar("direccion", v)}
+                />
+
+                <div className="checkout__par checkout__par--localidad">
+                  <Campo
+                    id="ciudad"
+                    etiqueta="Localidad"
+                    autoComplete="address-level2"
+                    enterKeyHint="next"
+                    valor={form.ciudad}
+                    error={errores.ciudad}
+                    onChange={(v) => actualizar("ciudad", v)}
+                  />
+                  <Campo
+                    id="cp"
+                    etiqueta="Código postal"
+                    autoComplete="postal-code"
+                    inputMode="numeric"
+                    enterKeyHint="done"
+                    valor={form.cp}
+                    error={errores.cp}
+                    onChange={(v) => actualizar("cp", v)}
+                  />
+                </div>
+
+                <SelectorProvincia valor={form.provincia} error={errores.provincia} onChange={(v) => actualizar("provincia", v)} />
+
+                {buscador ? (
+                  <p className="domicilio__ayuda apagado">
+                    <button type="button" className="enlace-accion" onClick={() => setModoDireccion("buscador")}>
+                      Buscar la dirección con Google
+                    </button>
+                  </p>
+                ) : null}
+              </>
+            )}
+            </>
+          ) : (
+            <Resumido
+              lineas={[
+                modoDireccion === "buscador" && piso.trim() ? `${form.direccion}, ${piso.trim()}` : form.direccion,
+                `${form.ciudad}, ${form.provincia} (CP ${form.cp})`,
+              ]}
+              etiqueta="la dirección"
+              onCambiar={() => setEditandoDireccion(true)}
+            />
+          )}
+
+          {/* El envío a domicilio que cotizó Envia para esta dirección: el
+              plazo y el precio, o el precio tachado si es gratis. Si no llega
+              al mínimo de su zona, cuánto le falta. Mismo diseño que el medio
+              de pago, sin nada que elegir. */}
+          {opcionEnvio || calculandoEnvio ? (
+            <div className="medio-pago medio-pago--envio" role="group" aria-label="Envío a domicilio" aria-busy={cotizandoEnvio}>
+              {opcionEnvio && cotizacion ? (
+                  <div className="medio-pago__opcion envio-domicilio" data-elegida="true">
+                    <span className="medio-pago__texto">
+                      <span className="medio-pago__nombre">Envío a domicilio</span>
+                      {opcionEnvio.plazo ? <span className="medio-pago__detalle">{opcionEnvio.plazo}</span> : null}
+                    </span>
+                    <span className="medio-pago__precio">
+                      {cotizacion.bonificado ? (
+                        <>
+                          <PrecioTachado precio={opcionEnvio.precio} /> Envío gratis
+                        </>
+                      ) : (
+                        formatearPrecio(opcionEnvio.precio)
+                      )}
+                    </span>
+                  </div>
+              ) : null}
+              {/* Un solo aviso, siempre montado mientras se ve el envío: así el
+                  lector de pantalla anuncia cuando pasa de «Calculando…» a
+                  «¡Tu envío es gratis!» o a cuánto le falta. */}
+              <p className={opcionEnvio && cotizacion ? "envio-gratis-falta" : "apagado checkout__envio-nota"} role="status">
+                {!opcionEnvio || !cotizacion
+                  ? "Calculando el envío a tu dirección…"
+                  : cotizacion.bonificado
+                    ? "¡Tu envío es gratis!"
+                    : cotizacion.falta > 0
+                      ? `Agregá ${formatearPrecio(cotizacion.falta)} más y tu envío es gratis.`
+                      : null}
+              </p>
+            </div>
+          ) : null}
+        </section>
+
+        {/* ---------- 3. Pago ---------- */}
+        <section className="checkout__paso" aria-labelledby="paso-pago">
+          <h2 id="paso-pago" className="checkout__paso-titulo">
+            <span className="checkout__paso-numero" aria-hidden="true">3</span> Pago
+          </h2>
+          {/* Medio de pago. Cada opción muestra su total, y el resumen y el
+              botón cambian al instante. Las dos se pagan en Mercado Pago. */}
+          {resumenDineroMP && carrito.dineroMP ? (
+            // Mientras se envía, no se cambia: lo que se ve es lo que se cobra.
+            <fieldset className="medio-pago" disabled={enviando}>
+              <legend className="visualmente-oculto">Medio de pago</legend>
+              <label className="medio-pago__opcion" data-elegida={medioPago === "mercadopago"}>
+                <input
+                  type="radio"
+                  name="medioPago"
+                  value="mercadopago"
+                  checked={medioPago === "mercadopago"}
+                  onChange={() => setMedioElegido("mercadopago")}
+                />
+                <span className="medio-pago__texto">
+                  <span className="medio-pago__nombre">Tarjeta o Mercado Pago</span>
+                  {cuotaTexto ? (
+                    <>
+                      <span className="medio-pago__cuotas">{cuotaTexto}</span>
+                      <span className="cuotas-condiciones">{cuotaCondiciones}</span>
+                    </>
+                  ) : (
+                    <span className="medio-pago__detalle">Crédito, débito o dinero en cuenta.</span>
+                  )}
+                </span>
+                <span className="medio-pago__precio">{formatearPrecio(resumenMercadoPago.total)}</span>
+              </label>
+              <label className="medio-pago__opcion" data-elegida={medioPago === "dineroMP"}>
+                <input
+                  id="medioDineroMP"
+                  type="radio"
+                  name="medioPago"
+                  value="dineroMP"
+                  checked={medioPago === "dineroMP"}
+                  onChange={() => setMedioElegido("dineroMP")}
+                />
+                <span className="medio-pago__texto">
+                  <span className="medio-pago__nombre">
+                    Dinero en Mercado Pago
+                    <span className="medio-pago__extra">{carrito.dineroMP.porcentaje}% OFF adicional</span>
+                  </span>
+                  <span className="medio-pago__detalle">Solo con el saldo de tu cuenta.</span>
+                  <span className="medio-pago__ahorro">Ahorrás {formatearPrecio(resumenDineroMP.ahorroTotal)}</span>
+                </span>
+                <span className="medio-pago__precio">{formatearPrecio(resumenDineroMP.total)}</span>
+              </label>
+            </fieldset>
+          ) : (
+            <p className="checkout__pago-unico">Pagás en Mercado Pago: crédito, débito o dinero en cuenta.</p>
+          )}
+
+          {/* Factura: por defecto, consumidor final. Si va a nombre de una
+              empresa u otro titular con CUIT, sus datos son propios de la
+              factura: no los del comprador ni los de la entrega. */}
+          <div className="checkout__facturacion">
+            <label className="checkout__promos">
+              <input
+                id="facturaACuit"
+                type="checkbox"
+                name="facturacion"
+                checked={factura.aCuit}
+                onChange={(e) => actualizarFactura({ aCuit: e.target.checked })}
+              />
+              Factura a nombre de una empresa u otro titular con CUIT
+            </label>
+
+            {factura.aCuit ? (
+              <div className="checkout__facturacion-campos">
+                <Campo
+                  id="facturaRazonSocial"
+                  etiqueta="Razón social o nombre del titular"
+                  autoComplete="organization"
+                  enterKeyHint="next"
+                  valor={factura.razonSocial}
+                  error={errores.facturaRazonSocial}
+                  onChange={(v) => actualizarFactura({ razonSocial: v }, "facturaRazonSocial")}
+                />
+                <Campo
+                  id="facturaCuit"
+                  etiqueta="CUIT"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="30-12345678-9"
+                  enterKeyHint="next"
+                  valor={factura.cuit}
+                  error={errores.facturaCuit}
+                  onChange={(v) => actualizarFactura({ cuit: v }, "facturaCuit")}
+                />
+                <SelectorCondicionIva
+                  valor={factura.condicionIva}
+                  error={errores.facturaCondicionIva}
+                  onChange={(v) => actualizarFactura({ condicionIva: v }, "facturaCondicionIva")}
+                />
+                <Campo
+                  id="facturaDomicilio"
+                  etiqueta="Domicilio fiscal"
+                  autoComplete="off"
+                  placeholder="Calle 123, localidad, provincia, CP"
+                  enterKeyHint="done"
+                  valor={factura.domicilioFiscal}
+                  error={errores.facturaDomicilio}
+                  onChange={(v) => actualizarFactura({ domicilioFiscal: v }, "facturaDomicilio")}
                 />
               </div>
             ) : null}
-
-            {/* Solo lo que Google no trajo. En Argentina suele ser el código postal. */}
-            {elegida && faltan.includes("cp") ? (
-              <Campo
-                id="cp"
-                etiqueta="Código postal"
-                autoComplete="postal-code"
-                inputMode="numeric"
-                enterKeyHint="next"
-                valor={form.cp}
-                error={errores.cp}
-                onChange={(v) => actualizar("cp", v)}
-              />
-            ) : null}
-            {elegida && faltan.includes("localidad") ? (
-              <Campo
-                id="ciudad"
-                etiqueta="Localidad"
-                autoComplete="address-level2"
-                enterKeyHint="next"
-                valor={form.ciudad}
-                error={errores.ciudad}
-                onChange={(v) => actualizar("ciudad", v)}
-              />
-            ) : null}
-            {elegida && faltan.includes("provincia") ? (
-              <SelectorProvincia valor={form.provincia} error={errores.provincia} onChange={(v) => actualizar("provincia", v)} />
-            ) : null}
-          </>
-        ) : (
-          <>
-            <Campo
-              id="direccion"
-              etiqueta="Calle y número"
-              autoComplete="address-line1"
-              placeholder="Av. Cabildo 1234, 5° B"
-              enterKeyHint="next"
-              valor={form.direccion}
-              error={errores.direccion}
-              onChange={(v) => actualizar("direccion", v)}
-            />
-
-            <div className="checkout__par checkout__par--localidad">
-              <Campo
-                id="ciudad"
-                etiqueta="Localidad"
-                autoComplete="address-level2"
-                enterKeyHint="next"
-                valor={form.ciudad}
-                error={errores.ciudad}
-                onChange={(v) => actualizar("ciudad", v)}
-              />
-              <Campo
-                id="cp"
-                etiqueta="Código postal"
-                autoComplete="postal-code"
-                inputMode="numeric"
-                enterKeyHint="done"
-                valor={form.cp}
-                error={errores.cp}
-                onChange={(v) => actualizar("cp", v)}
-              />
-            </div>
-
-            <SelectorProvincia valor={form.provincia} error={errores.provincia} onChange={(v) => actualizar("provincia", v)} />
-
-            {buscador ? (
-              <p className="domicilio__ayuda apagado">
-                <button type="button" className="enlace-accion" onClick={() => setModoDireccion("buscador")}>
-                  Buscar la dirección con Google
-                </button>
-              </p>
-            ) : null}
-          </>
-        )}
-
-        {/* El envío: las opciones a domicilio que cotizó Envia para esta
-            dirección, con precio y plazo. Con envío gratis, la más barata con
-            su precio tachado. Mismo diseño que el medio de pago. */}
-        {opcionesEnvio.length > 0 || calculandoEnvio ? (
-          <fieldset className="medio-pago" disabled={enviando} aria-busy={cotizandoEnvio}>
-            <legend className="label">Envío a domicilio</legend>
-            {opcionesEnvio.length > 0 ? (
-              opcionesEnvio.map((o) => (
-                <label key={o.id} className="medio-pago__opcion" data-elegida={o.id === opcionEnvio?.id}>
-                  <input
-                    type="radio"
-                    name="envio"
-                    value={o.id}
-                    checked={o.id === opcionEnvio?.id}
-                    onChange={() => setIdEnvio(o.id)}
-                  />
-                  <span className="medio-pago__texto">
-                    <span className="medio-pago__nombre">{o.transportistaNombre}</span>
-                    <span className="medio-pago__detalle">
-                      {[o.servicioNombre, o.plazo ? `llega en ${o.plazo}` : null].filter(Boolean).join(" · ")}
-                    </span>
-                  </span>
-                  <span className="medio-pago__precio">
-                    {cotizacion?.bonificado ? (
-                      <>
-                        <PrecioTachado precio={o.precio} /> Envío gratis
-                      </>
-                    ) : (
-                      formatearPrecio(o.precio)
-                    )}
-                  </span>
-                </label>
-              ))
-            ) : (
-              <p className="apagado checkout__envio-nota" role="status">
-                Calculando el envío a tu dirección…
-              </p>
-            )}
-          </fieldset>
-        ) : null}
-
-        {/* Datos de facturación: por defecto, consumidor final. Si la factura
-            va a nombre de una empresa u otro titular con CUIT, sus datos son
-            propios de la factura: no los del comprador ni los de la entrega. */}
-        <fieldset className="checkout__facturacion">
-          <legend className="label">Datos de facturación</legend>
-          <label className="checkout__promos">
-            <input
-              type="radio"
-              name="facturacion"
-              checked={!factura.aCuit}
-              onChange={() => actualizarFactura({ aCuit: false })}
-            />
-            Consumidor final
-          </label>
-          <label className="checkout__promos">
-            <input
-              id="facturaACuit"
-              type="radio"
-              name="facturacion"
-              checked={factura.aCuit}
-              onChange={() => actualizarFactura({ aCuit: true })}
-            />
-            Factura a nombre de una empresa u otro titular con CUIT
-          </label>
-
-          {factura.aCuit ? (
-            <div className="checkout__facturacion-campos">
-              <Campo
-                id="facturaRazonSocial"
-                etiqueta="Razón social o nombre del titular"
-                autoComplete="organization"
-                enterKeyHint="next"
-                valor={factura.razonSocial}
-                error={errores.facturaRazonSocial}
-                onChange={(v) => actualizarFactura({ razonSocial: v }, "facturaRazonSocial")}
-              />
-              <Campo
-                id="facturaCuit"
-                etiqueta="CUIT"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="30-12345678-9"
-                enterKeyHint="next"
-                valor={factura.cuit}
-                error={errores.facturaCuit}
-                onChange={(v) => actualizarFactura({ cuit: v }, "facturaCuit")}
-              />
-              <SelectorCondicionIva
-                valor={factura.condicionIva}
-                error={errores.facturaCondicionIva}
-                onChange={(v) => actualizarFactura({ condicionIva: v }, "facturaCondicionIva")}
-              />
-              <Campo
-                id="facturaDomicilio"
-                etiqueta="Domicilio fiscal"
-                autoComplete="off"
-                placeholder="Calle 123, localidad, provincia, CP"
-                enterKeyHint="done"
-                valor={factura.domicilioFiscal}
-                error={errores.facturaDomicilio}
-                onChange={(v) => actualizarFactura({ domicilioFiscal: v }, "facturaDomicilio")}
-              />
-            </div>
-          ) : null}
-        </fieldset>
-
-        {/* Medio de pago. Cada opción muestra su total, y el resumen y el
-            botón cambian al instante. Las dos se pagan en Mercado Pago. */}
-        {resumenDineroMP && carrito.dineroMP ? (
-          // Mientras se envía, no se cambia: lo que se ve es lo que se cobra.
-          <fieldset className="medio-pago" disabled={enviando}>
-            <legend className="label">Medio de pago</legend>
-            <label className="medio-pago__opcion" data-elegida={medioPago === "mercadopago"}>
-              <input
-                type="radio"
-                name="medioPago"
-                value="mercadopago"
-                checked={medioPago === "mercadopago"}
-                onChange={() => setMedioElegido("mercadopago")}
-              />
-              <span className="medio-pago__texto">
-                <span className="medio-pago__nombre">Tarjeta / Mercado Pago</span>
-                {cuotaTexto ? (
-                  <>
-                    <span className="medio-pago__cuotas">{cuotaTexto}</span>
-                    <span className="cuotas-condiciones">{cuotaCondiciones}</span>
-                  </>
-                ) : (
-                  <span className="medio-pago__detalle">Tarjeta de crédito o débito.</span>
-                )}
-              </span>
-              <span className="medio-pago__precio">{formatearPrecio(resumenMercadoPago.total)}</span>
-            </label>
-            <label className="medio-pago__opcion" data-elegida={medioPago === "dineroMP"}>
-              <input
-                id="medioDineroMP"
-                type="radio"
-                name="medioPago"
-                value="dineroMP"
-                checked={medioPago === "dineroMP"}
-                onChange={() => setMedioElegido("dineroMP")}
-              />
-              <span className="medio-pago__texto">
-                <span className="medio-pago__nombre">
-                  Dinero en Mercado Pago
-                  <span className="medio-pago__extra">{carrito.dineroMP.porcentaje}% OFF adicional</span>
-                </span>
-                <span className="medio-pago__detalle">Exclusivamente con el saldo de tu cuenta de Mercado Pago.</span>
-                <span className="medio-pago__ahorro">Ahorrás {formatearPrecio(resumenDineroMP.ahorroTotal)}</span>
-              </span>
-              <span className="medio-pago__precio">{formatearPrecio(resumenDineroMP.total)}</span>
-            </label>
-          </fieldset>
-        ) : null}
+          </div>
+        </section>
 
         {/* Mayoría de edad (o autorización del representante legal) y Términos:
             una sola casilla, obligatoria y sin marcar. Sin pedir la fecha de
@@ -1162,10 +1302,11 @@ export default function FormularioCheckout({
           <span className="apagado">Envío a domicilio</span>
           <span>{envioTexto}</span>
         </div>
-        <p className="apagado checkout__envio-nota">{notaEnvio}</p>
+        {/* Con el envío cotizado, el plazo ya está en la caja de Entrega. */}
+        {opcionEnvio ? null : <p className="apagado checkout__envio-nota">{notaEnvio}</p>}
 
         <div className="fila fila--total">
-          <span>Total</span>
+          <span>{envioPorConocer ? "Total sin envío" : "Total"}</span>
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total)}</strong>
         </div>
 
@@ -1194,31 +1335,42 @@ export default function FormularioCheckout({
           disabled={enviando}
           aria-disabled={pagarAlCotizar !== null || undefined}
         >
-          {enviando ? "Redirigiendo…" : pagarAlCotizar !== null ? "Calculando el envío…" : <TextoPagoSeguro total={formatearPrecio(resumen.total)} />}
+          {enviando ? "Redirigiendo…" : pagarAlCotizar !== null ? "Calculando el envío…" : <TextoPagoSeguro total={totalBoton} />}
         </button>
 
-        {medioPago === "dineroMP" ? (
-          <p className="apagado" style={{ fontSize: "0.75rem" }}>
-            Pagás en Mercado Pago exclusivamente con el saldo de tu cuenta de
-            Mercado Pago: sin tarjetas ni cuotas.
-          </p>
-        ) : (
-          <p className="apagado" style={{ fontSize: "0.75rem" }}>
-            Pagás en Mercado Pago con tarjeta de crédito o débito, o con dinero en
-            cuenta. Las cuotas disponibles y su costo los ves en Mercado Pago antes
-            de confirmar el pago.
-          </p>
-        )}
+        <p className="apagado checkout__pago-nota">
+          {medioPago === "dineroMP"
+            ? "Pagás en Mercado Pago, solo con el saldo de tu cuenta."
+            : "Pagás en Mercado Pago. Las cuotas y su costo los ves ahí antes de confirmar."}
+        </p>
       </aside>
 
       <BarraPagar
         visible
         formulario={ID_FORMULARIO}
-        total={formatearPrecio(resumen.total)}
+        total={totalBoton}
         ocupado={enviando}
         esperando={pagarAlCotizar !== null ? "Calculando el envío…" : undefined}
       />
     </form>
+  );
+}
+
+/** Un bloque ya completo, en pocas líneas, con «Cambiar» para abrirlo. */
+function Resumido({ lineas, etiqueta, onCambiar }: { lineas: string[]; etiqueta: string; onCambiar: () => void }) {
+  const [primera, ...resto] = lineas.filter((l) => l.trim());
+  return (
+    <div className="checkout__resumido">
+      <p className="checkout__resumido-texto">
+        <strong>{primera}</strong>
+        {resto.map((l) => (
+          <span key={l}>{l}</span>
+        ))}
+      </p>
+      <button type="button" className="enlace-accion checkout__resumido-cambiar" onClick={onCambiar} aria-label={`Cambiar ${etiqueta}`}>
+        Cambiar
+      </button>
+    </div>
   );
 }
 
@@ -1314,6 +1466,7 @@ function Campo({
   inputMode?: "numeric" | "text" | "tel" | "email";
   enterKeyHint?: "next" | "done";
   placeholder?: string;
+  onBlur?: () => void;
 }) {
   return (
     <label className="campo" htmlFor={id} data-error={Boolean(error)}>

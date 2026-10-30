@@ -56,7 +56,8 @@ export function notaDeEnvio(envio: EnvioDelPedido): string {
     .join("\n");
 }
 
-/** El renglón del envío en el mail y en la preferencia de Mercado Pago. */
-export function descripcionDelEnvio(envio: Pick<EnvioDelPedido, "opcion">): string {
-  return envio.opcion ? `Envío a domicilio — ${envio.opcion.transportistaNombre}` : "Envío a domicilio";
-}
+/**
+ * El renglón del envío en la preferencia de Mercado Pago. Sin el
+ * transportista: el comprador no sabe con quién despachamos.
+ */
+export const DESCRIPCION_ENVIO = "Envío a domicilio";

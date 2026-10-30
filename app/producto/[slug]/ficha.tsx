@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import FichaProducto from "@/components/producto/FichaProducto";
 import EventoPixel from "@/components/EventoPixel";
 import GrillaProductos from "@/components/GrillaProductos";
+import Opiniones from "@/components/portada/Opiniones";
 import { getTramos } from "@/lib/descuentos";
 import { getProducto, getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
@@ -12,6 +13,7 @@ import { netoDe } from "@/lib/impuestos";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import { rutaDeCategoria } from "@/lib/categorias";
 import { parrafosDe, resumenDe } from "@/lib/descripcion";
+import { datosGuardadosDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 
 /**
  * La página de producto, compartida por dos rutas:
@@ -66,12 +68,16 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   const producto = await getProducto(slug);
   if (!producto) notFound();
 
-  const [tramos, config, delMismoTipo, cuotas] = await Promise.all([
+  const [tramos, config, delMismoTipo, cuotas, mercadoLibre] = await Promise.all([
     getTramos(),
     getConfig(),
     getProductos(producto.categoria),
     verificarCuotas(producto.precio),
+    // Las opiniones de todos los productos Harper, de la copia que guarda la
+    // portada: la ficha no le pregunta a Mercado Libre.
+    datosGuardadosDeMercadoLibre(),
   ]);
+  const opiniones = mercadoLibre?.opiniones ?? null;
 
   const otros = delMismoTipo.filter((p) => p.id !== producto.id);
   const varianteInicial = indiceVarianteInicial(producto, color);
@@ -155,7 +161,10 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         cuotas={cuotas}
         precioSinImpuestos={netoDe(config.impuestosNacionales, producto.categoria, producto.precio)}
         whatsapp={config.whatsapp || null}
+        calificacion={opiniones ? { promedio: opiniones.promedio, total: opiniones.total } : null}
       />
+
+      <Opiniones opiniones={opiniones} reputacion={mercadoLibre?.reputacion ?? null} />
 
       {otros.length > 0 ? (
         <section className="contenedor seccion seccion--secundaria" aria-labelledby="otros-modelos">

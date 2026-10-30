@@ -2,22 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
-import type { CuotasVerificadas } from "@/lib/cuotas";
-import type { DestinoEnvio, OpcionEnvio } from "@/lib/tipos";
+import type { CotizacionEnvio } from "@/lib/envio-gratis";
+import type { DestinoEnvio } from "@/lib/tipos";
 import type { Sucursal } from "@/lib/correo";
 
-/** Lo que contesta /api/envio/cotizar. */
-export type Cotizacion = {
-  /** Las opciones a domicilio, más barata primero, cada una con su comprobante. */
-  opciones: OpcionEnvio[];
-  /** Falso cuando `envio` es la tarifa plana de respaldo. */
-  cotizado: boolean;
-  envio: number;
-  /** El pedido llega al mínimo y el envío lo paga Harper. */
-  bonificado: boolean;
-  /** Cuotas sin interés verificadas para el total con cada opción. */
-  cuotas: Record<string, (CuotasVerificadas & { monto: number }) | null>;
-};
+/** Lo que contesta /api/envio/cotizar: el envío a domicilio, sin nombre de transportista. */
+export type Cotizacion = CotizacionEnvio;
 
 /** Espera antes de cotizar, para no consultar a Envia en cada tecla. */
 const ESPERA_MS = 700;

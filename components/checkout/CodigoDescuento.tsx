@@ -7,13 +7,16 @@ import { buscarCupon, mensajeDelCupon, type CuponResuelto } from "@/lib/cupones"
 /**
  * El código de descuento del checkout: discreto, en el resumen.
  *
- * Si el cupón ya se aplicó en la ficha, aparece aplicado. Va dentro del
- * formulario de compra, así que no es un <form>: Enter aplica el código y no
- * envía el pedido.
+ * Si el cupón ya se aplicó en la ficha o en la portada, aparece aplicado y
+ * no se pide nada. Si no, es solo un enlace («¿Tenés un código de
+ * descuento?») que abre el campo: nadie tiene que aplicarlo dos veces ni ver
+ * un casillero que parece pedirlo. Va dentro del formulario de compra, así
+ * que no es un <form>: Enter aplica el código y no envía el pedido.
  */
 export default function CodigoDescuento({ estado }: { estado: CuponResuelto | null }) {
   const { cupon, aplicarCupon, quitarCupon } = useCarrito();
   const [codigo, setCodigo] = useState("");
+  const [abierto, setAbierto] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Al aplicar o quitar se reemplaza el control con foco: se lo lleva al nuevo.
   const [enfocar, setEnfocar] = useState<"quitar" | "campo" | null>(null);
@@ -40,6 +43,7 @@ export default function CodigoDescuento({ estado }: { estado: CuponResuelto | nu
 
   function quitar() {
     quitarCupon();
+    setAbierto(true);
     setEnfocar("campo");
   }
 
@@ -63,6 +67,17 @@ export default function CodigoDescuento({ estado }: { estado: CuponResuelto | nu
           </p>
           {aviso ? <p className="cupon__nota">{aviso}</p> : null}
         </>
+      ) : !abierto ? (
+        <button
+          type="button"
+          className="enlace-accion codigo-descuento__abrir"
+          onClick={() => {
+            setAbierto(true);
+            setEnfocar("campo");
+          }}
+        >
+          ¿Tenés un código de descuento?
+        </button>
       ) : (
         <>
           <label className="codigo-descuento__etiqueta" htmlFor="codigo-descuento">
@@ -74,7 +89,7 @@ export default function CodigoDescuento({ estado }: { estado: CuponResuelto | nu
                 ref={campo}
                 id="codigo-descuento"
                 value={codigo}
-                placeholder="HARPER10"
+                placeholder="Tu código"
                 onChange={(e) => {
                   setCodigo(e.target.value.toUpperCase());
                   setError(null);

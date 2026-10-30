@@ -474,13 +474,38 @@ paquete oficial de atribución, sin modificar). Los datos de la dirección se gu
 el pedido como siempre (Direccion, Ciudad, Provincia, CP); no se guarda nada más de
 Google.
 
+## Comprador que vuelve
+
+En el mismo navegador, el checkout ya recuerda los datos de la última compra y
+los muestra resumidos («Tus datos» y «Entrega», cada uno con «Cambiar»): quien
+vuelve solo revisa y paga.
+
+En otro navegador o celular, debajo del mail aparece «¿Ya compraste con este
+mail? Completá tus datos con un código». Si ese mail tiene una compra
+confirmada, le llega un código de 6 números (`/api/clientes/codigo`); con el
+código (`/api/clientes/datos`) se completan nombre, teléfono, DNI y la
+dirección de su última compra. **Con el mail solo no se muestra nada**:
+cualquiera puede escribir el mail de otro. La respuesta es la misma haya
+comprado o no, el código vence a los 10 minutos y los intentos están
+limitados por mail y por IP (lib/reconocer-cliente.ts). El código no se guarda:
+viaja firmado con una clave que sale de `MP_WEBHOOK_SECRET`.
+
+Si ya compró, la ficha y la portada dejan de ofrecerle HARPER10 (es solo
+para la primera compra) y, si lo tenía aplicado, se le avisa antes de pagar.
+
 ## Envíos
 
 El envío a domicilio se cotiza con la API de **[Envia](https://docs.envia.com)** apenas
 el comprador completa su dirección (calle y número, localidad, provincia y código
-postal). El checkout muestra cada transportista con su servicio, el precio y el plazo
-estimado, de la más barata a la más cara. Sirve igual para uno, dos o más pares: se
-cotiza el paquete del pedido entero.
+postal). El checkout muestra **una sola opción, «Envío a domicilio»**, con el plazo
+(«Llega en 24 h hábiles», «Llega en 2 a 7 días hábiles») y el precio. **El comprador no
+ve con quién despachamos**: ni en la página, ni en la respuesta del cotizador, ni en
+Mercado Pago, ni en su mail. Harper sí lo ve en el pedido y en el mail de venta. Sirve
+igual para uno, dos o más pares: se cotiza el paquete del pedido entero.
+
+**Qué opción se ofrece.** Si cotiza el reparto de AMBA (`rueddo`, el de 24 h), ese: la
+dirección es **AMBA**. Si no, la más barata de las demás: **resto del país**. O sea, AMBA
+es donde llega el reparto, según su cobertura real.
 
 Solo se usa la ruta de **cotizar** (`POST /ship/rate/`). La tienda no genera etiquetas,
 no da de alta envíos ni pide retiros: eso sigue a mano.
@@ -492,7 +517,8 @@ no da de alta envíos ni pide retiros: eso sigue a mano.
 | `envio_transportistas` | Con quién cotizar, separados por coma, con el código de Envia: `rueddo, andreani, correoArgentino` |
 | `envio_origen_nombre`, `_telefono`, `_calle`, `_numero`, `_piso`, `_ciudad`, `_provincia`, `_cp` | Desde dónde sale el paquete. Todos obligatorios menos el piso |
 | `envio_peso_kg` | Peso mínimo del paquete en kg (`0.5`). Si el calculado es mayor, va el calculado |
-| `envio_gratis_desde` | Desde qué subtotal el envío es gratis |
+| `envio_gratis_desde` | Desde qué subtotal el envío es gratis en todo el país (`150000`) |
+| `envio_gratis_amba_desde` | Desde qué subtotal es gratis en AMBA (`60000`). Vacío o 0: sin regla propia para AMBA |
 | `costo_envio` | La tarifa plana de respaldo |
 
 Y en Vercel, `ENVIA_TOKEN` (ver `.env.example`). El token vive solo en el servidor:
@@ -501,21 +527,26 @@ no llega nunca al navegador, ni a los logs, ni a `/api/health` (que solo dice si
 **Solo entregas a domicilio.** Se descartan los servicios a sucursal y Mercado Libre
 Flex. Si un transportista no llega a ese código postal, simplemente no aparece.
 
-**El precio lo fija el servidor, con un comprobante firmado.** Cada opción cotizada
-viaja con un comprobante (HMAC, válido 30 minutos) atado al destino, al carrito y a ese
-precio. Al pagar, el navegador manda solo *qué opción* eligió y su comprobante, nunca
-cuánto sale. Si el comprobante no corresponde —vencido, tocado, de otra dirección u otro
+**El precio lo fija el servidor, con un comprobante cifrado.** La opción cotizada viaja
+con un comprobante (AES-256-GCM, válido 30 minutos) atado al destino, al carrito, a ese
+precio y a la zona; el navegador no lo puede leer (adentro está el transportista) ni
+cambiar. Al pagar, el navegador manda solo el comprobante, nunca cuánto sale. Si el comprobante no corresponde —vencido, tocado, de otra dirección u otro
 carrito—, el servidor vuelve a cotizar y, si el total cambió, frena la compra con un 409
 para que el comprador vea el total nuevo.
 
 **Mercado Pago cobra exactamente lo que dice el resumen.** El envío va como un renglón
-más («Envío a domicilio — Andreani») y antes de crear la preferencia se comprueba que la
+más («Envío a domicilio», sin transportista) y antes de crear la preferencia se comprueba que la
 suma de los renglones dé el total del pedido. El webhook vuelve a comparar lo pagado con
 el total guardado.
 
-**Envío gratis.** Desde `envio_gratis_desde` (sobre el subtotal, antes de cupones) se
-cotiza igual, se ofrece la opción más barata con su precio tachado y «Envío gratis», y
-el envío se cobra $ 0. Lo que cuesta de verdad queda en el pedido: es lo que paga Harper.
+**Envío gratis, según la zona.** En AMBA desde `envio_gratis_amba_desde` y en todo el
+país desde `envio_gratis_desde`, siempre sobre el subtotal antes de cupones (el cupón no
+cambia quién tiene envío gratis). Se cotiza igual, se muestra el precio tachado y «Envío
+gratis», y el envío se cobra $ 0. Lo que cuesta de verdad queda en el pedido: es lo que
+paga Harper. Si no llega, el checkout le dice cuánto le falta («Agregá $ X más y tu
+envío es gratis»); en el carrito y en el panel lateral, sin dirección todavía, se dice
+«Gratis en AMBA» o cuánto falta para eso. Sin cotizar (Envia caído), la Ciudad cuenta
+como AMBA; el resto de la provincia, no.
 
 **Qué queda en cada pedido** (`Pedidos`): `Envio_transportista`,
 `Envio_servicio_codigo` (por ejemplo `andreani:ground`), `Envio_costo_real` (lo que

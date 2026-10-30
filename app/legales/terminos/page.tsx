@@ -18,7 +18,9 @@ export default async function Terminos() {
 
       <p className="apagado">
         Estos términos regulan la compra de productos en harper.ar, operado por{" "}
-        {config.razonSocial}, CUIT {config.cuit}.
+        {config.razonSocial}, CUIT {config.cuit}
+        {config.domicilio ? <>, con domicilio en {config.domicilio}</> : null}. Correo de
+        contacto: <a href={`mailto:${config.emailContacto}`}>{config.emailContacto}</a>.
       </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Productos y precios</h2>

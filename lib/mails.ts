@@ -1,5 +1,6 @@
 import type { ConfigTienda } from "./config";
 import { precio as formatearPrecio, precioConCentavos } from "./formato";
+import { plazoParaComprador } from "./envio-gratis";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import { caracteristicasDe } from "./caracteristicas";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
@@ -224,11 +225,15 @@ export function enlaceGraduadosDelPedido(d: Pick<DatosMail, "numero" | "items" |
   return lleva ? enlaceWhatsApp(d.config.whatsapp, mensajeGraduadosPedido(d.numero)) : null;
 }
 
-/** "Lo enviamos por Andreani · plazo estimado: 2-4 días.", para el comprador. */
+/**
+ * "Envío a domicilio · Llega en 24 h hábiles desde el despacho.", para el
+ * comprador. Sin el transportista: eso lo sabe Harper (el mail interno).
+ */
 function envioCliente(d: Pick<DatosMail, "envioDetalle">): string | null {
   const e = d.envioDetalle;
   if (!e || e.transportista.startsWith("Tarifa plana")) return null;
-  return `Lo enviamos por ${e.transportista}${e.plazo ? ` · plazo estimado: ${e.plazo}` : ""}.`;
+  const plazo = plazoParaComprador(e.plazo);
+  return plazo ? `Envío a domicilio · ${plazo} desde el despacho.` : null;
 }
 
 /** "Envío: Andreani (andreani:ground) · costo real $ 8.120,40 · cobrado $ 8.121", para Harper. */
@@ -398,6 +403,35 @@ export function mailPagoRechazado(d: DatosMail): Envio {
     asunto: `No pudimos procesar el pago de tu pedido ${d.numero}`,
     html,
     texto: `No pudimos procesar el pago del pedido ${d.numero}. No te cobramos nada.\n\nReintentar: ${d.sitio}/checkout\n\nConsultas: ${d.config.emailContacto}`,
+    responderA: d.config.emailContacto,
+  };
+}
+
+/**
+ * El código para completar los datos de una compra anterior en el checkout
+ * (ver lib/reconocer-cliente.ts). Solo el código: ningún dato de la persona.
+ */
+export function mailCodigoDeAcceso(d: { email: string; codigo: string; config: ConfigTienda }): Envio {
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Tu código para comprar más rápido</h1>
+<p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">
+  Escribilo en el checkout de Harper y completamos tus datos de la última compra.
+  Vence en 10 minutos.
+</p>
+<div style="font-size:28px;letter-spacing:8px;padding:16px;background:#f2f0ec;border:1px solid #e3e0d8;text-align:center;">
+  ${escaparHtml(d.codigo)}
+</div>
+<p style="margin:24px 0 0;font-size:12px;color:#78756c;line-height:1.6;">
+  Si no lo pediste, ignorá este mail: sin el código nadie ve tus datos.
+</p>`,
+    d.config
+  );
+
+  return {
+    para: d.email,
+    asunto: `${d.codigo} es tu código de Harper`,
+    html,
+    texto: `Tu código de Harper: ${d.codigo}\n\nEscribilo en el checkout y completamos tus datos de la última compra. Vence en 10 minutos.\n\nSi no lo pediste, ignorá este mail: sin el código nadie ve tus datos.`,
     responderA: d.config.emailContacto,
   };
 }

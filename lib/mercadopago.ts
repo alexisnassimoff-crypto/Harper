@@ -87,7 +87,7 @@ export async function crearPreferencia(opciones: {
   pedidoId: string;
   items: ItemResuelto[];
   envio: number;
-  /** El renglón del envío: "Envío a domicilio — Andreani". */
+  /** El renglón del envío: "Envío a domicilio". */
   envioDescripcion?: string;
   /** El total que vio el comprador y quedó en el pedido: la preferencia tiene que sumar exactamente eso. */
   total?: number;

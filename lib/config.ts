@@ -1,5 +1,6 @@
 import { listRecords, TABLAS } from "./airtable";
-import { aNumero } from "./formato";
+import { puedeCotizar } from "./envia";
+import { aNumero, aPesos } from "./formato";
 import { leerImpuestos, SIN_IMPUESTOS_CARGADOS, type ImpuestosNacionales } from "./impuestos";
 import { codigoEnviaDeProvincia } from "./provincias-envia";
 import type { OrigenEnvio } from "./tipos";
@@ -11,8 +12,18 @@ import type { OrigenEnvio } from "./tipos";
 export type ConfigTienda = {
   costoEnvio: number;
   envioGratisDesde: number;
+  /**
+   * Envío gratis en AMBA (donde llega el reparto de 24 h) desde este
+   * subtotal, más bajo que el de todo el país. 0 = sin regla para AMBA.
+   * También 0 si no se puede cotizar con Envia (sin token, origen o
+   * transportistas): sin cotizar no se sabe qué dirección es AMBA, así que
+   * ni se anuncia ni se aplica, y todo queda como antes.
+   */
+  envioGratisAmbaDesde: number;
   bannerTexto: string;
   whatsapp: string;
+  /** El Instagram de Harper, como URL completa; vacío = no se muestra el acceso en el pie. */
+  instagram: string;
   emailContacto: string;
   emailPedidos: string;
   razonSocial: string;
@@ -94,8 +105,10 @@ export type ConfigTienda = {
 const POR_DEFECTO: ConfigTienda = {
   costoEnvio: 10100,
   envioGratisDesde: 80000,
+  envioGratisAmbaDesde: 0,
   bannerTexto: "",
   whatsapp: "",
+  instagram: "",
   emailContacto: "hola@harper.ar",
   emailPedidos: "hola@harper.ar",
   razonSocial: "HARPER",
@@ -150,14 +163,21 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
   const texto = (clave: string, porDefecto: string) =>
     mapa.get(clave) || porDefecto;
 
+  const envioOrigen = leerOrigenEnvio(mapa);
+  const envioTransportistas = (mapa.get("envio_transportistas") ?? "")
+    .split(/[\s,;]+/)
+    .map((t) => t.trim())
+    .filter((t) => /^[A-Za-z][A-Za-z0-9_]{1,40}$/.test(t));
+
   return {
-    costoEnvio: aNumero(mapa.get("costo_envio"), POR_DEFECTO.costoEnvio),
-    envioGratisDesde: aNumero(
-      mapa.get("envio_gratis_desde"),
-      POR_DEFECTO.envioGratisDesde
-    ),
+    costoEnvio: aPesos(mapa.get("costo_envio"), POR_DEFECTO.costoEnvio),
+    envioGratisDesde: aPesos(mapa.get("envio_gratis_desde"), POR_DEFECTO.envioGratisDesde),
+    envioGratisAmbaDesde: puedeCotizar({ envioOrigen, envioTransportistas })
+      ? aPesos(mapa.get("envio_gratis_amba_desde"), POR_DEFECTO.envioGratisAmbaDesde)
+      : 0,
     bannerTexto: texto("banner_texto", POR_DEFECTO.bannerTexto),
     whatsapp: texto("whatsapp", POR_DEFECTO.whatsapp).replace(/\D/g, ""),
+    instagram: urlDeInstagram(mapa.get("instagram")),
     emailContacto: texto("email_contacto", POR_DEFECTO.emailContacto),
     emailPedidos: texto("email_pedidos", POR_DEFECTO.emailPedidos),
     razonSocial: texto("razon_social", POR_DEFECTO.razonSocial),
@@ -170,12 +190,9 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
       POR_DEFECTO.embalajeMargenCm
     ),
     embalajePesoG: aNumero(mapa.get("embalaje_peso_g"), POR_DEFECTO.embalajePesoG),
-    envioOrigen: leerOrigenEnvio(mapa),
+    envioOrigen,
     envioPesoMinimoKg: kilos(mapa.get("envio_peso_kg")),
-    envioTransportistas: (mapa.get("envio_transportistas") ?? "")
-      .split(/[\s,;]+/)
-      .map((t) => t.trim())
-      .filter((t) => /^[A-Za-z][A-Za-z0-9_]{1,40}$/.test(t)),
+    envioTransportistas,
     portadaTitulo: texto("portada_titulo", POR_DEFECTO.portadaTitulo),
     portadaSubtitulo: texto("portada_subtitulo", POR_DEFECTO.portadaSubtitulo),
     portadaImagen: texto("portada_imagen", POR_DEFECTO.portadaImagen),
@@ -184,6 +201,17 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
     impuestosNacionales: leerImpuestos(mapa),
     condicionIva: texto("condicion_iva", POR_DEFECTO.condicionIva),
   };
+}
+
+/**
+ * El Instagram de Config (clave `instagram`), como venga: "@harper",
+ * "harper" o la URL. Siempre una URL de instagram.com, o vacío si no tiene
+ * forma de usuario.
+ */
+export function urlDeInstagram(valor: string | undefined): string {
+  const texto = (valor ?? "").trim();
+  const usuario = (texto.match(/instagram\.com\/([A-Za-z0-9._]{1,30})/i)?.[1] ?? texto.replace(/^@/, "")).replace(/\/$/, "");
+  return /^[A-Za-z0-9._]{1,30}$/.test(usuario) ? `https://www.instagram.com/${usuario}/` : "";
 }
 
 /** Para avisar una sola vez por instancia de una provincia de origen mal escrita. */

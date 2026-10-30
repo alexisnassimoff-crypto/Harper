@@ -14,7 +14,10 @@ export type CarritoResueltoCliente = {
   subtotal: number;
   envio: number;
   total: number;
+  /** Desde cuánto (sin el cupón) el envío es gratis en todo el país; 0 = nunca. */
   envioGratisDesde: number;
+  /** Desde cuánto es gratis en AMBA, donde llega el reparto de 24 h; 0 = sin regla. */
+  envioGratisAmbaDesde: number;
   /** Falso cuando `envio` es la tarifa plana de respaldo, no una cotización. */
   envioCotizado: boolean;
   /** Lo que se ahorró: por volumen o con el cupón (nunca los dos). */
@@ -31,6 +34,8 @@ export type CarritoResueltoCliente = {
   sugerencias: Sugerencia[];
   /** Solo si se pidieron: las cuotas sin interés confirmadas para `monto` (el total con tarjeta). */
   cuotas?: (CuotasVerificadas & { monto: number }) | null;
+  /** Solo si se pidieron y hay envío: las mismas, para el total sin el envío. */
+  cuotasSinEnvio?: (CuotasVerificadas & { monto: number }) | null;
 };
 
 /**

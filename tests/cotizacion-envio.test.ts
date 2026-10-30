@@ -13,6 +13,7 @@ const DATOS: DatosComprobante = {
   carrito: huella([["rec1", 1]]),
   entorno: "produccion",
   bonificado: false,
+  zona: "resto",
   cotizadoEn: new Date(AHORA).toISOString(),
   opcion: {
     id: "andreani:ground",
@@ -32,22 +33,39 @@ test("un comprobante firmado se lee tal cual", () => {
   assert.deepEqual(leerComprobante(token, CLAVE, { entorno: "produccion", ahora: AHORA }), DATOS);
 });
 
-test("cambiar el precio, la firma o la clave lo invalida", () => {
+test("cambiar el contenido, la etiqueta o la clave lo invalida", () => {
   const token = firmarComprobante(DATOS, CLAVE);
-  const [contenido, firma] = token.split(".");
-  const tocado = Buffer.from(
-    JSON.stringify({ ...DATOS, opcion: { ...DATOS.opcion, precio: 1 } })
-  ).toString("base64url");
-  assert.equal(leerComprobante(`${tocado}.${firma}`, CLAVE, { entorno: "produccion", ahora: AHORA }), null);
-  assert.equal(leerComprobante(`${contenido}.${firma.slice(1)}x`, CLAVE, { entorno: "produccion", ahora: AHORA }), null);
+  const [iv, cifrado, etiqueta] = token.split(".");
+  const bytes = Buffer.from(cifrado, "base64url");
+  bytes[0] ^= 1;
+  const tocado = [iv, bytes.toString("base64url"), etiqueta].join(".");
+  assert.equal(leerComprobante(tocado, CLAVE, { entorno: "produccion", ahora: AHORA }), null);
+  const otraEtiqueta = Buffer.from(etiqueta, "base64url");
+  otraEtiqueta[0] ^= 1;
+  assert.equal(leerComprobante([iv, cifrado, otraEtiqueta.toString("base64url")].join("."), CLAVE, { entorno: "produccion", ahora: AHORA }), null);
   assert.equal(leerComprobante(token, Buffer.from("otra-clave"), { entorno: "produccion", ahora: AHORA }), null);
+});
+
+test("el navegador no puede leer con quién se despacha", () => {
+  const token = firmarComprobante({ ...DATOS, opcion: { ...DATOS.opcion, transportista: "rueddo", transportistaNombre: "Rueddo" } }, CLAVE);
+  const visible = token
+    .split(".")
+    .map((p) => Buffer.from(p, "base64url").toString("latin1"))
+    .join(" ");
+  assert.ok(!/rueddo|andreani|precio|zona/i.test(visible), "va cifrado");
+  assert.notEqual(firmarComprobante(DATOS, CLAVE), firmarComprobante(DATOS, CLAVE), "cada uno con su propio iv");
+});
+
+test("un comprobante sin zona válida no sirve", () => {
+  const token = firmarComprobante({ ...DATOS, zona: "marte" as never }, CLAVE);
+  assert.equal(leerComprobante(token, CLAVE, { entorno: "produccion", ahora: AHORA }), null);
 });
 
 test("vencido, de otro entorno o con basura, no sirve", () => {
   const token = firmarComprobante(DATOS, CLAVE);
   assert.equal(leerComprobante(token, CLAVE, { entorno: "produccion", ahora: DATOS.exp }), null);
   assert.equal(leerComprobante(token, CLAVE, { entorno: "prueba", ahora: AHORA }), null);
-  for (const basura of [null, 42, "", "a.b.c", "sin-punto", "x".repeat(5000)]) {
+  for (const basura of [null, 42, "", "a.b", "a.b.c", "a..c", "sin-punto", "x".repeat(5000)]) {
     assert.equal(leerComprobante(basura, CLAVE, { entorno: "produccion", ahora: AHORA }), null, String(basura).slice(0, 20));
   }
 });
@@ -68,4 +86,6 @@ test("de la elección del navegador quedan el id y el comprobante, nunca un prec
   assert.equal(leerEleccionEnvio("andreani:ground"), undefined);
   assert.deepEqual(leerEleccionEnvio({ id: "andreani:ground; DROP", comprobante: "no es <un> token" }), undefined);
   assert.deepEqual(leerEleccionEnvio({ id: "correoArgentino:standard_dom" }), { id: "correoArgentino:standard_dom" });
+  assert.deepEqual(leerEleccionEnvio({ id: "domicilio", comprobante: token }), { id: "domicilio", comprobante: token });
+  assert.equal(leerEleccionEnvio({ comprobante: "dos.partes" }), undefined, "el formato viejo ya no sirve");
 });

@@ -12,8 +12,9 @@ test("con envío gratis configurado y sin cuotas", () => {
   assert.equal(m[0].texto, "Pagás con Mercado Pago");
   assert.match(m[1].texto, /Envío gratis desde \$\s?80\.000/);
   assert.equal(m[1].detalle, "A domicilio");
-  assert.equal(m[2].texto, `Cambios hasta ${DIAS_CAMBIO} días`);
-  assert.match(m[2].detalle ?? "", new RegExp(`${DIAS_ARREPENTIMIENTO} días`));
+  assert.equal(DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, "30 días para todo, sin cifras que se contradigan");
+  assert.equal(m[2].texto, `Cambios y devoluciones hasta ${DIAS_CAMBIO} días`);
+  assert.equal(m[2].detalle, "Devolución sin costo, sin uso y en su empaque");
   assert.equal(m[2].href, "/legales/devoluciones");
 });
 
@@ -67,4 +68,13 @@ test("ningún mensaje afirma algo que la tienda no puede probar, ni promete plaz
     assert.ok(!todo.includes(prohibida), `no debería decir "${prohibida}"`);
   }
   delete process.env.NEXT_PUBLIC_CUOTAS;
+});
+
+test("con envío gratis en AMBA más bajo, se anuncia ese y el de todo el país abajo", () => {
+  const envio = mensajesDeConfianza({ envioGratisDesde: 150000, envioGratisAmbaDesde: 60000 }).find((x) => x.clave === "envio");
+  assert.match(envio?.texto ?? "", /^Envío gratis en AMBA desde \$\s?60\.000$/);
+  assert.match(envio?.detalle ?? "", /^En todo el país desde \$\s?150\.000$/);
+  // Si el de AMBA no es más bajo, no tiene sentido nombrarlo.
+  const igual = mensajesDeConfianza({ envioGratisDesde: 60000, envioGratisAmbaDesde: 60000 }).find((x) => x.clave === "envio");
+  assert.match(igual?.texto ?? "", /^Envío gratis desde/);
 });
