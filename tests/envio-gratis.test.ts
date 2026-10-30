@@ -51,6 +51,24 @@ test("el plazo dicho para el comprador, sin inventar", () => {
   assert.equal(plazoParaComprador("Consultar"), null);
 });
 
+test("el plazo respeta la unidad del transportista: horas son horas, y lo que no se entiende no se promete", () => {
+  assert.equal(plazoParaComprador("24-48 hs"), "Llega en 24 a 48 h hábiles");
+  assert.equal(plazoParaComprador("48 horas"), "Llega en 48 h hábiles");
+  assert.equal(plazoParaComprador("72 hs"), "Llega en 72 h hábiles");
+  assert.equal(plazoParaComprador("24 hs"), "Llega en 24 h hábiles");
+  assert.equal(plazoParaComprador("3 to 5 days"), "Llega en 3 a 5 días hábiles");
+  assert.equal(plazoParaComprador("entre 3 y 6 días"), "Llega en 3 a 6 días hábiles");
+  assert.equal(plazoParaComprador("3 a 6 días hábiles"), "Llega en 3 a 6 días hábiles");
+  assert.equal(plazoParaComprador("1 día hábil"), "Llega en 1 día hábil");
+  assert.equal(plazoParaComprador("Hasta 5 días hábiles"), "Llega en hasta 5 días hábiles");
+  assert.equal(plazoParaComprador("Día hábil siguiente"), "Llega en 24 h hábiles");
+  assert.equal(plazoParaComprador("Next business day"), "Llega en 24 h hábiles");
+  assert.equal(plazoParaComprador("En el día"), "Llega en el día");
+  for (const raro of ["2026-11-05", "3 semanas", "2-7", "Entrega estimada", "5"]) {
+    assert.equal(plazoParaComprador(raro), null, raro);
+  }
+});
+
 test("la regla en una frase, según lo que haya en Config", () => {
   assert.match(sinEspacios(textoEnvioGratis(U)), /^Envío gratis en AMBA desde \$ 60\.000 y a todo el país desde \$ 150\.000\.$/);
   assert.match(sinEspacios(textoEnvioGratis({ amba: 0, nacional: 150000 })), /^Envío a domicilio\. Gratis desde \$ 150\.000\.$/);
@@ -62,7 +80,7 @@ test("en el carrito, sin dirección: gratis en AMBA o cuánto falta", () => {
   const unPar = envioEnElCarrito(89900, 10100, U);
   assert.equal(unPar.valor, "Gratis en AMBA");
   assert.match(sinEspacios(unPar.nota), /Al resto del país, gratis desde \$ 150\.000\./);
-  assert.equal(unPar.total, "Total");
+  assert.equal(unPar.total, "Total sin envío", "como el checkout: todavía no se sabe la dirección");
 
   const estuche = envioEnElCarrito(8990, 10100, U);
   assert.equal(estuche.valor, "Se calcula en el checkout");
@@ -148,4 +166,18 @@ test("el mail al comprador dice el plazo sin el transportista; el de Harper, con
 
   const interno = mailAvisoInterno({ ...datos, pedidoUrl: "https://airtable.com/x" });
   assert.match(interno.texto ?? "", /Envío: Rueddo/);
+});
+
+test("los montos de Config se leen como pesos: el punto separa los miles", async () => {
+  const { aPesos } = await import("../lib/formato");
+  assert.equal(aPesos("60000"), 60000);
+  assert.equal(aPesos("60.000"), 60000);
+  assert.equal(aPesos("$ 60.000"), 60000);
+  assert.equal(aPesos("150.000"), 150000);
+  assert.equal(aPesos("1.500.000"), 1500000);
+  assert.equal(aPesos("60.000,50"), 60000.5);
+  assert.equal(aPesos("9900,5"), 9900.5);
+  assert.equal(aPesos("60,000"), 60000);
+  assert.equal(aPesos("", 7), 7);
+  assert.equal(aPesos("nada", 7), 7);
 });

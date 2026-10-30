@@ -234,15 +234,13 @@ export default function FormularioCheckout({
   const resumen = medioPago === "dineroMP" && resumenDineroMP ? resumenDineroMP : resumenMercadoPago;
 
   // Las cuotas sin interés, solo si Mercado Pago las confirmó para el total
-  // de esta compra con tarjeta (con su envío): las del envío elegido, o las
-  // del carrito con la tarifa plana. Si el total es otro, no se anuncian.
-  const cuotasDelEnvio = opcionEnvio ? (cotizacion?.cuotas?.[opcionEnvio.id] ?? null) : null;
+  // exacto de esta compra con tarjeta: las del envío a esta dirección, las
+  // del carrito con la tarifa plana o las del total sin envío (todavía sin
+  // dirección). Si el total es otro, no se anuncian.
   const cuotas =
-    cuotasDelEnvio && cuotasDelEnvio.monto === resumenMercadoPago.total
-      ? cuotasDelEnvio
-      : carrito?.cuotas && carrito.cuotas.monto === resumenMercadoPago.total
-        ? carrito.cuotas
-        : null;
+    [cotizacion?.cuotas, carrito?.cuotas, carrito?.cuotasSinEnvio].find(
+      (c) => c && c.monto === resumenMercadoPago.total
+    ) ?? null;
   const cuotaTexto = cuotas ? `${cuotas.cuotas} cuotas sin interés de ${precioConCentavos(cuotas.montoCuota)}` : null;
   const cuotaCondiciones = cuotas
     ? `Precio de contado ${formatearPrecio(cuotas.monto)} · CFTEA ${cuotas.cftea} · ${NOMBRE_MARCAS}`
@@ -638,7 +636,10 @@ export default function FormularioCheckout({
       // depende de volver a preguntar (que puede no estar disponible).
       if (respuesta.status === 409 && typeof cuerpo.totalNuevo === "number") {
         recargar();
-        if (cuerpo.envio?.cotizado) adoptarEnvio(cuerpo.envio);
+        // El envío que calculó el servidor: cotizado (con su comprobante) o
+        // sin cotizar. Se adopta también sin Envia en el navegador, si no el
+        // total visto nunca coincidiría.
+        if (cuerpo.envio && (!cuerpo.envio.cotizado || cuerpo.envio.opciones.length > 0)) adoptarEnvio(cuerpo.envio);
         else recotizar();
         setFallo(
           `${cuerpo.error ?? "El total cambió: revisalo antes de pagar."} El total actualizado es ${formatearPrecio(cuerpo.totalNuevo)}.`
@@ -720,7 +721,11 @@ export default function FormularioCheckout({
   const notaEnvio = opcionEnvio
     ? (opcionEnvio.plazo ? `${opcionEnvio.plazo}.` : "Envío a domicilio.") +
       (cotizacion && !cotizacion.bonificado && cotizacion.gratisDesde > 0 ? ` Gratis desde ${formatearPrecio(cotizacion.gratisDesde)}.` : "")
-    : textoEnvioGratis(umbrales);
+    : // Sin cotizar para una dirección que no se sabe si es AMBA: no se le
+      // anuncia el mínimo de AMBA al lado de un envío que se cobra.
+      textoEnvioGratis(cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales);
+  // El total del botón: mientras falta saber el envío, se aclara que se suma.
+  const totalBoton = `${formatearPrecio(resumen.total)}${envioPorConocer && !gratisEnAmba ? " + envío" : ""}`;
   const listaItems = (
     <>
       {carrito.items.map((item) => (
@@ -948,7 +953,6 @@ export default function FormularioCheckout({
               Envío a domicilio
             </p>
             {opcionEnvio && cotizacion ? (
-              <>
                 <div className="medio-pago__opcion envio-domicilio" data-elegida="true">
                   <span className="medio-pago__texto">
                     <span className="medio-pago__nombre">Envío a domicilio</span>
@@ -964,19 +968,19 @@ export default function FormularioCheckout({
                     )}
                   </span>
                 </div>
-                <p className="envio-gratis-falta" role="status">
-                  {cotizacion.bonificado
-                    ? "¡Tu envío es gratis!"
-                    : cotizacion.falta > 0
-                      ? `Agregá ${formatearPrecio(cotizacion.falta)} más y tu envío es gratis.`
-                      : null}
-                </p>
-              </>
-            ) : (
-              <p className="apagado checkout__envio-nota" role="status">
-                Calculando el envío a tu dirección…
-              </p>
-            )}
+            ) : null}
+            {/* Un solo aviso, siempre montado mientras se ve el envío: así el
+                lector de pantalla anuncia cuando pasa de «Calculando…» a
+                «¡Tu envío es gratis!» o a cuánto le falta. */}
+            <p className={opcionEnvio && cotizacion ? "envio-gratis-falta" : "apagado checkout__envio-nota"} role="status">
+              {!opcionEnvio || !cotizacion
+                ? "Calculando el envío a tu dirección…"
+                : cotizacion.bonificado
+                  ? "¡Tu envío es gratis!"
+                  : cotizacion.falta > 0
+                    ? `Agregá ${formatearPrecio(cotizacion.falta)} más y tu envío es gratis.`
+                    : null}
+            </p>
           </div>
         ) : null}
 
@@ -1214,7 +1218,7 @@ export default function FormularioCheckout({
           disabled={enviando}
           aria-disabled={pagarAlCotizar !== null || undefined}
         >
-          {enviando ? "Redirigiendo…" : pagarAlCotizar !== null ? "Calculando el envío…" : <TextoPagoSeguro total={formatearPrecio(resumen.total)} />}
+          {enviando ? "Redirigiendo…" : pagarAlCotizar !== null ? "Calculando el envío…" : <TextoPagoSeguro total={totalBoton} />}
         </button>
 
         {medioPago === "dineroMP" ? (
@@ -1234,7 +1238,7 @@ export default function FormularioCheckout({
       <BarraPagar
         visible
         formulario={ID_FORMULARIO}
-        total={formatearPrecio(resumen.total)}
+        total={totalBoton}
         ocupado={enviando}
         esperando={pagarAlCotizar !== null ? "Calculando el envío…" : undefined}
       />

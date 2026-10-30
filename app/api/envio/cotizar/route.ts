@@ -91,16 +91,10 @@ export async function POST(request: Request) {
     });
 
     // Las cuotas sin interés se anuncian solo para el total exacto: se
-    // verifican para el total con el envío cotizado.
-    const cuotas: CotizacionEnvio["cuotas"] = Object.fromEntries(
-      await Promise.all(
-        (envio.bonificado ? [] : envio.opciones).map(async (o) => {
-          const monto = carrito.subtotal + o.precio;
-          const verificadas = await conLimite(verificarCuotas(monto), ESPERA_CUOTAS_MS, null);
-          return [o.id, verificadas ? { ...verificadas, monto } : null] as const;
-        })
-      )
-    );
+    // verifican para el total con este envío (también si es gratis o la
+    // tarifa plana), que es lo que se cobra.
+    const verificadas = await conLimite(verificarCuotas(carrito.total), ESPERA_CUOTAS_MS, null);
+    const cuotas: CotizacionEnvio["cuotas"] = verificadas ? { ...verificadas, monto: carrito.total } : null;
 
     return NextResponse.json({ ...envio, cuotas } satisfies CotizacionEnvio, { headers: sinCache });
   } catch (error) {

@@ -65,7 +65,8 @@ export async function GET() {
     configurado: enviaConfigurado(),
     entorno: entornoEnvia(),
     origenCompleto: config.envioOrigen !== null,
-    transportistas: config.envioTransportistas,
+    // Cuántos, no cuáles: esto es público y el comprador no sabe con quién despachamos.
+    transportistas: config.envioTransportistas.length,
     pesoMinimoKg: config.envioPesoMinimoKg,
   };
 
@@ -111,7 +112,7 @@ export async function GET() {
       // el servidor). Sin él la dirección se carga a mano: se vende igual.
       googlePlaces: configuracionDirecciones() !== null,
       // Cotización de envíos (token, origen y transportistas). Sin eso, tarifa plana.
-      envia: envia.configurado && envia.origenCompleto && envia.transportistas.length > 0,
+      envia: envia.configurado && envia.origenCompleto && envia.transportistas > 0,
     },
     redis,
     cuotas,
@@ -139,7 +140,7 @@ export async function GET() {
       envia.configurado && !envia.origenCompleto
         ? "Envia: falta el origen en Config (envio_origen_nombre, telefono, calle, numero, ciudad, provincia —una de las 24, con el nombre del checkout— y cp): se cobra la tarifa plana"
         : null,
-      envia.configurado && envia.transportistas.length === 0
+      envia.configurado && envia.transportistas === 0
         ? "Envia: falta envio_transportistas en Config: se cobra la tarifa plana"
         : null,
       conBasura.length > 0

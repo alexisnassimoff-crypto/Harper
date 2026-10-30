@@ -13,8 +13,8 @@ import {
   cotizarEnvia,
   cuatroDigitos,
   entornoEnvia,
+  esRepartoAmba,
   paqueteParaEnvia,
-  REPARTO_AMBA,
   resumenDeConsulta,
 } from "./envia";
 import { esEnvioGratis, type ZonaEnvio } from "./envio-gratis";
@@ -385,8 +385,11 @@ async function resolverEnvio(datos: {
 
   // AMBA es donde cotiza el reparto de 24 h: ese es el envío que se ofrece
   // ahí. En el resto, el más barato (las tarifas vienen ordenadas por costo).
-  const reparto = resultado.tarifas.find((t) => t.opcion.transportista === REPARTO_AMBA);
-  const zona: ZonaEnvio = reparto ? "amba" : "resto";
+  // Si el reparto no contestó (no es que no llegue: no contestó), la zona es
+  // la de sin cotizar: una caída del reparto no le cobra el envío a la Ciudad.
+  const reparto = resultado.tarifas.find((t) => esRepartoAmba(t.opcion.transportista));
+  const repartoSinRespuesta = resultado.sinRespuesta.some(esRepartoAmba);
+  const zona: ZonaEnvio = reparto ? "amba" : repartoSinRespuesta ? (zonaSinCotizar ?? "resto") : "resto";
   const elegida = reparto ?? resultado.tarifas[0];
   const bonificado = gratisEn(zona);
 

@@ -35,6 +35,10 @@ const UMBRALES = { amba: 60000, nacional: 150000 };
 
 let consultas = 0;
 let caido = false;
+/** El reparto de AMBA no contesta (503), los demás sí. */
+let repartoCaido = false;
+/** Cómo escribe Envia el código del reparto en la respuesta. */
+let nombreReparto = "rueddo";
 const fetchOriginal = globalThis.fetch;
 globalThis.fetch = (async (entrada: RequestInfo | URL, init?: RequestInit) => {
   const url = String(entrada);
@@ -44,10 +48,11 @@ globalThis.fetch = (async (entrada: RequestInfo | URL, init?: RequestInit) => {
   const cuerpo = JSON.parse(String(init?.body));
   const carrier = cuerpo.shipment.carrier;
   const enAmba = String(cuerpo.destination.postalCode).startsWith("1");
+  if (carrier === "rueddo" && repartoCaido) return new Response("Service Unavailable", { status: 503 });
   const data =
     carrier === "rueddo"
       ? enAmba
-        ? [{ carrier, service: "next_day", serviceDescription: "Día siguiente", deliveryEstimate: "Día siguiente", totalPrice: "5063.20", currency: "ARS" }]
+        ? [{ carrier: nombreReparto, service: "next_day", serviceDescription: "Día siguiente", deliveryEstimate: "Día siguiente", totalPrice: "5063.20", currency: "ARS" }]
         : null
       : carrier === "andreani"
         ? [{ carrier, service: "ground", serviceDescription: "Estándar", deliveryEstimate: "2-4 días", totalPrice: "8120.40", currency: "ARS" }]
@@ -66,6 +71,8 @@ function reiniciar() {
   vaciarCacheEnvia();
   consultas = 0;
   caido = false;
+  repartoCaido = false;
+  nombreReparto = "rueddo";
 }
 
 function abrir(comprobante: string) {
@@ -257,6 +264,51 @@ test("con Envia caído, sin destino completo o sin token: la tarifa plana (grati
   try {
     const sinToken = await resolverCarrito([m500(1)], { destino: CORDOBA });
     assert.equal(sinToken.envio, 10100);
+    assert.equal(consultas, 0);
+  } finally {
+    process.env.ENVIA_TOKEN = token;
+  }
+});
+
+test("si el reparto de AMBA no contesta (no es que no llegue), la Ciudad sigue con envío gratis", async () => {
+  reiniciar();
+  repartoCaido = true;
+  const caba = await resolverCarrito([citrino(1)], { destino: CABA });
+  assert.equal(caba.envioCotizado, true, "los demás sí cotizaron");
+  assert.equal(caba.envioZona, "amba");
+  assert.equal(caba.envioBonificado, true);
+  assert.equal(caba.envio, 0);
+  assert.notEqual(caba.envioDelPedido.opcion?.transportista, "rueddo", "se ofrece el que contestó");
+
+  // En la provincia, sin el reparto no se sabe: como con Envia caído, vale el mínimo de todo el país.
+  const sanIsidro = await resolverCarrito([citrino(1)], { destino: SAN_ISIDRO });
+  assert.equal(sanIsidro.envioZona, "resto");
+  assert.equal(sanIsidro.envioBonificado, false);
+
+  // Y si contestó que no llega (un 200 con error), es "resto" aunque sea la Ciudad.
+  reiniciar();
+  const cordoba = await resolverCarrito([citrino(1)], { destino: CORDOBA });
+  assert.equal(cordoba.envioZona, "resto");
+});
+
+test("el reparto se reconoce aunque Envia lo escriba con mayúsculas", async () => {
+  reiniciar();
+  nombreReparto = "Rueddo";
+  const caba = await resolverCarrito([citrino(1)], { destino: CABA });
+  assert.equal(caba.envioZona, "amba");
+  assert.equal(caba.envioBonificado, true);
+});
+
+test("sin token de Envia la regla de AMBA no se aplica: la Ciudad paga lo mismo que el carrito mostró", async () => {
+  reiniciar();
+  const token = process.env.ENVIA_TOKEN;
+  delete process.env.ENVIA_TOKEN;
+  try {
+    const sinDestino = await resolverCarrito([citrino(1)]);
+    const caba = await resolverCarrito([citrino(1)], { paraCobrar: true, destino: CABA });
+    assert.equal(caba.config.envioGratisAmbaDesde, 0);
+    assert.equal(caba.envio, sinDestino.envio, "sin el 409 en cada intento");
+    assert.equal(caba.envio, 10100);
     assert.equal(consultas, 0);
   } finally {
     process.env.ENVIA_TOKEN = token;

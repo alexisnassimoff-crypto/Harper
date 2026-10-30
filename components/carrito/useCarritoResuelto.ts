@@ -34,6 +34,8 @@ export type CarritoResueltoCliente = {
   sugerencias: Sugerencia[];
   /** Solo si se pidieron: las cuotas sin interés confirmadas para `monto` (el total con tarjeta). */
   cuotas?: (CuotasVerificadas & { monto: number }) | null;
+  /** Solo si se pidieron y hay envío: las mismas, para el total sin el envío. */
+  cuotasSinEnvio?: (CuotasVerificadas & { monto: number }) | null;
 };
 
 /**

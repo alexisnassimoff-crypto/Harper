@@ -47,13 +47,17 @@ export async function POST(request: Request) {
   // El checkout pide además las cuotas sin interés para el total con tarjeta
   // (con el envío): se anuncian solo si Mercado Pago las confirma para ese
   // monto, igual que en las fichas. Sin respuesta de Mercado Pago, no hay.
-  const [sugerencias, cuotasVerificadas] = await Promise.all([
+  // También para el total sin el envío, que es lo que muestra el checkout
+  // mientras no sabe la dirección (el envío depende de la zona).
+  const pideCuotas = cuotas === true && resuelto.items.length > 0;
+  const [sugerencias, cuotasVerificadas, cuotasSinEnvio] = await Promise.all([
     sugerirParaCarrito(resuelto.items, cuponAplicado).catch((error) => {
       console.error("[carrito] no se pudieron armar las sugerencias:", error);
       return [];
     }),
-    cuotas === true && resuelto.items.length > 0
-      ? conLimite(verificarCuotas(resuelto.total), ESPERA_CUOTAS_MS, null)
+    pideCuotas ? conLimite(verificarCuotas(resuelto.total), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
+    pideCuotas && resuelto.envio > 0
+      ? conLimite(verificarCuotas(resuelto.subtotal), ESPERA_CUOTAS_MS, null)
       : Promise.resolve(null),
   ]);
 
@@ -81,5 +85,6 @@ export async function POST(request: Request) {
       : null,
     sugerencias,
     cuotas: cuotasVerificadas ? { ...cuotasVerificadas, monto: resuelto.total } : null,
+    cuotasSinEnvio: cuotasSinEnvio ? { ...cuotasSinEnvio, monto: resuelto.subtotal } : null,
   });
 }

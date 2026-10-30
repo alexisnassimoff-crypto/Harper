@@ -1366,6 +1366,10 @@ p {
   font-weight: 600;
   color: var(--verde);
 }
+/* Vacío (sin nada que sugerir) no suma el hueco de la grilla; sigue montado para el lector de pantalla. */
+.medio-pago > p[role="status"]:empty {
+  margin-top: -0.5rem;
+}
 /* En celular, los productos ya se ven arriba (resumen desplegable). */
 @media (max-width: 59.99rem) {
   .checkout__panel-titulo,

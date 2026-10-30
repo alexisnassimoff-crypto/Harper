@@ -46,18 +46,33 @@ export function faltaParaGratis(subtotalSinCupon: number, zona: ZonaEnvio | null
 
 /**
  * El plazo de Envia dicho para el comprador: "Día siguiente" → "Llega en
- * 24 h hábiles"; "2-7 días" → "Llega en 2 a 7 días hábiles". Null si no hay
- * un plazo que se pueda decir con certeza.
+ * 24 h hábiles"; "2-7 días" → "Llega en 2 a 7 días hábiles"; "24-48 hs" →
+ * "Llega en 24 a 48 h hábiles". Solo lo que el transportista dice con su
+ * unidad (horas o días): cualquier otra cosa (una fecha, "semanas",
+ * "Consultar") es null, y no se promete nada.
  */
 export function plazoParaComprador(plazo: string | null | undefined): string | null {
-  const texto = (plazo ?? "").trim();
+  const texto = (plazo ?? "").trim().toLowerCase().replace(/\s+/g, " ");
   if (!texto) return null;
-  if (/mismo d[ií]a|same ?day/i.test(texto)) return "Llega en el día";
-  if (/d[ií]a siguiente|next ?day|24\s*h/i.test(texto)) return "Llega en 24 h hábiles";
-  const rango = texto.match(/(\d+)\s*(?:-|a|–)\s*(\d+)/);
-  if (rango) return `Llega en ${rango[1]} a ${rango[2]} días hábiles`;
-  const uno = texto.match(/(\d+)/);
-  if (uno) return Number(uno[1]) === 1 ? "Llega en 1 día hábil" : `Llega en ${uno[1]} días hábiles`;
+  if (/^(mismo d[ií]a|en el d[ií]a|same ?day)\b/.test(texto)) return "Llega en el día";
+  if (/^(d[ií]a (h[aá]bil )?siguiente|siguiente d[ií]a( h[aá]bil)?|next (business )?day)\b/.test(texto)) return "Llega en 24 h hábiles";
+
+  const hasta = /^hasta /.test(texto) ? "hasta " : "";
+  const resto = texto.replace(/^(hasta|entre) /, "");
+  const SEP = "\\s*(?:-|–|a|y|to)\\s*";
+  const rango = (unidad: string) => new RegExp(`^(\\d{1,3})(?:${SEP}(\\d{1,3}))?\\s*${unidad}$`);
+
+  const horas = resto.match(rango("(?:h|hs|hrs?|horas?|hours?)( h[aá]bil(?:es)?)?"));
+  if (horas) {
+    const [desde, a] = [Number(horas[1]), horas[2] ? Number(horas[2]) : null];
+    return a !== null && a !== desde ? `Llega en ${hasta}${desde} a ${a} h hábiles` : `Llega en ${hasta}${desde} h hábiles`;
+  }
+  const dias = resto.match(rango("(?:d[ií]as?|business days?|days?)( h[aá]bil(?:es)?)?"));
+  if (dias) {
+    const [desde, a] = [Number(dias[1]), dias[2] ? Number(dias[2]) : null];
+    if (a !== null && a !== desde) return `Llega en ${hasta}${desde} a ${a} días hábiles`;
+    return desde === 1 ? `Llega en ${hasta}1 día hábil` : `Llega en ${hasta}${desde} días hábiles`;
+  }
   return null;
 }
 
@@ -89,7 +104,8 @@ export function envioEnElCarrito(
     return {
       valor: "Gratis en AMBA",
       nota: u.nacional > 0 ? `Al resto del país, gratis desde ${precio(u.nacional)}.` : "Al resto del país se calcula en el checkout.",
-      total: "Total",
+      // Todavía no se sabe si la dirección es de AMBA: como en el checkout.
+      total: "Total sin envío",
     };
   }
   const falta = faltaParaGratis(subtotalSinCupon, hayAmba ? "amba" : "resto", u);
@@ -129,8 +145,8 @@ export type CotizacionEnvio = {
   gratisDesde: number;
   /** Lo que le falta al carrito para el envío gratis en esa zona; 0 si ya lo tiene. */
   falta: number;
-  /** Cuotas sin interés verificadas para el total con cada opción. */
-  cuotas: Record<string, (CuotasVerificadas & { monto: number }) | null>;
+  /** Las cuotas sin interés verificadas para el total con este envío (`monto`); null si no hay. */
+  cuotas: (CuotasVerificadas & { monto: number }) | null;
 };
 
 /**

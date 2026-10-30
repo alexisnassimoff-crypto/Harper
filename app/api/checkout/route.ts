@@ -193,16 +193,19 @@ export async function POST(request: Request) {
         {
           error: "El total cambió mientras completabas los datos. Revisalo antes de pagar.",
           totalNuevo: cobro.total,
-          // Si el envío se cotizó ahora, sus opciones (con comprobante): el
-          // checkout las muestra tal cual, sin volver a preguntar.
-          ...(carrito.opcionesEnvio.length > 0
+          // El envío del servidor, para que el checkout lo muestre tal cual
+          // sin volver a preguntar: el cotizado ahora (con su comprobante), o
+          // el que se cobra sin cotizar (la tarifa plana, o gratis en la
+          // Ciudad). No va si se cobró con el comprobante del navegador: ese
+          // el checkout ya lo tiene.
+          ...(carrito.opcionesEnvio.length > 0 || !carrito.envioCotizado
             ? {
                 envio: {
                   ...cotizacionParaComprador(carrito, {
                     amba: carrito.config.envioGratisAmbaDesde,
                     nacional: carrito.config.envioGratisDesde,
                   }),
-                  cuotas: {},
+                  cuotas: null,
                 } satisfies CotizacionEnvio,
               }
             : {}),

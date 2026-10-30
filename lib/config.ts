@@ -1,5 +1,6 @@
 import { listRecords, TABLAS } from "./airtable";
-import { aNumero } from "./formato";
+import { puedeCotizar } from "./envia";
+import { aNumero, aPesos } from "./formato";
 import { leerImpuestos, SIN_IMPUESTOS_CARGADOS, type ImpuestosNacionales } from "./impuestos";
 import { codigoEnviaDeProvincia } from "./provincias-envia";
 import type { OrigenEnvio } from "./tipos";
@@ -14,6 +15,9 @@ export type ConfigTienda = {
   /**
    * Envío gratis en AMBA (donde llega el reparto de 24 h) desde este
    * subtotal, más bajo que el de todo el país. 0 = sin regla para AMBA.
+   * También 0 si no se puede cotizar con Envia (sin token, origen o
+   * transportistas): sin cotizar no se sabe qué dirección es AMBA, así que
+   * ni se anuncia ni se aplica, y todo queda como antes.
    */
   envioGratisAmbaDesde: number;
   bannerTexto: string;
@@ -156,13 +160,18 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
   const texto = (clave: string, porDefecto: string) =>
     mapa.get(clave) || porDefecto;
 
+  const envioOrigen = leerOrigenEnvio(mapa);
+  const envioTransportistas = (mapa.get("envio_transportistas") ?? "")
+    .split(/[\s,;]+/)
+    .map((t) => t.trim())
+    .filter((t) => /^[A-Za-z][A-Za-z0-9_]{1,40}$/.test(t));
+
   return {
-    costoEnvio: aNumero(mapa.get("costo_envio"), POR_DEFECTO.costoEnvio),
-    envioGratisDesde: aNumero(
-      mapa.get("envio_gratis_desde"),
-      POR_DEFECTO.envioGratisDesde
-    ),
-    envioGratisAmbaDesde: aNumero(mapa.get("envio_gratis_amba_desde"), POR_DEFECTO.envioGratisAmbaDesde),
+    costoEnvio: aPesos(mapa.get("costo_envio"), POR_DEFECTO.costoEnvio),
+    envioGratisDesde: aPesos(mapa.get("envio_gratis_desde"), POR_DEFECTO.envioGratisDesde),
+    envioGratisAmbaDesde: puedeCotizar({ envioOrigen, envioTransportistas })
+      ? aPesos(mapa.get("envio_gratis_amba_desde"), POR_DEFECTO.envioGratisAmbaDesde)
+      : 0,
     bannerTexto: texto("banner_texto", POR_DEFECTO.bannerTexto),
     whatsapp: texto("whatsapp", POR_DEFECTO.whatsapp).replace(/\D/g, ""),
     emailContacto: texto("email_contacto", POR_DEFECTO.emailContacto),
@@ -177,12 +186,9 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
       POR_DEFECTO.embalajeMargenCm
     ),
     embalajePesoG: aNumero(mapa.get("embalaje_peso_g"), POR_DEFECTO.embalajePesoG),
-    envioOrigen: leerOrigenEnvio(mapa),
+    envioOrigen,
     envioPesoMinimoKg: kilos(mapa.get("envio_peso_kg")),
-    envioTransportistas: (mapa.get("envio_transportistas") ?? "")
-      .split(/[\s,;]+/)
-      .map((t) => t.trim())
-      .filter((t) => /^[A-Za-z][A-Za-z0-9_]{1,40}$/.test(t)),
+    envioTransportistas,
     portadaTitulo: texto("portada_titulo", POR_DEFECTO.portadaTitulo),
     portadaSubtitulo: texto("portada_subtitulo", POR_DEFECTO.portadaSubtitulo),
     portadaImagen: texto("portada_imagen", POR_DEFECTO.portadaImagen),
