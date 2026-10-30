@@ -31,9 +31,9 @@ test("las preguntas dicen solo lo confirmado", () => {
   const preguntas = preguntasDePortada(BASE);
   const texto = (inicio: string) => preguntas.find((p) => p.pregunta.startsWith(inicio))?.respuesta ?? "";
 
-  assert.ok(!preguntas.some((p) => p.pregunta.includes("incluye")), "sin Incluye cargado no se pregunta");
+  assert.ok(!preguntas.some((p) => /estuche|paño/i.test(p.respuesta)), "sin Incluye cargado no se nombra la caja");
   assert.equal(
-    texto("¿Qué tienen"),
+    texto("¿Qué trae"),
     "Filtro de luz azul, cristales fotocromáticos que se adaptan a la luz solar, protección UV400 contra los rayos UVA y UVB y armazón apto para colocar cristales con aumento."
   );
   assert.match(texto("¿Les puedo poner"), /los cristales oftálmicos te los ponemos nosotros: consultanos por WhatsApp con tu receta/);

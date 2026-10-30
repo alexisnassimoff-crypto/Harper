@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ConfigTienda } from "@/lib/config";
 import { leerDataFiscal } from "@/lib/data-fiscal";
+import { TEXTOS } from "@/lib/textos";
 import { EnlacePreferenciasCookies } from "./AvisoCookies";
 import Logo from "./Logo";
 import MediosDePago from "./MediosDePago";
@@ -37,7 +38,7 @@ export default function Footer({
       <div className="contenedor pie__principal">
         <div className="pie__marca">
           <Logo alto={58} lockup claro />
-          <p className="pie__lema">Diseño para todos los días.</p>
+          <p className="pie__lema">{TEXTOS.pie.lema}</p>
           <Link href="/quienes-somos" className="pie__enlace">
             Quiénes somos
           </Link>

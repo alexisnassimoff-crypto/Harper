@@ -9,9 +9,9 @@
 
 /** Descripción del sitio para buscadores y redes. Anteojos primero. */
 export const DESCRIPCION_SITIO =
-  "Anteojos Harper en varios modelos y colores. Comprá online y pagá con Mercado Pago. También estuches rígidos y paños de microfibra.";
+  "Anteojos fotocromáticos Harper con filtro de luz azul y UV400: se oscurecen solos al sol y se aclaran adentro. Elegí tu forma y tu color.";
 
-export const TITULO_SITIO = "Harper — Anteojos";
+export const TITULO_SITIO = "Harper — Anteojos fotocromáticos con filtro de luz azul";
 
 /**
  * El subtítulo del hero cuando Config.portada_subtitulo está vacío: qué
@@ -86,19 +86,17 @@ export function preguntasDePortada(datos: {
 }): Pregunta[] {
   const preguntas: Pregunta[] = [];
 
-  if (datos.incluye.length > 0) {
-    preguntas.push({
-      pregunta: "¿Qué incluye cada par?",
-      respuesta: conPunto(`Cada par incluye ${enumerar(datos.incluye.map(minuscula))}`),
-    });
+  // Lo que tienen y lo que viene en la caja, en una sola pregunta (menos texto, 30/10/2026).
+  const tienen =
+    datos.caracteristicas && datos.caracteristicas.length > 0
+      ? conPunto(enumerar([datos.caracteristicas[0], ...datos.caracteristicas.slice(1).map(minuscula)]))
+      : null;
+  const caja = datos.incluye.length > 0 ? conPunto(`Cada par incluye ${enumerar(datos.incluye.map(minuscula))}`) : null;
+  if (tienen || caja) {
+    preguntas.push({ pregunta: "¿Qué trae cada par?", respuesta: [tienen, caja].filter(Boolean).join(" ") });
   }
 
   if (datos.caracteristicas && datos.caracteristicas.length > 0) {
-    const [primera, ...resto] = datos.caracteristicas;
-    preguntas.push({
-      pregunta: "¿Qué tienen estos anteojos?",
-      respuesta: conPunto(enumerar([primera, ...resto.map(minuscula)])),
-    });
     preguntas.push({
       pregunta: "¿Les puedo poner cristales con aumento?",
       respuesta: `Sí: el armazón es apto para cristales con aumento, y los cristales oftálmicos te los ponemos nosotros${

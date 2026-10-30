@@ -326,7 +326,6 @@ p {
   font-size: 0.75rem;
 }
 
-
 /* ---------- Enlaces con subrayado animado ---------- */
 
 .enlace-verde {
@@ -397,7 +396,6 @@ p {
 
 /* ---------- Tarjeta de producto ---------- */
 
-
 .tarjeta__marco {
   position: relative;
   overflow: hidden;
@@ -411,12 +409,7 @@ p {
   transition: transform var(--lento) var(--curva);
 }
 
-
-
-
-
 /* Los puntitos de color asoman al pasar el mouse. */
-
 
 /* ---------- Selector de color y miniaturas ---------- */
 
@@ -845,7 +838,6 @@ p {
   font-size: 0.9375rem;
   line-height: 1.5;
 }
-
 
 /* La promoción del segundo par: una línea sobria, sin tabla ni insignias.
    El detalle va en un gris que cumple contraste AA sobre el fondo de la caja. */
@@ -4175,12 +4167,6 @@ p {
 .mosaico__foto img {
   transition: opacity 200ms ease;
 }
-.mosaico__numero {
-  position: absolute;
-  top: 0.55rem;
-  left: 0.65rem;
-  color: rgb(22 21 15 / 0.55);
-}
 .mosaico__nombre {
   position: absolute;
   left: 0.65rem;
@@ -4192,9 +4178,6 @@ p {
 
 /* ---------- Las líneas: una tira, las que vienen con «Próximamente» ---------- */
 
-.vitrina-portada__linea {
-  color: var(--tinta);
-}
 .lineas {
   padding-block: 2.5rem 0.5rem;
 }
@@ -4258,25 +4241,11 @@ p {
   line-height: 1.45;
   opacity: 0.8;
 }
-.linea__ficha {
-  font-size: 0.6875rem;
-  opacity: 0.7;
-}
-.viene__ficha {
-  margin-top: 0.35rem;
-}
-.viene__aumento {
-  margin-top: 0.5rem;
-  font-size: 0.875rem;
-}
-.viene__aumento a,
+
 .asi-llega__tira a {
   color: var(--verde);
   text-decoration: underline;
   text-underline-offset: 0.2em;
-}
-.linea[data-estado="disponible"] .linea__cuenta {
-  color: rgb(255 255 255 / 0.7);
 }
 
 .lo-que-viene {
@@ -4299,10 +4268,6 @@ p {
   font-family: var(--fuente-serif), Georgia, serif;
   font-weight: 400;
   font-size: 1.75rem;
-}
-.viene__promesa {
-  margin-top: 0.35rem;
-  font-size: 0.875rem;
 }
 .viene__modelos {
   display: grid;
@@ -4429,10 +4394,6 @@ p {
 .pieza__precio small {
   font-size: 0.8125rem;
   color: var(--verde);
-}
-.pieza__incluye {
-  font-size: 0.8125rem;
-  color: var(--texto-suave);
 }
 .pieza__sumar {
   margin-top: 0.4rem;
@@ -5074,11 +5035,6 @@ p {
 .nosotros-tira__pieza img {
   padding: 6% 8% 14%;
 }
-.nosotros-tira__nombre {
-  position: absolute;
-  left: 0.7rem;
-  bottom: 0.55rem;
-}
 .nosotros-frase {
   padding-block: 3.5rem;
   background: #efe6d6;
@@ -5151,22 +5107,9 @@ p {
   font-size: 0.875rem;
   line-height: 1.2;
 }
-.nosotros-viene__lista {
-  display: grid;
-  margin: 0.75rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-.nosotros-viene__lista li {
-  display: grid;
-  gap: 0.3rem;
-  padding-block: 1rem;
-  border-top: 1px solid var(--borde);
-}
-.nosotros-viene__nombre {
-  font-family: var(--fuente-serif), Georgia, serif;
-  font-weight: 400;
-  font-size: 1.5rem;
+.nosotros-viene__boton {
+  justify-self: start;
+  margin-top: 0.5rem;
 }
 @media (min-width: 48rem) {
   .nosotros-portada {
@@ -5181,10 +5124,6 @@ p {
   .nosotros-paleta__grilla {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.75rem;
-  }
-  .nosotros-viene__lista {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 2rem;
   }
 }
 

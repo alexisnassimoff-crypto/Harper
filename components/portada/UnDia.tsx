@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
+import { TEXTOS } from "@/lib/textos";
 
 /**
  * «Un día cualquiera»: el mismo par del café al partido. Hoy cada momento es
@@ -38,9 +39,9 @@ export default function UnDia({ momentos }: { momentos: MomentoDelDia[] }) {
   return (
     <section className="un-dia" aria-labelledby="un-dia-titulo">
       <div className="contenedor">
-        <p className="etiqueta-mono">Un día cualquiera</p>
+        <p className="etiqueta-mono">{TEXTOS.unDia.etiqueta}</p>
         <h2 id="un-dia-titulo" className="titulo-serif">
-          Del cortado al partido. Mismo par.
+          {TEXTOS.unDia.titulo}
         </h2>
       </div>
       <ol className="un-dia__carril">
