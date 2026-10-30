@@ -15,6 +15,7 @@ import PanelCarrito from "@/components/carrito/PanelCarrito";
 import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import { anunciosDelHeader } from "@/lib/anuncios";
+import { planesDeSocio } from "@/lib/socios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
 import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 
@@ -87,7 +88,12 @@ export default async function RootLayout({
   const [config, productos, tramos] = await Promise.all([getConfig(), getProductos(), getTramos()]);
   // El menú y el pie muestran solo las categorías con productos publicados:
   // las previstas (sol, Clip-On, receta) aparecen solas cuando tengan.
-  const categorias = categoriasConProductos(productos).map((c) => ({ nombre: c.nombre, slug: c.slug }));
+  // Socios Harper, si está a la venta, va al final del menú y del pie (lib/socios.ts).
+  const planes = planesDeSocio(productos, config.sociosCupos);
+  const categorias = [
+    ...categoriasConProductos(productos).map((c) => ({ nombre: c.nombre, slug: c.slug })),
+    ...(planes ? [{ nombre: "Socios", slug: "socios" }] : []),
+  ];
   // La barra de arriba anuncia las cuotas solo si Mercado Pago las confirma
   // para el anteojo más barato; si tarda, sale sin ellas.
   const cuotas = await conEspera(
@@ -155,7 +161,7 @@ export default async function RootLayout({
             Saltar al contenido
           </a>
           <Header
-            anuncios={anunciosDelHeader({ banner: config.bannerTexto, cuotas, escala: escalaDe(tramos, "Anteojos") })}
+            anuncios={anunciosDelHeader({ banner: config.bannerTexto, cuotas, escala: escalaDe(tramos, "Anteojos"), socios: planes })}
             categorias={categorias}
           />
           <main id="contenido" tabIndex={-1}>

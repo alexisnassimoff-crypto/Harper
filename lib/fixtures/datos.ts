@@ -25,6 +25,13 @@ export type RegistroFixture = {
 
 const CREADO = "2026-08-23T21:35:20.000Z";
 
+// Como en Airtable desde Socios Harper (Ale, 30/10/2026): con la membresía y
+// sin «llevá 3, pagá 2» ni tramos de anteojos (tampoco el mayorista: «esto es
+// para clientes minoristas»). Estuches y paños siguen con los suyos. Con HARPER_FIXTURES_ESCALA=1, la
+// tienda de antes (sin membresía, con la escala y los porcentajes de anteojos
+// cargados debajo), para probarla.
+const CON_ESCALA = process.env.HARPER_FIXTURES_ESCALA === "1";
+
 /** Dos renglones: la ficha y la portada los muestran como dos párrafos. */
 const DESCRIPCION_ANTEOJOS =
   "Anteojos con filtro de luz azul y cristales fotocromáticos.\nMarco liviano con el logo Harper en hot printing plata. Incluyen estuche rígido Harper con paño de microfibra.";
@@ -56,7 +63,29 @@ const ESTUCHE = {
   Incluye: "Paño de microfibra de alta densidad",
 };
 
+/** Socios Harper (Ale, 30/10/2026), como en Airtable. Ver lib/socios.ts. */
+const MEMBRESIA = { Categoria: "Membresía", Orden: 1 };
+
+const PRODUCTOS_MEMBRESIA: RegistroFixture[] = [
+  producto("recSOCIOSHARPER01", {
+    ...MEMBRESIA,
+    Nombre: "Socios Harper",
+    Slug: "socios-harper",
+    Precio: 159900,
+    Descripcion: "12 meses. Dos pares en el año, envío gratis, una reposición, precio congelado y acceso antes que nadie a cada lanzamiento.",
+  }),
+  producto("recSOCIOSAUMENTO1", {
+    ...MEMBRESIA,
+    Nombre: "Cristales con aumento para socios",
+    Slug: "socios-harper-aumento",
+    Orden: 2,
+    Precio: 90000,
+    Descripcion: "Cristales oftálmicos orgánicos con filtro de luz azul para los dos pares de la membresía.",
+  }),
+];
+
 export const PRODUCTOS: RegistroFixture[] = [
+  ...(CON_ESCALA ? [] : PRODUCTOS_MEMBRESIA),
   producto("recPJzzJFhyEF0DMw", {
     ...ANTEOJO,
     Nombre: "AMATISTA",
@@ -202,6 +231,14 @@ function conPortada(registro: RegistroFixture): RegistroFixture {
 }
 
 export const VARIANTES: RegistroFixture[] = [
+  // Los lugares que quedan son el stock de la membresía. Una prueba puede
+  // simular la temporada llena con HARPER_FIXTURES_SOCIOS_QUEDAN=0.
+  ...(CON_ESCALA
+    ? []
+    : [
+        variante("recVSOCIO12MESES", "recSOCIOSHARPER01", "SOCIO-12M", "12 meses", "#004226", Number(process.env.HARPER_FIXTURES_SOCIOS_QUEDAN ?? 100), 1, ["/productos/socios/socio.webp"]),
+        variante("recVSOCIOAUMENTO", "recSOCIOSAUMENTO1", "SOCIO-AUMENTO", "Para tus 2 pares", "#004226", 100, 1, ["/productos/socios/aumento.webp"]),
+      ]),
   variante("recLvS1Rce368QVeX", "recPJzzJFhyEF0DMw", "AMATISTA-NEGRO", "Negro", NEGRO, 12, 1, fotosAnteojo("amatista", "negro")),
   variante("rec30C9Sgrhdtf2Kx", "recPJzzJFhyEF0DMw", "AMATISTA-AMBAR", "Ámbar traslúcido", AMBAR, 12, 2, fotosAnteojo("amatista", "ambar")),
   variante("recKVFPGABlmfBNbk", "recPJzzJFhyEF0DMw", "AMATISTA-GRIS", "Gris traslúcido", GRIS_TRASLUCIDO, 12, 3, fotosAnteojo("amatista", "gris")),
@@ -285,6 +322,7 @@ export const CONFIG: RegistroFixture[] = [
   // ML_APP_SECRET). Sin esas variables, la portada ni la mira.
   config("ml_access_token", "TOKEN-DE-PRUEBA"),
   config("ml_token_vence", "4102444800000"),
+  config("socios_cupos", "100"),
 ];
 
 /**
@@ -328,12 +366,10 @@ function escalon(categoria: string, lleva: number, paga: number): RegistroFixtur
   };
 }
 
-// Los tramos por porcentaje de anteojos siguen cargados (como en Airtable
-// hasta publicar): con la escala, la web no los aplica.
 export const DESCUENTOS: RegistroFixture[] = [
-  ...["Anteojos", "Estuches", "Paños"].flatMap((c) => [descuento(c, 2, 5), descuento(c, 4, 10), descuento(c, 8, 15), descuento(c, 15, 20)]),
-  escalon("Anteojos", 3, 2),
-  escalon("Anteojos", 5, 3),
+  ...(CON_ESCALA ? [descuento("Anteojos", 2, 5), descuento("Anteojos", 4, 10), descuento("Anteojos", 8, 15), descuento("Anteojos", 15, 20)] : []),
+  ...["Estuches", "Paños"].flatMap((c) => [descuento(c, 2, 5), descuento(c, 4, 10), descuento(c, 8, 15), descuento(c, 15, 20)]),
+  ...(CON_ESCALA ? [escalon("Anteojos", 3, 2), escalon("Anteojos", 5, 3)] : []),
 ];
 
 /**
@@ -371,6 +407,7 @@ export function tablasIniciales(): Map<string, RegistroFixture[]> {
     [TABLAS.pedidos, estructurar(PEDIDOS)],
     [TABLAS.clientes, []],
     [TABLAS.arrepentimientos, []],
+    [TABLAS.socios, []],
     [TABLA_IMPORTACION_ML, estructurar(IMPORTACION_ML)],
   ]);
 }

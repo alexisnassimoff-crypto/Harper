@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getProductos, getSlugs } from "@/lib/catalogo";
 import { categoriasConProductos } from "@/lib/categorias";
+import { planesDeSocio } from "@/lib/socios";
 
 const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";
 
@@ -20,6 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const fijas = [
     { url: SITIO, priority: 1 },
     ...categorias,
+    ...(planesDeSocio(productos) ? [{ url: `${SITIO}/socios`, priority: 0.8 }] : []),
     { url: `${SITIO}/quienes-somos`, priority: 0.5 },
     { url: `${SITIO}/legales/terminos`, priority: 0.2 },
     { url: `${SITIO}/legales/privacidad`, priority: 0.2 },

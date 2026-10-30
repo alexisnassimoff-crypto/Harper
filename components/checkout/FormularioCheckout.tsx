@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
+import { esMembresia } from "@/lib/categorias";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
 import { NOMBRE_MARCAS } from "@/lib/cuotas";
 import { esEnvioGratis, textoEnvioGratis } from "@/lib/envio-gratis";
@@ -17,6 +18,7 @@ import {
   type Facturacion,
 } from "@/lib/facturacion";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
+import { TEXTOS } from "@/lib/textos";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, DestinoEnvio, EleccionEnvio } from "@/lib/tipos";
@@ -785,6 +787,8 @@ export default function FormularioCheckout({
   // desde otro (los dos sobre el subtotal sin el cupón, como el servidor).
   const umbrales = { amba: carrito.envioGratisAmbaDesde ?? 0, nacional: carrito.envioGratisDesde };
   const gratisEnAmba = esEnvioGratis(carrito.subtotalSinCupon ?? carrito.subtotal, "amba", umbrales);
+  // Con la membresía, el envío es gratis siempre (lib/socios.ts): no hay mínimo que anunciar.
+  const conSocio = carrito.items.some((i) => esMembresia(i.categoria));
 
   // Con envío gratis y cotizado, el precio real tachado: lo paga Harper.
   // Mientras se cotiza la dirección, no se anuncia un precio que va a cambiar.
@@ -810,9 +814,11 @@ export default function FormularioCheckout({
   const notaEnvio = opcionEnvio
     ? (opcionEnvio.plazo ? `${opcionEnvio.plazo}.` : "Envío a domicilio.") +
       (cotizacion && !cotizacion.bonificado && cotizacion.gratisDesde > 0 ? ` Gratis desde ${formatearPrecio(cotizacion.gratisDesde)}.` : "")
-    : // Sin cotizar para una dirección que no se sabe si es AMBA: no se le
-      // anuncia el mínimo de AMBA al lado de un envío que se cobra.
-      textoEnvioGratis(cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales);
+    : conSocio
+      ? TEXTOS.socios.envioGratis
+      : // Sin cotizar para una dirección que no se sabe si es AMBA: no se le
+        // anuncia el mínimo de AMBA al lado de un envío que se cobra.
+        textoEnvioGratis(cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales);
   // El total del botón: mientras falta saber el envío, se aclara que se suma.
   const totalBoton = `${formatearPrecio(resumen.total)}${envioPorConocer && !gratisEnAmba ? " + envío" : ""}`;
   const listaItems = (
@@ -829,6 +835,7 @@ export default function FormularioCheckout({
               {item.cantidad}× {item.nombre}
             </div>
             <div className="apagado">{item.color}</div>
+            {item.incluido ? <div style={{ color: "var(--verde)" }}>Incluido en tu membresía</div> : null}
           </div>
           <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal)}</span>
         </li>
@@ -1244,6 +1251,16 @@ export default function FormularioCheckout({
               <a href="/legales/terminos" target="_blank" rel="noopener" className="checkout__enlace">
                 Términos y condiciones
               </a>
+              {/* Con la membresía en el pedido, también sus condiciones (forman parte de los Términos). */}
+              {conSocio ? (
+                <>
+                  {" "}
+                  y las{" "}
+                  <a href="/legales/socios" target="_blank" rel="noopener" className="checkout__enlace">
+                    Condiciones de Socios Harper
+                  </a>
+                </>
+              ) : null}
               .
             </span>
           </label>
@@ -1296,7 +1313,13 @@ export default function FormularioCheckout({
 
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>{carrito.cupon?.estado === "aplicado" ? `Cupón ${carrito.cupon.codigo}` : "Descuento"}</span>
+            <span>
+              {carrito.cupon?.estado === "aplicado"
+                ? `Cupón ${carrito.cupon.codigo}`
+                : carrito.items.some((i) => i.incluido)
+                  ? "Par incluido en tu membresía"
+                  : "Descuento"}
+            </span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}

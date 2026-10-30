@@ -2,6 +2,7 @@ import { CUPON_BIENVENIDA, HAY_CUPONES } from "./cupones";
 import { nombreDelTramo, type Tramo } from "./descuentos";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "./cuotas";
 import { PORCENTAJE_DINERO_MP } from "./dinero-mp";
+import { TEXTOS } from "./textos";
 
 /**
  * Los mensajes de la barra verde de arriba, que pasan uno detrás del otro.
@@ -11,11 +12,18 @@ import { PORCENTAJE_DINERO_MP } from "./dinero-mp";
  * confirmó (aclarando que son en anteojos, con qué tarjetas y el CFTEA), el
  * 10% por dinero en Mercado Pago y, si hay, el cupón de primera compra. Con
  * la escala de anteojos («llevá 3, pagá 2 · llevá 5, pagá 3»), va segunda.
+ * Con Socios Harper a la venta, los lugares que quedan van segundos.
  */
-export function anunciosDelHeader(datos: { banner: string; cuotas: CuotasVerificadas | null; escala?: Tramo[] }): string[] {
+export function anunciosDelHeader(datos: {
+  banner: string;
+  cuotas: CuotasVerificadas | null;
+  escala?: Tramo[];
+  socios?: { quedan: number } | null;
+}): string[] {
   const escala = datos.escala ?? [];
   return [
     datos.banner.trim(),
+    datos.socios && datos.socios.quedan > 0 ? TEXTOS.socios.anuncio(datos.socios.quedan) : "",
     escala.length > 0 ? `${escala.map((t) => nombreDelTramo(t)).join(" · ")} en anteojos` : "",
     datos.cuotas
       ? `${datos.cuotas.cuotas} cuotas sin interés en anteojos con ${NOMBRE_MARCAS} · CFTEA ${datos.cuotas.cftea}`

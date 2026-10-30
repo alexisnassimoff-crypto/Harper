@@ -1,4 +1,4 @@
-import { categoriaDesdeTexto } from "./categorias";
+import { categoriaDesdeTexto, esCategoriaDeAnteojos, esMembresia } from "./categorias";
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { getProductos, getProductosParaCobrar } from "./catalogo";
 import {
@@ -29,10 +29,12 @@ import {
   getTramosParaCobrar,
   porcentajeParaCantidad,
   totalConDescuento,
+  tramosVigentes,
   type Tramo,
 } from "./descuentos";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
+import { aplicarMembresia, conMembresia, planesDeSocio } from "./socios";
 import type {
   Categoria,
   DestinoEnvio,
@@ -142,11 +144,13 @@ export async function resolverCarrito(
   // alguna falla, explota y el checkout pide reintentar. Antes, con la tabla
   // de descuentos caída, se cobraba el precio de lista sin avisar; con Config
   // caída, un envío de respaldo distinto del que el comprador había visto.
-  const [productos, config, tramos] = await Promise.all([
+  const [productos, config, tramosLeidos] = await Promise.all([
     opciones.paraCobrar ? getProductosParaCobrar() : getProductos(),
     opciones.paraCobrar ? getConfigParaCobrar() : getConfig(),
     opciones.paraCobrar ? getTramosParaCobrar() : getTramos(),
   ]);
+  // Al cobrar, los tramos vienen crudos: con Socios Harper a la venta no corre el «llevá 3, pagá 2».
+  const tramos = opciones.paraCobrar ? tramosVigentes(tramosLeidos, planesDeSocio(productos) !== null) : tramosLeidos;
 
   let items: ItemResuelto[] = [];
   const descartados: CarritoResuelto["descartados"] = [];
@@ -193,7 +197,8 @@ export async function resolverCarrito(
       stockDisponible: variante.stock,
     });
 
-    aEmpacar.push({ envase: producto.envase, cantidad });
+    // La membresía no viaja en la caja.
+    if (!esMembresia(producto.categoria)) aEmpacar.push({ envase: producto.envase, cantidad });
     porCategoria.set(
       producto.categoria,
       (porCategoria.get(producto.categoria) ?? 0) + cantidad
@@ -229,6 +234,14 @@ export async function resolverCarrito(
     });
     ahorro += lista - total;
   }
+
+  // Socios Harper: una membresía por pedido y el primer par incluido. Vale
+  // hasta lo que cuesta un anteojo de la línea de siempre (lib/socios.ts).
+  const topePar = Math.min(...productos.filter((p) => p.categoria === "Anteojos").map((p) => p.precio));
+  const membresia = aplicarMembresia(items, Number.isFinite(topePar) ? topePar : 0, esCategoriaDeAnteojos);
+  items = membresia.items;
+  for (const varianteId of membresia.quitados) descartados.push({ varianteId, motivo: "no-existe" });
+  ahorro += membresia.incluido;
 
   // El envío se calcula como siempre, con el subtotal sin el cupón: el cupón
   // no cambia quién tiene envío gratis.
@@ -319,7 +332,9 @@ async function resolverEnvio(datos: {
 }> {
   const hayItems = datos.items.length > 0;
   const umbrales = { amba: datos.config.envioGratisAmbaDesde, nacional: datos.config.envioGratisDesde };
-  const gratisEn = (zona: ZonaEnvio | null) => hayItems && esEnvioGratis(datos.subtotal, zona, umbrales);
+  // Con la membresía en el pedido, el envío es gratis siempre (lib/socios.ts).
+  const socio = conMembresia(datos.items);
+  const gratisEn = (zona: ZonaEnvio | null) => hayItems && (socio || esEnvioGratis(datos.subtotal, zona, umbrales));
 
   const destino = destinoCompleto(datos.destino);
   const paquete = paqueteParaEnvia(datos.paquete, datos.config.envioPesoMinimoKg);

@@ -88,6 +88,11 @@ export type ConfigTienda = {
    */
   portadaProducto: string;
   /**
+   * Los lugares de Socios Harper en la temporada, clave `socios_cupos` (100
+   * al lanzar). Los que quedan son el Stock de la membresía. Ver lib/socios.ts.
+   */
+  sociosCupos: number;
+  /**
    * El código del Formulario 960/D (Data Fiscal) tal como lo entrega ARCA,
    * clave `data_fiscal`. Vacío = no se muestra. Ver lib/data-fiscal.ts.
    */
@@ -140,6 +145,7 @@ const POR_DEFECTO: ConfigTienda = {
   portadaSubtitulo: "",
   portadaImagen: "",
   portadaProducto: "",
+  sociosCupos: 100,
   dataFiscal: "",
   impuestosNacionales: SIN_IMPUESTOS_CARGADOS,
   condicionIva: "",
@@ -214,6 +220,7 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
     portadaSubtitulo: texto("portada_subtitulo", POR_DEFECTO.portadaSubtitulo),
     portadaImagen: texto("portada_imagen", POR_DEFECTO.portadaImagen),
     portadaProducto: texto("portada_producto", POR_DEFECTO.portadaProducto),
+    sociosCupos: Math.max(0, Math.round(aNumero(mapa.get("socios_cupos"), POR_DEFECTO.sociosCupos))),
     dataFiscal: texto("data_fiscal", POR_DEFECTO.dataFiscal),
     impuestosNacionales: leerImpuestos(mapa),
     condicionIva: texto("condicion_iva", POR_DEFECTO.condicionIva),

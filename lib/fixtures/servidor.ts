@@ -98,7 +98,8 @@ function crear(id: string, fields: Record<string, unknown>) {
   const fila: RegistroFixture = {
     id: nuevoId(),
     createdTime: new Date().toISOString(),
-    fields: { ...fields },
+    // Socios.Numero es autonumérico en Airtable: lo pone la base, en orden.
+    fields: id === TABLAS.socios ? { ...fields, Numero: tabla(id).length + 1 } : { ...fields },
   };
   tabla(id).push(fila);
   return fila;

@@ -21,6 +21,8 @@ import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { armarPack, cantidadesDePack, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
+import { planesDeSocio } from "@/lib/socios";
+import PlanesSocio from "@/components/socios/PlanesSocio";
 import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
 import { rutaDeVariante } from "@/lib/variantes";
@@ -141,12 +143,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
     config.portadaSubtitulo ||
     [
       (confirmados ? TEXTOS.portada.bajada : TEXTOS.portada.bajadaSinConfirmar)(precio ? formatearPrecio(precio) : null),
-      precio && pack2 && cuota2
-        ? tramo2?.paga
-          ? TEXTOS.portada.promo(tramo2.desdeUnidades, tramo2.paga, formatearPrecio(pack2.total), cuota2.cuotas, precioConCentavos(cuota2.montoCuota))
-          : nombrePromo
-            ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}.`
-            : null
+      precio && pack2 && cuota2 && tramo2?.paga
+        ? TEXTOS.portada.promo(tramo2.desdeUnidades, tramo2.paga, formatearPrecio(pack2.total), cuota2.cuotas, precioConCentavos(cuota2.montoCuota))
         : null,
     ]
       .filter(Boolean)
@@ -264,6 +262,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       : null;
   const paisConDos = paresPaisGratis !== null && paresPaisGratis > 1;
   const complementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
+  // Socios Harper (Ale, 30/10/2026): donde estaba el «llevá 3, pagá 2».
+  const planes = planesDeSocio(productos, config.sociosCupos);
   // Los cristales con aumento los vende Harper: se consultan por WhatsApp (Ale, 30/10/2026).
   const consultaAumento = enlaceWhatsApp(config.whatsapp, mensajeGraduadosModelo(""));
 
@@ -358,7 +358,35 @@ export default async function PortadaVitrina({ productos, config }: { productos:
         </section>
       ) : null}
 
-      {precio && filas.length > 0 ? (
+      {planes ? (
+        <section className="de-a-dos socios-en-portada" aria-labelledby="socios-portada-titulo">
+          <div className="contenedor de-a-dos__grilla">
+            <div className="de-a-dos__fotos" aria-hidden="true">
+              <span className="de-a-dos__tarjeta de-a-dos__tarjeta--1">
+                <Image src="/productos/socios/socio.webp" alt="" fill sizes="(max-width: 768px) 60vw, 30vw" />
+              </span>
+              {fotosPack[0] ? (
+                <span className="de-a-dos__tarjeta de-a-dos__tarjeta--2">
+                  <Image src={fotosPack[0].src} alt="" fill sizes="(max-width: 768px) 60vw, 30vw" className="foto-multiplicada" />
+                </span>
+              ) : null}
+            </div>
+            <div className="de-a-dos__texto">
+              <p className="etiqueta-mono">
+                {TEXTOS.socios.etiqueta} · {TEXTOS.socios.cupos(planes.quedan, planes.cupos)}
+              </p>
+              <h2 id="socios-portada-titulo" className="titulo-serif">
+                {TEXTOS.socios.titulo}
+              </h2>
+              <p className="de-a-dos__bajada">{TEXTOS.socios.bajada}</p>
+              <PlanesSocio planes={planes} colores={coloresPack} />
+              <p className="de-a-dos__letra">
+                <Link href="/socios">{TEXTOS.socios.enlace}</Link>
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : precio && filas.length > 0 ? (
         <DeADos
           filas={filas}
           colores={coloresPack}
@@ -502,6 +530,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           mesesGarantia: MESES_GARANTIA,
           cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
           escala: fraseDeLaEscala(tramos, categoria),
+          socios: planes?.socio.precioTexto ?? null,
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
         })}
       />
@@ -526,7 +555,9 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           {precio ? (
             <p>
               {TEXTOS.cierre.precio(formatearPrecio(precio))}
-              {escala[0]
+              {planes
+                ? TEXTOS.socios.cierre
+                : escala[0]
                 ? TEXTOS.cierre.escala(enLetras(escala[0].desdeUnidades), enLetras(escala[0].paga ?? escala[0].desdeUnidades))
                 : paisConDos && paresPaisGratis
                   ? ` Con ${enLetras(paresPaisGratis)}, envío gratis a todo el país.`
@@ -559,7 +590,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           despuesDe="vitrina-portada"
           precioPar={precio}
           invitacion={
-            cuota2 && nombrePromo
+            cuota2 && tramo2 && nombrePromo
               ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}`
               : `Cada par, ${formatearPrecio(precio)}`
           }

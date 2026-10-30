@@ -114,7 +114,13 @@ export default function VistaCarrito() {
 
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>{datos.cupon?.estado === "aplicado" ? `Cupón ${datos.cupon.codigo}` : "Descuento"}</span>
+            <span>
+              {datos.cupon?.estado === "aplicado"
+                ? `Cupón ${datos.cupon.codigo}`
+                : datos.items.some((i) => i.incluido)
+                  ? "Par incluido en tu membresía"
+                  : "Descuento"}
+            </span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}

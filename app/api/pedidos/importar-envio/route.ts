@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRecord, TABLAS, updateRecord } from "@/lib/airtable";
+import { esMembresia } from "@/lib/categorias";
 import { getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { importarEnvio } from "@/lib/correo";
@@ -116,6 +117,8 @@ export async function GET(request: Request) {
 
     const aEmpacar: ItemAEmpacar[] = [];
     for (const item of items) {
+      // La membresía de Socios Harper no viaja en la caja.
+      if (item.categoria && esMembresia(item.categoria)) continue;
       const producto = productos.find((p) => p.id === item.productoId);
       aEmpacar.push({ envase: producto?.envase ?? null, cantidad: item.cantidad });
     }

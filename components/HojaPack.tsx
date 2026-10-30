@@ -12,6 +12,9 @@ import { trackAgregarAlCarrito } from "@/lib/pixel";
  * anteojos juntos) y comprarlos de una. La usan la portada (DeADos) y la
  * ficha (las opciones «llevá 3, pagá 2»). Acá solo se cuenta cuántos pares
  * eligió: los montos vienen armados del servidor.
+ *
+ * Socios Harper la usa para elegir el primer par de la membresía: con
+ * `extras`, la membresía entra al carrito junto con el par.
  */
 
 export type ColorDeADos = {
@@ -27,6 +30,9 @@ export type ColorDeADos = {
 
 export type EstucheDeADos = { slug: string; varianteId: string; sku: string; nombre: string; precio: number; precioTexto: string };
 
+/** Lo que entra al carrito junto con los pares (la membresía, por ejemplo). */
+export type ExtraDeLaHoja = { productoSlug: string; varianteId: string; sku: string; nombre: string; precio: number };
+
 export type HojaPackControl = {
   /** Abre la hoja para `cantidad` pares, con los que ya vienen elegidos (variante → cantidad). */
   abrir: (cantidad: number, elegidos?: Record<string, number>) => void;
@@ -37,12 +43,20 @@ export default function HojaPack({
   colores,
   estuche = null,
   totales,
+  titulo = "Armá tu pack",
+  extras = [],
+  textoComprar,
 }: {
   ref?: Ref<HojaPackControl>;
   colores: ColorDeADos[];
   estuche?: EstucheDeADos | null;
   /** El total de cada pack, para el botón ("$ 179.800"); sin él, el botón no lo dice. */
   totales: Record<number, string>;
+  titulo?: string;
+  /** Lo que se suma al carrito junto con los pares elegidos. */
+  extras?: ExtraDeLaHoja[];
+  /** El texto del botón de compra, si no es «Comprar N pares». */
+  textoComprar?: string;
 }) {
   const router = useRouter();
   const { agregar } = useCarrito();
@@ -85,6 +99,10 @@ export default function HojaPack({
   function comprar() {
     if (cuenta !== pack || yendo) return;
     setYendo(true);
+    for (const e of extras) {
+      agregar({ productoSlug: e.productoSlug, varianteId: e.varianteId, cantidad: 1 });
+      trackAgregarAlCarrito({ sku: e.sku, nombre: e.nombre, precio: e.precio });
+    }
     for (const c of colores) {
       const cantidad = elegidos[c.id] ?? 0;
       if (cantidad <= 0) continue;
@@ -103,14 +121,20 @@ export default function HojaPack({
     <dialog ref={hoja} className="hoja-pack" aria-labelledby="hoja-pack-titulo" onClose={() => setYendo(false)}>
       <div className="hoja-pack__cabecera">
         <h2 id="hoja-pack-titulo" className="hoja-pack__titulo">
-          Armá tu pack
+          {titulo}
         </h2>
         <button type="button" className="hoja-pack__cerrar" aria-label="Cerrar" onClick={() => hoja.current?.close()}>
           ×
         </button>
       </div>
       <p className="hoja-pack__contador" role="status">
-        {cuenta === pack ? `Listo: ${pack} pares.` : `Elegí ${pack} pares · ${cuenta} de ${pack}`}
+        {pack === 1
+          ? cuenta === 1
+            ? "Listo: ya elegiste tu par."
+            : "Elegí un par."
+          : cuenta === pack
+            ? `Listo: ${pack} pares.`
+            : `Elegí ${pack} pares · ${cuenta} de ${pack}`}
       </p>
 
       <ul className="hoja-pack__colores">
@@ -164,7 +188,9 @@ export default function HojaPack({
         ) : null}
 
         <button type="button" className="boton boton--bloque hoja-pack__comprar" onClick={comprar} disabled={cuenta !== pack || yendo}>
-          {yendo ? "Un momento…" : `Comprar ${pack} pares${totales[pack] && !conEstuche ? ` · ${totales[pack]}` : ""}`}
+          {yendo
+            ? "Un momento…"
+            : (textoComprar ?? `Comprar ${pack} ${pack === 1 ? "par" : "pares"}${totales[pack] && !conEstuche ? ` · ${totales[pack]}` : ""}`)}
         </button>
       </div>
     </dialog>

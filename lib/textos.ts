@@ -106,4 +106,99 @@ export const TEXTOS = {
     vieneBoton: "Ver lo que viene",
     cierre: "Anteojos para combinar. Buenos Aires, Argentina.",
   },
+  /** Socios Harper (lib/socios.ts). Lo que se promete acá es lo que Ale aprobó para la membresía. */
+  socios: {
+    etiqueta: "Socios Harper",
+    cupos: (quedan: number, cupos: number) => (quedan > 0 ? `Quedan ${quedan} de ${cupos} lugares` : `Los ${cupos} lugares ya están ocupados`),
+    titulo: "Tus anteojos, resueltos por un año.",
+    bajada:
+      "Te hacés socio una vez y durante 12 meses tenés dos pares, envío gratis y reposición si se rompen o los perdés. Son pocos lugares y van numerados.",
+    periodo: "por 12 meses",
+    boton: "Hacerme socio",
+    lleno: "Sin lugares",
+    hojaTitulo: "Elegí tu primer par",
+    planSocio: {
+      apodo: "12 meses",
+      titulo: "Socio",
+      detalle: [
+        "2 pares de anteojos",
+        "Envío gratis siempre",
+        "1 reposición si se rompen o los perdés",
+        "Precio congelado en los pares extra",
+        "72 horas antes en cada lanzamiento",
+      ],
+    },
+    planAumento: {
+      apodo: "Con tus cristales",
+      titulo: "Socio con aumento",
+      detalle: ["Todo lo del plan Socio", "Cristales con aumento en los 2 pares", "La reposición, también con tus cristales"],
+    },
+    /**
+     * Los beneficios, uno por renglón y siempre en este orden: la tabla de
+     * /socios, las condiciones y el mail salen de acá. `socio` y `aumento` son
+     * lo que trae cada plan; null = no lo trae.
+     */
+    tablaTitulo: "Qué incluye cada plan",
+    beneficios: [
+      {
+        titulo: "2 pares de anteojos",
+        detalle:
+          "El primero lo elegís al hacerte socio. El segundo, cuando quieras durante los 12 meses, también de los modelos que lleguen después. Si cuesta más que un fotocromático, pagás solo la diferencia.",
+        socio: "2",
+        aumento: "2",
+      },
+      {
+        titulo: "Cristales con aumento",
+        detalle:
+          "Orgánicos y con filtro de luz azul, en los dos pares. Nos mandás tu receta por WhatsApp: en general están listos en 24 horas, más el envío.",
+        socio: null,
+        aumento: "En los 2 pares",
+      },
+      { titulo: "Envío gratis", detalle: "En todos tus pedidos durante los 12 meses, a todo el país.", socio: "Siempre", aumento: "Siempre" },
+      {
+        titulo: "Reposición",
+        detalle: "Si se rompen o los perdés, te mandamos otro par igual. Una vez durante la membresía.",
+        socio: "1",
+        aumento: "1, con tus cristales",
+      },
+      {
+        titulo: "Precio congelado",
+        detalle: "Los pares extra que compres durante el año, al precio del día en que te hiciste socio.",
+        socio: "12 meses",
+        aumento: "12 meses",
+      },
+      {
+        titulo: "Antes que nadie",
+        detalle: "En cada lanzamiento elegís 72 horas antes que el resto, cuando todavía están todos los colores.",
+        socio: "72 horas",
+        aumento: "72 horas",
+      },
+    ],
+    pasosTitulo: "Cómo funciona",
+    pasos: [
+      "Elegís el plan y tu primer par.",
+      "Pagás con Mercado Pago y te llega un mail con tu número de socio.",
+      "El segundo par, la reposición y los cristales los pedís por WhatsApp con ese número.",
+    ],
+    condicionesTitulo: "Las condiciones",
+    condiciones: [
+      "La membresía dura 12 meses desde el día del pago y no se renueva sola.",
+      "El segundo par y la reposición se piden una vez cada uno durante esos 12 meses. Si no los usás, vencen.",
+      "Tenés 10 días para arrepentirte, como en cualquier compra online.",
+      "Los lugares son pocos y van numerados. Cuando se ocupan todos, la inscripción se cierra.",
+    ],
+    condicionesEnlace: "Condiciones completas de Socios Harper",
+    envioGratis: "Con tu membresía, el envío es gratis a todo el país.",
+    enlace: "Ver todos los beneficios",
+    ficha: {
+      titulo: "Hacete socio con este par",
+      texto: "Este par va incluido. Durante 12 meses tenés otro par más, envío gratis, una reposición y precio congelado.",
+    },
+    /** Al final de la portada, después del precio del par. */
+    cierre: " O hacete socio y tenés dos pares en el año.",
+    anuncio: (quedan: number) => `Socios Harper: quedan ${quedan} lugares`,
+    pregunta: "¿Qué es Socios Harper?",
+    respuesta: (precio: string) =>
+      `Una membresía de 12 meses: pagás ${precio} una vez y tenés dos pares en el año, envío gratis siempre, una reposición si se rompen o los perdés y precio congelado para los pares extra. Los lugares son pocos y van numerados.`,
+  },
 };
