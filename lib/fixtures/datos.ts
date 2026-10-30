@@ -319,12 +319,22 @@ function descuento(categoria: string, desde: number, porcentaje: number): Regist
   };
 }
 
-export const DESCUENTOS: RegistroFixture[] = ["Anteojos", "Estuches", "Paños"].flatMap((c) => [
-  descuento(c, 2, 5),
-  descuento(c, 4, 10),
-  descuento(c, 8, 15),
-  descuento(c, 15, 20),
-]);
+/** «Llevá N, pagá M» (Ale, 30/10/2026): sin porcentaje, la web lo saca de la cuenta. */
+function escalon(categoria: string, lleva: number, paga: number): RegistroFixture {
+  return {
+    id: `recESCALA${categoria}${lleva}`,
+    createdTime: CREADO,
+    fields: { Nombre: `${categoria} ${lleva}x${paga}`, Categoria: categoria, Desde_unidades: lleva, Paga_unidades: paga, Activo: true },
+  };
+}
+
+// Los tramos por porcentaje de anteojos siguen cargados (como en Airtable
+// hasta publicar): con la escala, la web no los aplica.
+export const DESCUENTOS: RegistroFixture[] = [
+  ...["Anteojos", "Estuches", "Paños"].flatMap((c) => [descuento(c, 2, 5), descuento(c, 4, 10), descuento(c, 8, 15), descuento(c, 15, 20)]),
+  escalon("Anteojos", 3, 2),
+  escalon("Anteojos", 5, 3),
+];
 
 /**
  * Un pedido ya pagado, para ver la página de gracias confirmada (y el evento

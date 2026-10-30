@@ -13,7 +13,7 @@ import CuponBienvenida from "@/components/producto/CuponBienvenida";
 import Galeria from "@/components/producto/Galeria";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { parrafosDe } from "@/lib/descripcion";
-import { buscarCupon, CUPON_BIENVENIDA } from "@/lib/cupones";
+import { buscarCupon, CUPON_BIENVENIDA, HAY_CUPONES } from "@/lib/cupones";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { conDescuento, type Tramo } from "@/lib/descuentos";
 import { esEnvioGratis } from "@/lib/envio-gratis";
@@ -335,15 +335,17 @@ export default function CompraPortada({
         ) : null}
 
         {/* El cupón habla de la compra elegida (el pack), no de un par suelto. */}
-        <CuponBienvenida
-          precio={producto.precio}
-          estadoServidor={carritoResuelto?.cupon ?? null}
-          compra={
-            conOtrosProductos
-              ? "carrito"
-              : { conCupon: compra.conCupon, porcentaje: compra.porcentaje, ahorro: compra.ahorro, total: compra.total }
-          }
-        />
+        {HAY_CUPONES ? (
+          <CuponBienvenida
+            precio={producto.precio}
+            estadoServidor={carritoResuelto?.cupon ?? null}
+            compra={
+              conOtrosProductos
+                ? "carrito"
+                : { conCupon: compra.conCupon, porcentaje: compra.porcentaje, ahorro: compra.ahorro, total: compra.total }
+            }
+          />
+        ) : null}
 
         {/* ---------- Packs ---------- */}
         <fieldset className="packs">

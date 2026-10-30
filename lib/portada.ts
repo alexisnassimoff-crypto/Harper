@@ -78,7 +78,10 @@ export function preguntasDePortada(datos: {
   diasArrepentimiento: number;
   diasCambio: number;
   mesesGarantia: number;
-  cupon: { codigo: string; porcentaje: number };
+  /** El cupón de primera compra; null si no hay (desde el 30/10/2026). */
+  cupon: { codigo: string; porcentaje: number } | null;
+  /** La escala de anteojos, "llevá 3 y pagá 2, o llevá 5 y pagá 3"; null si no hay. */
+  escala?: string | null;
   porcentajeDineroMP: number;
 }): Pregunta[] {
   const preguntas: Pregunta[] = [];
@@ -141,10 +144,17 @@ export function preguntasDePortada(datos: {
     enlace: { href: "/legales/devoluciones", texto: "Ver la política de cambios" },
   });
 
-  preguntas.push({
-    pregunta: "¿Hay descuento en la primera compra?",
-    respuesta: `Sí: con el código ${datos.cupon.codigo} tenés ${datos.cupon.porcentaje}% OFF en tu primera compra. No se suma a la promoción por cantidad: se aplica la que más te conviene. El ${datos.porcentajeDineroMP}% extra por pagar con dinero en Mercado Pago sí se suma.`,
-  });
+  if (datos.cupon) {
+    preguntas.push({
+      pregunta: "¿Hay descuento en la primera compra?",
+      respuesta: `Sí: con el código ${datos.cupon.codigo} tenés ${datos.cupon.porcentaje}% OFF en tu primera compra. No se suma a la promoción por cantidad: se aplica la que más te conviene. El ${datos.porcentajeDineroMP}% extra por pagar con dinero en Mercado Pago sí se suma.`,
+    });
+  } else if (datos.escala) {
+    preguntas.push({
+      pregunta: "¿Hay descuento por llevar más de un par?",
+      respuesta: `Sí: ${datos.escala}. Podés mezclar modelos y colores, y se aplica solo en el carrito. El ${datos.porcentajeDineroMP}% extra por pagar con dinero en Mercado Pago también se suma.`,
+    });
+  }
 
   return preguntas;
 }

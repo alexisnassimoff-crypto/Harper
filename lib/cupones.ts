@@ -27,16 +27,26 @@ export type Cupon = {
 
 export const CUPON_BIENVENIDA: Cupon = { codigo: "HARPER10", porcentaje: 10, soloPrimeraCompra: true };
 
-const CUPONES: Cupon[] = [CUPON_BIENVENIDA];
+/**
+ * Los cupones que se aceptan. HARPER10 dejó de ofrecerse el 30/10/2026 (Ale):
+ * la promoción pasó a ser «llevá 3, pagá 2 · llevá 5, pagá 3». Sin cupones,
+ * no se muestra ningún casillero de código y el servidor no descuenta nada
+ * por un código viejo que haya quedado guardado en un navegador.
+ */
+const CUPONES: Cupon[] = [];
+
+/** Falso mientras no haya cupones: la ficha, el carrito y el checkout no muestran el casillero. */
+export const HAY_CUPONES = CUPONES.length > 0;
 
 /** " harper10 " → "HARPER10". Lo que no es letra o número se descarta. */
 export function normalizarCodigo(crudo: unknown): string {
   return typeof crudo === "string" ? crudo.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 30) : "";
 }
 
-export function buscarCupon(crudo: unknown): Cupon | null {
+/** `cupones` es para las pruebas: la tienda usa siempre la lista de arriba. */
+export function buscarCupon(crudo: unknown, cupones: Cupon[] = CUPONES): Cupon | null {
   const codigo = normalizarCodigo(crudo);
-  return CUPONES.find((c) => c.codigo === codigo) ?? null;
+  return cupones.find((c) => c.codigo === codigo) ?? null;
 }
 
 /** Lo que paga por UNA unidad con el cupón. La misma cuenta que al cobrar. */
@@ -71,12 +81,14 @@ export type CuponResuelto = {
  */
 export function aplicarMejorPromocion(
   items: ItemResuelto[],
-  codigoCrudo: unknown
+  codigoCrudo: unknown,
+  /** Para las pruebas: la tienda usa siempre la lista de arriba. */
+  cupones: Cupon[] = CUPONES
 ): { items: ItemResuelto[]; cupon: CuponResuelto | null } {
   const codigo = normalizarCodigo(codigoCrudo);
   if (!codigo) return { items, cupon: null };
 
-  const cupon = buscarCupon(codigo);
+  const cupon = buscarCupon(codigo, cupones);
   if (!cupon) return { items, cupon: { codigo, estado: "invalido", ahorro: 0 } };
   if (items.length === 0) return { items, cupon: { codigo: cupon.codigo, estado: "no-conviene", ahorro: 0 } };
 

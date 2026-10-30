@@ -4621,6 +4621,13 @@ p {
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
+/* El precio de a uno por la cantidad, tachado debajo del total. */
+.de-a-dos__tachado {
+  display: block;
+  font-family: var(--fuente-raleway), Helvetica, Arial, sans-serif;
+  font-size: 0.875rem;
+  opacity: 0.6;
+}
 .de-a-dos__detalle {
   font-size: 0.75rem;
   opacity: 0.8;
@@ -4938,6 +4945,247 @@ p {
   color: #fff;
   text-decoration: underline;
   text-underline-offset: 0.2em;
+}
+
+/* ---------- Ficha: «llevá 3, pagá 2» ----------
+   Tres opciones como en una tienda de un solo producto: el total, el precio
+   de a uno tachado, lo que queda cada par y la cuota. La elegida, con borde. */
+
+.opciones-pares {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.opciones-pares__aviso {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.15rem;
+  color: var(--verde) !important;
+}
+.opciones-pares__aviso::before,
+.opciones-pares__aviso::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--borde);
+}
+.opcion-pares {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color var(--rapido) var(--curva),
+    box-shadow var(--rapido) var(--curva);
+}
+.opcion-pares[data-elegida] {
+  border-color: var(--verde);
+  box-shadow: 0 0 0 1px var(--verde);
+}
+.opcion-pares__radio {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  accent-color: var(--verde);
+}
+.opcion-pares__datos {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.opcion-pares__titulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+.opcion-pares__sello {
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radio-pill);
+  background: var(--hueso-calido, #efe6d6);
+  color: var(--verde);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.opcion-pares__detalle {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+.opcion-pares__precio {
+  display: grid;
+  justify-items: end;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.opcion-pares__precio s {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--texto-suave);
+}
+
+/* ---------- Quiénes somos ----------
+   El mismo lenguaje de la portada: serif grande, etiquetas en mono y los
+   anteojos sobre su tinte, con la foto multiplicada. */
+
+.nosotros-portada {
+  display: grid;
+  gap: 1rem;
+  padding-block: 2.5rem 3rem;
+}
+.nosotros-portada__titulo {
+  max-width: 14ch;
+  font-family: var(--fuente-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(2.75rem, 12vw, 6rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+.nosotros-portada__bajada {
+  max-width: 36rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--texto-suave);
+}
+.nosotros-tira {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-tira__pieza {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.nosotros-tira__pieza img {
+  padding: 6% 8% 14%;
+}
+.nosotros-tira__nombre {
+  position: absolute;
+  left: 0.7rem;
+  bottom: 0.55rem;
+}
+.nosotros-frase {
+  padding-block: 3.5rem;
+  background: #efe6d6;
+}
+.nosotros-frase__texto {
+  font-size: clamp(2.25rem, 9vw, 4.5rem);
+  line-height: 1.02;
+}
+.nosotros-lista li {
+  padding-block: 1.25rem;
+}
+.nosotros-lista__titulo {
+  font-family: var(--fuente-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(1.6rem, 6vw, 2.25rem);
+  line-height: 1.05;
+}
+.nosotros-lista__texto {
+  max-width: 38rem;
+  margin-top: 0.5rem;
+  line-height: 1.6;
+  color: var(--texto-suave);
+}
+.nosotros-paleta,
+.nosotros-viene {
+  display: grid;
+  gap: 0.75rem;
+}
+.nosotros-paleta__grilla {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-color {
+  display: grid;
+  border-radius: 2px;
+  overflow: hidden;
+  color: var(--texto);
+  text-decoration: none;
+}
+.nosotros-color__foto {
+  position: relative;
+  aspect-ratio: 4 / 3;
+}
+.nosotros-color__foto img {
+  padding: 4% 8%;
+  transition: transform var(--rapido) var(--curva);
+}
+.nosotros-color:hover .nosotros-color__foto img {
+  transform: scale(1.04);
+}
+.nosotros-color__pie {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.1rem 0.45rem;
+  padding: 0 0.7rem 0.7rem;
+}
+.nosotros-color__punto {
+  grid-row: span 2;
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 1px solid rgb(22 21 15 / 0.15);
+  border-radius: 50%;
+}
+.nosotros-color__nombre {
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+.nosotros-viene__lista {
+  display: grid;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-viene__lista li {
+  display: grid;
+  gap: 0.3rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--borde);
+}
+.nosotros-viene__nombre {
+  font-family: var(--fuente-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: 1.5rem;
+}
+@media (min-width: 48rem) {
+  .nosotros-portada {
+    padding-block: 4rem 4.5rem;
+  }
+  .nosotros-tira {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .nosotros-frase {
+    padding-block: 5rem;
+  }
+  .nosotros-paleta__grilla {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .nosotros-viene__lista {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem;
+  }
 }
 
 /* ---------- Barra «Tus pares» ---------- */

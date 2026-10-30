@@ -1,5 +1,6 @@
 import type { ConfigTienda } from "./config";
 import { precio as formatearPrecio, precioConCentavos } from "./formato";
+import { textoPorcentaje } from "./descuentos";
 import { plazoParaComprador } from "./envio-gratis";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import { caracteristicasDe } from "./caracteristicas";
@@ -128,7 +129,7 @@ function envoltorio(contenido: string, config: ConfigTienda) {
 /** "5% de descuento + 10% por dinero en Mercado Pago". Vacío si el ítem va a precio de lista. */
 function textoDescuento(item: ItemResuelto) {
   return [
-    item.descuento > 0 ? `${item.descuento}% de descuento` : null,
+    item.descuento > 0 ? `${textoPorcentaje(item.descuento)}% de descuento` : null,
     item.descuentoDineroMP ? `${item.descuentoDineroMP}% por dinero en Mercado Pago` : null,
   ]
     .filter(Boolean)
@@ -292,7 +293,7 @@ Pedido ${d.numero}
 ${d.items
   .map((i) => {
     const descuento = [
-      i.descuento > 0 ? `${i.descuento}% off` : null,
+      i.descuento > 0 ? `${textoPorcentaje(i.descuento)}% off` : null,
       i.descuentoDineroMP ? `${i.descuentoDineroMP}% por dinero en Mercado Pago` : null,
     ]
       .filter(Boolean)

@@ -1,6 +1,6 @@
 "use client";
 
-import { ofertaPorCantidad, type Tramo } from "@/lib/descuentos";
+import { nombreDelTramo, ofertaDeEscala, ofertaPorCantidad, type Tramo } from "@/lib/descuentos";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { esCategoriaDeAnteojos } from "@/lib/categorias";
 import type { Categoria } from "@/lib/tipos";
@@ -41,6 +41,29 @@ export default function OfertaCantidad({
   cuponPorcentaje?: number;
 }) {
   if (!esCategoriaDeAnteojos(categoria)) return null;
+
+  // Con la escala «llevá 3, pagá 2 · llevá 5, pagá 3»: cuánto falta para el
+  // próximo escalón (en la ficha, las opciones ya la cuentan).
+  const escala = ofertaDeEscala(tramos, categoria, cantidadEnCarrito);
+  if (escala) {
+    if (cuponPorcentaje > 0) return null;
+    const { actual, siguiente } = escala;
+    if (!siguiente) {
+      return actual && descuentoAplicado > 0 ? (
+        <p className="oferta-cantidad">
+          <strong>{nombreDelTramo({ desdeUnidades: actual.lleva, paga: actual.paga, porcentaje: 0 })}</strong> aplicado.
+        </p>
+      ) : null;
+    }
+    if (cantidadEnCarrito < 1) return null;
+    const gratis = siguiente.lleva - siguiente.paga;
+    const premio = gratis === 1 ? (siguiente.faltan === 1 ? "te lo llevás gratis" : "uno te sale gratis") : `te llevás ${gratis} gratis`;
+    return (
+      <p className="oferta-cantidad">
+        {siguiente.faltan === 1 ? "Sumá otro par" : `Sumá ${siguiente.faltan} pares más`} y <strong>{premio}</strong>.
+      </p>
+    );
+  }
 
   const oferta = ofertaPorCantidad(tramos, categoria, precioLista, cantidadEnCarrito, descuentoAplicado);
   if (!oferta) return null;

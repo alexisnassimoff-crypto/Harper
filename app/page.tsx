@@ -14,7 +14,7 @@ import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos, rutaDeCategoria } from "@/lib/categorias";
 import { getConfig, type ConfigTienda } from "@/lib/config";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, mensajesDeConfianza } from "@/lib/confianza";
-import { CUPON_BIENVENIDA } from "@/lib/cupones";
+import { CUPON_BIENVENIDA, HAY_CUPONES } from "@/lib/cupones";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { conEspera, verificarCuotas, verificarCuotasPara } from "@/lib/cuotas-servidor";
 import { getTramos } from "@/lib/descuentos";
@@ -124,7 +124,7 @@ async function PortadaEstrella({
           precio: m.precio,
           tramos,
           categoria: m.categoria,
-          cuponPorcentaje: CUPON_BIENVENIDA.porcentaje,
+          cuponPorcentaje: HAY_CUPONES ? CUPON_BIENVENIDA.porcentaje : 0,
           extra: estuche ? { precio: estuche.precio, categoria: estuche.categoria } : null,
         })
       )
@@ -275,7 +275,7 @@ async function PortadaEstrella({
           diasArrepentimiento: DIAS_ARREPENTIMIENTO,
           diasCambio: DIAS_CAMBIO,
           mesesGarantia: MESES_GARANTIA,
-          cupon: CUPON_BIENVENIDA,
+          cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
         })}
       />

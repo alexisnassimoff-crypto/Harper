@@ -22,12 +22,19 @@ export type Tramo = {
   categoria: Categoria;
   desdeUnidades: number;
   porcentaje: number;
+  /**
+   * En la escala «llevá N, pagá M» (Ale, 30/10/2026): cuántas paga de las
+   * `desdeUnidades` que lleva. El porcentaje sale exacto de esa cuenta
+   * (3x2 = 33,33… %), sin redondear a un decimal.
+   */
+  paga?: number;
 };
 
 type FilaDescuento = {
   Categoria?: string;
   Desde_unidades?: number;
   Porcentaje?: number;
+  Paga_unidades?: number;
   Activo?: boolean;
 };
 
@@ -63,20 +70,39 @@ export async function getTramosParaCobrar(): Promise<Tramo[]> {
 async function leerTramos(revalidate: number): Promise<Tramo[]> {
   const filas = await listRecords<FilaDescuento>(TABLAS.descuentos, { revalidate });
 
-  return filas
+  const tramos = filas
     .filter((f) => f.fields.Activo)
     .flatMap((f): Tramo[] => {
       const categoria = categoriaDesdeTexto(f.fields.Categoria);
       const desdeUnidades = aNumero(f.fields.Desde_unidades, 0);
-      const porcentaje = aNumero(f.fields.Porcentaje, 0);
+      const paga = aNumero(f.fields.Paga_unidades, 0);
 
       if (!categoria || desdeUnidades < 1) return [];
+
+      // «Llevá 3, pagá 2»: paga menos de las que lleva, y al menos una.
+      if (paga > 0) {
+        if (!Number.isInteger(paga) || !Number.isInteger(desdeUnidades) || paga >= desdeUnidades) return [];
+        return [{ categoria, desdeUnidades, porcentaje: (1 - paga / desdeUnidades) * 100, paga }];
+      }
+
+      const porcentaje = aNumero(f.fields.Porcentaje, 0);
       // Un 0 no descuenta nada y un 100 regalaría el producto.
       if (porcentaje <= 0 || porcentaje >= 100) return [];
 
       return [{ categoria, desdeUnidades, porcentaje }];
-    })
-    .sort((a, b) => a.desdeUnidades - b.desdeUnidades);
+    });
+
+  return conEscala(tramos).sort((a, b) => a.desdeUnidades - b.desdeUnidades);
+}
+
+/**
+ * En una categoría con escala «llevá N, pagá M», manda la escala: los tramos
+ * por porcentaje de esa categoría no se aplican (en anteojos eran 2+ 5 %, 4+
+ * 10 %…). Las demás categorías siguen con sus porcentajes.
+ */
+export function conEscala(tramos: Tramo[]): Tramo[] {
+  const conPaga = new Set(tramos.filter((t) => t.paga).map((t) => t.categoria));
+  return tramos.filter((t) => t.paga || !conPaga.has(t.categoria));
 }
 
 /**
@@ -130,6 +156,63 @@ export function proximoTramo(
 export function conDescuento(precio: number, porcentaje: number) {
   if (porcentaje <= 0) return precio;
   return Math.round(precio * (1 - porcentaje / 100));
+}
+
+/**
+ * Lo que se paga por varias unidades con el descuento, redondeado una sola
+ * vez sobre el total: tres pares de $ 89.900 con «llevá 3, pagá 2» son
+ * $ 179.800 justos (de a uno, $ 59.933 × 3 daría $ 179.799).
+ */
+export function totalConDescuento(lista: number, porcentaje: number) {
+  return conDescuento(lista, porcentaje);
+}
+
+/** Los tramos de la escala «llevá N, pagá M» de una categoría, de menor a mayor. */
+export function escalaDe(tramos: Tramo[], categoria: Categoria): (Tramo & { paga: number })[] {
+  return tramos
+    .filter((t): t is Tramo & { paga: number } => t.categoria === categoria && typeof t.paga === "number")
+    .sort((a, b) => a.desdeUnidades - b.desdeUnidades);
+}
+
+export type OfertaDeEscala = {
+  /** El escalón en el que está (null si todavía no llegó al primero). */
+  actual: { lleva: number; paga: number } | null;
+  /** El próximo escalón, con cuántas faltan; null si ya está en el último. */
+  siguiente: { lleva: number; paga: number; faltan: number } | null;
+};
+
+/**
+ * Dónde está un carrito en la escala «llevá N, pagá M» y cuánto le falta
+ * para el próximo escalón. Null si la categoría no tiene escala.
+ */
+export function ofertaDeEscala(tramos: Tramo[], categoria: Categoria, unidades: number): OfertaDeEscala | null {
+  const escala = escalaDe(tramos, categoria);
+  if (escala.length === 0) return null;
+  const cantidad = Math.max(0, Math.floor(unidades));
+  const alcanzados = escala.filter((t) => cantidad >= t.desdeUnidades);
+  const actual = alcanzados[alcanzados.length - 1] ?? null;
+  const proximo = escala.find((t) => t.desdeUnidades > cantidad) ?? null;
+  return {
+    actual: actual ? { lleva: actual.desdeUnidades, paga: actual.paga } : null,
+    siguiente: proximo ? { lleva: proximo.desdeUnidades, paga: proximo.paga, faltan: proximo.desdeUnidades - cantidad } : null,
+  };
+}
+
+/** "33,3", "5": un porcentaje para mostrar, con un decimal como mucho. */
+export function textoPorcentaje(porcentaje: number): string {
+  return porcentaje.toLocaleString("es-AR", { maximumFractionDigits: 1 });
+}
+
+/** "llevá 3 y pagá 2, o llevá 5 y pagá 3": la escala de una categoría en una frase; null sin escala. */
+export function fraseDeLaEscala(tramos: Tramo[], categoria: Categoria): string | null {
+  const escala = escalaDe(tramos, categoria).map((t) => `llevá ${t.desdeUnidades} y pagá ${t.paga}`);
+  if (escala.length === 0) return null;
+  return escala.length === 1 ? escala[0] : `${escala.slice(0, -1).join(", ")}, o ${escala[escala.length - 1]}`;
+}
+
+/** "Llevá 3, pagá 2" o "10 % OFF": cómo se nombra un tramo. */
+export function nombreDelTramo(tramo: Pick<Tramo, "desdeUnidades" | "porcentaje" | "paga">): string {
+  return tramo.paga ? `Llevá ${tramo.desdeUnidades}, pagá ${tramo.paga}` : `${textoPorcentaje(tramo.porcentaje)} % OFF`;
 }
 
 /**

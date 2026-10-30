@@ -91,8 +91,9 @@ test("el pack cuesta lo mismo que cobra el carrito, con colores mezclados y el e
   const tramos = await getTramos();
   const citrino = productos.find((p) => p.slug === "citrino")!;
   const m500 = productos.find((p) => p.slug === "m500")!;
-  for (const cantidad of [1, 2, 4]) {
-    for (const cupon of [undefined, "HARPER10"]) {
+  // Con la escala de las fixtures (1, 3 y 5) y también 2 y 4, que el carrito puede tener.
+  for (const cantidad of [1, 2, 3, 4, 5]) {
+    for (const cupon of [undefined]) {
       for (const conEstuche of [false, true]) {
         const extra = conEstuche ? { precio: m500.precio, categoria: m500.categoria } : null;
         const pack = armarPack({ precio: citrino.precio, cantidad, tramos, categoria: "Anteojos", cuponPorcentaje: cupon ? 10 : 0, extra });

@@ -22,6 +22,7 @@ export default function CtaFija({
   detalle,
   ocupado = false,
   alComprar,
+  textoBoton = "Comprar ahora",
 }: {
   visible: boolean;
   nombre: string;
@@ -30,6 +31,8 @@ export default function CtaFija({
   detalle?: string | null;
   ocupado?: boolean;
   alComprar: () => void;
+  /** "Elegir mis 3" con un pack elegido; "Comprar ahora" si no. */
+  textoBoton?: string;
 }) {
   const [montado, setMontado] = useState(false);
 
@@ -63,7 +66,7 @@ export default function CtaFija({
         onClick={alComprar}
         disabled={ocupado}
       >
-        {ocupado ? "Un momento…" : "Comprar ahora"}
+        {ocupado ? "Un momento…" : textoBoton}
       </button>
     </div>,
     document.body

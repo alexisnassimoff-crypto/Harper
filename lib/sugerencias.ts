@@ -1,5 +1,5 @@
 import { getProductos } from "./catalogo";
-import { getTramos, ofertaPorCantidad, type Tramo } from "./descuentos";
+import { getTramos, ofertaDeEscala, ofertaPorCantidad, type Tramo } from "./descuentos";
 import type { Categoria, ItemResuelto, Producto } from "./tipos";
 
 /**
@@ -50,7 +50,7 @@ const MAXIMO = 3;
 type Regla = {
   si: Categoria;
   entonces: Categoria;
-  motivo: (contexto: { unidades: number; segundoPar: number }) => string;
+  motivo: (contexto: { unidades: number; segundoPar: number; escala: string | null }) => string;
   mismaCategoria?: boolean;
 };
 
@@ -62,12 +62,14 @@ const REGLAS: Regla[] = [
     si: "Anteojos",
     entonces: "Anteojos",
     mismaCategoria: true,
-    motivo: ({ unidades, segundoPar }) =>
-      unidades >= 2
-        ? OTRO_MODELO
-        : segundoPar > 0
-          ? `Segundo par: ${segundoPar}% off en los dos`
-          : "Sumá un segundo par",
+    motivo: ({ unidades, segundoPar, escala }) =>
+      escala
+        ? escala
+        : unidades >= 2
+          ? OTRO_MODELO
+          : segundoPar > 0
+            ? `Segundo par: ${segundoPar}% off en los dos`
+            : "Sumá un segundo par",
   },
   {
     si: "Estuches",
@@ -171,7 +173,20 @@ export function elegirSugerencias(
     const segundoPar =
       oferta?.estado === "pendiente" && oferta.unidades === 2 && oferta.faltan === 1 ? oferta.porcentaje : 0;
 
-    sumar(regla.entonces, regla.motivo({ unidades, segundoPar }));
+    // Con la escala «llevá 3, pagá 2»: cuánto falta para el próximo par gratis.
+    const enEscala = ofertaDeEscala(tramos, regla.entonces, unidades);
+    const siguiente = enEscala?.siguiente ?? null;
+    const escala = siguiente
+      ? siguiente.faltan === 1
+        ? siguiente.lleva - siguiente.paga === 1
+          ? "Sumá otro y te lo llevás gratis"
+          : `Sumá otro y te llevás ${siguiente.lleva - siguiente.paga} gratis`
+        : `Llevá ${siguiente.lleva}, pagá ${siguiente.paga}`
+      : enEscala
+        ? OTRO_MODELO
+        : null;
+
+    sumar(regla.entonces, regla.motivo({ unidades, segundoPar, escala }));
   }
 
   // 2. Si ya tiene de todo, se le ofrece más de lo mismo, sin prometer

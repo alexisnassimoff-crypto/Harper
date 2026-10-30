@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { buscarCupon } from "@/lib/cupones";
-import { porcentajeParaCantidad, proximoTramo } from "@/lib/descuentos";
+import { ofertaDeEscala, porcentajeParaCantidad, proximoTramo } from "@/lib/descuentos";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { empujeDeLaBarra } from "@/lib/vitrina";
 
@@ -71,6 +71,7 @@ export default function BarraTusPares({
         subtotalSinCupon: datos.subtotalSinCupon,
         precioPar,
         envioGratisDesde: datos.envioGratisDesde,
+        escala: ofertaDeEscala(datos.tramos, "Anteojos", pares),
       })
     : null;
   // Sin dirección todavía el envío no se sabe: se muestran los productos y
