@@ -22,7 +22,7 @@ import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 const raleway = Raleway({
   subsets: ["latin"],
   display: "swap",
-  variable: "--fuente-raleway",
+  variable: "--fuente-texto",
 });
 
 // La serif de los títulos de la portada (conversa con el logo) y la mono de
@@ -32,14 +32,14 @@ const serif = Instrument_Serif({
   weight: "400",
   style: ["normal", "italic"],
   display: "swap",
-  variable: "--fuente-serif",
+  variable: "--fuente-titulos",
 });
 
 const mono = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
   display: "swap",
-  variable: "--fuente-mono",
+  variable: "--fuente-etiquetas",
 });
 
 const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";

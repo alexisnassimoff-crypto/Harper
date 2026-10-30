@@ -114,9 +114,10 @@ export default async function CondicionesSocios() {
       <h2 style={h2}>{planes.aumento ? "8" : "7"}. Arrepentimiento y baja</h2>
       <p>
         Como en cualquier compra a distancia, el socio puede arrepentirse dentro de los diez (10) días corridos desde que recibe el primer
-        par, con el <Link href="/legales/arrepentimiento">Botón de arrepentimiento</Link>. Se le reintegra lo pagado y devuelve lo
-        recibido, sin uso y en su empaque. Como la membresía no se renueva sola, no hay cobros futuros que cancelar; pasado ese plazo, el
-        socio puede dejar de usarla cuando quiera, sin reintegro.
+        par, con el <Link href="/legales/arrepentimiento">Botón de arrepentimiento</Link>, sin costo. Devuelve lo recibido como lo
+        recibió, y puede probarse los anteojos para ver cómo le quedan, como en un local. Harper coordina el retiro sin cargo y le
+        reintegra lo pagado. Como la membresía no se renueva sola, no hay cobros futuros que cancelar; pasado ese plazo, el socio puede
+        dejar de usarla cuando quiera, sin reintegro.
       </p>
 
       <h2 style={h2}>{planes.aumento ? "9" : "8"}. Garantía</h2>

@@ -69,7 +69,7 @@ body {
   margin: 0;
   background: var(--fondo);
   color: var(--texto);
-  font-family: var(--fuente-raleway), Helvetica, Arial, sans-serif;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -4027,7 +4027,7 @@ p {
 }
 
 .etiqueta-mono {
-  font-family: var(--fuente-mono), ui-monospace, monospace;
+  font-family: var(--fuente-etiquetas), ui-monospace, monospace;
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -4037,7 +4037,7 @@ p {
 }
 
 .titulo-serif {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 400;
   font-size: clamp(2rem, 7.5vw, 3.5rem);
   line-height: 1;
@@ -4065,7 +4065,7 @@ p {
   border-radius: var(--radio-pill);
   background: transparent;
   color: var(--texto-suave);
-  font-family: var(--fuente-mono), ui-monospace, monospace;
+  font-family: var(--fuente-etiquetas), ui-monospace, monospace;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -4109,7 +4109,7 @@ p {
   gap: 0.85rem;
 }
 .vitrina-portada__titulo {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 400;
   font-size: clamp(2.5rem, 11vw, 5.75rem);
   line-height: 0.95;
@@ -4225,13 +4225,13 @@ p {
   padding: 0.2rem 0.5rem;
   border: 1px solid currentColor;
   border-radius: var(--radio-pill);
-  font-family: var(--fuente-mono), ui-monospace, monospace;
+  font-family: var(--fuente-etiquetas), ui-monospace, monospace;
   font-size: 0.625rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .linea__nombre {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-size: 1.75rem;
   line-height: 1.05;
 }
@@ -4265,7 +4265,7 @@ p {
   gap: 0.5rem 1rem;
 }
 .viene__titulo {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 400;
   font-size: 1.75rem;
 }
@@ -4349,7 +4349,7 @@ p {
   gap: 0.55rem;
 }
 .pieza__nombre {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 400;
   font-size: 2rem;
   letter-spacing: 0.18em;
@@ -4417,7 +4417,7 @@ p {
   text-align: center;
 }
 .vitrina-todos__pregunta {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-size: 1.75rem;
 }
 .vitrina-todos__boton {
@@ -4464,7 +4464,7 @@ p {
 }
 .lista-numerada li::before {
   content: counter(item, decimal-leading-zero);
-  font-family: var(--fuente-mono), ui-monospace, monospace;
+  font-family: var(--fuente-etiquetas), ui-monospace, monospace;
   font-size: 0.75rem;
   color: var(--texto-suave);
   padding-top: 0.15rem;
@@ -4474,7 +4474,7 @@ p {
   color: var(--texto-suave);
 }
 .asi-llega__cierre {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-size: 1.5rem;
   line-height: 1.15;
 }
@@ -4557,7 +4557,7 @@ p {
   padding: 0.2rem 0.55rem;
   background: var(--tinta);
   color: #fff;
-  font-family: var(--fuente-mono), ui-monospace, monospace;
+  font-family: var(--fuente-etiquetas), ui-monospace, monospace;
   font-size: 0.625rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -4577,7 +4577,7 @@ p {
   font-weight: 600;
 }
 .de-a-dos__total {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-size: 1.75rem;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
@@ -4585,7 +4585,7 @@ p {
 /* El precio de a uno por la cantidad, tachado debajo del total. */
 .de-a-dos__tachado {
   display: block;
-  font-family: var(--fuente-raleway), Helvetica, Arial, sans-serif;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.875rem;
   opacity: 0.6;
 }
@@ -4651,7 +4651,7 @@ p {
   justify-content: space-between;
 }
 .hoja-pack__titulo {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 400;
   font-size: 1.9rem;
 }
@@ -4665,7 +4665,7 @@ p {
 }
 .hoja-pack__contador {
   margin: 0.25rem 0 1rem;
-  font-family: var(--fuente-mono), ui-monospace, monospace;
+  font-family: var(--fuente-etiquetas), ui-monospace, monospace;
   font-size: 0.75rem;
   color: var(--texto-suave);
 }
@@ -4766,7 +4766,7 @@ p {
   border-top: 1px solid var(--borde);
 }
 .cuentas__lista dt {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-size: 2.1rem;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -4784,7 +4784,7 @@ p {
   font-size: 0.875rem;
 }
 .cuentas__cupon strong {
-  font-family: var(--fuente-mono), ui-monospace, monospace;
+  font-family: var(--fuente-etiquetas), ui-monospace, monospace;
   letter-spacing: 0.06em;
   color: var(--verde);
 }
@@ -4822,7 +4822,7 @@ p {
   scroll-snap-align: start;
 }
 .momento__hora {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-size: 2.6rem;
   line-height: 1;
 }
@@ -5006,7 +5006,7 @@ p {
 }
 .nosotros-portada__titulo {
   max-width: 14ch;
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 400;
   font-size: clamp(2.75rem, 12vw, 6rem);
   line-height: 0.95;
@@ -5047,7 +5047,7 @@ p {
   padding-block: 1.25rem;
 }
 .nosotros-lista__titulo {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 400;
   font-size: clamp(1.6rem, 6vw, 2.25rem);
   line-height: 1.05;
@@ -5267,7 +5267,7 @@ p {
   width: 100%;
 }
 .planes-socio__periodo {
-  font-family: var(--fuente-raleway), Helvetica, Arial, sans-serif;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.75rem;
   opacity: 0.7;
   white-space: nowrap;
@@ -5334,7 +5334,7 @@ p {
   color: rgb(255 255 255 / 0.7);
 }
 .socio-ficha__titulo {
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 400;
   font-size: 1.375rem;
   line-height: 1.15;
@@ -5392,7 +5392,7 @@ p {
 .socios-tabla thead small {
   display: block;
   margin-top: 0.2rem;
-  font-family: var(--fuente-serif), Georgia, serif;
+  font-family: var(--fuente-titulos), Georgia, serif;
   font-size: 1.05rem;
   font-weight: 400;
   letter-spacing: 0;
