@@ -100,8 +100,9 @@ export default async function Terminos() {
         <li>
           En el plan Socio con aumento, además, los cristales oftálmicos
           orgánicos con filtro de luz azul de los dos pares, según la receta que
-          envíe el socio. El plazo de entrega de los pares con aumento depende
-          del laboratorio y se informa al recibir la receta.
+          envíe el socio. Los cristales los prepara un laboratorio, en general
+          en 24 horas; ese plazo se suma al del envío y se confirma al recibir
+          la receta.
         </li>
       </ul>
       <p>

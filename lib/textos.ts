@@ -140,7 +140,8 @@ export const TEXTOS = {
     ],
     beneficioAumento: {
       titulo: "Con aumento",
-      texto: "En el plan con aumento, los cristales de los dos pares van incluidos: orgánicos y con filtro de luz azul. Nos mandás tu receta por WhatsApp y te los preparamos.",
+      texto:
+        "En el plan con aumento, los cristales de los dos pares van incluidos: orgánicos y con filtro de luz azul. Nos mandás tu receta por WhatsApp y te los preparamos: en general están listos en 24 horas, más el envío.",
     },
     pasosTitulo: "Cómo funciona",
     pasos: [
