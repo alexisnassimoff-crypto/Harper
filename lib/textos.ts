@@ -60,10 +60,10 @@ export const TEXTOS = {
   },
   unDia: {
     etiqueta: "Un día cualquiera",
-    titulo: "Del café al partido, con el mismo par.",
+    titulo: "Un mismo par, de la mañana a la noche.",
     cafe: "Adentro del café están claros. Salís a la vereda y se oscurecen.",
     oficina: "Toda la tarde frente a la compu, con filtro de luz azul.",
-    futbol: "Para jugar quedan en el bolso. Para el tercer tiempo, te los ponés.",
+    futbol: "Después del partido ya es de noche: quedan claros y los podés seguir usando.",
     brunch: "Mesa afuera al mediodía, con los mismos anteojos de toda la semana.",
   },
   cierre: {
