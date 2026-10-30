@@ -60,6 +60,8 @@ const C = {
   azulBrillante: "#2f5fa8",
   azulTraslucido: "#9cc0de",
   cristal: "#e6eaee",
+  verdeOscuro: "#2f4f3a",
+  metalOscuro: "#55585c",
 };
 
 export const LINEAS: Linea[] = [
@@ -99,13 +101,24 @@ export const LINEAS: Linea[] = [
     nombre: "De receta",
     corto: "Receta",
     promesa: "Vienen con filtro de luz azul: para la compu, la tele y cualquier pantalla.",
-    ficha: "Armazón de TR · Filtro de luz azul · ISO 12870",
+    ficha: "Armazón de TR o de metal · Filtro de luz azul · ISO 12870",
     conAumento: true,
     categoria: "Anteojos de receta",
     enCamino: [
       { nombre: "TURQUESA", colores: [C.cristal, C.verdeTraslucido, C.azulMate] },
       { nombre: "ALABASTRO", colores: [C.negroMate, C.cristal, C.grisTraslucido] },
       { nombre: "PERIDOTO", colores: [C.negro, C.verdePalido, C.grisTraslucido, C.verdeTraslucido] },
+      {
+        nombre: "SELENITA",
+        colores: [C.negro, C.cristal, C.grisTraslucido, C.azulTraslucido, C.carey, C.naranjaTraslucido, C.verdeTraslucido],
+      },
+      { nombre: "DIAMANTE", colores: [C.negro, C.carey, C.grisTraslucido] },
+      { nombre: "ANDESINA", colores: [C.negro, C.grisCarey, C.grisTraslucido, C.carey, C.azulTraslucido, C.naranjaTraslucido] },
+      { nombre: "SARDÓNIX", colores: [C.negro, C.grisCarey, C.careyOscuro] },
+      { nombre: "ÁMBAR", colores: [C.negro, C.carey, C.marronTraslucido, C.grisCarey, C.verdeOscuro] },
+      // De metal.
+      { nombre: "RUTILO", colores: [C.negro] },
+      { nombre: "LAPISLÁZULI", colores: [C.negro, C.metalOscuro] },
     ],
   },
   {
