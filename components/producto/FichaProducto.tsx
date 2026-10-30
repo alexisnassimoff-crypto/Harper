@@ -167,10 +167,12 @@ export default function FichaProducto({
   // carrito: se ve de un vistazo qué colores ya se pidieron.
   // Sale dos veces y el CSS muestra uno solo: en el celular, pegado a la foto
   // (al tocar un color se ve cómo cambia sin subir); en escritorio, en la
-  // columna de los datos, después del precio.
+  // columna de los datos, después del precio. Junto a la foto, el nombre del
+  // color va al lado de los círculos (como en la portada) para que entren
+  // arriba de la barra de compra; la leyenda queda para los lectores.
   const selectorDeColor = (donde: "foto" | "datos") => (
     <fieldset className={`ficha-producto__colores ficha-producto__colores--${donde}`}>
-      <legend className="label">Color: {variante.color}</legend>
+      <legend className={donde === "foto" ? "solo-lectores" : "label"}>Color: {variante.color}</legend>
 
       <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", paddingTop: "0.35rem" }}>
         {producto.variantes.map((v, i) => {
@@ -200,6 +202,11 @@ export default function FichaProducto({
             </button>
           );
         })}
+        {donde === "foto" ? (
+          <span className="ficha-producto__color-elegido" aria-hidden="true">
+            {variante.color}
+          </span>
+        ) : null}
       </div>
     </fieldset>
   );
