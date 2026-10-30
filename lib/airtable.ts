@@ -17,6 +17,8 @@ const TABLAS_HARPER = {
   config: "tblMyAedM5pvVijLf",
   descuentos: "tblYkgJW6Bi0Fx048",
   arrepentimientos: "tblgag8YwduSiTWfx",
+  // Socios Harper: una fila por membresía pagada (lib/socios-alta.ts).
+  socios: "tbly1whYOXeTRnS8y",
 };
 
 export type NombreTabla = keyof typeof TABLAS_HARPER;

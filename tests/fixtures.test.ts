@@ -13,8 +13,8 @@ test("lista con fórmula y orden, igual que la API", () => {
     query: { filterByFormula: "{Activo}", "sort[0][field]": "Orden" },
   });
 
-  // El producto de prueba (sin Activo) queda afuera.
-  assert.equal(r.records.length, 10);
+  // El producto de prueba (sin Activo) queda afuera. Doce con la membresía.
+  assert.equal(r.records.length, 12);
   assert.ok(r.records.every((f) => f.fields.Activo === true));
 
   const anteojos = r.records.filter((f) => f.fields.Categoria === "Anteojos");

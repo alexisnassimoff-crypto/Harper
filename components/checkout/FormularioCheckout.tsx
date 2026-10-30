@@ -829,6 +829,7 @@ export default function FormularioCheckout({
               {item.cantidad}× {item.nombre}
             </div>
             <div className="apagado">{item.color}</div>
+            {item.incluido ? <div style={{ color: "var(--verde)" }}>Incluido en tu membresía</div> : null}
           </div>
           <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal)}</span>
         </li>
@@ -1296,7 +1297,13 @@ export default function FormularioCheckout({
 
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>{carrito.cupon?.estado === "aplicado" ? `Cupón ${carrito.cupon.codigo}` : "Descuento"}</span>
+            <span>
+              {carrito.cupon?.estado === "aplicado"
+                ? `Cupón ${carrito.cupon.codigo}`
+                : carrito.items.some((i) => i.incluido)
+                  ? "Par incluido en tu membresía"
+                  : "Descuento"}
+            </span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}

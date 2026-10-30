@@ -1,3 +1,5 @@
+import { TEXTOS } from "./textos";
+
 /**
  * Textos de la portada y de los metadatos del sitio.
  *
@@ -82,6 +84,8 @@ export function preguntasDePortada(datos: {
   cupon: { codigo: string; porcentaje: number } | null;
   /** La escala de anteojos, "llevá 3 y pagá 2, o llevá 5 y pagá 3"; null si no hay. */
   escala?: string | null;
+  /** El precio de Socios Harper ("$ 159.900"), si está a la venta. */
+  socios?: string | null;
   porcentajeDineroMP: number;
 }): Pregunta[] {
   const preguntas: Pregunta[] = [];
@@ -151,6 +155,14 @@ export function preguntasDePortada(datos: {
     preguntas.push({
       pregunta: "¿Hay descuento por llevar más de un par?",
       respuesta: `Sí: ${datos.escala}. Podés mezclar modelos y colores, y se aplica solo en el carrito. El ${datos.porcentajeDineroMP}% extra por pagar con dinero en Mercado Pago también se suma.`,
+    });
+  }
+
+  if (datos.socios) {
+    preguntas.push({
+      pregunta: TEXTOS.socios.pregunta,
+      respuesta: TEXTOS.socios.respuesta(datos.socios),
+      enlace: { href: "/socios", texto: TEXTOS.socios.enlace },
     });
   }
 

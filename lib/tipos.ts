@@ -106,6 +106,8 @@ export type ItemResuelto = {
   descuento: number;
   /** El 10% adicional por dinero en Mercado Pago, sobre el precio ya descontado (ver lib/dinero-mp.ts). */
   descuentoDineroMP?: number;
+  /** Los pesos que no se cobran porque el par va incluido en la membresía (lib/socios.ts). */
+  incluido?: number;
   cantidad: number;
   subtotal: number;
   stockDisponible: number;

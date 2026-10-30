@@ -1,3 +1,4 @@
+import { esMembresia } from "./categorias";
 import { conDescuento } from "./descuentos";
 import type { ItemResuelto } from "./tipos";
 
@@ -81,23 +82,32 @@ export function aplicarDineroMP(
   items: ItemResuelto[],
   porcentaje: number = PORCENTAJE_DINERO_MP
 ): PrecioDineroMP {
+  // La membresía tiene precio fijo: el 10% no la toca (lib/socios.ts).
+  const conDescuentoMP = (i: ItemResuelto) => !esMembresia(i.categoria) && i.subtotal > 0;
   const antes = items.reduce((total, i) => total + i.subtotal, 0);
-  const subtotal = conDescuento(antes, porcentaje);
+  const base = items.filter(conDescuentoMP).reduce((total, i) => total + i.subtotal, 0);
+  const baseConDescuento = conDescuento(base, porcentaje);
+  const subtotal = antes - base + baseConDescuento;
 
-  const lineas = items.map((i) => conDescuento(i.subtotal, porcentaje));
-  if (lineas.length > 0) {
-    const mayor = items.reduce((m, i, n) => (i.subtotal > items[m].subtotal ? n : m), 0);
+  const lineas = items.map((i) => (conDescuentoMP(i) ? conDescuento(i.subtotal, porcentaje) : i.subtotal));
+  const elegibles = items.map((i, n) => n).filter((n) => conDescuentoMP(items[n]));
+  if (elegibles.length > 0) {
+    const mayor = elegibles.reduce((m, n) => (items[n].subtotal > items[m].subtotal ? n : m), elegibles[0]);
     lineas[mayor] += subtotal - lineas.reduce((total, l) => total + l, 0);
   }
 
   return {
     porcentaje,
-    items: items.map((i, n) => ({
-      ...i,
-      descuentoDineroMP: porcentaje,
-      precioUnitario: lineas[n] / i.cantidad,
-      subtotal: lineas[n],
-    })),
+    items: items.map((i, n) =>
+      conDescuentoMP(i)
+        ? {
+            ...i,
+            descuentoDineroMP: porcentaje,
+            precioUnitario: lineas[n] / i.cantidad,
+            subtotal: lineas[n],
+          }
+        : { ...i }
+    ),
     subtotal,
     ahorro: antes - subtotal,
   };

@@ -67,6 +67,9 @@ export default function OfertaCantidad({
 
   const oferta = ofertaPorCantidad(tramos, categoria, precioLista, cantidadEnCarrito, descuentoAplicado);
   if (!oferta) return null;
+  // Un tramo lejano, como el mayorista de 15 pares, no se anuncia: es para
+  // quien lo pide, no una promoción (Ale no quiere que Harper parezca barato).
+  if (oferta.estado === "pendiente" && (oferta.unidades > 4 || oferta.faltan > 2)) return null;
   if (cuponPorcentaje > 0 && (oferta.estado === "aplicada" || oferta.porcentaje <= cuponPorcentaje)) return null;
 
   if (oferta.estado === "aplicada") {

@@ -7,6 +7,7 @@ import { caracteristicasDe } from "./caracteristicas";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
 import { pedidoParaMostrar, TEXTO_PROXIMO_PASO, type SolicitudArrepentimiento } from "./arrepentimiento";
 import { lineasDeFacturacion, type FacturacionPedido } from "./facturacion";
+import { numeroDeSocio, type Socio } from "./socios-alta";
 
 // Se puede apuntar a un Resend simulado para las pruebas de punta a punta.
 const API_RESEND = process.env.RESEND_API_URL ?? "https://api.resend.com/emails";
@@ -128,6 +129,7 @@ function envoltorio(contenido: string, config: ConfigTienda) {
 
 /** "5% de descuento + 10% por dinero en Mercado Pago". Vacío si el ítem va a precio de lista. */
 function textoDescuento(item: ItemResuelto) {
+  if (item.incluido) return "Incluido en tu membresía";
   return [
     item.descuento > 0 ? `${textoPorcentaje(item.descuento)}% de descuento` : null,
     item.descuentoDineroMP ? `${item.descuentoDineroMP}% por dinero en Mercado Pago` : null,
@@ -214,7 +216,43 @@ export type DatosMail = {
   } | null;
   /** Algo que Harper tiene que revisar en esta venta, ya escrito. */
   alerta?: string | null;
+  /** Si el pedido es una membresía de Socios Harper: el número que le tocó. */
+  socio?: Socio | null;
 };
+
+/** "2027-10-30" → "30/10/2027". */
+function fechaLegible(iso: string) {
+  const [anio, mes, dia] = iso.split("-");
+  return anio && mes && dia ? `${dia}/${mes}/${anio}` : iso;
+}
+
+/** El enlace para pedir el segundo par, la reposición o los cristales, con el número de socio. */
+function enlaceSocio(d: DatosMail): string | null {
+  if (!d.socio) return null;
+  return enlaceWhatsApp(d.config.whatsapp, `Hola, Harper. Soy socio ${numeroDeSocio(d.socio.numero)} (pedido ${d.numero}).`);
+}
+
+/** El bloque de bienvenida de Socios Harper en el mail del comprador. */
+function bloqueSocio(d: DatosMail): string {
+  if (!d.socio) return "";
+  const enlace = enlaceSocio(d);
+  return `
+<div style="margin-top:28px;padding:20px;background:#004226;color:#ffffff;">
+  <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.8;margin-bottom:6px;">Socios Harper</div>
+  <div style="font-size:22px;line-height:1.3;margin-bottom:10px;">Ya sos socio ${escaparHtml(numeroDeSocio(d.socio.numero))}</div>
+  <p style="margin:0 0 10px;font-size:14px;line-height:1.6;">
+    ${escaparHtml(d.socio.plan)}, hasta el ${escaparHtml(fechaLegible(d.socio.vence))}. Tu primer par ya está en este pedido.
+  </p>
+  <p style="margin:0 0 ${enlace ? "14px" : "0"};font-size:14px;line-height:1.6;">
+    El segundo par, la reposición si se rompen o los perdés${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu número de socio. El envío, siempre gratis.
+  </p>${
+    enlace
+      ? `
+  <a href="${escaparHtml(enlace)}" style="font-size:13px;letter-spacing:0.5px;color:#ffffff;text-decoration:underline;">Escribirnos por WhatsApp</a>`
+      : ""
+  }
+</div>`;
+}
 
 /**
  * El enlace para consultar por cristales graduados, solo si el pedido lleva
@@ -263,7 +301,7 @@ export function mailConfirmacion(d: DatosMail): Envio {
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
-
+${bloqueSocio(d)}
 <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e3e0d8;">
   <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#78756c;margin-bottom:6px;">Envío a</div>
   <div style="font-size:14px;line-height:1.6;">
@@ -306,13 +344,18 @@ Subtotal: ${formatearPrecio(d.subtotal)}
 Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
 Total: ${formatearPrecio(d.total)}
 
+${
+  d.socio
+    ? `\nYa sos socio ${numeroDeSocio(d.socio.numero)} de Socios Harper (${d.socio.plan}), hasta el ${fechaLegible(d.socio.vence)}. El segundo par, la reposicion${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu numero de socio${enlaceSocio(d) ? `: ${enlaceSocio(d)}` : "."}\n`
+    : ""
+}
 Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
 ${graduados ? `\n${TEXTO_GRADUADOS_PEDIDO}\nWhatsApp: ${graduados}\n` : ""}
 Consultas: ${d.config.emailContacto}`;
 
   return {
     para: d.cliente.email,
-    asunto: `Tu pedido ${d.numero} está confirmado`,
+    asunto: d.socio ? `Ya sos socio ${numeroDeSocio(d.socio.numero)} de Harper` : `Tu pedido ${d.numero} está confirmado`,
     html,
     texto,
     responderA: d.config.emailContacto,
@@ -331,6 +374,7 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
       d.conDineroMP ? " · dinero en Mercado Pago" : ""
     }</p>
 ${d.alerta ? `<p style="margin:0 0 24px;padding:12px 14px;border:1px solid #a1281b;color:#a1281b;font-size:14px;line-height:1.6;">${escaparHtml(d.alerta)}</p>` : ""}
+${d.socio ? `<p style="margin:0 0 24px;padding:12px 14px;background:#004226;color:#ffffff;font-size:14px;line-height:1.6;">Socio nuevo: ${escaparHtml(numeroDeSocio(d.socio.numero))} · ${escaparHtml(d.socio.plan)} · vence el ${escaparHtml(fechaLegible(d.socio.vence))}</p>` : ""}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   ${filasDeItems(d.items, d.sitio)}

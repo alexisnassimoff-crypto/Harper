@@ -21,6 +21,8 @@ import {
 } from "./mails";
 import { obtenerPago as obtenerPagoReal, type PagoMP } from "./mercadopago";
 import { descontarStock } from "./stock";
+import { conMembresia } from "./socios";
+import { registrarSocio } from "./socios-alta";
 import { esPedidoConDineroMP, TIPO_DINERO_EN_CUENTA } from "./dinero-mp";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import {
@@ -694,19 +696,41 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       }
     }
 
+    // Socios Harper: el alta con su número, antes de los mails, que lo llevan.
+    // Idempotente: la fila se busca por pedido. Un error pasajero corta para
+    // que Mercado Pago reintente; uno permanente (la tabla no está) no frena
+    // la venta: Harper se entera en el aviso y lo carga a mano.
+    let datosConSocio = datos;
+    if (conMembresia(items)) {
+      await verificar("socio");
+      try {
+        const socio = await registrarSocio({ numeroPedido: numero, items, cliente, ahora: new Date(deps.reloj.ahora()) });
+        if (socio) datosConSocio = { ...datos, socio };
+      } catch (error) {
+        if (!esErrorPermanente(error)) throw error;
+        console.error("[webhook] no se pudo dar de alta al socio", numero, error);
+        datosConSocio = {
+          ...datos,
+          alerta: [datos.alerta, "Es una membresía de Socios Harper y no se pudo dar de alta: cargala a mano en la tabla Socios."]
+            .filter(Boolean)
+            .join(" "),
+        };
+      }
+    }
+
     // 3. Mails, cada uno una sola vez por pedido: quedan anotados en la marca.
     // ("mails" es el nombre que usaba una versión anterior para los dos.)
     const hecho = (nombre: string) => reclamo.pasos.includes(nombre) || reclamo.pasos.includes("mails");
 
     if (cliente.email && !hecho("mail_cliente")) {
       await verificar("mail_cliente");
-      await mandar(mailConfirmacion(datos));
+      await mandar(mailConfirmacion(datosConSocio));
       reclamo = await anotarPaso<FilaPedido>(pedidoId, reclamo, "mail_cliente");
     }
 
     if (!hecho("mail_interno")) {
       await verificar("mail_interno");
-      await mandar(mailAvisoInterno({ ...datos, pedidoUrl }));
+      await mandar(mailAvisoInterno({ ...datosConSocio, pedidoUrl }));
       reclamo = await anotarPaso<FilaPedido>(pedidoId, reclamo, "mail_interno");
     }
 

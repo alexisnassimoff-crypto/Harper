@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import FichaProducto from "@/components/producto/FichaProducto";
 import EventoPixel from "@/components/EventoPixel";
 import GrillaProductos from "@/components/GrillaProductos";
@@ -18,7 +18,8 @@ import { mensajesDeConfianza } from "@/lib/confianza";
 import { verificarCuotas } from "@/lib/cuotas-servidor";
 import { netoDe } from "@/lib/impuestos";
 import { indiceVarianteInicial } from "@/lib/variantes";
-import { rutaDeCategoria } from "@/lib/categorias";
+import { esMembresia, rutaDeCategoria } from "@/lib/categorias";
+import { planesDeSocio } from "@/lib/socios";
 import { parrafosDe, resumenDe } from "@/lib/descripcion";
 import { datosGuardadosDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 
@@ -125,8 +126,10 @@ async function paresDeLaFicha(producto: Producto, tramos: Tramo[], delMismoTipo:
 export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   const producto = await getProducto(slug);
   if (!producto) notFound();
+  // La membresía no tiene ficha: tiene su página.
+  if (esMembresia(producto.categoria)) redirect("/socios");
 
-  const [tramos, config, delMismoTipo, cuotas, mercadoLibre] = await Promise.all([
+  const [tramos, config, delMismoTipo, cuotas, mercadoLibre, todos] = await Promise.all([
     getTramos(),
     getConfig(),
     getProductos(producto.categoria),
@@ -134,7 +137,10 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
     // Las opiniones de todos los productos Harper, de la copia que guarda la
     // portada: la ficha no le pregunta a Mercado Libre.
     datosGuardadosDeMercadoLibre(),
+    // Socios Harper se ofrece en la ficha de la línea de siempre: el par va incluido.
+    producto.categoria === "Anteojos" ? getProductos() : Promise.resolve([]),
   ]);
+  const planes = planesDeSocio(todos, config.sociosCupos);
   const opiniones = mercadoLibre?.opiniones ?? null;
   const pares = await paresDeLaFicha(producto, tramos, delMismoTipo);
 
@@ -222,6 +228,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         whatsapp={config.whatsapp || null}
         calificacion={opiniones ? { promedio: opiniones.promedio, total: opiniones.total } : null}
         pares={pares}
+        socios={planes}
       />
 
       <Opiniones opiniones={opiniones} reputacion={mercadoLibre?.reputacion ?? null} />

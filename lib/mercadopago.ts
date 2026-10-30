@@ -99,11 +99,13 @@ export async function crearPreferencia(opciones: {
   // de dinero en Mercado Pago sobre dos pares, o tres pares iguales con «llevá
   // 3, pagá 2») va partido en dos. Los demás quedan como siempre, un renglón
   // por producto con su precio unitario.
+  // Un par incluido en la membresía va en $ 0: Mercado Pago no acepta renglones
+  // sin precio, así que no se le manda (el pedido sí lo lleva, para el stock).
   const items = opciones.items.flatMap((i) =>
     (i.descuentoDineroMP || !Number.isInteger(i.precioUnitario)
       ? unidadesParaCobrar(i)
       : [{ precio: i.precioUnitario, cantidad: i.cantidad }]
-    ).map((u) => ({
+    ).filter((u) => u.precio > 0).map((u) => ({
       id: i.sku,
       title: `${i.nombre} — ${i.color}`,
       quantity: u.cantidad,

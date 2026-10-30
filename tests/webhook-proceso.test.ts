@@ -9,7 +9,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 process.env.HARPER_FIXTURES = "1";
 delete process.env.VERCEL;
 
-import { createRecord, getRecord, TABLAS, updateRecord } from "../lib/airtable";
+import { createRecord, getRecord, listRecords, TABLAS, updateRecord } from "../lib/airtable";
 import { clavePedido, ErrorCerrojo, TTL_PEDIDO_MS, type Cerrojo } from "../lib/cerrojo";
 import { cerrojoEnMemoria, reiniciarRedis } from "../lib/fixtures/redis";
 import { interceptar, reiniciar, RespuestaFixture } from "../lib/fixtures/servidor";
@@ -1046,4 +1046,45 @@ test("el gancho de venta confirmada recibe el pedido y, si falla, no toca la ven
   assert.equal((ventas[0] as { numero: string }).numero, "HARPER-T1");
   assert.equal((ventas[0] as { clienteId?: string }).clienteId, clienteId);
   await verificarVentaUnica(pedidoId, mails);
+});
+
+test("Socios Harper: el pago aprobado da de alta al socio con su número, una sola vez, y el mail lo dice", async () => {
+  const socio: ItemResuelto = {
+    ...item("recVSOCIO12MESES", "SOCIO-12M"),
+    productoId: "recSOCIOSHARPER01",
+    productoSlug: "socios-harper",
+    nombre: "Socios Harper",
+    categoria: "Membresía",
+    color: "12 meses",
+    precioLista: 159900,
+    precioUnitario: 159900,
+    subtotal: 159900,
+  };
+  const par: ItemResuelto = { ...item(AMATISTA_NEGRO, "AMATISTA-NEGRO"), precioUnitario: 0, subtotal: 0, incluido: 89900 };
+  const { pedidoId } = await crearPedido({ Items: JSON.stringify([socio, par]), Subtotal: 159900, Total: 159900 });
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId, { transaction_amount: 159900 }) });
+
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "pagado");
+
+  const filas = await listRecords<{ Numero?: number; Plan?: string; Pedido?: string }>(TABLAS.socios);
+  assert.deepEqual(
+    filas.map((f) => [f.fields.Numero, f.fields.Plan, f.fields.Pedido]),
+    [[1, "Socio", "HARPER-T1"]]
+  );
+  // El par incluido descuenta stock como cualquier otro, y la membresía es un lugar menos.
+  assert.deepEqual(await stockDe(AMATISTA_NEGRO), { stock: 11, marcas: ["HARPER-T1"] });
+  assert.equal((await stockDe("recVSOCIO12MESES")).stock, 99);
+
+  const cliente = mails.find((m) => m.mail.para === "prueba@harper.ar")!.mail;
+  assert.equal(cliente.asunto, "Ya sos socio N.º 001 de Harper");
+  assert.match(cliente.html, /Ya sos socio N\.º 001/);
+  assert.match(cliente.texto, /Incluido en tu membresía|Socios Harper/);
+  const interno = mails.find((m) => m.mail.para !== "prueba@harper.ar")!.mail;
+  assert.match(interno.html, /Socio nuevo: N\.º 001 · Socio · vence el \d{2}\/\d{2}\/\d{4}/);
+
+  // Mercado Pago avisa otra vez: nada se duplica.
+  await como("A", () => procesarNotificacion("111", deps));
+  assert.equal((await listRecords(TABLAS.socios)).length, 1);
+  assert.equal(mails.length, 2);
 });
