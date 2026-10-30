@@ -4,6 +4,10 @@
     {
       "path": "/api/sync-media",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/ml/metricas",
+      "schedule": "30 13 * * *"
     }
   ]
 }
