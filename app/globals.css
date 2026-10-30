@@ -3018,7 +3018,7 @@ p {
 .pie__pagos svg {
   display: block;
 }
-/* Debajo de la línea: el Data Fiscal y los datos del vendedor, centrados.
+/* Debajo de la línea: el Data Fiscal, centrado.
    Abajo deja lugar para el globo de WhatsApp, que flota en la esquina. */
 .pie__legal {
   display: grid;
@@ -3040,19 +3040,6 @@ p {
   height: 4rem;
   width: auto;
   border-radius: 2px;
-}
-.pie__copy {
-  max-width: 40rem;
-  font-size: 0.75rem;
-  line-height: 1.6;
-  color: rgb(255 255 255 / 0.62);
-}
-.pie__copy a {
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
-}
-.pie__sin-corte {
-  white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------------------

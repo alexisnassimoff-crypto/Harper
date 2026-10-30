@@ -8,12 +8,12 @@ import MediosDePago from "./MediosDePago";
 /**
  * El pie: editorial y con Harper como protagonista. Debajo del logo, los
  * accesos directos (Instagram, WhatsApp y mail). Arriba de la línea, los
- * medios de pago, centrados; abajo, el Data Fiscal de ARCA, centrado, y una
- * sola línea chica con los datos del vendedor.
+ * medios de pago, centrados; abajo, solo el Data Fiscal de ARCA, centrado.
  *
- * Esa línea no se saca: la Res. GMC 37/19 (Res. SCI 270/2020) pide razón
- * social, CUIT, domicilio y correo "en ubicación de fácil visualización" y
- * antes de la compra. Va al final, en letra chica y sin títulos.
+ * Sin la línea del © con los datos del vendedor (pedido de Ale, 30/10/2026):
+ * la razón social, el CUIT, el domicilio y el correo que pide la Res. GMC
+ * 37/19 (Res. SCI 270/2020) están al principio de los Términos, enlazados
+ * desde acá.
  *
  * El Botón de arrepentimiento (Res. 424/2020) va una sola vez, en Legales,
  * debajo de Defensa de las y los Consumidores (pedido de Ale, 30/10/2026).
@@ -30,7 +30,6 @@ export default function Footer({
   categorias?: { nombre: string; slug: string }[];
 }) {
   const whatsapp = config.whatsapp ? `https://wa.me/${config.whatsapp}` : null;
-  const anio = new Date().getFullYear();
   const dataFiscal = leerDataFiscal(config.dataFiscal);
 
   return (
@@ -106,7 +105,7 @@ export default function Footer({
         <MediosDePago className="pie__pagos" />
       </div>
 
-      <section className="contenedor pie__legal" aria-label="Datos del vendedor">
+      <div className="contenedor pie__legal">
         {dataFiscal ? (
           // Formulario 960/D de ARCA: el logo y el enlace son los que entrega
           // ARCA para harper.ar (Config.data_fiscal). Sin código, no se muestra.
@@ -125,13 +124,7 @@ export default function Footer({
             )}
           </a>
         ) : null}
-        <p className="pie__copy">
-          © {anio} Harper · {config.razonSocial} ·{" "}
-          <span className="pie__sin-corte">CUIT {config.cuit}</span>
-          {config.domicilio ? <> · {config.domicilio}</> : null} ·{" "}
-          <a href={`mailto:${config.emailContacto}`}>{config.emailContacto}</a>
-        </p>
-      </section>
+      </div>
     </footer>
   );
 }
