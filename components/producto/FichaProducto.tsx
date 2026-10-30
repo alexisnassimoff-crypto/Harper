@@ -163,6 +163,47 @@ export default function FichaProducto({
   const caracteristicas = caracteristicasDe(producto);
   const parrafos = parrafosDe(producto.descripcion);
 
+  // Selector de color. Arriba de cada color, cuántos de ese color hay en el
+  // carrito: se ve de un vistazo qué colores ya se pidieron.
+  // Sale dos veces y el CSS muestra uno solo: en el celular, pegado a la foto
+  // (al tocar un color se ve cómo cambia sin subir); en escritorio, en la
+  // columna de los datos, después del precio.
+  const selectorDeColor = (donde: "foto" | "datos") => (
+    <fieldset className={`ficha-producto__colores ficha-producto__colores--${donde}`}>
+      <legend className="label">Color: {variante.color}</legend>
+
+      <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", paddingTop: "0.35rem" }}>
+        {producto.variantes.map((v, i) => {
+          const cantidad = enCarrito.get(v.id) ?? 0;
+          const enElCarrito = cantidad > 0 ? `, ${cantidad} en el carrito` : "";
+          return (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => elegirColor(i)}
+              title={`${v.agotada ? `${v.color} — agotado` : v.color}${enElCarrito}`}
+              aria-label={`${v.agotada ? `${v.color}, agotado` : v.color}${enElCarrito}`}
+              aria-pressed={i === indiceVariante}
+              className="swatch"
+              style={{ background: v.colorHex, opacity: v.agotada ? 0.4 : 1 }}
+            >
+              {cantidad > 0 ? (
+                <span className="swatch__cantidad" aria-hidden="true">
+                  {cantidad}
+                </span>
+              ) : null}
+              {v.agotada ? (
+                <span className="swatch__agotado" aria-hidden="true">
+                  ⁄
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+
   return (
     <div className="contenedor ficha-producto">
       {/* ---------- Galería ---------- */}
@@ -174,6 +215,7 @@ export default function FichaProducto({
           alt={`${producto.nombre} — ${variante.color}`}
           reinicio={toquesDeColor}
         />
+        {selectorDeColor("foto")}
       </div>
 
       {/* ---------- Datos y compra ----------
@@ -236,43 +278,7 @@ export default function FichaProducto({
           </ul>
         ) : null}
 
-        {/* Selector de color. Arriba de cada color, cuántos de ese color hay
-            en el carrito: se ve de un vistazo qué colores ya se pidieron. */}
-        <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
-          <legend className="label" style={{ marginBottom: "0.75rem" }}>
-            Color: {variante.color}
-          </legend>
-
-          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", paddingTop: "0.35rem" }}>
-            {producto.variantes.map((v, i) => {
-              const cantidad = enCarrito.get(v.id) ?? 0;
-              const enElCarrito = cantidad > 0 ? `, ${cantidad} en el carrito` : "";
-              return (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => elegirColor(i)}
-                  title={`${v.agotada ? `${v.color} — agotado` : v.color}${enElCarrito}`}
-                  aria-label={`${v.agotada ? `${v.color}, agotado` : v.color}${enElCarrito}`}
-                  aria-pressed={i === indiceVariante}
-                  className="swatch"
-                  style={{ background: v.colorHex, opacity: v.agotada ? 0.4 : 1 }}
-                >
-                  {cantidad > 0 ? (
-                    <span className="swatch__cantidad" aria-hidden="true">
-                      {cantidad}
-                    </span>
-                  ) : null}
-                  {v.agotada ? (
-                    <span className="swatch__agotado" aria-hidden="true">
-                      ⁄
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
+        {selectorDeColor("datos")}
 
         {/* Compra */}
         <div ref={bloqueCompra} className="pila" style={{ gap: "0.75rem" }}>
