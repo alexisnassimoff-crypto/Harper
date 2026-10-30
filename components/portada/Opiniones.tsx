@@ -7,8 +7,9 @@ import Estrellas, { formatearPuntaje } from "./Estrellas";
 const MES = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" });
 
 /**
- * Lo que dicen quienes compraron anteojos Harper, y cuánto vende Harper. Son
- * las opiniones y las cifras reales de la cuenta de Harper en Mercado Libre
+ * Lo que dicen quienes compraron Harper (anteojos, estuches y paños, todo
+ * junto), y cuánto vende Harper. Va en la portada y en cada ficha. Son las
+ * opiniones y las cifras reales de la cuenta de Harper en Mercado Libre
  * (lib/ml-resenas-servidor.ts), pero en la página no se nombra a Mercado
  * Libre: Ale no quiere decir que vende por ahí. Por eso no va la medalla de
  * MercadoLíder ni el termómetro, que son de Mercado Libre. Si no hay nada, la
@@ -65,8 +66,7 @@ export default function Opiniones({
           <span className="pila" style={{ gap: "0.15rem" }}>
             <Estrellas puntaje={opiniones.promedio} tamano={18} />
             <span className="apagado" style={{ fontSize: "0.8125rem" }}>
-              {opiniones.total.toLocaleString("es-AR")} {opiniones.total === 1 ? "opinión" : "opiniones"} de compradores de
-              anteojos Harper
+              {opiniones.total.toLocaleString("es-AR")} {opiniones.total === 1 ? "opinión" : "opiniones"} de clientes Harper
             </span>
           </span>
         </p>
@@ -80,7 +80,7 @@ export default function Opiniones({
               {r.titulo ? <p className="opinion__titulo">{r.titulo}</p> : null}
               <p className="opinion__texto">{r.texto}</p>
               <p className="opinion__pie">
-                {[r.modelo ? `Modelo ${r.modelo}` : null, fechaLegible(r.fecha)].filter(Boolean).join(" · ")}
+                {[r.producto, fechaLegible(r.fecha)].filter(Boolean).join(" · ")}
               </p>
               <span className="opinion__verificada">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -308,7 +308,7 @@ export default function CompraPortada({
             <Estrellas puntaje={calificacion.promedio} />
             <span>
               {formatearPuntaje(calificacion.promedio)} · {calificacion.total.toLocaleString("es-AR")}{" "}
-              {calificacion.total === 1 ? "opinión" : "opiniones"} de anteojos Harper
+              {calificacion.total === 1 ? "opinión" : "opiniones"} de clientes Harper
             </span>
           </a>
         ) : null}
