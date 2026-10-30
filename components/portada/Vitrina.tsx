@@ -7,6 +7,7 @@ import { useCarrito } from "@/components/carrito/CarritoContexto";
 import Estrellas, { formatearPuntaje } from "./Estrellas";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
+import { TEXTOS } from "@/lib/textos";
 
 /**
  * La vitrina de la portada: arriba, los modelos en mosaicos de color con el
@@ -53,8 +54,6 @@ export type DatosVitrina = {
   precio: string | null;
   /** "6 cuotas sin interés de $ 14.983", verificada para ese precio; null si no. */
   cuota: string | null;
-  /** "Con estuche rígido Harper y paño de microfibra."; null si no está cargado. */
-  incluye: string | null;
   calificacion: { promedio: number; total: number } | null;
   /** "Cuotas sin interés con Visa y Mastercard · CFTEA 0,00 %"; null sin cuotas. */
   letraChica: string | null;
@@ -75,7 +74,6 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
   const [sumados, setSumados] = useState<Record<string, boolean>>({});
   const [aviso, setAviso] = useState("");
   const hayAlSol = modelos.some((m) => m.colores.some((c) => c.alSol));
-  const total = String(modelos.length).padStart(2, "0");
 
   function fotoDe(c: ColorVitrina) {
     return estado === "sol" && c.alSol ? c.alSol : c.adentro;
@@ -148,11 +146,10 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
           </div>
 
           <div className="vitrina-portada__vitrina">
-            <p className="etiqueta-mono vitrina-portada__linea">{datos.linea} · ya disponibles</p>
             {hayAlSol ? (
               <div className="vitrina-portada__control">
                 {interruptor("vitrina-portada__interruptor")}
-                <p className="vitrina-portada__nota">Se oscurecen solos al sol. El tono final depende de la luz.</p>
+                <p className="vitrina-portada__nota">{TEXTOS.portada.nota}</p>
               </div>
             ) : null}
             <ul className="mosaicos" aria-label="Los modelos">
@@ -162,7 +159,6 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
                 return (
                   <li key={m.id}>
                     <a href={`#modelo-${m.slug}`} className="mosaico" style={{ background: m.tinte }}>
-                      <span className="mosaico__numero etiqueta-mono">{String(i + 1).padStart(2, "0")}</span>
                       <span className="mosaico__foto">
                         <Image
                           src={fotoDe(color)}
@@ -183,7 +179,7 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
 
           <div className="vitrina-portada__acciones">
             <a href="#los-modelos" className="boton vitrina-portada__boton">
-              Elegir los míos
+              {TEXTOS.portada.boton}
             </a>
             {datos.calificacion ? (
               <a href="#opiniones" className="vitrina-portada__opiniones">
@@ -204,19 +200,17 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
       {/* ---------- Los modelos, uno por uno ---------- */}
       <section id="los-modelos" className="contenedor seccion vitrina-modelos" aria-labelledby="los-modelos-titulo">
         <div className="vitrina-modelos__cabecera">
-          <p className="etiqueta-mono">
-            {datos.linea} · {modelos.length === 4 ? "los cuatro" : `${modelos.length} modelos`}
-          </p>
+          {/* Sin contar modelos: la colección crece (Ale, 30/10/2026). */}
+          <p className="etiqueta-mono">{datos.linea} · ya disponibles</p>
           <h2 id="los-modelos-titulo" className="titulo-serif">
-            {datos.precio ? "Mismo precio. " : ""}
-            {modelos.length === 4 ? "Cuatro formas." : "Elegí la tuya."}
+            {datos.precio ? TEXTOS.modelos.titulo : TEXTOS.modelos.tituloSinPrecio}
           </h2>
-          <p className="apagado">Tocá un color.{hayAlSol ? " Pasalo al sol." : ""}</p>
+          <p className="apagado">{hayAlSol ? TEXTOS.modelos.bajadaConSol : TEXTOS.modelos.bajada}</p>
           {interruptor("vitrina-modelos__interruptor")}
         </div>
 
         <div className="pieza-lista">
-          {modelos.map((m, i) => {
+          {modelos.map((m) => {
             const indice = elegidos[m.slug] ?? m.inicial;
             const color = m.colores[indice];
             if (!color) return null;
@@ -268,9 +262,6 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
                     </div>
                   ) : null}
 
-                  <p className="etiqueta-mono">
-                    {String(i + 1).padStart(2, "0")} / {total}
-                  </p>
                   <h3 className="pieza__nombre">{m.nombre}</h3>
                   {m.forma ? <p className="pieza__forma">{m.forma}</p> : null}
                   {m.colores.length > 1 ? null : <p className="pieza__color">{color.color}</p>}
@@ -279,7 +270,6 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
                     <span>{formatearPrecio(m.precio)}</span>
                     {datos.cuota ? <small> · {datos.cuota}</small> : null}
                   </p>
-                  {datos.incluye ? <p className="pieza__incluye">{datos.incluye}</p> : null}
 
                   <button
                     type="button"
@@ -300,7 +290,7 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
 
         {datos.todos ? (
           <div className="vitrina-todos">
-            <p className="vitrina-todos__pregunta">¿Te gustaron todos?</p>
+            <p className="vitrina-todos__pregunta">{TEXTOS.modelos.todos}</p>
             <button type="button" className="boton boton--contorno vitrina-todos__boton" onClick={sumarTodos}>
               {datos.todos.texto}
             </button>

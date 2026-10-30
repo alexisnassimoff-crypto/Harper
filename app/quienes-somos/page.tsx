@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { LINEAS, lineasDeLaPortada } from "@/lib/lineas";
+import { TEXTOS } from "@/lib/textos";
 import { indiceVarianteInicial, rutaDeVariante } from "@/lib/variantes";
 import { fotosDeVitrina, tinteDe } from "@/lib/vitrina";
 
@@ -16,34 +17,17 @@ import { fotosDeVitrina, tinteDe } from "@/lib/vitrina";
 
 export const revalidate = 300;
 
+/** ["a", "b", "c"] → "a, b y c". */
+const enumerar = (partes: string[]) => (partes.length <= 1 ? partes.join("") : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`);
+
 export const metadata: Metadata = {
   title: "Quiénes somos",
   description:
-    "Harper hace anteojos para combinar como una prenda: colores, formas de ahora y cristales que funcionan. Desde Buenos Aires, Argentina.",
+    "Harper hace anteojos para elegir como una prenda: por el color, la forma y con qué los combinás. Para ver bien y para que te vean. Buenos Aires, Argentina.",
   alternates: { canonical: "/quienes-somos" },
 };
 
-const MANIFIESTO = [
-  {
-    titulo: "Color, primero.",
-    texto:
-      "Negro, carey, ámbar y gris traslúcidos. Colores pensados para ir con lo que ya tenés en el placard: el jean de todos los días, la camisa blanca, el buzo del domingo. ¿Uno para la semana y otro para el finde? Eso.",
-  },
-  {
-    titulo: "Formas de ahora.",
-    texto:
-      "Cuadrados de bordes suaves, geométricos con un quiebre en las esquinas, rectangulares de esquinas redondeadas. Líneas limpias, nada recargado. Diseño contemporáneo para todos los días.",
-  },
-  {
-    titulo: "Lindos, y además funcionan.",
-    texto:
-      "Cristales que se oscurecen solos al sol, filtro de luz azul para las pantallas y protección UV400. Un objeto que da gusto mirar y que hace su trabajo.",
-  },
-  {
-    titulo: "Sin caras famosas.",
-    texto: "Ni celebridades ni campañas con modelos. Acá los protagonistas son los anteojos. El estilo lo ponés vos.",
-  },
-];
+const { nosotros: N } = TEXTOS;
 
 export default async function QuienesSomos() {
   const [productos, config] = await Promise.all([getProductos(), getConfig()]);
@@ -82,12 +66,9 @@ export default async function QuienesSomos() {
       <section className="contenedor nosotros-portada" aria-labelledby="nosotros-titulo">
         <p className="etiqueta-mono">Quiénes somos · Buenos Aires, Argentina</p>
         <h1 id="nosotros-titulo" className="nosotros-portada__titulo">
-          Los anteojos también se combinan.
+          {N.titulo}
         </h1>
-        <p className="nosotros-portada__bajada">
-          Durante años fueron algo que había que usar. Para nosotros vuelven a ser lo que eran: un accesorio. Se eligen como una campera,
-          unas zapatillas o un reloj. Por cómo te quedan y con qué los vas a usar.
-        </p>
+        <p className="nosotros-portada__bajada">{N.bajada}</p>
         {tira.length > 0 ? (
           <ul className="nosotros-tira" aria-label="Los modelos">
             {tira.map((t, i) => (
@@ -100,7 +81,6 @@ export default async function QuienesSomos() {
                   priority={i < 2}
                   className="foto-multiplicada"
                 />
-                <span className="etiqueta-mono nosotros-tira__nombre">{t.nombre}</span>
               </li>
             ))}
           </ul>
@@ -109,8 +89,9 @@ export default async function QuienesSomos() {
 
       <section className="nosotros-frase" aria-label="Lo que hacemos">
         <p className="contenedor titulo-serif nosotros-frase__texto">
-          Para ver bien.
-          <br />Y para que te vean.
+          {N.frase[0]}
+          <br />
+          {N.frase[1]}
         </p>
       </section>
 
@@ -119,7 +100,7 @@ export default async function QuienesSomos() {
           Cómo pensamos los anteojos
         </h2>
         <ol className="lista-numerada nosotros-lista">
-          {MANIFIESTO.map((m) => (
+          {N.manifiesto.map((m) => (
             <li key={m.titulo}>
               <div>
                 <h3 className="nosotros-lista__titulo">{m.titulo}</h3>
@@ -134,9 +115,9 @@ export default async function QuienesSomos() {
         <section className="contenedor seccion nosotros-paleta" aria-labelledby="nosotros-paleta-titulo">
           <p className="etiqueta-mono">La paleta</p>
           <h2 id="nosotros-paleta-titulo" className="titulo-serif">
-            ¿Con cuál salís hoy?
+            {N.paleta}
           </h2>
-          <p className="apagado">Cada color, en cada forma. Tocá uno y miralo de cerca.</p>
+          <p className="apagado">{N.paletaBajada}</p>
           <ul className="nosotros-paleta__grilla">
             {paleta.map((c) => (
               <li key={c.clave}>
@@ -160,16 +141,11 @@ export default async function QuienesSomos() {
         <section className="contenedor seccion nosotros-viene" aria-labelledby="nosotros-viene-titulo">
           <p className="etiqueta-mono">Lo que viene</p>
           <h2 id="nosotros-viene-titulo" className="titulo-serif">
-            Más formas. Más colores. Más combinaciones.
+            {N.viene} {enumerar(proximas.map((l) => l.corto.toLowerCase()))}.
           </h2>
-          <ul className="nosotros-viene__lista">
-            {proximas.map((l) => (
-              <li key={l.clave}>
-                <h3 className="nosotros-viene__nombre">{l.nombre}</h3>
-                <p className="apagado">{l.promesa}</p>
-              </li>
-            ))}
-          </ul>
+          <Link href="/#lo-que-viene" className="boton boton--contorno nosotros-viene__boton">
+            {N.vieneBoton}
+          </Link>
         </section>
       ) : null}
 
@@ -178,7 +154,7 @@ export default async function QuienesSomos() {
           <h2 id="nosotros-cierre-titulo" className="titulo-serif">
             Harper.
           </h2>
-          <p>Anteojos para combinar. Buenos Aires, Argentina.</p>
+          <p>{N.cierre}</p>
           <Link href="/#los-modelos" className="boton cierre__boton">
             Ver los modelos
           </Link>

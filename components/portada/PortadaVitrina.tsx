@@ -21,9 +21,10 @@ import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { armarPack, cantidadesDePack, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
+import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
 import { rutaDeVariante } from "@/lib/variantes";
-import { coloresConStock, enLetras, FORMAS, fotosDeVitrina, precioUnico, tinteDe } from "@/lib/vitrina";
+import { enLetras, FORMAS, fotosDeVitrina, precioUnico, tinteDe } from "@/lib/vitrina";
 
 /**
  * La portada vitrina (pedido de Ale, 30/10/2026): marca primero y compra
@@ -42,6 +43,9 @@ const ORDEN_DE_COLORES = ["carey", "gris", "ambar", "negro"];
 
 const plano = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const mayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
+const minuscula = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice(1);
+/** ["a", "b", "c"] → "a, b y c". */
+const enumerar = (partes: string[]) => (partes.length <= 1 ? partes.join("") : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`);
 
 /** El color con el que abre cada modelo: con stock y foto al sol, sin repetir el del anterior si se puede. */
 function coloresIniciales(modelos: Producto[]): number[] {
@@ -121,9 +125,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const cuota1 = pack1 ? cuotasDe(pack1.total) : undefined;
   const cuota2 = pack2 ? cuotasDe(pack2.total) : undefined;
   const nombrePromo = pack2 ? (tramoDe(pack2.cantidad) ? nombreDelTramo(tramoDe(pack2.cantidad)!) : `${mayuscula(enLetras(pack2.cantidad))} pares`) : null;
-  const colores = coloresConStock(modelos);
   const incluye = modelos[0]?.incluye ?? [];
-  const textoIncluye = incluye.length ? `Con ${incluye.map((i) => i.charAt(0).toLowerCase() + i.slice(1)).join(" y ")}.` : null;
   const marcas = cuota1 ?? cuota2;
   const letraChica = marcas ? `Cuotas sin interés con ${NOMBRE_MARCAS} · CFTEA ${marcas.cftea}` : null;
 
@@ -133,13 +135,16 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const envioDe = (monto: number) =>
     gratisPais(monto) ? "Envío gratis a todo el país" : gratisAmba(monto) ? "Envío gratis en AMBA" : null;
 
+  // Qué son y cuánto salen, sin contar modelos ni colores: la colección crece (Ale, 30/10/2026).
   const bajada =
     config.portadaSubtitulo ||
-    (precio
-      ? `${mayuscula(enLetras(modelos.length))} ${lineaVitrina.nombre.toLowerCase()}, ${enLetras(colores)} colores y un solo precio: ${formatearPrecio(precio)} el par.${
-          cuota2 && nombrePromo ? ` ${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}.` : ""
-        }`
-      : `${mayuscula(enLetras(modelos.length))} ${lineaVitrina.nombre.toLowerCase()} y ${enLetras(colores)} colores.`);
+    [
+      confirmados ? TEXTOS.portada.bajada : null,
+      precio ? `${TEXTOS.portada.precio} ${formatearPrecio(precio)}.` : null,
+      precio && cuota2 && nombrePromo ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}.` : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
 
   const filas: FilaDeADos[] = packs.map((p) => {
     const cuota = textoCuota(cuotasDe(p.total));
@@ -219,25 +224,25 @@ export default async function PortadaVitrina({ productos, config }: { productos:
         momento("citrino", "carey", true, {
           hora: "10:15",
           lugar: "Café",
-          texto: "Adentro, claros. En la vereda, oscuros.",
+          texto: TEXTOS.unDia.cafe,
           tinte: "#efe6d6",
         }),
         momento("obsidiana", "negro", false, {
           hora: "16:00",
           lugar: "Oficina",
-          texto: "Toda la tarde frente a la pantalla, con filtro de luz azul.",
+          texto: TEXTOS.unDia.oficina,
           tinte: "#d6e6ea",
         }),
         momento("cuarzo", "negro", false, {
           hora: "19:30",
           lugar: "Fútbol 5",
-          texto: "Para jugar, en el bolso. Para el tercer tiempo, puestos.",
+          texto: TEXTOS.unDia.futbol,
           tinte: "#f0d9a8",
         }),
         momento("amatista", "gris", true, {
           hora: "Domingo",
           lugar: "Brunch",
-          texto: "Mesa afuera, sol de mediodía. Los mismos de toda la semana.",
+          texto: TEXTOS.unDia.brunch,
           tinte: "#dce5dd",
         }),
       ].filter((m): m is MomentoDelDia => m !== null)
@@ -263,16 +268,15 @@ export default async function PortadaVitrina({ productos, config }: { productos:
         datos={{
           etiqueta: lineas.length > 1 ? lineas.map((l) => l.corto).join(" · ") : "Anteojos Harper",
           linea: lineaVitrina.nombre,
-          titulo: config.portadaTitulo || "El problema va a ser elegir uno.",
+          titulo: config.portadaTitulo || TEXTOS.portada.titulo,
           bajada,
           precio: precio ? formatearPrecio(precio) : null,
           cuota: textoCuota(cuota1),
-          incluye: textoIncluye,
           calificacion: opiniones ? { promedio: opiniones.promedio, total: opiniones.total } : null,
           letraChica,
           todos: todos
             ? {
-                texto: `Sumá los ${enLetras(modelos.length)} · ${formatearPrecio(todos.total)}${
+                texto: `${TEXTOS.modelos.todosBoton} · ${formatearPrecio(todos.total)}${
                   todos.porcentaje ? (escala.length > 0 ? ` · cada par a ${formatearPrecio(todos.precioUnitario)}` : ` · ${todos.porcentaje} % OFF`) : ""
                 }`,
               }
@@ -284,7 +288,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
             <div className="contenedor">
               <p className="etiqueta-mono">Las líneas</p>
               <h2 id="lineas-titulo" className="titulo-serif">
-                Un par para cada plan.
+                {TEXTOS.lineas.titulo}
               </h2>
             </div>
             <ul className="lineas__carril">
@@ -300,10 +304,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                     <span className="linea__estado">{l.estado === "disponible" ? "Ya disponibles" : "Próximamente"}</span>
                     <span className="linea__nombre">{l.nombre}</span>
                     <span className="linea__promesa">{l.promesa}</span>
-                    <span className="linea__ficha">{l.ficha}</span>
-                    <span className="etiqueta-mono linea__cuenta">
-                      {l.modelos} {l.modelos === 1 ? "modelo" : "modelos"} · {l.colores} colores
-                    </span>
                   </a>
                 </li>
               ))}
@@ -324,20 +324,15 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               />
             </div>
             <div className="asi-llega__texto">
-              <p className="etiqueta-mono">Qué trae cada par</p>
+              <p className="etiqueta-mono">{TEXTOS.asiLlega.etiqueta}</p>
               <h2 id="asi-llega-titulo" className="titulo-serif">
-                Adentro, claros. Al sol, oscuros.
+                {TEXTOS.asiLlega.titulo}
               </h2>
-              <p className="apagado">
-                Son fotocromáticos: se oscurecen solos con el sol y se aclaran cuando volvés a entrar. El mismo par para la compu y para la
-                vereda.
-              </p>
+              <p className="apagado">{TEXTOS.asiLlega.texto}</p>
               <ol className="lista-numerada">
-                <li>Al sol, se oscurecen solos.</li>
-                <li>Adentro, claros y con filtro de luz azul.</li>
-                {incluye.map((i) => (
-                  <li key={i}>{i}. Viene incluido.</li>
-                ))}
+                <li>{TEXTOS.asiLlega.alSol}</li>
+                <li>{TEXTOS.asiLlega.adentro}</li>
+                {incluye.length > 0 ? <li>{mayuscula(enumerar(incluye.map(minuscula)))}, incluidos.</li> : null}
               </ol>
               <p className="asi-llega__tira">
                 UV400: UVA y UVB · ¿Usás aumento? Te ponemos los cristales oftálmicos.{" "}
@@ -348,7 +343,9 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                 ) : null}
               </p>
               {precio ? (
-                <p className="asi-llega__cierre">Todo eso, {formatearPrecio(precio)}. Te van a preguntar dónde los compraste.</p>
+                <p className="asi-llega__cierre">
+                  Todo eso, {formatearPrecio(precio)}. {TEXTOS.asiLlega.cierre}
+                </p>
               ) : null}
             </div>
           </div>
@@ -384,8 +381,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                   // El stock es limitado de verdad (Ale, 30/10/2026).
                   etiqueta: "Stock limitado",
                   titulo: `${nombreDelTramo(escala[0])}.`,
-                  bajada:
-                    "Uno para la semana, otro para el finde y otro para cuando se te ocurra. Mezclá modelos y colores: el descuento se aplica solo.",
+                  bajada: TEXTOS.pack.bajada,
                 }
               : undefined
           }
@@ -396,30 +392,18 @@ export default async function PortadaVitrina({ productos, config }: { productos:
         <section id="lo-que-viene" className="contenedor seccion lo-que-viene" aria-labelledby="lo-que-viene-titulo">
           <p className="etiqueta-mono">Próximamente</p>
           <h2 id="lo-que-viene-titulo" className="titulo-serif">
-            Lo que viene.
+            {TEXTOS.viene.titulo}
           </h2>
+          {/* Una sola vez cuánto llega: lo que dice cada línea ya está en la tira de arriba. */}
           <p className="apagado">
-            {proximas.reduce((n, l) => n + l.modelos, 0)} modelos nuevos en camino, en {proximas.reduce((n, l) => n + l.colores, 0)}{" "}
-            colores.
+            {mayuscula(enumerar(proximas.map((l) => l.nombre.toLowerCase())))}: {proximas.reduce((n, l) => n + l.modelos, 0)} modelos,{" "}
+            {proximas.reduce((n, l) => n + l.colores, 0)} colores. {TEXTOS.viene.cierre}
           </p>
           {proximas.map((l) => (
             <div key={l.clave} id={`viene-${l.clave}`} className="viene">
               <div className="viene__cabecera">
                 <h3 className="viene__titulo">{l.nombre}</h3>
-                <span className="etiqueta-mono">
-                  {l.modelos} modelos · {l.colores} colores
-                </span>
               </div>
-              <p className="apagado viene__promesa">{l.promesa}</p>
-              <p className="etiqueta-mono viene__ficha">{l.ficha}</p>
-              {l.conAumento && consultaAumento ? (
-                <p className="viene__aumento">
-                  ¿Usás aumento? Te ponemos los cristales oftálmicos.{" "}
-                  <a href={consultaAumento} target="_blank" rel="noopener noreferrer">
-                    Consultanos por WhatsApp.
-                  </a>
-                </p>
-              ) : null}
               <ul className="viene__modelos">
                 {l.enCamino.map((m) => (
                   <li key={m.nombre}>
@@ -437,7 +421,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           ))}
           {config.instagram ? (
             <a href={config.instagram} target="_blank" rel="noopener noreferrer" className="boton boton--contorno lo-que-viene__boton">
-              Enterate primero en Instagram
+              {TEXTOS.viene.boton}
             </a>
           ) : null}
         </section>
@@ -488,10 +472,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
             ¿Primera compra? <strong>{CUPON_BIENVENIDA.codigo}</strong>: {CUPON_BIENVENIDA.porcentaje} % OFF. No se suma a la promo por
             cantidad: se aplica la que más te conviene.
           </p>
-        ) : escala.length > 0 ? (
-          <p className="cuentas__cupon">
-            <strong>{escala.map((t) => nombreDelTramo(t)).join(" · ")}</strong>. Mezclá modelos y colores: se aplica solo.
-          </p>
         ) : null}
       </section>
 
@@ -532,16 +512,20 @@ export default async function PortadaVitrina({ productos, config }: { productos:
             })}
           </ul>
           <h2 id="cierre-titulo" className="titulo-serif">
-            ¿Cuál te llevás? ¿O cuáles?
+            {TEXTOS.cierre.titulo}
           </h2>
           {precio ? (
             <p>
-              {modelos.length === 4 ? "Los cuatro" : "Todos"} a {formatearPrecio(precio)}.
-              {paisConDos && paresPaisGratis ? ` Con ${enLetras(paresPaisGratis)}, envío gratis a todo el país.` : ""}
+              {TEXTOS.cierre.precio} {formatearPrecio(precio)}.
+              {escala[0]
+                ? ` Y si te llevás ${enLetras(escala[0].desdeUnidades)}, pagás ${enLetras(escala[0].paga ?? escala[0].desdeUnidades)}.`
+                : paisConDos && paresPaisGratis
+                  ? ` Con ${enLetras(paresPaisGratis)}, envío gratis a todo el país.`
+                  : ""}
             </p>
           ) : null}
           <a href="#los-modelos" className="boton cierre__boton">
-            Volver a los modelos
+            {TEXTOS.cierre.boton}
           </a>
           {complementos.length > 0 ? (
             <p className="cierre__complementos">

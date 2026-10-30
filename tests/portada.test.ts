@@ -32,3 +32,21 @@ test("el subtítulo aprobado solo se muestra si todos los anteojos publicados ti
   // Lo que se cargue en Config manda siempre.
   assert.equal(subtituloDeLaPortada("  Otro texto  ", [{ confirmado: false }]), "Otro texto");
 });
+
+test("los textos de la marca: sin palabras prohibidas, sin contar los modelos de hoy, sin precios ni promesas médicas", async () => {
+  const { TEXTOS } = await import("../lib/textos");
+  const { FORMAS } = await import("../lib/vitrina");
+  const { LINEAS } = await import("../lib/lineas");
+  const todo = [JSON.stringify(TEXTOS), ...Object.values(FORMAS), ...LINEAS.map((l) => l.promesa), DESCRIPCION_SITIO, TITULO_SITIO]
+    .join(" ")
+    .toLowerCase();
+  // Las que Ale no quiere en el sitio (30/10/2026).
+  for (const prohibida of ["canchero", "onda", "ondero", "fachero", "accesible"]) {
+    assert.ok(!new RegExp(`\\b${prohibida}`).test(todo), `no debería decir "${prohibida}"`);
+  }
+  // La colección crece: no se cuentan los modelos ni los colores de hoy.
+  assert.ok(!/\b(cuatro|doce)\b|\b\d+ (modelos|colores)\b/.test(todo));
+  // Los precios y las promociones los pone el código.
+  assert.ok(!/\$\s?\d/.test(todo));
+  assert.ok(!/previene|cura |descans|oftalmólog|recomiendan/.test(todo));
+});

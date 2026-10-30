@@ -48,8 +48,8 @@ export function mensajeGraduadosPedido(numeroPedido?: string | null): string {
 
 /** Los textos aprobados, en un solo lugar. */
 export const TEXTO_GRADUADOS_FICHA = {
-  pregunta: "¿Los querés con aumento?",
-  explicacion: "Este armazón admite cristales graduados.",
+  pregunta: "¿Usás aumento?",
+  explicacion: "Te ponemos los cristales oftálmicos en este armazón.",
   accion: "Consultanos por WhatsApp.",
 } as const;
 
