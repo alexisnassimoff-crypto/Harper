@@ -4940,6 +4940,160 @@ p {
   text-underline-offset: 0.2em;
 }
 
+/* ---------- Quiénes somos ----------
+   El mismo lenguaje de la portada: serif grande, etiquetas en mono y los
+   anteojos sobre su tinte, con la foto multiplicada. */
+
+.nosotros-portada {
+  display: grid;
+  gap: 1rem;
+  padding-block: 2.5rem 3rem;
+}
+.nosotros-portada__titulo {
+  max-width: 14ch;
+  font-family: var(--fuente-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(2.75rem, 12vw, 6rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+.nosotros-portada__bajada {
+  max-width: 36rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--texto-suave);
+}
+.nosotros-tira {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-tira__pieza {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.nosotros-tira__pieza img {
+  padding: 6% 8% 14%;
+}
+.nosotros-tira__nombre {
+  position: absolute;
+  left: 0.7rem;
+  bottom: 0.55rem;
+}
+.nosotros-frase {
+  padding-block: 3.5rem;
+  background: #efe6d6;
+}
+.nosotros-frase__texto {
+  font-size: clamp(2.25rem, 9vw, 4.5rem);
+  line-height: 1.02;
+}
+.nosotros-lista li {
+  padding-block: 1.25rem;
+}
+.nosotros-lista__titulo {
+  font-family: var(--fuente-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(1.6rem, 6vw, 2.25rem);
+  line-height: 1.05;
+}
+.nosotros-lista__texto {
+  max-width: 38rem;
+  margin-top: 0.5rem;
+  line-height: 1.6;
+  color: var(--texto-suave);
+}
+.nosotros-paleta,
+.nosotros-viene {
+  display: grid;
+  gap: 0.75rem;
+}
+.nosotros-paleta__grilla {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-color {
+  display: grid;
+  border-radius: 2px;
+  overflow: hidden;
+  color: var(--texto);
+  text-decoration: none;
+}
+.nosotros-color__foto {
+  position: relative;
+  aspect-ratio: 4 / 3;
+}
+.nosotros-color__foto img {
+  padding: 4% 8%;
+  transition: transform var(--rapido) var(--curva);
+}
+.nosotros-color:hover .nosotros-color__foto img {
+  transform: scale(1.04);
+}
+.nosotros-color__pie {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.1rem 0.45rem;
+  padding: 0 0.7rem 0.7rem;
+}
+.nosotros-color__punto {
+  grid-row: span 2;
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 1px solid rgb(22 21 15 / 0.15);
+  border-radius: 50%;
+}
+.nosotros-color__nombre {
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+.nosotros-viene__lista {
+  display: grid;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-viene__lista li {
+  display: grid;
+  gap: 0.3rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--borde);
+}
+.nosotros-viene__nombre {
+  font-family: var(--fuente-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: 1.5rem;
+}
+@media (min-width: 48rem) {
+  .nosotros-portada {
+    padding-block: 4rem 4.5rem;
+  }
+  .nosotros-tira {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .nosotros-frase {
+    padding-block: 5rem;
+  }
+  .nosotros-paleta__grilla {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .nosotros-viene__lista {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem;
+  }
+}
+
 /* ---------- Barra «Tus pares» ---------- */
 
 .tus-pares {

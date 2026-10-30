@@ -38,6 +38,9 @@ export default function Footer({
         <div className="pie__marca">
           <Logo alto={58} lockup claro />
           <p className="pie__lema">Diseño para todos los días.</p>
+          <Link href="/quienes-somos" className="pie__enlace">
+            Quiénes somos
+          </Link>
           <ul className="pie__contacto" aria-label="Contacto">
             {config.instagram ? (
               <li>

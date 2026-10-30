@@ -513,6 +513,9 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               .
             </p>
           ) : null}
+          <p className="cierre__complementos">
+            <Link href="/quienes-somos">Quiénes somos</Link>
+          </p>
         </div>
       </section>
 
