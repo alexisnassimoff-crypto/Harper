@@ -73,12 +73,12 @@ test("las líneas: disponibles con stock; mientras no, «Próximamente» con los
     [
       ["fotocromaticos", "disponible", 2],
       ["sol", "proximamente", 10],
-      ["receta", "proximamente", 3],
+      ["receta", "proximamente", 10],
       ["clip-on", "proximamente", 5],
     ],
   );
   assert.equal(hoy.find((l) => l.clave === "sol")?.colores, 37);
-  assert.equal(hoy.find((l) => l.clave === "receta")?.colores, 10);
+  assert.equal(hoy.find((l) => l.clave === "receta")?.colores, 37);
   assert.equal(hoy.find((l) => l.clave === "clip-on")?.colores, 21);
 
   // Cuando se cargan los de sol en Airtable, la línea pasa sola a disponible, con su sección.
