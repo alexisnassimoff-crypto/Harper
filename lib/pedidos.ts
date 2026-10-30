@@ -15,10 +15,14 @@ import {
   entornoEnvia,
   esRepartoAmba,
   paqueteParaEnvia,
+  puedeCotizar,
+  REPARTO_AMBA,
   resumenDeConsulta,
+  type TarifaEnvia,
 } from "./envia";
 import { esEnvioGratis, type ZonaEnvio } from "./envio-gratis";
 import { codigoEnviaDeProvincia } from "./provincias-envia";
+import { entraEnLaTarifa, IVA_ENVIO, PLAZO_REPARTO, precioDeRueddo, zonaDeRueddo, type ZonaRueddo } from "./rueddo";
 import { aplicarMejorPromocion, type CuponResuelto } from "./cupones";
 import {
   conDescuento,
@@ -270,19 +274,23 @@ export async function resolverCarrito(
  *
  * El orden importa:
  *  1. Sin ítems no hay envío.
- *  2. Sin destino completo, sin paquete (falta peso o medidas en Airtable),
- *     sin token de Envia, sin origen o sin transportistas en Config: la
- *     tarifa plana (o gratis desde el mínimo), como siempre.
+ *  2. Sin destino completo: la tarifa plana (o gratis desde el mínimo).
  *  3. Con un comprobante válido (firma, vencimiento, mismo destino, mismo
  *     carrito y mismo caso de envío gratis): se cobra exactamente ese
- *     precio, sin volver a cotizar.
- *  4. Si no, se cotiza con Envia. Sin respuesta útil: la tarifa plana.
+ *     precio, sin volver a calcular.
+ *  4. AMBA según el mapa del reparto (la Ciudad entera y los partidos del
+ *     conurbano, ver lib/rueddo.ts): la tarifa directa del reparto con IVA y
+ *     el recargo de Config, sin preguntarle a Envia.
+ *  5. El resto se cotiza con Envia. Si el reparto cotiza un destino que no
+ *     está en su mapa (una localidad que no reconocemos), también es AMBA,
+ *     con la tarifa de la zona más cara. Sin respuesta útil: la tarifa plana.
  *
  * Se ofrece UNA opción, sin nombre de transportista para el comprador: en
- * AMBA (donde cotiza el reparto de 24 h) ese reparto; en el resto del país,
- * la más barata. Es gratis desde `envio_gratis_amba_desde` en AMBA y desde
- * `envio_gratis_desde` en todo el país, sobre el subtotal sin el cupón. El
- * pedido guarda igual el transportista y el costo real: es lo que paga Harper.
+ * AMBA el reparto; en el resto del país, la más barata. Es gratis desde
+ * `envio_gratis_amba_desde` en AMBA y desde `envio_gratis_desde` en todo el
+ * país, sobre el subtotal sin el cupón; con envío gratis el comprador ve el
+ * precio tachado. El pedido guarda igual el transportista y el costo real:
+ * es lo que paga Harper.
  */
 async function resolverEnvio(datos: {
   items: ItemResuelto[];
@@ -303,50 +311,104 @@ async function resolverEnvio(datos: {
   const umbrales = { amba: datos.config.envioGratisAmbaDesde, nacional: datos.config.envioGratisDesde };
   const gratisEn = (zona: ZonaEnvio | null) => hayItems && esEnvioGratis(datos.subtotal, zona, umbrales);
 
-  // Sin cotizar no se sabe si llega el reparto de AMBA; la Ciudad sí es AMBA entera.
-  const plano = (zona: ZonaEnvio | null) => {
+  const destino = destinoCompleto(datos.destino);
+  const paquete = paqueteParaEnvia(datos.paquete, datos.config.envioPesoMinimoKg);
+  // La zona del reparto según su mapa; null fuera del mapa o si no se
+  // reconoce. Solo si el checkout cotiza (Envia configurado, como la regla
+  // de AMBA en Config): si no, muestra la tarifa plana y se cobra esa.
+  const zonaReparto = destino && puedeCotizar(datos.config) ? zonaDeRueddo(destino) : null;
+  const tarifaReparto = (zona: ZonaRueddo) => tarifaDelReparto(zona, paquete, datos.config);
+  const repartoDelMapa = zonaReparto ? tarifaReparto(zonaReparto) : null;
+
+  // Sin comprobante: en AMBA (por el mapa) la tarifa del reparto; si no, la
+  // tarifa plana de Config. Gratis desde el mínimo de la zona, igual.
+  const sinComprobante = (zona: ZonaEnvio | null) => {
     const bonificado = gratisEn(zona);
-    const envio = !hayItems || bonificado ? 0 : calcularEnvio(datos.subtotal, datos.config);
-    return {
-      envio,
-      opcionesEnvio: [] as OpcionEnvio[],
-      envioCotizado: false,
-      envioBonificado: bonificado,
-      envioZona: zona,
-      envioDelPedido: { origen: "plano" as const, opcion: null, cobrado: envio, bonificado, cotizadoEn: null, cotizacion: null },
-    };
+    const reparto = hayItems && zona === "amba" ? repartoDelMapa : null;
+    const envio = !hayItems || bonificado ? 0 : reparto ? reparto.opcion.precio : calcularEnvio(datos.subtotal, datos.config);
+    const envioDelPedido: EnvioDelPedido = reparto
+      ? { origen: "tarifa", opcion: reparto.opcion, cobrado: envio, bonificado, cotizadoEn: null, cotizacion: { zona, opcion: reparto.detalle } }
+      : { origen: "plano", opcion: null, cobrado: envio, bonificado, cotizadoEn: null, cotizacion: null };
+    return { envio, opcionesEnvio: [] as OpcionEnvio[], envioCotizado: false, envioBonificado: bonificado, envioZona: zona, envioDelPedido };
   };
 
-  if (!hayItems) return plano(null);
+  if (!hayItems || !destino) return sinComprobante(null);
 
-  const destino = destinoCompleto(datos.destino);
-  const zonaSinCotizar: ZonaEnvio | null = destino
-    ? codigoEnviaDeProvincia(destino.provincia) === "DF"
-      ? "amba"
-      : null
-    : null;
-  const paquete = paqueteParaEnvia(datos.paquete, datos.config.envioPesoMinimoKg);
+  // Sin cotizar se sabe igual si es AMBA: por el mapa del reparto.
+  const zonaSinCotizar: ZonaEnvio | null = repartoDelMapa ? "amba" : null;
   const origen = datos.config.envioOrigen;
   const clave = claveDeComprobantes();
-  if (!destino || !paquete || !origen || !clave || datos.config.envioTransportistas.length === 0) return plano(zonaSinCotizar);
+  const enviaListo = Boolean(paquete && origen && datos.config.envioTransportistas.length > 0);
+  if (!clave || (!repartoDelMapa && !enviaListo)) return sinComprobante(zonaSinCotizar);
 
-  const pedido = {
-    origen,
-    destino,
-    paquete,
-    // El valor de la mercadería, sin el cupón (como el envío gratis).
-    valorDeclarado: datos.subtotal,
-    transportistas: datos.config.envioTransportistas,
-  };
+  const pedido = paquete && origen
+    ? {
+        origen,
+        destino,
+        paquete,
+        // El valor de la mercadería, sin el cupón (como el envío gratis).
+        valorDeclarado: datos.subtotal,
+        transportistas: datos.config.envioTransportistas,
+      }
+    : null;
+  const consulta = pedido ? resumenDeConsulta(pedido) : {};
   const entorno = entornoEnvia();
-  const huellaDestino = huella([cuatroDigitos(destino.cp), codigoEnviaDeProvincia(destino.provincia), sinTildes(destino.ciudad)]);
+  const huellaDestino = huella([
+    cuatroDigitos(destino.cp),
+    codigoEnviaDeProvincia(destino.provincia),
+    sinTildes(destino.ciudad),
+    ...(destino.partido ? [sinTildes(destino.partido)] : []),
+  ]);
   const huellaCarrito = huella([
     datos.items.map((i) => [i.varianteId, i.cantidad]).sort(),
     paquete,
     datos.subtotal,
-    cuatroDigitos(origen.cp),
+    origen ? cuatroDigitos(origen.cp) : "",
     datos.config.envioTransportistas,
   ]);
+
+  // Lo que ve el comprador, con el comprobante de ese precio para cobrarlo
+  // sin volver a calcular. La hora es la de la cotización (si salió del
+  // cache de Envia, la de esa consulta): vence media hora después de eso.
+  const conComprobante = (zona: ZonaEnvio, elegida: TarifaEnvia, cotizadoEn: string) => {
+    const bonificado = gratisEn(zona);
+    const cobrado = bonificado ? 0 : elegida.opcion.precio;
+    const opcionesEnvio: OpcionEnvio[] = [
+      {
+        ...elegida.opcion,
+        comprobante: firmarComprobante(
+          {
+            v: 1,
+            exp: Date.parse(cotizadoEn) + VIGENCIA_COMPROBANTE_MS,
+            destino: huellaDestino,
+            carrito: huellaCarrito,
+            entorno,
+            bonificado,
+            zona,
+            cotizadoEn,
+            opcion: elegida.opcion,
+            detalle: elegida.detalle,
+          },
+          clave
+        ),
+      },
+    ];
+    return {
+      envio: cobrado,
+      opcionesEnvio,
+      envioCotizado: true,
+      envioBonificado: bonificado,
+      envioZona: zona,
+      envioDelPedido: {
+        origen: origenDeLaTarifa(elegida.detalle),
+        opcion: elegida.opcion,
+        cobrado,
+        bonificado,
+        cotizadoEn,
+        cotizacion: { ...consulta, zona, opcion: elegida.detalle },
+      } satisfies EnvioDelPedido,
+    };
+  };
 
   // 3. El comprobante de lo que el comprador vio: se cobra eso, si sigue
   // siendo para este destino, este carrito y el mismo caso de envío gratis
@@ -369,71 +431,71 @@ async function resolverEnvio(datos: {
       envioBonificado: bonificado,
       envioZona: comprobante.zona,
       envioDelPedido: {
-        origen: "envia",
+        origen: origenDeLaTarifa(comprobante.detalle),
         opcion: comprobante.opcion,
         cobrado,
         bonificado,
         cotizadoEn: comprobante.cotizadoEn,
-        cotizacion: { ...resumenDeConsulta(pedido), zona: comprobante.zona, opcion: comprobante.detalle },
+        cotizacion: { ...consulta, zona: comprobante.zona, opcion: comprobante.detalle },
       },
     };
   }
 
-  // 4. Cotizar ahora.
-  const resultado = await cotizarEnvia(pedido);
-  if (!resultado) return plano(zonaSinCotizar);
+  // 4. AMBA por el mapa del reparto: su tarifa, sin preguntarle a Envia.
+  if (repartoDelMapa) return conComprobante("amba", repartoDelMapa, new Date().toISOString());
 
-  // AMBA es donde cotiza el reparto de 24 h: ese es el envío que se ofrece
-  // ahí. En el resto, el más barato (las tarifas vienen ordenadas por costo).
-  // Si el reparto no contestó (no es que no llegue: no contestó), la zona es
-  // la de sin cotizar: una caída del reparto no le cobra el envío a la Ciudad.
+  // 5. Cotizar con Envia.
+  const resultado = pedido ? await cotizarEnvia(pedido) : null;
+  if (!resultado) return sinComprobante(zonaSinCotizar);
+
+  // Si el reparto cotiza, es AMBA aunque la localidad no esté en el mapa:
+  // con la tarifa de la zona más cara (o, si el paquete no entra en la
+  // tarifa, con lo que cotizó). Si no, la más barata (vienen ordenadas).
   const reparto = resultado.tarifas.find((t) => esRepartoAmba(t.opcion.transportista));
-  const repartoSinRespuesta = resultado.sinRespuesta.some(esRepartoAmba);
-  const zona: ZonaEnvio = reparto ? "amba" : repartoSinRespuesta ? (zonaSinCotizar ?? "resto") : "resto";
-  const elegida = reparto ?? resultado.tarifas[0];
-  const bonificado = gratisEn(zona);
+  if (reparto) return conComprobante("amba", tarifaReparto("GBA 3") ?? reparto, resultado.cotizadoEn);
+  return conComprobante("resto", resultado.tarifas[0], resultado.cotizadoEn);
+}
 
-  // La hora en que contestó Envia (si salió del cache, la de esa consulta):
-  // el comprobante vence media hora después de eso, no de ahora.
-  const cotizadoEn = resultado.cotizadoEn;
-  const vence = Date.parse(cotizadoEn) + VIGENCIA_COMPROBANTE_MS;
-  const opcionesEnvio: OpcionEnvio[] = [
-    {
-      ...elegida.opcion,
-      comprobante: firmarComprobante(
-        {
-          v: 1,
-          exp: vence,
-          destino: huellaDestino,
-          carrito: huellaCarrito,
-          entorno,
-          bonificado,
-          zona,
-          cotizadoEn,
-          opcion: elegida.opcion,
-          detalle: elegida.detalle,
-        },
-        clave
-      ),
-    },
-  ];
+/** "tarifa" si la opción es la tarifa directa del reparto de AMBA; si no, "envia". */
+function origenDeLaTarifa(detalle: Record<string, unknown> | undefined): "tarifa" | "envia" {
+  return detalle?.tarifaDirecta === true ? "tarifa" : "envia";
+}
 
-  // El precio sale siempre de acá, nunca del navegador.
-  const cobrado = bonificado ? 0 : elegida.opcion.precio;
-
+/**
+ * La opción del reparto de AMBA con su tarifa directa para esa zona: lo que
+ * paga el comprador es la tarifa con IVA más el recargo de Config; el costo,
+ * la tarifa con IVA. Null si el paquete no entra en la tarifa plana o si la
+ * zona no tiene tarifa.
+ */
+function tarifaDelReparto(
+  zona: ZonaRueddo,
+  paquete: { pesoKg: number; largoCm: number; anchoCm: number; altoCm: number } | null,
+  config: ConfigTienda
+): TarifaEnvia | null {
+  if (!entraEnLaTarifa(paquete)) return null;
+  const tarifa = precioDeRueddo(zona, config.envioAmbaTarifas, config.envioAmbaRecargo);
+  if (!tarifa) return null;
   return {
-    envio: cobrado,
-    opcionesEnvio,
-    envioCotizado: true,
-    envioBonificado: bonificado,
-    envioZona: zona,
-    envioDelPedido: {
-      origen: "envia",
-      opcion: elegida.opcion,
-      cobrado,
-      bonificado,
-      cotizadoEn,
-      cotizacion: { ...resultado.consulta, zona, opcion: elegida.detalle },
+    opcion: {
+      id: `${REPARTO_AMBA}:tarifa`,
+      transportista: REPARTO_AMBA,
+      transportistaNombre: "Rueddo",
+      servicio: "tarifa",
+      servicioNombre: `Tarifa ${zona}`,
+      costo: tarifa.costo,
+      precio: tarifa.precio,
+      plazo: PLAZO_REPARTO,
+    },
+    detalle: {
+      tarifaDirecta: true,
+      carrier: REPARTO_AMBA,
+      zonaReparto: zona,
+      tarifaSinIva: tarifa.tarifa,
+      ivaPorciento: IVA_ENVIO,
+      recargoPorciento: config.envioAmbaRecargo,
+      deliveryEstimate: PLAZO_REPARTO,
+      totalPrice: tarifa.costo,
+      currency: "ARS",
     },
   };
 }
@@ -447,6 +509,7 @@ function destinoCompleto(d: Partial<DestinoEnvio> | undefined): DestinoEnvio | n
     ciudad: t(d?.ciudad, 80),
     calle: t(d?.calle, 120),
     numero: t(d?.numero, 20),
+    ...(t(d?.partido, 80) ? { partido: t(d?.partido, 80) } : {}),
   };
   if (!destino.cp || !codigoEnviaDeProvincia(destino.provincia) || destino.ciudad.length < 2 || destino.calle.length < 2) return null;
   return destino;

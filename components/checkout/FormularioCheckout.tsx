@@ -122,9 +122,10 @@ const VACIO: DatosCliente = {
  * configurado, o si el comprador no encuentra su dirección, están los campos
  * de siempre.
  *
- * El envío es solo a domicilio. Con la dirección completa se cotiza con Envia
- * y se muestra una sola opción, «Envío a domicilio», con el plazo y el precio
- * (sin decir con quién se despacha). Es gratis desde un mínimo que depende
+ * El envío es solo a domicilio. Con la dirección completa se calcula (en AMBA,
+ * la tarifa del reparto; en el resto, cotizado con Envia) y se muestra una
+ * sola opción, «Envío a domicilio», con el plazo y el precio (sin decir con
+ * quién se despacha). Es gratis desde un mínimo que depende
  * de la zona —AMBA o el resto del país—: con envío gratis, el precio tachado;
  * si no llega, cuánto le falta. Si no se puede cotizar, la tarifa plana.
  */
@@ -197,7 +198,9 @@ export default function FormularioCheckout({
     const numeroCalle = modoDireccion === "buscador" ? (elegida?.numero || numero.trim()) : "";
     if (!cp || !form.provincia || form.ciudad.trim().length < 2 || calle.length < 2) return null;
     if (modoDireccion === "buscador" && !numeroCalle) return null;
-    return { cp, provincia: form.provincia, ciudad: form.ciudad.trim(), calle, numero: numeroCalle };
+    // El partido que trajo Google dice la zona del reparto de AMBA.
+    const partido = modoDireccion === "buscador" ? (elegida?.partido ?? "") : "";
+    return { cp, provincia: form.provincia, ciudad: form.ciudad.trim(), calle, numero: numeroCalle, ...(partido ? { partido } : {}) };
   })();
 
   // Envío a domicilio cotizado con Envia para esa dirección. Sin cotización,
@@ -598,7 +601,14 @@ export default function FormularioCheckout({
     return {
       ...base,
       direccion: extra ? `${form.direccion}, ${extra}` : form.direccion,
-      ...(elegida ? { calle: elegida.calle, numero: elegida.numero || numero.trim(), ...(extra ? { piso: extra } : {}) } : {}),
+      ...(elegida
+        ? {
+            calle: elegida.calle,
+            numero: elegida.numero || numero.trim(),
+            ...(extra ? { piso: extra } : {}),
+            ...(elegida.partido ? { partido: elegida.partido } : {}),
+          }
+        : {}),
     };
   }
 

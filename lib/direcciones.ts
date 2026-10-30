@@ -47,6 +47,11 @@ export type Direccion = {
   provincia: string;
   /** Cuatro dígitos, o "" si Google no lo trajo. */
   cp: string;
+  /**
+   * El partido ("San Isidro" para Martínez), si Google lo trajo: dice la zona
+   * del reparto de AMBA (lib/rueddo.ts). No se muestra.
+   */
+  partido?: string;
   /** La dirección completa, como la escribe Google. */
   texto: string;
 };
@@ -199,6 +204,9 @@ export function normalizarDireccion(
     barrio: barrio === localidad ? "" : barrio,
     provincia,
     cp: cpDesdeGoogle(codigoPostalCrudo),
+    ...(componente(componentes, "administrative_area_level_2")
+      ? { partido: componente(componentes, "administrative_area_level_2").slice(0, 80) }
+      : {}),
     texto: texto.trim(),
   };
 }

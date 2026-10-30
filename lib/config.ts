@@ -3,6 +3,7 @@ import { puedeCotizar } from "./envia";
 import { aNumero, aPesos } from "./formato";
 import { leerImpuestos, SIN_IMPUESTOS_CARGADOS, type ImpuestosNacionales } from "./impuestos";
 import { codigoEnviaDeProvincia } from "./provincias-envia";
+import { leerTarifasRueddo, RECARGO_AMBA_POR_DEFECTO, TARIFAS_RUEDDO_POR_DEFECTO, type TarifasRueddo } from "./rueddo";
 import type { OrigenEnvio } from "./tipos";
 
 /**
@@ -20,6 +21,14 @@ export type ConfigTienda = {
    * ni se anuncia ni se aplica, y todo queda como antes.
    */
   envioGratisAmbaDesde: number;
+  /**
+   * La tarifa directa del reparto de AMBA (Rueddo) por zona, SIN IVA, clave
+   * `envio_amba_tarifas` ("CABA 3709 · GBA 1 5370 · GBA 2 7500 · GBA 3
+   * 7500"). Rueddo la ajusta cada tres meses. Ver lib/rueddo.ts.
+   */
+  envioAmbaTarifas: TarifasRueddo;
+  /** Lo que se le suma a esa tarifa con IVA, en %, clave `envio_amba_recargo` (hoy 20). */
+  envioAmbaRecargo: number;
   bannerTexto: string;
   whatsapp: string;
   /** El Instagram de Harper, como URL completa; vacío = no se muestra el acceso en el pie. */
@@ -106,6 +115,8 @@ const POR_DEFECTO: ConfigTienda = {
   costoEnvio: 10100,
   envioGratisDesde: 80000,
   envioGratisAmbaDesde: 0,
+  envioAmbaTarifas: TARIFAS_RUEDDO_POR_DEFECTO,
+  envioAmbaRecargo: RECARGO_AMBA_POR_DEFECTO,
   bannerTexto: "",
   whatsapp: "",
   instagram: "",
@@ -175,6 +186,8 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
     envioGratisAmbaDesde: puedeCotizar({ envioOrigen, envioTransportistas })
       ? aPesos(mapa.get("envio_gratis_amba_desde"), POR_DEFECTO.envioGratisAmbaDesde)
       : 0,
+    envioAmbaTarifas: leerTarifasRueddo(mapa.get("envio_amba_tarifas")),
+    envioAmbaRecargo: porcentaje(mapa.get("envio_amba_recargo"), POR_DEFECTO.envioAmbaRecargo),
     bannerTexto: texto("banner_texto", POR_DEFECTO.bannerTexto),
     whatsapp: texto("whatsapp", POR_DEFECTO.whatsapp).replace(/\D/g, ""),
     instagram: urlDeInstagram(mapa.get("instagram")),
@@ -201,6 +214,13 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
     impuestosNacionales: leerImpuestos(mapa),
     condicionIva: texto("condicion_iva", POR_DEFECTO.condicionIva),
   };
+}
+
+/** "20", "20 %" o "20,5": un porcentaje entre 0 y 100. Cualquier otra cosa, el de siempre. */
+export function porcentaje(valor: string | undefined, porDefecto: number): number {
+  const m = (valor ?? "").trim().match(/^(\d{1,3}(?:[.,]\d{1,2})?)\s*%?$/);
+  const n = m ? Number(m[1].replace(",", ".")) : Number.NaN;
+  return n >= 0 && n <= 100 ? n : porDefecto;
 }
 
 /**

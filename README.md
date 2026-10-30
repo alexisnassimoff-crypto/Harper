@@ -503,9 +503,21 @@ ve con quién despachamos**: ni en la página, ni en la respuesta del cotizador,
 Mercado Pago, ni en su mail. Harper sí lo ve en el pedido y en el mail de venta. Sirve
 igual para uno, dos o más pares: se cotiza el paquete del pedido entero.
 
-**Qué opción se ofrece.** Si cotiza el reparto de AMBA (`rueddo`, el de 24 h), ese: la
-dirección es **AMBA**. Si no, la más barata de las demás: **resto del país**. O sea, AMBA
-es donde llega el reparto, según su cobertura real.
+**AMBA: la tarifa directa del reparto, sin Envia.** La zona sale del mapa de cobertura
+de Rueddo (el de 24 h), por partido: la Ciudad, **GBA 1** (San Isidro, Vicente López,
+San Martín, Morón, Avellaneda, Lanús, Lomas de Zamora…), **GBA 2** (Tigre, San Miguel,
+Moreno, Merlo, Quilmes, Almirante Brown…) y las **zonas lejanas** (Escobar, Pilar,
+General Rodríguez, La Plata, Ensenada, Berisso). La Matanza está partida: los barrios
+pegados a la Ciudad (Ramos Mejía, San Justo, La Tablada…) son GBA 1 y el resto GBA 2.
+El partido lo trae Google con la dirección; si la dirección se cargó a mano, se busca
+por la localidad (`lib/rueddo.ts`). En esas direcciones **no se le pregunta a Envia**: el
+comprador paga la tarifa de Rueddo de su zona **con IVA más el recargo** de Config (hoy
+20 %): CABA $ 5.386, GBA 1 $ 7.798, GBA 2 y zonas lejanas $ 10.890. Con envío gratis,
+ese precio se ve tachado. Vale para paquetes de hasta 5 kg y 40 × 40 × 40 cm.
+
+**El resto se cotiza con Envia.** Si el reparto cotiza una dirección que no está en el
+mapa (una localidad que no reconocemos), igual es **AMBA**, con la tarifa de las zonas
+lejanas. Si no, la más barata de las demás: **resto del país**, al precio de Envia.
 
 Solo se usa la ruta de **cotizar** (`POST /ship/rate/`). La tienda no genera etiquetas,
 no da de alta envíos ni pide retiros: eso sigue a mano.
@@ -519,6 +531,8 @@ no da de alta envíos ni pide retiros: eso sigue a mano.
 | `envio_peso_kg` | Peso mínimo del paquete en kg (`0.5`). Si el calculado es mayor, va el calculado |
 | `envio_gratis_desde` | Desde qué subtotal el envío es gratis en todo el país (`150000`) |
 | `envio_gratis_amba_desde` | Desde qué subtotal es gratis en AMBA (`60000`). Vacío o 0: sin regla propia para AMBA |
+| `envio_amba_tarifas` | La tarifa de Rueddo por zona, **sin IVA**: `CABA 3709 · GBA 1 5370 · GBA 2 7500 · GBA 3 7500` (GBA 3 = zonas lejanas). Vacío: las del tarifario de octubre de 2026 |
+| `envio_amba_recargo` | Cuánto se le suma a esa tarifa con IVA, en % (`20`) |
 | `costo_envio` | La tarifa plana de respaldo |
 
 Y en Vercel, `ENVIA_TOKEN` (ver `.env.example`). El token vive solo en el servidor:
@@ -545,12 +559,13 @@ cambia quién tiene envío gratis). Se cotiza igual, se muestra el precio tachad
 gratis», y el envío se cobra $ 0. Lo que cuesta de verdad queda en el pedido: es lo que
 paga Harper. Si no llega, el checkout le dice cuánto le falta («Agregá $ X más y tu
 envío es gratis»); en el carrito y en el panel lateral, sin dirección todavía, se dice
-«Gratis en AMBA» o cuánto falta para eso. Sin cotizar (Envia caído), la Ciudad cuenta
-como AMBA; el resto de la provincia, no.
+«Gratis en AMBA» o cuánto falta para eso. Con Envia caído, AMBA sigue igual (no lo
+necesita); el resto del país paga la tarifa plana.
 
 **Qué queda en cada pedido** (`Pedidos`): `Envio_transportista`,
-`Envio_servicio_codigo` (por ejemplo `andreani:ground`), `Envio_costo_real` (lo que
-cobra Envia, con centavos), `Envio_bonificado`, `Envio_plazo`, `Envio_cotizado_en`,
+`Envio_servicio_codigo` (por ejemplo `andreani:ground`, o `rueddo:tarifa` en AMBA),
+`Envio_costo_real` (lo que cobra Envia, o en AMBA la tarifa de Rueddo con IVA, con
+centavos), `Envio_bonificado`, `Envio_plazo`, `Envio_cotizado_en`,
 `Envio_cotizacion` (la consulta y la respuesta de Envia, sin la calle del comprador) y
 la dirección separada en `Direccion_calle`, `Direccion_numero` y `Direccion_piso`. Con
 eso, generar la etiqueta más adelante es una sola llamada más. Si a la tabla le faltara

@@ -69,6 +69,7 @@ export function normalizarCliente(datos: Partial<DatosCliente>): DatosCliente {
     ...(t(datos.calle) ? { calle: t(datos.calle).slice(0, 120) } : {}),
     ...(t(datos.numero) ? { numero: t(datos.numero).slice(0, 20) } : {}),
     ...(t(datos.piso) ? { piso: t(datos.piso).slice(0, 40) } : {}),
+    ...(t(datos.partido) ? { partido: t(datos.partido).slice(0, 80) } : {}),
     aceptaPromos: Boolean(datos.aceptaPromos),
     aceptaTerminos: datos.aceptaTerminos === true,
   };
