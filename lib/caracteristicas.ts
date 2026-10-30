@@ -9,8 +9,9 @@ import type { Producto } from "./tipos";
  * armazón que admite reemplazar los cristales por otros con aumento.
  * El 27/10/2026 Ale confirmó además que los cristales tienen protección UV400.
  *
- * Que el armazón admita cristales con aumento NO quiere decir que Harper
- * venda lentes recetados: la tienda no ofrece graduaciones ni configuraciones.
+ * Que el armazón admita cristales con aumento no quiere decir que la tienda
+ * online venda graduaciones: los cristales oftálmicos se consultan por
+ * WhatsApp y los pone Harper (Ale, 30/10/2026).
  *
  * La lista es por modelo y no por categoría a propósito: un anteojo nuevo que
  * se cargue en Airtable no hereda estas afirmaciones hasta que alguien las

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import { anunciosDelHeader } from "../lib/anuncios";
 import { CARACTERISTICAS_ANTEOJOS } from "../lib/caracteristicas";
-import { garantiasDePortada, pasosDeCompra, preguntasDePortada, slugDePortada } from "../lib/portada";
+import { garantiasDePortada, pasosDeCompra, preguntasDePortada } from "../lib/portada";
+import { modoDePortada } from "../lib/vitrina";
 
 const BASE = {
   incluye: [],
@@ -21,9 +22,9 @@ const BASE = {
 };
 
 test("el modelo de la portada sale de Config, con el Citrino por defecto", () => {
-  assert.equal(slugDePortada(""), "citrino");
-  assert.equal(slugDePortada(" Cuarzo "), "cuarzo");
-  assert.equal(slugDePortada("ninguno"), null);
+  assert.deepEqual(modoDePortada(""), { tipo: "vitrina" });
+  assert.deepEqual(modoDePortada(" Cuarzo "), { tipo: "estrella", slug: "cuarzo" });
+  assert.deepEqual(modoDePortada("ninguno"), { tipo: "catalogo" });
 });
 
 test("las preguntas dicen solo lo confirmado", () => {
@@ -35,7 +36,7 @@ test("las preguntas dicen solo lo confirmado", () => {
     texto("¿Qué tienen"),
     "Filtro de luz azul, cristales fotocromáticos que se adaptan a la luz solar, protección UV400 contra los rayos UVA y UVB y armazón apto para colocar cristales con aumento."
   );
-  assert.match(texto("¿Les puedo poner"), /Harper no vende cristales graduados; si tenés dudas, consultanos por WhatsApp/);
+  assert.match(texto("¿Les puedo poner"), /los cristales oftálmicos te los ponemos nosotros: consultanos por WhatsApp con tu receta/);
   assert.match(texto("¿Cómo puedo pagar"), /6 cuotas sin interés con Visa y Mastercard \(CFTEA 0,00 %\)/);
   assert.match(texto("¿Cuánto cuesta el envío"), /gratis en compras desde \$ 150\.000.*lunes a viernes/);
   assert.match(texto("¿Puedo cambiarlos"), /10 días .* 30 días .* 6 meses de garantía/);

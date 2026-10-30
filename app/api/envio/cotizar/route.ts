@@ -65,6 +65,7 @@ export async function POST(request: Request) {
     ciudad: texto(crudo.ciudad),
     calle: texto(crudo.calle),
     numero: texto(crudo.numero),
+    partido: texto(crudo.partido),
   };
 
   const ip = claveDeIp(request.headers.get("x-forwarded-for")?.split(",")[0] ?? "");

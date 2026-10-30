@@ -131,6 +131,7 @@ export async function POST(request: Request) {
         // calle y el número van juntos en `direccion` (validada).
         calle: (cliente.calle?.length ?? 0) >= 2 ? (cliente.calle as string) : cliente.direccion,
         numero: cliente.numero ?? "",
+        partido: cliente.partido,
       },
       eleccion,
       cupon: cuerpo.cupon,

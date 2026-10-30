@@ -128,6 +128,8 @@ export type DatosCliente = {
   calle?: string;
   numero?: string;
   piso?: string;
+  /** El partido que trajo el buscador (ver DestinoEnvio). */
+  partido?: string;
   aceptaPromos: boolean;
   /**
    * Confirmó ser mayor de edad (o tener autorización de su representante
@@ -207,6 +209,12 @@ export type DestinoEnvio = {
   ciudad: string;
   calle: string;
   numero: string;
+  /**
+   * El partido, cuando la dirección salió del buscador ("San Isidro" para
+   * Martínez): con él se sabe la zona del reparto de AMBA. Sin él, se busca
+   * por la localidad.
+   */
+  partido?: string;
 };
 
 /** Desde dónde se despacha. Sale de Config (claves envio_origen_*). */
@@ -228,8 +236,12 @@ export type OrigenEnvio = {
  * de la cotización para generar después la etiqueta con lo mismo.
  */
 export type EnvioDelPedido = {
-  /** "envia": cotizado; "plano": la tarifa de Config, porque no se pudo cotizar. */
-  origen: "envia" | "plano";
+  /**
+   * "envia": cotizado con Envia; "tarifa": AMBA, con la tarifa directa del
+   * reparto (lib/rueddo.ts); "plano": la tarifa de Config, porque no se pudo
+   * cotizar.
+   */
+  origen: "envia" | "tarifa" | "plano";
   opcion: Omit<OpcionEnvio, "comprobante"> | null;
   /** Lo que paga el comprador: 0 con envío gratis. */
   cobrado: number;

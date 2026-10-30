@@ -44,9 +44,10 @@ const CACHE_MAX = 300;
 const CONSULTAS_POR_MINUTO = 200;
 
 /**
- * El transportista con el que Harper reparte en AMBA, en 24 h. Si cotiza un
- * destino, ese destino es AMBA: la zona sale de la cobertura real del
- * reparto, no de una lista de códigos postales. El comprador no lo ve.
+ * El transportista con el que Harper reparte en AMBA, en 24 h. La zona sale
+ * de su mapa de cobertura, por partido (lib/rueddo.ts), y se cobra su tarifa
+ * directa; si además cotiza un destino que no está en el mapa, ese destino
+ * también es AMBA. El comprador no lo ve.
  */
 export const REPARTO_AMBA = "rueddo";
 

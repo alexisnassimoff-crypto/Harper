@@ -23,13 +23,13 @@ function normalizar(texto: string) {
 
 /**
  * La clave de una cotización: lo que cambia el precio (los cuatro números del
- * CP, la provincia y la localidad), el carrito y el cupón. La calle y el
+ * CP, la provincia, la localidad y el partido), el carrito y el cupón. La calle y el
  * número viajan en la consulta, pero corregirlos no vuelve a cotizar: el
  * servidor tampoco los firma en el comprobante.
  */
 function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown) {
   const cp = (destino.cp.match(/\d{4}/) ?? [""])[0];
-  return JSON.stringify([cp, normalizar(destino.provincia), normalizar(destino.ciudad), items, cupon ?? null]);
+  return JSON.stringify([cp, normalizar(destino.provincia), normalizar(destino.ciudad), normalizar(destino.partido ?? ""), items, cupon ?? null]);
 }
 
 /**
