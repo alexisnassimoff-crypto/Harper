@@ -5367,3 +5367,59 @@ p {
     padding-block: 4rem 2rem;
   }
 }
+
+/* Qué incluye cada plan: el beneficio con su detalle y lo que trae cada plan. */
+.socios-tabla {
+  width: 100%;
+  margin-top: 1.25rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.socios-tabla th,
+.socios-tabla td {
+  padding: 0.9rem 0.4rem;
+  border-bottom: 1px solid var(--borde);
+  vertical-align: top;
+  text-align: left;
+}
+.socios-tabla thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: bottom;
+}
+.socios-tabla thead small {
+  display: block;
+  margin-top: 0.2rem;
+  font-family: var(--fuente-serif), Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.socios-tabla td {
+  width: 24%;
+  font-weight: 500;
+  color: var(--verde);
+}
+.socios-tabla tbody th {
+  font-weight: 400;
+  padding-right: 0.9rem;
+}
+.socios-tabla__titulo {
+  display: block;
+  font-weight: 600;
+}
+.socios-tabla__detalle {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--texto-suave);
+}
+.socios-condiciones__enlace {
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}

@@ -8,6 +8,7 @@ import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "
 import { pedidoParaMostrar, TEXTO_PROXIMO_PASO, type SolicitudArrepentimiento } from "./arrepentimiento";
 import { lineasDeFacturacion, type FacturacionPedido } from "./facturacion";
 import { numeroDeSocio, type Socio } from "./socios-alta";
+import { TEXTOS } from "./textos";
 
 // Se puede apuntar a un Resend simulado para las pruebas de punta a punta.
 const API_RESEND = process.env.RESEND_API_URL ?? "https://api.resend.com/emails";
@@ -232,6 +233,12 @@ function enlaceSocio(d: DatosMail): string | null {
   return enlaceWhatsApp(d.config.whatsapp, `Hola, Harper. Soy socio ${numeroDeSocio(d.socio.numero)} (pedido ${d.numero}).`);
 }
 
+/** Los beneficios del plan, en el mismo orden y con las mismas palabras que la web. */
+function beneficiosDelSocio(plan: Socio["plan"]): string[] {
+  const { planSocio, planAumento } = TEXTOS.socios;
+  return plan === "Socio con aumento" ? [...planSocio.detalle, ...planAumento.detalle.slice(1)] : [...planSocio.detalle];
+}
+
 /** El bloque de bienvenida de Socios Harper en el mail del comprador. */
 function bloqueSocio(d: DatosMail): string {
   if (!d.socio) return "";
@@ -243,8 +250,14 @@ function bloqueSocio(d: DatosMail): string {
   <p style="margin:0 0 10px;font-size:14px;line-height:1.6;">
     ${escaparHtml(d.socio.plan)}, hasta el ${escaparHtml(fechaLegible(d.socio.vence))}. Tu primer par ya está en este pedido.
   </p>
+  <div style="margin:0 0 6px;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.8;">Tus beneficios</div>
+  <ul style="margin:0 0 14px;padding-left:18px;font-size:14px;line-height:1.7;">
+    ${beneficiosDelSocio(d.socio.plan)
+      .map((b) => `<li>${escaparHtml(b)}</li>`)
+      .join("")}
+  </ul>
   <p style="margin:0 0 ${enlace ? "14px" : "0"};font-size:14px;line-height:1.6;">
-    El segundo par, la reposición si se rompen o los perdés${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu número de socio. El envío, siempre gratis.
+    El segundo par, la reposición${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu número de socio.
   </p>${
     enlace
       ? `
@@ -346,7 +359,9 @@ Total: ${formatearPrecio(d.total)}
 
 ${
   d.socio
-    ? `\nYa sos socio ${numeroDeSocio(d.socio.numero)} de Socios Harper (${d.socio.plan}), hasta el ${fechaLegible(d.socio.vence)}. El segundo par, la reposicion${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu numero de socio${enlaceSocio(d) ? `: ${enlaceSocio(d)}` : "."}\n`
+    ? `\nYa sos socio ${numeroDeSocio(d.socio.numero)} de Socios Harper (${d.socio.plan}), hasta el ${fechaLegible(d.socio.vence)}.\nTus beneficios:\n${beneficiosDelSocio(d.socio.plan)
+        .map((b) => `- ${b}`)
+        .join("\n")}\nEl segundo par, la reposicion${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu numero de socio${enlaceSocio(d) ? `: ${enlaceSocio(d)}` : "."}\n`
     : ""
 }
 Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}

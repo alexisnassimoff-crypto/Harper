@@ -26,8 +26,8 @@ export type RegistroFixture = {
 const CREADO = "2026-08-23T21:35:20.000Z";
 
 // Como en Airtable desde Socios Harper (Ale, 30/10/2026): con la membresía y
-// sin «llevá 3, pagá 2» ni los tramos de anteojos, salvo el mayorista de 15.
-// Estuches y paños siguen con los suyos. Con HARPER_FIXTURES_ESCALA=1, la
+// sin «llevá 3, pagá 2» ni tramos de anteojos (tampoco el mayorista: «esto es
+// para clientes minoristas»). Estuches y paños siguen con los suyos. Con HARPER_FIXTURES_ESCALA=1, la
 // tienda de antes (sin membresía, con la escala y los porcentajes de anteojos
 // cargados debajo), para probarla.
 const CON_ESCALA = process.env.HARPER_FIXTURES_ESCALA === "1";
@@ -79,7 +79,7 @@ const PRODUCTOS_MEMBRESIA: RegistroFixture[] = [
     Nombre: "Cristales con aumento para socios",
     Slug: "socios-harper-aumento",
     Orden: 2,
-    Precio: 80000,
+    Precio: 90000,
     Descripcion: "Cristales oftálmicos orgánicos con filtro de luz azul para los dos pares de la membresía.",
   }),
 ];
@@ -367,8 +367,7 @@ function escalon(categoria: string, lleva: number, paga: number): RegistroFixtur
 }
 
 export const DESCUENTOS: RegistroFixture[] = [
-  ...(CON_ESCALA ? [descuento("Anteojos", 2, 5), descuento("Anteojos", 4, 10), descuento("Anteojos", 8, 15)] : []),
-  descuento("Anteojos", 15, 20),
+  ...(CON_ESCALA ? [descuento("Anteojos", 2, 5), descuento("Anteojos", 4, 10), descuento("Anteojos", 8, 15), descuento("Anteojos", 15, 20)] : []),
   ...["Estuches", "Paños"].flatMap((c) => [descuento(c, 2, 5), descuento(c, 4, 10), descuento(c, 8, 15), descuento(c, 15, 20)]),
   ...(CON_ESCALA ? [escalon("Anteojos", 3, 2), escalon("Anteojos", 5, 3)] : []),
 ];

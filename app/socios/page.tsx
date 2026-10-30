@@ -49,7 +49,8 @@ export default async function Socios() {
       }))
     );
 
-  const beneficios = planes.aumento ? [...T.beneficios, T.beneficioAumento] : T.beneficios;
+  // Sin el plan con aumento publicado, la tabla tiene una sola columna y no muestra los cristales.
+  const beneficios = planes.aumento ? T.beneficios : T.beneficios.filter((b) => b.socio !== null);
 
   return (
     <>
@@ -75,19 +76,40 @@ export default async function Socios() {
       </section>
 
       <section className="contenedor seccion" aria-labelledby="socios-beneficios-titulo">
-        <h2 id="socios-beneficios-titulo" className="solo-lectores">
-          Lo que incluye
+        <h2 id="socios-beneficios-titulo" className="titulo-serif">
+          {T.tablaTitulo}
         </h2>
-        <ol className="lista-numerada nosotros-lista">
-          {beneficios.map((b) => (
-            <li key={b.titulo}>
-              <div>
-                <h3 className="nosotros-lista__titulo">{b.titulo}</h3>
-                <p className="nosotros-lista__texto">{b.texto}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <table className="socios-tabla">
+          <thead>
+            <tr>
+              <th scope="col">
+                <span className="solo-lectores">Beneficio</span>
+              </th>
+              <th scope="col">
+                {T.planSocio.titulo}
+                <small>{planes.socio.precioTexto}</small>
+              </th>
+              {planes.aumento ? (
+                <th scope="col">
+                  Con aumento
+                  <small>{planes.aumento.totalTexto}</small>
+                </th>
+              ) : null}
+            </tr>
+          </thead>
+          <tbody>
+            {beneficios.map((b) => (
+              <tr key={b.titulo}>
+                <th scope="row">
+                  <span className="socios-tabla__titulo">{b.titulo}</span>
+                  <span className="socios-tabla__detalle">{b.detalle}</span>
+                </th>
+                <td>{b.socio ?? <span aria-label="No incluye">—</span>}</td>
+                {planes.aumento ? <td>{b.aumento ?? <span aria-label="No incluye">—</span>}</td> : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       <section className="contenedor seccion socios-pasos" aria-labelledby="socios-pasos-titulo">
@@ -110,8 +132,10 @@ export default async function Socios() {
             <li key={c}>{c}</li>
           ))}
         </ul>
-        <p className="apagado">
-          Todo el detalle, en los <Link href="/legales/terminos#socios">términos y condiciones</Link>.
+        <p>
+          <Link href="/legales/socios" className="socios-condiciones__enlace">
+            {T.condicionesEnlace}
+          </Link>
         </p>
       </section>
     </>

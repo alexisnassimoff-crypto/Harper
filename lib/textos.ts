@@ -120,29 +120,60 @@ export const TEXTOS = {
     planSocio: {
       apodo: "12 meses",
       titulo: "Socio",
-      detalle: ["2 pares en el año: uno ahora y otro cuando quieras", "Envío gratis siempre", "Reposición si se rompen o los perdés"],
+      detalle: [
+        "2 pares de anteojos",
+        "Envío gratis siempre",
+        "1 reposición si se rompen o los perdés",
+        "Precio congelado en los pares extra",
+        "72 horas antes en cada lanzamiento",
+      ],
     },
     planAumento: {
       apodo: "Con tus cristales",
       titulo: "Socio con aumento",
-      detalle: ["Todo lo del plan Socio", "Los cristales con aumento de los 2 pares, orgánicos y con filtro de luz azul"],
+      detalle: ["Todo lo del plan Socio", "Cristales con aumento en los 2 pares", "La reposición, también con tus cristales"],
     },
+    /**
+     * Los beneficios, uno por renglón y siempre en este orden: la tabla de
+     * /socios, las condiciones y el mail salen de acá. `socio` y `aumento` son
+     * lo que trae cada plan; null = no lo trae.
+     */
+    tablaTitulo: "Qué incluye cada plan",
     beneficios: [
       {
-        titulo: "Dos pares en el año",
-        texto:
-          "Uno lo elegís cuando te hacés socio. El otro, cuando quieras durante los 12 meses, también de los modelos que lleguen después. Si el que elegís cuesta más, pagás solo la diferencia.",
+        titulo: "2 pares de anteojos",
+        detalle:
+          "El primero lo elegís al hacerte socio. El segundo, cuando quieras durante los 12 meses, también de los modelos que lleguen después. Si cuesta más que un fotocromático, pagás solo la diferencia.",
+        socio: "2",
+        aumento: "2",
       },
-      { titulo: "Envío gratis, siempre", texto: "Todo lo que pidas como socio te llega sin costo de envío, a cualquier parte del país." },
-      { titulo: "Si se rompen o los perdés", texto: "Te mandamos otro par igual, una vez en el año. No te preocupás más por tus anteojos." },
-      { titulo: "Precio congelado", texto: "Si querés más pares durante el año, los pagás al precio del día en que te hiciste socio." },
-      { titulo: "Antes que nadie", texto: "Cada vez que lancemos algo nuevo, los socios eligen 72 horas antes, cuando todavía están todos los colores." },
+      {
+        titulo: "Cristales con aumento",
+        detalle:
+          "Orgánicos y con filtro de luz azul, en los dos pares. Nos mandás tu receta por WhatsApp: en general están listos en 24 horas, más el envío.",
+        socio: null,
+        aumento: "En los 2 pares",
+      },
+      { titulo: "Envío gratis", detalle: "En todos tus pedidos durante los 12 meses, a todo el país.", socio: "Siempre", aumento: "Siempre" },
+      {
+        titulo: "Reposición",
+        detalle: "Si se rompen o los perdés, te mandamos otro par igual. Una vez durante la membresía.",
+        socio: "1",
+        aumento: "1, con tus cristales",
+      },
+      {
+        titulo: "Precio congelado",
+        detalle: "Los pares extra que compres durante el año, al precio del día en que te hiciste socio.",
+        socio: "12 meses",
+        aumento: "12 meses",
+      },
+      {
+        titulo: "Antes que nadie",
+        detalle: "En cada lanzamiento elegís 72 horas antes que el resto, cuando todavía están todos los colores.",
+        socio: "72 horas",
+        aumento: "72 horas",
+      },
     ],
-    beneficioAumento: {
-      titulo: "Con aumento",
-      texto:
-        "En el plan con aumento, los cristales de los dos pares van incluidos: orgánicos y con filtro de luz azul. Nos mandás tu receta por WhatsApp y te los preparamos: en general están listos en 24 horas, más el envío.",
-    },
     pasosTitulo: "Cómo funciona",
     pasos: [
       "Elegís el plan y tu primer par.",
@@ -156,10 +187,12 @@ export const TEXTOS = {
       "Tenés 10 días para arrepentirte, como en cualquier compra online.",
       "Los lugares son pocos y van numerados. Cuando se ocupan todos, la inscripción se cierra.",
     ],
+    condicionesEnlace: "Condiciones completas de Socios Harper",
+    envioGratis: "Con tu membresía, el envío es gratis a todo el país.",
     enlace: "Ver todos los beneficios",
     ficha: {
       titulo: "Hacete socio con este par",
-      texto: "Este par va incluido. Durante 12 meses tenés otro par más, envío gratis y reposición si se rompen o los perdés.",
+      texto: "Este par va incluido. Durante 12 meses tenés otro par más, envío gratis, una reposición y precio congelado.",
     },
     /** Al final de la portada, después del precio del par. */
     cierre: " O hacete socio y tenés dos pares en el año.",

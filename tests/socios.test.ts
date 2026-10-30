@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 // El Airtable de prueba, como queda con Socios Harper: sin «llevá 3, pagá 2»,
-// con la membresía ($ 159.900) y los cristales para socios ($ 80.000).
+// con la membresía ($ 159.900) y los cristales para socios ($ 90.000).
 process.env.HARPER_FIXTURES = "1";
 delete process.env.VERCEL;
 
@@ -26,13 +26,13 @@ async function ids() {
   };
 }
 
-test("los planes salen de Airtable: socio $ 159.900, con aumento $ 239.900 y 100 lugares", async () => {
+test("los planes salen de Airtable: socio $ 159.900, con aumento $ 249.900 y 100 lugares", async () => {
   const [productos, config] = await Promise.all([getProductos(), getConfig()]);
   const planes = planesDeSocio(productos, config.sociosCupos)!;
   assert.equal(planes.socio.precio, 159900);
   assert.match(planes.socio.precioTexto, /^\$\s159\.900$/);
-  assert.equal(planes.aumento?.total, 239900);
-  assert.match(planes.aumento?.totalTexto ?? "", /^\$\s239\.900$/);
+  assert.equal(planes.aumento?.total, 249900);
+  assert.match(planes.aumento?.totalTexto ?? "", /^\$\s249\.900$/);
   assert.deepEqual([planes.cupos, planes.quedan], [100, 100]);
   // Sin la membresía publicada, no hay planes.
   assert.equal(planesDeSocio(productos.filter((p) => p.slug !== SLUG_SOCIO)), null);
@@ -50,10 +50,10 @@ test("con la membresía, el primer par va incluido y el envío es gratis", async
   assert.equal(carrito.items.length, 2);
 });
 
-test("el plan con aumento suma los cristales: $ 239.900", async () => {
+test("el plan con aumento suma los cristales: $ 249.900", async () => {
   const i = await ids();
   const carrito = await resolverCarrito([i.socio, i.aumento, i.citrino()]);
-  assert.equal(carrito.subtotal, 239900);
+  assert.equal(carrito.subtotal, 249900);
   assert.equal(planDelPedido(carrito.items), "Socio con aumento");
   assert.equal(planDelPedido((await resolverCarrito([i.socio, i.citrino()])).items), "Socio");
 });

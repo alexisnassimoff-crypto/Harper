@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getConfig } from "@/lib/config";
+import Link from "next/link";
 import { versionTerminosLegible } from "@/lib/legales";
 
 export const metadata: Metadata = {
@@ -73,6 +74,13 @@ export default async function Terminos() {
       <h2 id="socios" style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>
         Socios Harper
       </h2>
+      <p>
+        El detalle de la membresía está en las{" "}
+        <Link href="/legales/socios" style={{ textDecoration: "underline" }}>
+          Condiciones de Socios Harper
+        </Link>
+        , que forman parte de estos términos. En resumen:
+      </p>
       <p>
         Socios Harper es una membresía de doce (12) meses que se paga una sola
         vez. Rige desde el día en que Mercado Pago acredita el pago y no se
