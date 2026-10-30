@@ -474,6 +474,25 @@ paquete oficial de atribución, sin modificar). Los datos de la dirección se gu
 el pedido como siempre (Direccion, Ciudad, Provincia, CP); no se guarda nada más de
 Google.
 
+## Comprador que vuelve
+
+En el mismo navegador, el checkout ya recuerda los datos de la última compra y
+los muestra resumidos («Tus datos» y «Entrega», cada uno con «Cambiar»): quien
+vuelve solo revisa y paga.
+
+En otro navegador o celular, debajo del mail aparece «¿Ya compraste con este
+mail? Completá tus datos con un código». Si ese mail tiene una compra
+confirmada, le llega un código de 6 números (`/api/clientes/codigo`); con el
+código (`/api/clientes/datos`) se completan nombre, teléfono, DNI y la
+dirección de su última compra. **Con el mail solo no se muestra nada**:
+cualquiera puede escribir el mail de otro. La respuesta es la misma haya
+comprado o no, el código vence a los 10 minutos y los intentos están
+limitados por mail y por IP (lib/reconocer-cliente.ts). El código no se guarda:
+viaja firmado con una clave que sale de `MP_WEBHOOK_SECRET`.
+
+Si ya compró, la ficha y la portada dejan de ofrecerle HARPER10 (es solo
+para la primera compra) y, si lo tenía aplicado, se le avisa antes de pagar.
+
 ## Envíos
 
 El envío a domicilio se cotiza con la API de **[Envia](https://docs.envia.com)** apenas

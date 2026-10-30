@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
+import { cuponBienvenidaUsado } from "@/components/carrito/cuponUsado";
 import { buscarCupon, CUPON_BIENVENIDA, mensajeDelCupon, precioConCupon, type CuponResuelto } from "@/lib/cupones";
 import { precio as formatearPrecio } from "@/lib/formato";
 
@@ -41,6 +42,9 @@ export default function CuponBienvenida({
   const [enfocar, setEnfocar] = useState<"quitar" | "campo" | null>(null);
   const botonQuitar = useRef<HTMLButtonElement>(null);
   const campo = useRef<HTMLInputElement>(null);
+  // Ya compró antes (se supo en este navegador): no se le ofrece.
+  const [usado, setUsado] = useState(false);
+  useEffect(() => setUsado(cuponBienvenidaUsado()), []);
 
   const aplicado = listo && cupon === CUPON_BIENVENIDA.codigo;
   const delCarrito = compra === "carrito";
@@ -96,6 +100,8 @@ export default function CuponBienvenida({
       // Sin portapapeles, el código igual está a la vista.
     }
   }
+
+  if (usado && !aplicado) return null;
 
   return (
     <section className="cupon" aria-label="Beneficio de primera compra">

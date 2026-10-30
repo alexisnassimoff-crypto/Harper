@@ -407,6 +407,35 @@ export function mailPagoRechazado(d: DatosMail): Envio {
   };
 }
 
+/**
+ * El código para completar los datos de una compra anterior en el checkout
+ * (ver lib/reconocer-cliente.ts). Solo el código: ningún dato de la persona.
+ */
+export function mailCodigoDeAcceso(d: { email: string; codigo: string; config: ConfigTienda }): Envio {
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Tu código para comprar más rápido</h1>
+<p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">
+  Escribilo en el checkout de Harper y completamos tus datos de la última compra.
+  Vence en 10 minutos.
+</p>
+<div style="font-size:28px;letter-spacing:8px;padding:16px;background:#f2f0ec;border:1px solid #e3e0d8;text-align:center;">
+  ${escaparHtml(d.codigo)}
+</div>
+<p style="margin:24px 0 0;font-size:12px;color:#78756c;line-height:1.6;">
+  Si no lo pediste, ignorá este mail: sin el código nadie ve tus datos.
+</p>`,
+    d.config
+  );
+
+  return {
+    para: d.email,
+    asunto: `${d.codigo} es tu código de Harper`,
+    html,
+    texto: `Tu código de Harper: ${d.codigo}\n\nEscribilo en el checkout y completamos tus datos de la última compra. Vence en 10 minutos.\n\nSi no lo pediste, ignorá este mail: sin el código nadie ve tus datos.`,
+    responderA: d.config.emailContacto,
+  };
+}
+
 /** 4 — El pedido salió, con el número de seguimiento. */
 export function mailEnviado(
   d: DatosMail & { tracking: string }

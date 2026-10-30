@@ -1017,6 +1017,11 @@ p {
   padding-bottom: 0.85rem;
   border-bottom: 1px solid var(--borde);
 }
+.codigo-descuento__abrir.enlace-accion {
+  justify-self: start;
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+}
 .codigo-descuento__etiqueta {
   font-size: 0.75rem;
   font-weight: 600;
@@ -1130,6 +1135,127 @@ p {
   display: grid;
   gap: 0.85rem;
   grid-template-columns: 1fr 1fr;
+}
+/* Tres pasos claros: Tus datos, Entrega y Pago. Cada uno con su número y un
+   respiro entre uno y otro, en vez de una sola lista larga de campos. */
+.checkout__paso {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.checkout__paso + .checkout__paso {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--borde);
+}
+.checkout__paso-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 500;
+}
+.checkout__paso-numero {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--verde);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+/* Un bloque completo, resumido: quien ya compró solo revisa. */
+.checkout__resumido {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: color-mix(in srgb, var(--verde) 3%, var(--fondo));
+}
+.checkout__resumido-texto {
+  display: grid;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.checkout__resumido-texto strong {
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
+.checkout__resumido-texto span {
+  color: var(--texto-suave);
+}
+/* «¿Ya compraste con este mail?»: una línea debajo del mail, sin trabar. */
+.reconocer {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: -0.35rem;
+  font-size: 0.8125rem;
+}
+.reconocer__oferta {
+  margin: 0;
+  color: var(--texto-suave);
+}
+.reconocer .enlace-accion,
+.codigo-descuento__abrir.enlace-accion {
+  margin-left: 0;
+  font-size: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: underline;
+  white-space: normal;
+}
+.reconocer__codigo {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+.reconocer__texto {
+  color: var(--texto);
+  overflow-wrap: anywhere;
+}
+.reconocer__fila {
+  display: flex;
+  gap: 0.6rem;
+}
+.reconocer__campo {
+  width: 8.5rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-pill);
+  background: #fff;
+  font: inherit;
+  font-size: 1.125rem;
+  letter-spacing: 0.3em;
+  font-variant-numeric: tabular-nums;
+}
+.reconocer__usar {
+  min-height: 2.75rem;
+  padding-inline: 1.1rem;
+}
+.reconocer__ayuda {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 0.75rem;
+}
+.checkout__pago-unico,
+.checkout__pago-nota {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+.medio-pago--envio {
+  margin-top: 0.25rem;
 }
 .checkout__par--localidad {
   grid-template-columns: 1.6fr 1fr;
