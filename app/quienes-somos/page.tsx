@@ -23,7 +23,7 @@ const enumerar = (partes: string[]) => (partes.length <= 1 ? partes.join("") : `
 export const metadata: Metadata = {
   title: "Quiénes somos",
   description:
-    "Harper hace anteojos para elegir como una prenda: por el color, la forma y con qué los combinás. Para ver bien y para que te vean. Buenos Aires, Argentina.",
+    "En Harper hacemos anteojos para elegir como cualquier prenda: por el color, por la forma y por cómo los combinás. Desde Buenos Aires, Argentina.",
   alternates: { canonical: "/quienes-somos" },
 };
 
@@ -141,7 +141,7 @@ export default async function QuienesSomos() {
         <section className="contenedor seccion nosotros-viene" aria-labelledby="nosotros-viene-titulo">
           <p className="etiqueta-mono">Lo que viene</p>
           <h2 id="nosotros-viene-titulo" className="titulo-serif">
-            {N.viene} {enumerar(proximas.map((l) => l.corto.toLowerCase()))}.
+            {N.viene(enumerar(proximas.map((l) => l.nombre.toLowerCase())))}
           </h2>
           <Link href="/#lo-que-viene" className="boton boton--contorno nosotros-viene__boton">
             {N.vieneBoton}

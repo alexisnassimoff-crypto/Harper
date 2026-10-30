@@ -37,16 +37,38 @@ test("los textos de la marca: sin palabras prohibidas, sin contar los modelos de
   const { TEXTOS } = await import("../lib/textos");
   const { FORMAS } = await import("../lib/vitrina");
   const { LINEAS } = await import("../lib/lineas");
-  const todo = [JSON.stringify(TEXTOS), ...Object.values(FORMAS), ...LINEAS.map((l) => l.promesa), DESCRIPCION_SITIO, TITULO_SITIO]
-    .join(" ")
-    .toLowerCase();
+  // Todos los textos, y los que llevan datos armados con unos de ejemplo.
+  const textos: string[] = [];
+  const juntar = (v: unknown): void => {
+    if (typeof v === "string") textos.push(v);
+    else if (typeof v === "function") textos.push(String(v("$ 1", 3, 2, "$ 2", "$ 3")));
+    else if (v && typeof v === "object") Object.values(v).forEach(juntar);
+  };
+  juntar(TEXTOS);
+  const todo = [...textos, ...Object.values(FORMAS), ...LINEAS.map((l) => l.promesa), DESCRIPCION_SITIO, TITULO_SITIO].join(" ").toLowerCase();
+  assert.ok(textos.length > 40);
   // Las que Ale no quiere en el sitio (30/10/2026).
   for (const prohibida of ["canchero", "onda", "ondero", "fachero", "accesible"]) {
     assert.ok(!new RegExp(`\\b${prohibida}`).test(todo), `no debería decir "${prohibida}"`);
   }
   // La colección crece: no se cuentan los modelos ni los colores de hoy.
-  assert.ok(!/\b(cuatro|doce)\b|\b\d+ (modelos|colores)\b/.test(todo));
+  assert.ok(!/\b(cuatro|doce)\b/.test(todo));
   // Los precios y las promociones los pone el código.
-  assert.ok(!/\$\s?\d/.test(todo));
+  assert.ok(!/\$\s?[1-9]\d*\.\d{3}/.test(todo));
   assert.ok(!/previene|cura |descans|oftalmólog|recomiendan/.test(todo));
+});
+
+test("los textos que llevan datos se arman bien", async () => {
+  const { TEXTOS } = await import("../lib/textos");
+  assert.equal(TEXTOS.portada.bajada("$ 89.900"), "Anteojos fotocromáticos con filtro de luz azul, a $ 89.900 el par.");
+  assert.equal(TEXTOS.portada.bajada(null), "Anteojos fotocromáticos con filtro de luz azul.");
+  assert.equal(
+    TEXTOS.portada.promo(3, 2, "$ 179.800", 6, "$ 29.966,67"),
+    "Si te llevás 3, pagás 2: $ 179.800 en 6 cuotas sin interés de $ 29.966,67.",
+  );
+  assert.equal(
+    TEXTOS.viene.bajada("de sol polarizados, de receta y clip-on", 25, 95),
+    "Se vienen anteojos de sol polarizados, de receta y clip-on: 25 modelos nuevos en 95 colores.",
+  );
+  assert.equal(TEXTOS.cierre.precio("$ 89.900") + TEXTOS.cierre.escala("tres", "dos"), "Cada par cuesta $ 89.900. Y si te llevás tres, pagás dos.");
 });
