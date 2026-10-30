@@ -1,5 +1,6 @@
 import type { ConfigTienda } from "./config";
 import { precio as formatearPrecio, precioConCentavos } from "./formato";
+import { plazoParaComprador } from "./envio-gratis";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import { caracteristicasDe } from "./caracteristicas";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
@@ -224,11 +225,15 @@ export function enlaceGraduadosDelPedido(d: Pick<DatosMail, "numero" | "items" |
   return lleva ? enlaceWhatsApp(d.config.whatsapp, mensajeGraduadosPedido(d.numero)) : null;
 }
 
-/** "Lo enviamos por Andreani · plazo estimado: 2-4 días.", para el comprador. */
+/**
+ * "Envío a domicilio · Llega en 24 h hábiles desde el despacho.", para el
+ * comprador. Sin el transportista: eso lo sabe Harper (el mail interno).
+ */
 function envioCliente(d: Pick<DatosMail, "envioDetalle">): string | null {
   const e = d.envioDetalle;
   if (!e || e.transportista.startsWith("Tarifa plana")) return null;
-  return `Lo enviamos por ${e.transportista}${e.plazo ? ` · plazo estimado: ${e.plazo}` : ""}.`;
+  const plazo = plazoParaComprador(e.plazo);
+  return plazo ? `Envío a domicilio · ${plazo} desde el despacho.` : null;
 }
 
 /** "Envío: Andreani (andreani:ground) · costo real $ 8.120,40 · cobrado $ 8.121", para Harper. */

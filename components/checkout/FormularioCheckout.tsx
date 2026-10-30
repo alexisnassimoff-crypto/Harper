@@ -7,6 +7,7 @@ import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
 import { NOMBRE_MARCAS } from "@/lib/cuotas";
+import { esEnvioGratis, textoEnvioGratis } from "@/lib/envio-gratis";
 import {
   CONDICIONES_IVA,
   CONSUMIDOR_FINAL,
@@ -106,9 +107,10 @@ const VACIO: DatosCliente = {
  * de siempre.
  *
  * El envío es solo a domicilio. Con la dirección completa se cotiza con Envia
- * y el comprador elige transportista (precio y plazo de cada uno); con envío
- * gratis se muestra la opción más barata con el precio tachado. Si no se
- * puede cotizar, la tarifa plana de siempre.
+ * y se muestra una sola opción, «Envío a domicilio», con el plazo y el precio
+ * (sin decir con quién se despacha). Es gratis desde un mínimo que depende
+ * de la zona —AMBA o el resto del país—: con envío gratis, el precio tachado;
+ * si no llega, cuánto le falta. Si no se puede cotizar, la tarifa plana.
  */
 export default function FormularioCheckout({
   reintento = false,
@@ -173,9 +175,8 @@ export default function FormularioCheckout({
     return { cp, provincia: form.provincia, ciudad: form.ciudad.trim(), calle, numero: numeroCalle };
   })();
 
-  // Envío a domicilio cotizado con Envia para esa dirección. Elige el
-  // comprador; si no eligió, la más barata. Sin cotización, la tarifa del
-  // carrito (la plana, o gratis desde el mínimo).
+  // Envío a domicilio cotizado con Envia para esa dirección. Sin cotización,
+  // la tarifa del carrito (la plana, o gratis desde el mínimo).
   const {
     cotizacion,
     cargando: cotizandoEnvio,
@@ -192,9 +193,7 @@ export default function FormularioCheckout({
   // en el mismo render en que se limpia el estado.
   const esperandoEnvio = useRef(false);
   const formulario = useRef<HTMLFormElement>(null);
-  const [idEnvio, setIdEnvio] = useState<string | null>(null);
-  const opcionesEnvio = cotizacion?.cotizado ? cotizacion.opciones : [];
-  const opcionEnvio = opcionesEnvio.find((o) => o.id === idEnvio) ?? opcionesEnvio[0] ?? null;
+  const opcionEnvio = (cotizacion?.cotizado ? cotizacion.opciones[0] : null) ?? null;
 
   // Si la última respuesta fue "sin cotizar" (Envia sin configurar o caído),
   // mientras se calcula otra dirección no se anuncia nada: el checkout se ve
@@ -205,11 +204,17 @@ export default function FormularioCheckout({
   }, [envioListo, cotizacion]);
   const calculandoEnvio = envioActivo && !envioListo && !sinCotizar;
 
+  // Sin la dirección todavía no se sabe la zona, y con ella el precio (puede
+  // ser gratis en AMBA): el total se muestra sin el envío hasta saberlo. Si
+  // ya es gratis en todo el país, no hay nada que esperar.
+  const envioPorConocer = cotizaEnvio && !sinCotizar && (!envioActivo || calculandoEnvio) && (carrito?.envio ?? 0) > 0;
+
   // El envío bonificado gana sobre cualquier cotización: el pedido llegó al
-  // mínimo y lo paga Harper.
-  const envio = cotizacion?.bonificado
-    ? 0
-    : (opcionEnvio?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
+  // mínimo de su zona y lo paga Harper.
+  const envio =
+    envioPorConocer || cotizacion?.bonificado
+      ? 0
+      : (opcionEnvio?.precio ?? cotizacion?.envio ?? carrito?.envio ?? 0);
 
   // Los dos precios vienen del servidor: cambiar de medio de pago no espera
   // ninguna consulta.
@@ -686,10 +691,21 @@ export default function FormularioCheckout({
 
   const cantidadTotal = carrito.items.reduce((n, i) => n + i.cantidad, 0);
   const productos = `${cantidadTotal} ${cantidadTotal === 1 ? "producto" : "productos"}`;
+  // El envío gratis según la zona: en AMBA desde un mínimo, en todo el país
+  // desde otro (los dos sobre el subtotal sin el cupón, como el servidor).
+  const umbrales = { amba: carrito.envioGratisAmbaDesde ?? 0, nacional: carrito.envioGratisDesde };
+  const gratisEnAmba = esEnvioGratis(carrito.subtotalSinCupon ?? carrito.subtotal, "amba", umbrales);
+
   // Con envío gratis y cotizado, el precio real tachado: lo paga Harper.
   // Mientras se cotiza la dirección, no se anuncia un precio que va a cambiar.
   const envioTexto = calculandoEnvio ? (
     <span className="apagado">Calculando…</span>
+  ) : envioPorConocer ? (
+    gratisEnAmba ? (
+      "Gratis en AMBA"
+    ) : (
+      <span className="apagado">Con tu dirección</span>
+    )
   ) : resumen.envio === 0 ? (
     cotizacion?.bonificado && opcionEnvio ? (
       <>
@@ -701,11 +717,10 @@ export default function FormularioCheckout({
   ) : (
     formatearPrecio(resumen.envio)
   );
-  const gratisDesde = carrito.envioGratisDesde > 0 ? ` Gratis desde ${formatearPrecio(carrito.envioGratisDesde)}.` : "";
   const notaEnvio = opcionEnvio
-    ? `${opcionEnvio.transportistaNombre}${opcionEnvio.plazo ? ` · llega en ${opcionEnvio.plazo}` : ""}.${gratisDesde}`
-    : `Envío a domicilio.${gratisDesde}`;
-
+    ? (opcionEnvio.plazo ? `${opcionEnvio.plazo}.` : "Envío a domicilio.") +
+      (cotizacion && !cotizacion.bonificado && cotizacion.gratisDesde > 0 ? ` Gratis desde ${formatearPrecio(cotizacion.gratisDesde)}.` : "")
+    : textoEnvioGratis(umbrales);
   const listaItems = (
     <>
       {carrito.items.map((item) => (
@@ -736,7 +751,11 @@ export default function FormularioCheckout({
           <summary>
             <span>
               {productos} · <strong>{formatearPrecio(resumen.total)}</strong>
-              {resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}
+              {envioPorConocer
+                ? gratisEnAmba
+                  ? " · envío gratis en AMBA"
+                  : " · sin envío"
+                : resumen.envio === 0 ? " · envío gratis" : " · envío incluido"}
               {resumen.ahorroTotal > 0 ? ` · ahorrás ${formatearPrecio(resumen.ahorroTotal)}` : ""}
             </span>
             <span className="checkout__ver">Ver detalle</span>
@@ -919,45 +938,46 @@ export default function FormularioCheckout({
           </>
         )}
 
-        {/* El envío: las opciones a domicilio que cotizó Envia para esta
-            dirección, con precio y plazo. Con envío gratis, la más barata con
-            su precio tachado. Mismo diseño que el medio de pago. */}
-        {opcionesEnvio.length > 0 || calculandoEnvio ? (
-          <fieldset className="medio-pago" disabled={enviando} aria-busy={cotizandoEnvio}>
-            <legend className="label">Envío a domicilio</legend>
-            {opcionesEnvio.length > 0 ? (
-              opcionesEnvio.map((o) => (
-                <label key={o.id} className="medio-pago__opcion" data-elegida={o.id === opcionEnvio?.id}>
-                  <input
-                    type="radio"
-                    name="envio"
-                    value={o.id}
-                    checked={o.id === opcionEnvio?.id}
-                    onChange={() => setIdEnvio(o.id)}
-                  />
+        {/* El envío a domicilio que cotizó Envia para esta dirección: el
+            plazo y el precio, o el precio tachado si es gratis. Si no llega
+            al mínimo de su zona, cuánto le falta. Mismo diseño que el medio
+            de pago, sin nada que elegir. */}
+        {opcionEnvio || calculandoEnvio ? (
+          <div className="medio-pago" role="group" aria-labelledby={`${ID_FORMULARIO}-envio`} aria-busy={cotizandoEnvio}>
+            <p id={`${ID_FORMULARIO}-envio`} className="label">
+              Envío a domicilio
+            </p>
+            {opcionEnvio && cotizacion ? (
+              <>
+                <div className="medio-pago__opcion envio-domicilio" data-elegida="true">
                   <span className="medio-pago__texto">
-                    <span className="medio-pago__nombre">{o.transportistaNombre}</span>
-                    <span className="medio-pago__detalle">
-                      {[o.servicioNombre, o.plazo ? `llega en ${o.plazo}` : null].filter(Boolean).join(" · ")}
-                    </span>
+                    <span className="medio-pago__nombre">Envío a domicilio</span>
+                    {opcionEnvio.plazo ? <span className="medio-pago__detalle">{opcionEnvio.plazo}</span> : null}
                   </span>
                   <span className="medio-pago__precio">
-                    {cotizacion?.bonificado ? (
+                    {cotizacion.bonificado ? (
                       <>
-                        <PrecioTachado precio={o.precio} /> Envío gratis
+                        <PrecioTachado precio={opcionEnvio.precio} /> Envío gratis
                       </>
                     ) : (
-                      formatearPrecio(o.precio)
+                      formatearPrecio(opcionEnvio.precio)
                     )}
                   </span>
-                </label>
-              ))
+                </div>
+                <p className="envio-gratis-falta" role="status">
+                  {cotizacion.bonificado
+                    ? "¡Tu envío es gratis!"
+                    : cotizacion.falta > 0
+                      ? `Agregá ${formatearPrecio(cotizacion.falta)} más y tu envío es gratis.`
+                      : null}
+                </p>
+              </>
             ) : (
               <p className="apagado checkout__envio-nota" role="status">
                 Calculando el envío a tu dirección…
               </p>
             )}
-          </fieldset>
+          </div>
         ) : null}
 
         {/* Datos de facturación: por defecto, consumidor final. Si la factura
@@ -1165,7 +1185,7 @@ export default function FormularioCheckout({
         <p className="apagado checkout__envio-nota">{notaEnvio}</p>
 
         <div className="fila fila--total">
-          <span>Total</span>
+          <span>{envioPorConocer ? "Total sin envío" : "Total"}</span>
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total)}</strong>
         </div>
 

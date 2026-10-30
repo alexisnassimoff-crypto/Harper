@@ -248,6 +248,8 @@ export const CONFIG: RegistroFixture[] = [
   // Una prueba puede usar el mínimo de producción (HARPER_FIXTURES_ENVIO_GRATIS_DESDE=150000)
   // para que 1 par pague envío y 2 pares no.
   config("envio_gratis_desde", process.env.HARPER_FIXTURES_ENVIO_GRATIS_DESDE || "80000"),
+  // Envío gratis en AMBA (donde llega el reparto de 24 h): más bajo que el del país.
+  config("envio_gratis_amba_desde", process.env.HARPER_FIXTURES_ENVIO_GRATIS_AMBA_DESDE ?? "60000"),
   config("banner_texto", "Envio gratis en compras superiores a $80.000"),
   config("plazo_entrega", "3 a 7 dias habiles"),
   config("whatsapp", "5491173555065"),

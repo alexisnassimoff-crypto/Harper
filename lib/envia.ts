@@ -43,7 +43,14 @@ const CACHE_MAX = 300;
  */
 const CONSULTAS_POR_MINUTO = 200;
 
-/** Los nombres que ve el comprador. Si Envia agrega uno, se usa el suyo. */
+/**
+ * El transportista con el que Harper reparte en AMBA, en 24 h. Si cotiza un
+ * destino, ese destino es AMBA: la zona sale de la cobertura real del
+ * reparto, no de una lista de códigos postales. El comprador no lo ve.
+ */
+export const REPARTO_AMBA = "rueddo";
+
+/** Los nombres de cada transportista (para Harper: el comprador no los ve). */
 const NOMBRES: Record<string, string> = {
   andreani: "Andreani",
   correoargentino: "Correo Argentino",

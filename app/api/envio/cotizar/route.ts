@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { claveDeIp, consumirCuota } from "@/lib/cuota";
 import { verificarCuotas } from "@/lib/cuotas-servidor";
+import { cotizacionParaComprador, type CotizacionEnvio } from "@/lib/envio-gratis";
 import { limpiarItems, resolverCarrito } from "@/lib/pedidos";
 import type { DestinoEnvio } from "@/lib/tipos";
 
@@ -29,10 +30,11 @@ function conLimite<T>(promesa: Promise<T>, ms: number, siTarda: T): Promise<T> {
  * Cotiza el envío a domicilio del carrito con Envia, para la dirección que
  * está cargando el comprador.
  *
- * Devuelve las opciones (transportista, precio y plazo), cada una con su
- * comprobante firmado: el checkout cobra con ese comprobante, sin volver a
- * cotizar. Si no se puede cotizar, devuelve la tarifa plana con
- * `cotizado: false`; nunca un error por eso.
+ * Devuelve el envío a domicilio (precio y plazo, sin nombre de
+ * transportista) con su comprobante: el checkout cobra con ese comprobante,
+ * sin volver a cotizar. También la zona, el mínimo de envío gratis de esa
+ * zona y cuánto le falta al carrito. Si no se puede cotizar, devuelve la
+ * tarifa plana con `cotizado: false`; nunca un error por eso.
  *
  * Solo atiende al propio sitio y con un límite por IP: cada llamada pueden
  * ser varias consultas a Envia.
@@ -83,12 +85,16 @@ export async function POST(request: Request) {
 
   try {
     const carrito = await resolverCarrito(items, { destino, cupon: cuerpo.cupon });
+    const envio = cotizacionParaComprador(carrito, {
+      amba: carrito.config.envioGratisAmbaDesde,
+      nacional: carrito.config.envioGratisDesde,
+    });
 
-    // Las cuotas sin interés se anuncian solo para el total exacto: con cada
-    // envío el total es otro, así que se verifican por opción.
-    const cuotas = Object.fromEntries(
+    // Las cuotas sin interés se anuncian solo para el total exacto: se
+    // verifican para el total con el envío cotizado.
+    const cuotas: CotizacionEnvio["cuotas"] = Object.fromEntries(
       await Promise.all(
-        (carrito.envioBonificado ? [] : carrito.opcionesEnvio).map(async (o) => {
+        (envio.bonificado ? [] : envio.opciones).map(async (o) => {
           const monto = carrito.subtotal + o.precio;
           const verificadas = await conLimite(verificarCuotas(monto), ESPERA_CUOTAS_MS, null);
           return [o.id, verificadas ? { ...verificadas, monto } : null] as const;
@@ -96,17 +102,7 @@ export async function POST(request: Request) {
       )
     );
 
-    return NextResponse.json(
-      {
-        opciones: carrito.opcionesEnvio,
-        cotizado: carrito.envioCotizado,
-        // El envío sin elegir nada: la más barata, o la tarifa plana.
-        envio: carrito.envio,
-        bonificado: carrito.envioBonificado,
-        cuotas,
-      },
-      { headers: sinCache }
-    );
+    return NextResponse.json({ ...envio, cuotas } satisfies CotizacionEnvio, { headers: sinCache });
   } catch (error) {
     console.error("[envio] no se pudo cotizar:", error);
     return NextResponse.json({ error: "No se pudo cotizar el envío" }, { status: 503, headers: sinCache });

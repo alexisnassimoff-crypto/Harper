@@ -14,7 +14,10 @@ export type CarritoResueltoCliente = {
   subtotal: number;
   envio: number;
   total: number;
+  /** Desde cuánto (sin el cupón) el envío es gratis en todo el país; 0 = nunca. */
   envioGratisDesde: number;
+  /** Desde cuánto es gratis en AMBA, donde llega el reparto de 24 h; 0 = sin regla. */
+  envioGratisAmbaDesde: number;
   /** Falso cuando `envio` es la tarifa plana de respaldo, no una cotización. */
   envioCotizado: boolean;
   /** Lo que se ahorró: por volumen o con el cupón (nunca los dos). */

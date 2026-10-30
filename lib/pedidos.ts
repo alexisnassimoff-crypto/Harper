@@ -3,13 +3,21 @@ import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { getProductos, getProductosParaCobrar } from "./catalogo";
 import {
   calcularEnvio,
-  envioBonificado,
   getConfig,
   getConfigParaCobrar,
   type ConfigTienda,
 } from "./config";
 import { firmarComprobante, huella, leerComprobante, VIGENCIA_COMPROBANTE_MS } from "./cotizacion-envio";
-import { claveDeComprobantes, cotizarEnvia, cuatroDigitos, entornoEnvia, paqueteParaEnvia, resumenDeConsulta } from "./envia";
+import {
+  claveDeComprobantes,
+  cotizarEnvia,
+  cuatroDigitos,
+  entornoEnvia,
+  paqueteParaEnvia,
+  REPARTO_AMBA,
+  resumenDeConsulta,
+} from "./envia";
+import { esEnvioGratis, type ZonaEnvio } from "./envio-gratis";
 import { codigoEnviaDeProvincia } from "./provincias-envia";
 import { aplicarMejorPromocion, type CuponResuelto } from "./cupones";
 import {
@@ -50,6 +58,11 @@ export type CarritoResuelto = {
   envioCotizado: boolean;
   /** El pedido llega al mínimo de envío gratis: el envío lo paga Harper. */
   envioBonificado: boolean;
+  /**
+   * Dónde cae el destino: "amba" si llega el reparto de 24 h, "resto" si no.
+   * Null si todavía no se sabe (sin dirección, o sin cotizar fuera de la Ciudad).
+   */
+  envioZona: ZonaEnvio | null;
   /** Lo que queda en el pedido: lo cobrado, el costo real y la copia de la cotización. */
   envioDelPedido: EnvioDelPedido;
   /** La caja a despachar. `null` si falta peso o medidas, o si no entra en un bulto. */
@@ -222,7 +235,7 @@ export async function resolverCarrito(
         })
       : null;
 
-  const { envio, opcionesEnvio, envioCotizado, envioBonificado: bonificado, envioDelPedido } = await resolverEnvio({
+  const { envio, opcionesEnvio, envioCotizado, envioBonificado: bonificado, envioZona, envioDelPedido } = await resolverEnvio({
     items,
     subtotal: subtotalParaEnvio,
     config,
@@ -241,6 +254,7 @@ export async function resolverCarrito(
     opcionesEnvio,
     envioCotizado,
     envioBonificado: bonificado,
+    envioZona,
     envioDelPedido,
     paquete,
     ahorro,
@@ -259,12 +273,16 @@ export async function resolverCarrito(
  *  2. Sin destino completo, sin paquete (falta peso o medidas en Airtable),
  *     sin token de Envia, sin origen o sin transportistas en Config: la
  *     tarifa plana (o gratis desde el mínimo), como siempre.
- *  3. Con un comprobante válido (firma, vencimiento, mismo destino y mismo
- *     carrito): se cobra exactamente ese precio, sin volver a cotizar.
+ *  3. Con un comprobante válido (firma, vencimiento, mismo destino, mismo
+ *     carrito y mismo caso de envío gratis): se cobra exactamente ese
+ *     precio, sin volver a cotizar.
  *  4. Si no, se cotiza con Envia. Sin respuesta útil: la tarifa plana.
  *
- * Con envío gratis se ofrece solo la opción más barata, y el pedido guarda
- * igual su costo real: es lo que paga Harper.
+ * Se ofrece UNA opción, sin nombre de transportista para el comprador: en
+ * AMBA (donde cotiza el reparto de 24 h) ese reparto; en el resto del país,
+ * la más barata. Es gratis desde `envio_gratis_amba_desde` en AMBA y desde
+ * `envio_gratis_desde` en todo el país, sobre el subtotal sin el cupón. El
+ * pedido guarda igual el transportista y el costo real: es lo que paga Harper.
  */
 async function resolverEnvio(datos: {
   items: ItemResuelto[];
@@ -278,29 +296,39 @@ async function resolverEnvio(datos: {
   opcionesEnvio: OpcionEnvio[];
   envioCotizado: boolean;
   envioBonificado: boolean;
+  envioZona: ZonaEnvio | null;
   envioDelPedido: EnvioDelPedido;
 }> {
   const hayItems = datos.items.length > 0;
-  const bonificado = hayItems && envioBonificado(datos.subtotal, datos.config);
+  const umbrales = { amba: datos.config.envioGratisAmbaDesde, nacional: datos.config.envioGratisDesde };
+  const gratisEn = (zona: ZonaEnvio | null) => hayItems && esEnvioGratis(datos.subtotal, zona, umbrales);
 
-  const plano = () => {
-    const envio = hayItems ? calcularEnvio(datos.subtotal, datos.config) : 0;
+  // Sin cotizar no se sabe si llega el reparto de AMBA; la Ciudad sí es AMBA entera.
+  const plano = (zona: ZonaEnvio | null) => {
+    const bonificado = gratisEn(zona);
+    const envio = !hayItems || bonificado ? 0 : calcularEnvio(datos.subtotal, datos.config);
     return {
       envio,
       opcionesEnvio: [] as OpcionEnvio[],
       envioCotizado: false,
       envioBonificado: bonificado,
+      envioZona: zona,
       envioDelPedido: { origen: "plano" as const, opcion: null, cobrado: envio, bonificado, cotizadoEn: null, cotizacion: null },
     };
   };
 
-  if (!hayItems) return plano();
+  if (!hayItems) return plano(null);
 
   const destino = destinoCompleto(datos.destino);
+  const zonaSinCotizar: ZonaEnvio | null = destino
+    ? codigoEnviaDeProvincia(destino.provincia) === "DF"
+      ? "amba"
+      : null
+    : null;
   const paquete = paqueteParaEnvia(datos.paquete, datos.config.envioPesoMinimoKg);
   const origen = datos.config.envioOrigen;
   const clave = claveDeComprobantes();
-  if (!destino || !paquete || !origen || !clave || datos.config.envioTransportistas.length === 0) return plano();
+  if (!destino || !paquete || !origen || !clave || datos.config.envioTransportistas.length === 0) return plano(zonaSinCotizar);
 
   const pedido = {
     origen,
@@ -321,7 +349,8 @@ async function resolverEnvio(datos: {
   ]);
 
   // 3. El comprobante de lo que el comprador vio: se cobra eso, si sigue
-  // siendo para este destino, este carrito y el mismo caso de envío gratis.
+  // siendo para este destino, este carrito y el mismo caso de envío gratis
+  // (la zona viene firmada: la sacó la cotización de ese destino).
   const comprobante = datos.eleccion?.comprobante
     ? leerComprobante(datos.eleccion.comprobante, clave, { entorno })
     : null;
@@ -329,46 +358,64 @@ async function resolverEnvio(datos: {
     comprobante &&
     comprobante.destino === huellaDestino &&
     comprobante.carrito === huellaCarrito &&
-    comprobante.bonificado === bonificado
+    comprobante.bonificado === gratisEn(comprobante.zona)
   ) {
+    const bonificado = comprobante.bonificado;
     const cobrado = bonificado ? 0 : comprobante.opcion.precio;
     return {
       envio: cobrado,
       opcionesEnvio: [],
       envioCotizado: true,
       envioBonificado: bonificado,
+      envioZona: comprobante.zona,
       envioDelPedido: {
         origen: "envia",
         opcion: comprobante.opcion,
         cobrado,
         bonificado,
         cotizadoEn: comprobante.cotizadoEn,
-        cotizacion: { ...resumenDeConsulta(pedido), opcion: comprobante.detalle },
+        cotizacion: { ...resumenDeConsulta(pedido), zona: comprobante.zona, opcion: comprobante.detalle },
       },
     };
   }
 
   // 4. Cotizar ahora.
   const resultado = await cotizarEnvia(pedido);
-  if (!resultado) return plano();
+  if (!resultado) return plano(zonaSinCotizar);
+
+  // AMBA es donde cotiza el reparto de 24 h: ese es el envío que se ofrece
+  // ahí. En el resto, el más barato (las tarifas vienen ordenadas por costo).
+  const reparto = resultado.tarifas.find((t) => t.opcion.transportista === REPARTO_AMBA);
+  const zona: ZonaEnvio = reparto ? "amba" : "resto";
+  const elegida = reparto ?? resultado.tarifas[0];
+  const bonificado = gratisEn(zona);
 
   // La hora en que contestó Envia (si salió del cache, la de esa consulta):
   // el comprobante vence media hora después de eso, no de ahora.
   const cotizadoEn = resultado.cotizadoEn;
   const vence = Date.parse(cotizadoEn) + VIGENCIA_COMPROBANTE_MS;
-  // Con envío gratis, la más barata: Harper paga ese envío.
-  const tarifas = bonificado ? resultado.tarifas.slice(0, 1) : resultado.tarifas;
-  const opcionesEnvio: OpcionEnvio[] = tarifas.map((t) => ({
-    ...t.opcion,
-    comprobante: firmarComprobante(
-      { v: 1, exp: vence, destino: huellaDestino, carrito: huellaCarrito, entorno, bonificado, cotizadoEn, opcion: t.opcion, detalle: t.detalle },
-      clave
-    ),
-  }));
+  const opcionesEnvio: OpcionEnvio[] = [
+    {
+      ...elegida.opcion,
+      comprobante: firmarComprobante(
+        {
+          v: 1,
+          exp: vence,
+          destino: huellaDestino,
+          carrito: huellaCarrito,
+          entorno,
+          bonificado,
+          zona,
+          cotizadoEn,
+          opcion: elegida.opcion,
+          detalle: elegida.detalle,
+        },
+        clave
+      ),
+    },
+  ];
 
-  // La que eligió, si sigue en la cotización; si no, la más barata. El
-  // precio sale siempre de acá, nunca del navegador.
-  const elegida = tarifas.find((t) => t.opcion.id === datos.eleccion?.id) ?? tarifas[0];
+  // El precio sale siempre de acá, nunca del navegador.
   const cobrado = bonificado ? 0 : elegida.opcion.precio;
 
   return {
@@ -376,13 +423,14 @@ async function resolverEnvio(datos: {
     opcionesEnvio,
     envioCotizado: true,
     envioBonificado: bonificado,
+    envioZona: zona,
     envioDelPedido: {
       origen: "envia",
       opcion: elegida.opcion,
       cobrado,
       bonificado,
       cotizadoEn,
-      cotizacion: { ...resultado.consulta, opcion: elegida.detalle },
+      cotizacion: { ...resultado.consulta, zona, opcion: elegida.detalle },
     },
   };
 }

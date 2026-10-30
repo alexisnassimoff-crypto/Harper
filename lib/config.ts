@@ -11,6 +11,11 @@ import type { OrigenEnvio } from "./tipos";
 export type ConfigTienda = {
   costoEnvio: number;
   envioGratisDesde: number;
+  /**
+   * Envío gratis en AMBA (donde llega el reparto de 24 h) desde este
+   * subtotal, más bajo que el de todo el país. 0 = sin regla para AMBA.
+   */
+  envioGratisAmbaDesde: number;
   bannerTexto: string;
   whatsapp: string;
   emailContacto: string;
@@ -94,6 +99,7 @@ export type ConfigTienda = {
 const POR_DEFECTO: ConfigTienda = {
   costoEnvio: 10100,
   envioGratisDesde: 80000,
+  envioGratisAmbaDesde: 0,
   bannerTexto: "",
   whatsapp: "",
   emailContacto: "hola@harper.ar",
@@ -156,6 +162,7 @@ function armarConfig(filas: { fields: FilaConfig }[]): ConfigTienda {
       mapa.get("envio_gratis_desde"),
       POR_DEFECTO.envioGratisDesde
     ),
+    envioGratisAmbaDesde: aNumero(mapa.get("envio_gratis_amba_desde"), POR_DEFECTO.envioGratisAmbaDesde),
     bannerTexto: texto("banner_texto", POR_DEFECTO.bannerTexto),
     whatsapp: texto("whatsapp", POR_DEFECTO.whatsapp).replace(/\D/g, ""),
     emailContacto: texto("email_contacto", POR_DEFECTO.emailContacto),

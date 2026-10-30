@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import CodigoDescuento from "@/components/checkout/CodigoDescuento";
 import OfertaCantidad from "@/components/producto/OfertaCantidad";
 import { buscarCupon } from "@/lib/cupones";
+import { envioEnElCarrito } from "@/lib/envio-gratis";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { desglosar } from "@/lib/resumen";
 import type { Categoria } from "@/lib/tipos";
@@ -183,7 +184,7 @@ function Contenido({ alCerrar }: { alCerrar: () => void }) {
 /**
  * La cuenta del carrito, como en /carrito. El envío se cotiza en el checkout
  * con la dirección (Envia): acá no se anuncia un precio que puede cambiar,
- * salvo cuando ya es gratis.
+ * salvo cuando ya es gratis (en todo el país, o en AMBA).
  */
 function Resumen({
   datos,
@@ -197,9 +198,12 @@ function Resumen({
   alSeguir: () => void;
 }) {
   const resumen = desglosar(datos);
-  const envioGratis = resumen.envio === 0;
-  // El envío gratis se mide sin el cupón, como en el servidor.
-  const faltaParaGratis = datos.envioGratisDesde - (datos.subtotalSinCupon ?? datos.subtotal);
+  // El envío gratis se mide sin el cupón, como en el servidor, y depende de
+  // la zona: acá todavía no hay dirección.
+  const envio = envioEnElCarrito(datos.subtotalSinCupon ?? datos.subtotal, resumen.envio, {
+    amba: datos.envioGratisAmbaDesde ?? 0,
+    nacional: datos.envioGratisDesde,
+  });
 
   const porCategoria = new Map<Categoria, { unidades: number; precioLista: number; descuento: number }>();
   for (const item of datos.items) {
@@ -221,7 +225,7 @@ function Resumen({
           <span>−{formatearPrecio(resumen.descuento)}</span>
         </div>
       ) : null}
-      <Fila etiqueta="Envío a domicilio" valor={envioGratis ? "Gratis" : "Se calcula en el checkout"} />
+      <Fila etiqueta="Envío a domicilio" valor={envio.valor} />
 
       {[...porCategoria.entries()].map(([categoria, info]) => (
         <OfertaCantidad
@@ -236,14 +240,14 @@ function Resumen({
         />
       ))}
 
-      {!envioGratis && faltaParaGratis > 0 ? (
+      {envio.nota ? (
         <p className="apagado" style={{ fontSize: "0.8125rem" }}>
-          Te faltan {formatearPrecio(faltaParaGratis)} para el envío gratis.
+          {envio.nota}
         </p>
       ) : null}
 
       <div className="fila fila--total">
-        <span>{envioGratis ? "Total" : "Total sin envío"}</span>
+        <span>{envio.total}</span>
         <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total - resumen.envio)}</strong>
       </div>
 

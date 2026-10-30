@@ -1353,6 +1353,19 @@ p {
   margin-top: -0.4rem;
   font-size: 0.75rem;
 }
+/* El envío a domicilio: una sola opción, sin nada que elegir. */
+.envio-domicilio {
+  cursor: default;
+}
+.envio-domicilio:hover {
+  border-color: var(--verde);
+}
+/* "¡Tu envío es gratis!" o cuánto le falta: en verde, que se lea como un premio. */
+.envio-gratis-falta {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--verde);
+}
 /* En celular, los productos ya se ven arriba (resumen desplegable). */
 @media (max-width: 59.99rem) {
   .checkout__panel-titulo,

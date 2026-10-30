@@ -140,6 +140,11 @@ async function PortadaEstrella({
   for (const [total, cuotas] of verificadas) if (cuotas) cuotasPorTotal[total] = cuotas;
 
   const envioGratisTexto = formatearPrecio(config.envioGratisDesde);
+  // El envío gratis en AMBA, solo si es más bajo que el de todo el país.
+  const envioGratisAmbaTexto =
+    config.envioGratisAmbaDesde > 0 && (config.envioGratisDesde <= 0 || config.envioGratisAmbaDesde < config.envioGratisDesde)
+      ? formatearPrecio(config.envioGratisAmbaDesde)
+      : null;
   const caracteristicas = caracteristicasDe(estrella);
   const complementos = productos.filter((p) => !esCategoriaDeAnteojos(p.categoria));
   const seccionesComplementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
@@ -174,6 +179,7 @@ async function PortadaEstrella({
         cuotasPorTotal={cuotasPorTotal}
         impuestos={config.impuestosNacionales}
         envioGratisDesde={config.envioGratisDesde}
+        envioGratisAmbaDesde={config.envioGratisAmbaDesde}
         estuche={estuche}
         calificacion={opiniones ? { promedio: opiniones.promedio, total: opiniones.total } : null}
         garantias={garantiasDePortada({
@@ -182,6 +188,7 @@ async function PortadaEstrella({
           mesesGarantia: MESES_GARANTIA,
           envioGratisDesde: config.envioGratisDesde,
           envioGratisTexto,
+          envioGratisAmbaTexto,
         })}
         whatsapp={config.whatsapp || null}
       />
@@ -195,6 +202,7 @@ async function PortadaEstrella({
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
           envioGratisDesde: config.envioGratisDesde,
           envioGratisTexto,
+          envioGratisAmbaTexto,
           diasCambio: DIAS_CAMBIO,
         })}
       />
@@ -263,6 +271,7 @@ async function PortadaEstrella({
           nombreMarcas: NOMBRE_MARCAS,
           envioGratisDesde: config.envioGratisDesde,
           envioGratisTexto,
+          envioGratisAmbaTexto,
           hayWhatsapp: Boolean(config.whatsapp),
           diasArrepentimiento: DIAS_ARREPENTIMIENTO,
           diasCambio: DIAS_CAMBIO,

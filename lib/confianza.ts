@@ -35,7 +35,7 @@ export type Confianza = {
   href?: string;
 };
 
-export type DatosConfianza = Pick<ConfigTienda, "envioGratisDesde">;
+export type DatosConfianza = Pick<ConfigTienda, "envioGratisDesde"> & Partial<Pick<ConfigTienda, "envioGratisAmbaDesde">>;
 
 /**
  * `cuotas`: solo las que Mercado Pago confirmó sin interés y con CFT 0 (ver
@@ -64,13 +64,23 @@ export function mensajesDeConfianza(
     });
   }
 
+  // En AMBA, el mínimo propio si es más bajo que el de todo el país.
+  const amba = config.envioGratisAmbaDesde ?? 0;
+  const hayAmba = amba > 0 && (config.envioGratisDesde <= 0 || amba < config.envioGratisDesde);
   mensajes.push({
     clave: "envio",
-    texto:
-      config.envioGratisDesde > 0
+    texto: hayAmba
+      ? `Envío gratis en AMBA desde ${formatearPrecio(amba)}`
+      : config.envioGratisDesde > 0
         ? `Envío gratis desde ${formatearPrecio(config.envioGratisDesde)}`
         : "Envío a domicilio",
-    detalle: config.envioGratisDesde > 0 ? "A domicilio" : undefined,
+    detalle: hayAmba
+      ? config.envioGratisDesde > 0
+        ? `En todo el país desde ${formatearPrecio(config.envioGratisDesde)}`
+        : "A domicilio"
+      : config.envioGratisDesde > 0
+        ? "A domicilio"
+        : undefined,
   });
 
   mensajes.push({

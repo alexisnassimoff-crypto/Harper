@@ -18,7 +18,8 @@ import { precio as formatearPrecio } from "@/lib/formato";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
 import { leerEleccionEnvio } from "@/lib/envio-elegido";
-import { CAMPOS_ENVIO_NUEVOS, camposDeEnvio, descripcionDelEnvio, notaDeEnvio } from "@/lib/envio-pedido";
+import { cotizacionParaComprador, type CotizacionEnvio } from "@/lib/envio-gratis";
+import { CAMPOS_ENVIO_NUEVOS, camposDeEnvio, DESCRIPCION_ENVIO, notaDeEnvio } from "@/lib/envio-pedido";
 import { registroAceptacion } from "@/lib/legales";
 import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
@@ -197,12 +198,12 @@ export async function POST(request: Request) {
           ...(carrito.opcionesEnvio.length > 0
             ? {
                 envio: {
-                  opciones: carrito.opcionesEnvio,
-                  cotizado: true,
-                  envio: carrito.envio,
-                  bonificado: carrito.envioBonificado,
+                  ...cotizacionParaComprador(carrito, {
+                    amba: carrito.config.envioGratisAmbaDesde,
+                    nacional: carrito.config.envioGratisDesde,
+                  }),
                   cuotas: {},
-                },
+                } satisfies CotizacionEnvio,
               }
             : {}),
         },
@@ -256,7 +257,7 @@ export async function POST(request: Request) {
       pedidoId: pedido.id,
       items: cobro.items,
       envio: carrito.envio,
-      envioDescripcion: descripcionDelEnvio(carrito.envioDelPedido),
+      envioDescripcion: DESCRIPCION_ENVIO,
       // Lo que se mostró y se guardó: la preferencia se arma solo si suma eso.
       total: cobro.total,
       cliente,

@@ -1,4 +1,5 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import type { ZonaEnvio } from "./envio-gratis";
 import type { OpcionEnvio } from "./tipos";
 
 /**
@@ -11,10 +12,11 @@ import type { OpcionEnvio } from "./tipos";
  * y el carrito, con vencimiento. El checkout lo recibe de vuelta, lo verifica
  * y cobra eso.
  *
- * La firma es HMAC-SHA256 con una clave que solo existe en el servidor (ver
- * `claveDeComprobantes` en lib/envia.ts). El navegador puede leer el
- * comprobante pero no cambiarlo: cualquier cambio rompe la firma, y entonces
- * el checkout cotiza de nuevo.
+ * Va cifrado y autenticado (AES-256-GCM) con una clave que solo existe en el
+ * servidor (ver `claveDeComprobantes` en lib/envia.ts). El navegador no lo
+ * puede leer —adentro está con qué transportista se despacha, que el
+ * comprador no ve— ni cambiar: cualquier cambio lo invalida, y entonces el
+ * checkout cotiza de nuevo.
  */
 
 /** Media hora: lo que tarda alguien en completar el checkout con calma. */
@@ -35,6 +37,8 @@ export type DatosComprobante = {
    * Si al pagar el pedido ya no está en el mismo caso, se cotiza de nuevo.
    */
   bonificado: boolean;
+  /** "amba" si a ese destino llega el reparto de 24 h: decide el envío gratis desde el umbral de AMBA. */
+  zona: ZonaEnvio;
   /** Cuándo se cotizó (ISO). */
   cotizadoEn: string;
   opcion: Omit<OpcionEnvio, "comprobante">;
@@ -47,22 +51,21 @@ export function huella(dato: unknown): string {
   return createHash("sha256").update(JSON.stringify(dato)).digest("base64url").slice(0, 22);
 }
 
-function base64url(texto: string) {
-  return Buffer.from(texto, "utf8").toString("base64url");
-}
-
-function firma(contenido: string, clave: Buffer) {
-  return createHmac("sha256", clave).update(contenido).digest("base64url");
+/** La clave de AES-256: siempre 32 bytes, sea cual sea la que se reciba. */
+function claveDeCifrado(clave: Buffer) {
+  return createHash("sha256").update(clave).update("harper:comprobante-cifrado").digest();
 }
 
 export function firmarComprobante(datos: DatosComprobante, clave: Buffer): string {
-  const contenido = base64url(JSON.stringify(datos));
-  return `${contenido}.${firma(contenido, clave)}`;
+  const iv = randomBytes(12);
+  const cifrador = createCipheriv("aes-256-gcm", claveDeCifrado(clave), iv);
+  const cifrado = Buffer.concat([cifrador.update(JSON.stringify(datos), "utf8"), cifrador.final()]);
+  return [iv, cifrado, cifrador.getAuthTag()].map((b) => b.toString("base64url")).join(".");
 }
 
 /**
- * El comprobante, si la firma es válida, no venció y es del mismo entorno;
- * si no, null. Nunca tira: un comprobante roto es como no tener ninguno.
+ * El comprobante, si es auténtico, no venció y es del mismo entorno; si no,
+ * null. Nunca tira: un comprobante roto es como no tener ninguno.
  */
 export function leerComprobante(
   token: unknown,
@@ -70,22 +73,25 @@ export function leerComprobante(
   esperado: { entorno: string; ahora?: number }
 ): DatosComprobante | null {
   if (typeof token !== "string" || token.length > 4_000) return null;
-  const [contenido, firmado, sobra] = token.split(".");
-  if (!contenido || !firmado || sobra !== undefined) return null;
-
-  const esperada = Buffer.from(firma(contenido, clave));
-  const recibida = Buffer.from(firmado);
-  if (esperada.length !== recibida.length || !timingSafeEqual(esperada, recibida)) return null;
+  const partes = token.split(".");
+  if (partes.length !== 3 || partes.some((p) => !p)) return null;
 
   try {
-    const datos = JSON.parse(Buffer.from(contenido, "base64url").toString("utf8")) as DatosComprobante;
+    const [iv, cifrado, etiqueta] = partes.map((p) => Buffer.from(p, "base64url"));
+    if (iv.length !== 12 || etiqueta.length !== 16) return null;
+    const descifrador = createDecipheriv("aes-256-gcm", claveDeCifrado(clave), iv);
+    descifrador.setAuthTag(etiqueta);
+    const texto = Buffer.concat([descifrador.update(cifrado), descifrador.final()]).toString("utf8");
+    const datos = JSON.parse(texto) as DatosComprobante;
     if (datos?.v !== 1 || typeof datos.exp !== "number" || typeof datos.bonificado !== "boolean") return null;
+    if (datos.zona !== "amba" && datos.zona !== "resto") return null;
     if (datos.exp <= (esperado.ahora ?? Date.now())) return null;
     if (datos.entorno !== esperado.entorno) return null;
     const o = datos.opcion;
     if (!o || typeof o.id !== "string" || !(o.precio >= 0) || !(o.costo >= 0)) return null;
     return datos;
   } catch {
+    // Firma que no coincide (cambiaron algo o es de otra clave) o basura.
     return null;
   }
 }

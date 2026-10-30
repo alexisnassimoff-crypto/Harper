@@ -84,6 +84,8 @@ export function preguntasDePortada(datos: {
   nombreMarcas: string;
   envioGratisDesde: number;
   envioGratisTexto: string;
+  /** El mínimo de envío gratis en AMBA, ya formateado; null si no hay uno más bajo que el de todo el país. */
+  envioGratisAmbaTexto?: string | null;
   hayWhatsapp: boolean;
   diasArrepentimiento: number;
   diasCambio: number;
@@ -130,9 +132,13 @@ export function preguntasDePortada(datos: {
   preguntas.push({
     pregunta: "¿Cuánto cuesta el envío?",
     respuesta: [
-      datos.envioGratisDesde > 0
-        ? `Es gratis en compras desde ${datos.envioGratisTexto}. Si no, el costo aparece en el checkout antes de pagar.`
-        : "El costo aparece en el checkout antes de pagar.",
+      datos.envioGratisAmbaTexto
+        ? datos.envioGratisDesde > 0
+          ? `Es gratis en AMBA en compras desde ${datos.envioGratisAmbaTexto} y en todo el país desde ${datos.envioGratisTexto}. Si no, el costo aparece en el checkout apenas ponés tu dirección, antes de pagar.`
+          : `Es gratis en AMBA en compras desde ${datos.envioGratisAmbaTexto}. Al resto del país, el costo aparece en el checkout apenas ponés tu dirección, antes de pagar.`
+        : datos.envioGratisDesde > 0
+          ? `Es gratis en compras desde ${datos.envioGratisTexto}. Si no, el costo aparece en el checkout antes de pagar.`
+          : "El costo aparece en el checkout antes de pagar.",
       "Despachamos de lunes a viernes.",
     ].join(" "),
   });
@@ -160,6 +166,8 @@ export function pasosDeCompra(datos: {
   porcentajeDineroMP: number;
   envioGratisDesde: number;
   envioGratisTexto: string;
+  /** El mínimo de envío gratis en AMBA, ya formateado; null si no hay uno más bajo que el de todo el país. */
+  envioGratisAmbaTexto?: string | null;
   diasCambio: number;
 }): Paso[] {
   return [
@@ -175,8 +183,11 @@ export function pasosDeCompra(datos: {
     },
     {
       titulo: "Lo despachamos",
-      texto:
-        datos.envioGratisDesde > 0
+      texto: datos.envioGratisAmbaTexto
+        ? `Preparamos tu pedido de lunes a viernes. Envío gratis en AMBA desde ${datos.envioGratisAmbaTexto}${
+            datos.envioGratisDesde > 0 ? ` y en todo el país desde ${datos.envioGratisTexto}` : ""
+          }.`
+        : datos.envioGratisDesde > 0
           ? `Preparamos tu pedido de lunes a viernes. Envío gratis desde ${datos.envioGratisTexto}.`
           : "Preparamos tu pedido y lo despachamos de lunes a viernes.",
     },
@@ -194,18 +205,20 @@ export type Garantia = {
   href?: string;
 };
 
-/** "Comprá sin riesgo", debajo del botón de compra de la portada. */
+/** "Comprá seguro", debajo del botón de compra de la portada. */
 export function garantiasDePortada(datos: {
   diasArrepentimiento: number;
   diasCambio: number;
   mesesGarantia: number;
   envioGratisDesde: number;
   envioGratisTexto: string;
+  /** El mínimo de envío gratis en AMBA, ya formateado; null si no hay uno más bajo que el de todo el país. */
+  envioGratisAmbaTexto?: string | null;
 }): Garantia[] {
   return [
     {
       clave: "cambios",
-      titulo: "Comprá sin riesgo",
+      titulo: "Comprá seguro",
       texto: `${datos.diasArrepentimiento} días para devolverlo sin costo, ${datos.diasCambio} para cambiarlo y ${datos.mesesGarantia} meses de garantía.`,
       href: "/legales/devoluciones",
     },
@@ -216,8 +229,15 @@ export function garantiasDePortada(datos: {
     },
     {
       clave: "envio",
-      titulo: datos.envioGratisDesde > 0 ? `Envío gratis desde ${datos.envioGratisTexto}` : "Envío a domicilio",
-      texto: "Despachamos de lunes a viernes.",
+      titulo: datos.envioGratisAmbaTexto
+        ? `Envío gratis en AMBA desde ${datos.envioGratisAmbaTexto}`
+        : datos.envioGratisDesde > 0
+          ? `Envío gratis desde ${datos.envioGratisTexto}`
+          : "Envío a domicilio",
+      texto:
+        datos.envioGratisAmbaTexto && datos.envioGratisDesde > 0
+          ? `En todo el país, gratis desde ${datos.envioGratisTexto}. Despachamos de lunes a viernes.`
+          : "Despachamos de lunes a viernes.",
     },
   ];
 }
