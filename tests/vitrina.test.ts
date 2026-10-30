@@ -80,6 +80,11 @@ test("las líneas: disponibles con stock; mientras no, «Próximamente» con los
   assert.equal(hoy.find((l) => l.clave === "sol")?.colores, 37);
   assert.equal(hoy.find((l) => l.clave === "receta")?.colores, 37);
   assert.equal(hoy.find((l) => l.clave === "clip-on")?.colores, 21);
+  // Las que se usan con graduación invitan a consultar por los cristales; los de sol, no.
+  assert.deepEqual(
+    hoy.filter((l) => l.conAumento).map((l) => l.clave),
+    ["fotocromaticos", "receta", "clip-on"],
+  );
 
   // Cuando se cargan los de sol en Airtable, la línea pasa sola a disponible, con su sección.
   const conSol = lineasDeLaPortada([anteojo("Anteojos"), anteojo("Anteojos de sol")]);

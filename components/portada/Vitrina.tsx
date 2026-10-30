@@ -66,7 +66,10 @@ type Estado = "sol" | "adentro";
 
 /** `children` va entre la portada y las fichas: las líneas de Harper. */
 export default function Vitrina({ modelos, datos, children }: { modelos: ModeloVitrina[]; datos: DatosVitrina; children?: ReactNode }) {
-  const { agregar, abrirPanel } = useCarrito();
+  const { items, agregar, abrirPanel } = useCarrito();
+  // Cuántos de cada color hay en el carrito: el número va arriba del color, como en la ficha.
+  const enCarrito = new Map<string, number>();
+  for (const item of items) enCarrito.set(item.varianteId, (enCarrito.get(item.varianteId) ?? 0) + item.cantidad);
   const [estado, setEstado] = useState<Estado>("sol");
   const [elegidos, setElegidos] = useState<Record<string, number>>(() => Object.fromEntries(modelos.map((m) => [m.slug, m.inicial])));
   const [sumados, setSumados] = useState<Record<string, boolean>>({});
@@ -234,33 +237,43 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
                   />
                 </Link>
                 <div className="pieza__cuerpo">
+                  {/* Los colores, pegados a la foto: al tocar uno se ve el cambio. */}
+                  {m.colores.length > 1 ? (
+                    <div className="pieza__colores" role="radiogroup" aria-label={`Color de ${m.nombre}`}>
+                      {m.colores.map((c, j) => {
+                        const cantidad = enCarrito.get(c.id) ?? 0;
+                        const enElCarrito = cantidad > 0 ? `, ${cantidad} en el carrito` : "";
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={j === indice}
+                            aria-label={c.color + (c.agotada ? ", agotado" : "") + enElCarrito}
+                            title={c.color + (c.agotada ? " — agotado" : "") + enElCarrito}
+                            className="pieza__swatch"
+                            data-agotada={c.agotada || undefined}
+                            style={{ background: c.colorHex }}
+                            onClick={() => elegirColor(m.slug, j)}
+                          >
+                            {cantidad > 0 ? (
+                              <span className="swatch__cantidad" aria-hidden="true">
+                                {cantidad}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                      <span className="pieza__color">{color.color}</span>
+                    </div>
+                  ) : null}
+
                   <p className="etiqueta-mono">
                     {String(i + 1).padStart(2, "0")} / {total}
                   </p>
                   <h3 className="pieza__nombre">{m.nombre}</h3>
                   {m.forma ? <p className="pieza__forma">{m.forma}</p> : null}
-
-                  {m.colores.length > 1 ? (
-                    <div className="pieza__colores" role="radiogroup" aria-label={`Color de ${m.nombre}`}>
-                      {m.colores.map((c, j) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          role="radio"
-                          aria-checked={j === indice}
-                          aria-label={c.color + (c.agotada ? ", agotado" : "")}
-                          title={c.color + (c.agotada ? " — agotado" : "")}
-                          className="pieza__swatch"
-                          data-agotada={c.agotada || undefined}
-                          style={{ background: c.colorHex }}
-                          onClick={() => elegirColor(m.slug, j)}
-                        />
-                      ))}
-                      <span className="pieza__color">{color.color}</span>
-                    </div>
-                  ) : (
-                    <p className="pieza__color">{color.color}</p>
-                  )}
+                  {m.colores.length > 1 ? null : <p className="pieza__color">{color.color}</p>}
 
                   <p className="pieza__precio">
                     <span>{formatearPrecio(m.precio)}</span>
