@@ -19,6 +19,7 @@ import {
 } from "@/lib/facturacion";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { TEXTOS } from "@/lib/textos";
+import { numeroDeSocio } from "@/lib/socios-alta";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, DestinoEnvio, EleccionEnvio } from "@/lib/tipos";
@@ -788,7 +789,9 @@ export default function FormularioCheckout({
   const umbrales = { amba: carrito.envioGratisAmbaDesde ?? 0, nacional: carrito.envioGratisDesde };
   const gratisEnAmba = esEnvioGratis(carrito.subtotalSinCupon ?? carrito.subtotal, "amba", umbrales);
   // Con la membresía, el envío es gratis siempre (lib/socios.ts): no hay mínimo que anunciar.
-  const conSocio = carrito.items.some((i) => esMembresia(i.categoria));
+  const conSocio = carrito.items.some((i) => esMembresia(i.categoria)) || Boolean(carrito.socio);
+  // El segundo par de un socio, solo: no hay nada que pagar y no pasa por Mercado Pago.
+  const sinPago = resumen.total === 0 && carrito.socio?.canje === true;
 
   // Con envío gratis y cotizado, el precio real tachado: lo paga Harper.
   // Mientras se cotiza la dirección, no se anuncia un precio que va a cambiar.
@@ -1126,7 +1129,9 @@ export default function FormularioCheckout({
           </h2>
           {/* Medio de pago. Cada opción muestra su total, y el resumen y el
               botón cambian al instante. Las dos se pagan en Mercado Pago. */}
-          {resumenDineroMP && carrito.dineroMP ? (
+          {sinPago ? (
+            <p className="apagado">No tenés que pagar nada: es el segundo par de tu membresía.</p>
+          ) : resumenDineroMP && carrito.dineroMP ? (
             // Mientras se envía, no se cambia: lo que se ve es lo que se cobra.
             <fieldset className="medio-pago" disabled={enviando}>
               <legend className="visualmente-oculto">Medio de pago</legend>
@@ -1354,6 +1359,14 @@ export default function FormularioCheckout({
           <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.ahorroTotal)}!</p>
         ) : null}
 
+        {carrito.socio ? (
+          <p className="checkout__socio">
+            {carrito.socio.canje
+              ? TEXTOS.socios.cuenta.checkoutCanje(numeroDeSocio(carrito.socio.numero))
+              : TEXTOS.socios.cuenta.checkout(numeroDeSocio(carrito.socio.numero))}
+          </p>
+        ) : null}
+
         {fallo ? (
           <p ref={avisoFallo} role="alert" style={{ color: "var(--alerta)", fontSize: "0.8125rem" }}>
             {fallo}
@@ -1368,14 +1381,24 @@ export default function FormularioCheckout({
           disabled={enviando}
           aria-disabled={pagarAlCotizar !== null || undefined}
         >
-          {enviando ? "Redirigiendo…" : pagarAlCotizar !== null ? "Calculando el envío…" : <TextoPagoSeguro total={totalBoton} />}
+          {enviando
+            ? sinPago
+              ? "Confirmando…"
+              : "Redirigiendo…"
+            : pagarAlCotizar !== null
+              ? "Calculando el envío…"
+              : sinPago
+                ? TEXTOS.socios.cuenta.confirmar
+                : <TextoPagoSeguro total={totalBoton} />}
         </button>
 
-        <p className="apagado checkout__pago-nota">
-          {medioPago === "dineroMP"
-            ? "Pagás en Mercado Pago, solo con el saldo de tu cuenta."
-            : "Pagás en Mercado Pago. Las cuotas y su costo los ves ahí antes de confirmar."}
-        </p>
+        {sinPago ? null : (
+          <p className="apagado checkout__pago-nota">
+            {medioPago === "dineroMP"
+              ? "Pagás en Mercado Pago, solo con el saldo de tu cuenta."
+              : "Pagás en Mercado Pago. Las cuotas y su costo los ves ahí antes de confirmar."}
+          </p>
+        )}
       </aside>
 
       <BarraPagar
@@ -1384,6 +1407,7 @@ export default function FormularioCheckout({
         total={totalBoton}
         ocupado={enviando}
         esperando={pagarAlCotizar !== null ? "Calculando el envío…" : undefined}
+        texto={sinPago ? TEXTOS.socios.cuenta.confirmar : undefined}
       />
     </form>
   );

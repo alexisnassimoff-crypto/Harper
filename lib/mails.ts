@@ -219,6 +219,8 @@ export type DatosMail = {
   alerta?: string | null;
   /** Si el pedido es una membresía de Socios Harper: el número que le tocó. */
   socio?: Socio | null;
+  /** Si el pedido es el segundo par que canjeó un socio (lib/socios-canje.ts). */
+  canje?: { numero: number; plan: Socio["plan"] } | null;
 };
 
 /** "2027-10-30" → "30/10/2027". */
@@ -256,8 +258,11 @@ function bloqueSocio(d: DatosMail): string {
       .map((b) => `<li>${escaparHtml(b)}</li>`)
       .join("")}
   </ul>
+  <p style="margin:0 0 10px;font-size:14px;line-height:1.6;">
+    Tu segundo par lo canjeás cuando quieras en <a href="${escaparHtml(d.sitio)}/socios/mi-cuenta" style="color:#ffffff;text-decoration:underline;">harper.ar/socios/mi-cuenta</a>, entrando con este mail.
+  </p>
   <p style="margin:0 0 ${enlace ? "14px" : "0"};font-size:14px;line-height:1.6;">
-    El segundo par, la reposición${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu número de socio.
+    La reposición${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu número de socio.
   </p>${
     enlace
       ? `
@@ -297,15 +302,34 @@ function envioInterno(d: Pick<DatosMail, "envioDetalle" | "envio">): string | nu
   return `Envío: ${e.transportista}${e.servicio ? ` (${e.servicio})` : ""}${costo}${cobrado}${e.plazo ? ` · plazo ${e.plazo}` : ""}`;
 }
 
+/** El aviso del canje en el mail del socio: qué fue y, con aumento, que mande la receta. */
+function bloqueCanje(d: DatosMail): string {
+  if (!d.canje) return "";
+  const receta = d.canje.plan === "Socio con aumento" ? enlaceWhatsApp(d.config.whatsapp, `Hola, Harper. Soy socio ${numeroDeSocio(d.canje.numero)}: te mando la receta para el pedido ${d.numero}.`) : null;
+  return `
+<div style="margin-top:28px;padding:20px;background:#004226;color:#ffffff;">
+  <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.8;margin-bottom:6px;">Socios Harper · ${escaparHtml(numeroDeSocio(d.canje.numero))}</div>
+  <p style="margin:0;font-size:14px;line-height:1.6;">Es el segundo par de tu membresía, con envío gratis.${
+    d.canje.plan === "Socio con aumento" ? " Para prepararlo con tus cristales, mandanos tu receta por WhatsApp." : ""
+  }</p>${
+    receta
+      ? `
+  <a href="${escaparHtml(receta)}" style="display:inline-block;margin-top:12px;font-size:13px;letter-spacing:0.5px;color:#ffffff;text-decoration:underline;">Mandar la receta por WhatsApp</a>`
+      : ""
+  }
+</div>`;
+}
+
 /** 1 — Confirmación de compra para el cliente. */
 export function mailConfirmacion(d: DatosMail): Envio {
-  const graduados = enlaceGraduadosDelPedido(d);
+  const graduados = d.canje?.plan === "Socio con aumento" ? null : enlaceGraduadosDelPedido(d);
+  const sinPago = d.total === 0;
   const direccion = `${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} (CP ${d.cliente.cp})`;
 
   const html = envoltorio(
-    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Gracias por tu compra</h1>
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">${d.canje ? "Canjeaste tu segundo par" : "Gracias por tu compra"}</h1>
 <p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">
-  Recibimos tu pago. Tu pedido <strong style="color:#16150f;">${escaparHtml(d.numero)}</strong>
+  ${sinPago ? "Tu" : "Recibimos tu pago. Tu"} pedido <strong style="color:#16150f;">${escaparHtml(d.numero)}</strong>
   ya está en preparación.
 </p>
 
@@ -314,7 +338,7 @@ export function mailConfirmacion(d: DatosMail): Envio {
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
-${bloqueSocio(d)}
+${bloqueSocio(d)}${bloqueCanje(d)}
 <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e3e0d8;">
   <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#78756c;margin-bottom:6px;">Envío a</div>
   <div style="font-size:14px;line-height:1.6;">
@@ -338,7 +362,7 @@ ${bloqueSocio(d)}
     d.config
   );
 
-  const texto = `Gracias por tu compra.
+  const texto = `${d.canje ? "Canjeaste tu segundo par." : "Gracias por tu compra."}
 
 Pedido ${d.numero}
 ${d.items
@@ -361,16 +385,20 @@ ${
   d.socio
     ? `\nYa sos socio ${numeroDeSocio(d.socio.numero)} de Socios Harper (${d.socio.plan}), hasta el ${fechaLegible(d.socio.vence)}.\nTus beneficios:\n${beneficiosDelSocio(d.socio.plan)
         .map((b) => `- ${b}`)
-        .join("\n")}\nEl segundo par, la reposicion${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu numero de socio${enlaceSocio(d) ? `: ${enlaceSocio(d)}` : "."}\n`
+        .join("\n")}\nTu segundo par lo canjeas cuando quieras en ${d.sitio}/socios/mi-cuenta, entrando con este mail.\nLa reposicion${d.socio.plan === "Socio con aumento" ? " y los cristales con aumento" : ""} se piden por WhatsApp con tu numero de socio${enlaceSocio(d) ? `: ${enlaceSocio(d)}` : "."}\n`
     : ""
 }
-Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
+${d.canje ? `Es el segundo par de tu membresia (Socio ${numeroDeSocio(d.canje.numero)}), con envio gratis.${d.canje.plan === "Socio con aumento" ? " Para prepararlo con tus cristales, mandanos tu receta por WhatsApp." : ""}\n\n` : ""}Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
 ${graduados ? `\n${TEXTO_GRADUADOS_PEDIDO}\nWhatsApp: ${graduados}\n` : ""}
 Consultas: ${d.config.emailContacto}`;
 
   return {
     para: d.cliente.email,
-    asunto: d.socio ? `Ya sos socio ${numeroDeSocio(d.socio.numero)} de Harper` : `Tu pedido ${d.numero} está confirmado`,
+    asunto: d.socio
+      ? `Ya sos socio ${numeroDeSocio(d.socio.numero)} de Harper`
+      : d.canje
+        ? `Tu segundo par de Socios Harper: pedido ${d.numero}`
+        : `Tu pedido ${d.numero} está confirmado`,
     html,
     texto,
     responderA: d.config.emailContacto,
@@ -390,6 +418,7 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
     }</p>
 ${d.alerta ? `<p style="margin:0 0 24px;padding:12px 14px;border:1px solid #a1281b;color:#a1281b;font-size:14px;line-height:1.6;">${escaparHtml(d.alerta)}</p>` : ""}
 ${d.socio ? `<p style="margin:0 0 24px;padding:12px 14px;background:#004226;color:#ffffff;font-size:14px;line-height:1.6;">Socio nuevo: ${escaparHtml(numeroDeSocio(d.socio.numero))} · ${escaparHtml(d.socio.plan)} · vence el ${escaparHtml(fechaLegible(d.socio.vence))}</p>` : ""}
+${d.canje ? `<p style="margin:0 0 24px;padding:12px 14px;background:#004226;color:#ffffff;font-size:14px;line-height:1.6;">Canje del segundo par: ${escaparHtml(numeroDeSocio(d.canje.numero))} · ${escaparHtml(d.canje.plan)}${d.canje.plan === "Socio con aumento" ? " · esperá la receta antes de armarlo" : ""}</p>` : ""}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   ${filasDeItems(d.items, d.sitio)}
@@ -426,7 +455,7 @@ ${
   );
 
   const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " (dinero en Mercado Pago)" : ""}
-${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}
+${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}${d.canje ? `\nCANJE DEL SEGUNDO PAR: ${numeroDeSocio(d.canje.numero)} (${d.canje.plan})${d.canje.plan === "Socio con aumento" ? ", esperá la receta antes de armarlo" : ""}\n` : ""}
 ${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join("\n")}
 ${d.cupon ? `Cupón ${d.cupon}\n` : ""}
 ${d.cliente.nombre}
@@ -437,7 +466,7 @@ Airtable: ${d.pedidoUrl}`;
 
   return {
     para: d.config.emailPedidos,
-    asunto: `${d.alerta ? "REVISAR " : ""}Venta ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " · dinero en Mercado Pago" : ""}${aCuit ? " · factura a CUIT" : ""}`,
+    asunto: `${d.alerta ? "REVISAR " : ""}${d.canje && d.total === 0 ? `Canje ${d.numero} — ${numeroDeSocio(d.canje.numero)}` : `Venta ${d.numero} — ${formatearPrecio(d.total)}${d.canje ? " · con el segundo par de un socio" : ""}`}${d.conDineroMP ? " · dinero en Mercado Pago" : ""}${aCuit ? " · factura a CUIT" : ""}`,
     html,
     texto,
     responderA: d.cliente.email,
@@ -492,6 +521,32 @@ export function mailCodigoDeAcceso(d: { email: string; codigo: string; config: C
     asunto: `${d.codigo} es tu código de Harper`,
     html,
     texto: `Tu código de Harper: ${d.codigo}\n\nEscribilo en el checkout y completamos tus datos de la última compra. Vence en 10 minutos.\n\nSi no lo pediste, ignorá este mail: sin el código nadie ve tus datos.`,
+    responderA: d.config.emailContacto,
+  };
+}
+
+/** El código para entrar como socio (app/api/socios/codigo). */
+export function mailCodigoSocio(d: { email: string; codigo: string; config: ConfigTienda }): Envio {
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Tu código para entrar como socio</h1>
+<p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">
+  Escribilo en harper.ar para entrar a tu membresía y canjear tus anteojos.
+  Vence en 10 minutos.
+</p>
+<div style="font-size:28px;letter-spacing:8px;padding:16px;background:#f2f0ec;border:1px solid #e3e0d8;text-align:center;">
+  ${escaparHtml(d.codigo)}
+</div>
+<p style="margin:24px 0 0;font-size:12px;color:#78756c;line-height:1.6;">
+  Si no lo pediste, ignorá este mail: sin el código nadie entra a tu membresía.
+</p>`,
+    d.config
+  );
+
+  return {
+    para: d.email,
+    asunto: `${d.codigo} es tu código de socio de Harper`,
+    html,
+    texto: `Tu código de socio de Harper: ${d.codigo}\n\nEscribilo en harper.ar para entrar a tu membresía y canjear tus anteojos. Vence en 10 minutos.\n\nSi no lo pediste, ignorá este mail: sin el código nadie entra a tu membresía.`,
     responderA: d.config.emailContacto,
   };
 }

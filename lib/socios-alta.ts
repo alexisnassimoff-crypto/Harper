@@ -9,7 +9,7 @@ import type { DatosCliente, ItemResuelto } from "./tipos";
  * el mismo. Si el webhook se reintenta, devuelve la fila que ya existe.
  */
 
-type FilaSocio = {
+export type FilaSocio = {
   Numero?: number;
   Plan?: string;
   Nombre?: string;
@@ -19,6 +19,7 @@ type FilaSocio = {
   Vence?: string;
   Pedido?: string;
   Segundo_par?: string;
+  Segundo_par_pedido?: string;
   Reposicion?: string;
 };
 
@@ -30,7 +31,7 @@ export type Socio = {
 };
 
 /** "2026-10-30" en Buenos Aires, aunque el servidor esté en otro huso. */
-function fechaArgentina(momento: Date): string {
+export function fechaArgentina(momento: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(momento);
 }
 

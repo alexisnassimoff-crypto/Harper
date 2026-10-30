@@ -1088,3 +1088,44 @@ test("Socios Harper: el pago aprobado da de alta al socio con su número, una so
   assert.equal((await listRecords(TABLAS.socios)).length, 1);
   assert.equal(mails.length, 2);
 });
+
+test("Socios Harper: un pedido pagado que trae el segundo par de un socio lo anota en su fila; si ya lo había canjeado, avisa", async () => {
+  const { createRecord, getRecord } = await import("../lib/airtable");
+  const fila = await createRecord<{ Numero?: number; Segundo_par?: string; Segundo_par_pedido?: string }>(TABLAS.socios, {
+    Plan: "Socio",
+    Email: "prueba@harper.ar",
+    Vence: "2099-01-01",
+    Segundo_par: "Pendiente",
+  } as never);
+  const numeroSocio = fila.fields.Numero!;
+  const incluido: ItemResuelto = {
+    ...item(AMATISTA_NEGRO, "AMATISTA-NEGRO"),
+    precioUnitario: 0,
+    subtotal: 0,
+    incluido: 89900,
+    canje: { socioId: fila.id, numero: numeroSocio },
+  };
+  const pagado: ItemResuelto = { ...item(AMATISTA_NEGRO, "AMATISTA-NEGRO"), varianteId: "otro", precioUnitario: 89900, subtotal: 89900 };
+  const { pedidoId } = await crearPedido({ Items: JSON.stringify([incluido, pagado]), Subtotal: 89900, Total: 89900 });
+  const { deps, mails } = armarDeps({ "121": pago(pedidoId, { transaction_amount: 89900 }) });
+
+  const r = await como("A", () => procesarNotificacion("121", deps));
+  assert.equal(r.cuerpo.estado, "pagado");
+  const despues = await getRecord<{ Segundo_par?: string; Segundo_par_pedido?: string }>(TABLAS.socios, fila.id);
+  assert.deepEqual([despues.fields.Segundo_par, despues.fields.Segundo_par_pedido], ["Pedido", "HARPER-T1"]);
+
+  const interno = mails.find((m) => m.mail.para !== "prueba@harper.ar")!.mail;
+  assert.match(interno.asunto, /^Venta HARPER-T1 — .* · con el segundo par de un socio$/);
+  assert.match(interno.html, /Canje del segundo par: N\.º \d{3} · Socio/);
+  const cliente = mails.find((m) => m.mail.para === "prueba@harper.ar")!.mail;
+  assert.match(cliente.html, /Es el segundo par de tu membresía/);
+
+  // Otro pedido que trae el mismo canje (dos pestañas): se cobra, pero Harper lo revisa.
+  const { pedidoId: otroId } = await crearPedido({ Numero: "HARPER-T2", Items: JSON.stringify([incluido, pagado]), Subtotal: 89900, Total: 89900 });
+  const otros = armarDeps({ "122": pago(otroId, { transaction_amount: 89900 }) });
+  await como("A", () => procesarNotificacion("122", otros.deps));
+  const aviso = otros.mails.find((m) => m.mail.para !== "prueba@harper.ar")!.mail;
+  assert.match(aviso.asunto, /^REVISAR /);
+  assert.match(aviso.html, /ya figuraba canjeado en el pedido HARPER-T1/);
+  assert.equal((await getRecord<{ Segundo_par_pedido?: string }>(TABLAS.socios, fila.id)).fields.Segundo_par_pedido, "HARPER-T1");
+});

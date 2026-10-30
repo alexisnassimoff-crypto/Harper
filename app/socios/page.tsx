@@ -63,6 +63,9 @@ export default async function Socios() {
             {T.titulo}
           </h1>
           <p className="nosotros-portada__bajada">{T.bajada}</p>
+          <p className="socios-portada__entrar">
+            <Link href="/socios/mi-cuenta">{T.cuenta.enlace}</Link>
+          </p>
         </div>
         <div className="socios-portada__tarjeta">
           <Image src="/productos/socios/socio.webp" alt="La tarjeta de Socios Harper" fill sizes="(max-width: 768px) 100vw, 45vw" priority />

@@ -19,6 +19,7 @@ export default function BarraPagar({
   total,
   ocupado = false,
   esperando,
+  texto,
 }: {
   visible: boolean;
   /** El id del <form> que envía. */
@@ -30,6 +31,8 @@ export default function BarraPagar({
    * espera. El botón no se deshabilita, para no perder el foco.
    */
   esperando?: string;
+  /** Otro texto para el botón, cuando no hay nada que pagar (el canje de un socio). */
+  texto?: string;
 }) {
   const [montado, setMontado] = useState(false);
 
@@ -57,7 +60,7 @@ export default function BarraPagar({
         disabled={ocupado}
         aria-disabled={(!ocupado && Boolean(esperando)) || undefined}
       >
-        {ocupado ? "Redirigiendo…" : (esperando ?? <TextoPagoSeguro total={total} />)}
+        {ocupado ? (texto ? "Confirmando…" : "Redirigiendo…") : (esperando ?? texto ?? <TextoPagoSeguro total={total} />)}
       </button>
     </div>,
     document.body

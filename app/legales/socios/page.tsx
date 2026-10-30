@@ -71,12 +71,14 @@ export default async function CondicionesSocios() {
       <h2 style={h2}>5. Beneficios del plan Socio</h2>
       <ol>
         <li>
-          <strong>Dos pares de anteojos.</strong> El primero se elige al contratar y se envía con ese pedido. El segundo se pide durante la
-          vigencia, {contacto}, con el número de socio. Puede ser de cualquier línea disponible en harper.ar; si su precio es mayor que el
-          de un anteojo fotocromático, el socio paga la diferencia.
+          <strong>Dos pares de anteojos.</strong> El primero se elige al contratar y se envía con ese pedido. El segundo se canjea durante
+          la vigencia en <Link href="/socios/mi-cuenta">harper.ar/socios/mi-cuenta</Link>, entrando con el correo de la membresía y el
+          código que se le envía, o se pide {contacto}, con el número de socio. Puede ser de cualquier línea disponible en harper.ar; si su
+          precio es mayor que el de un anteojo fotocromático, el socio paga la diferencia.
         </li>
         <li>
-          <strong>Envío gratis</strong> en todos los pedidos del socio durante la vigencia, a domicilio dentro de la República Argentina.
+          <strong>Envío gratis</strong> en todos los pedidos del socio durante la vigencia, a domicilio dentro de la República Argentina. En
+          harper.ar se aplica al comprar con la sesión de socio iniciada.
         </li>
         <li>
           <strong>Una reposición</strong> durante la vigencia: un par igual a uno de los recibidos con la membresía, por rotura o pérdida.

@@ -34,7 +34,7 @@ import {
 } from "./descuentos";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
-import { aplicarMembresia, conMembresia, planesDeSocio } from "./socios";
+import { aplicarCanje, aplicarMembresia, conMembresia, planesDeSocio, type SocioDelCarrito } from "./socios";
 import type {
   Categoria,
   DestinoEnvio,
@@ -73,6 +73,8 @@ export type CarritoResuelto = {
   envioDelPedido: EnvioDelPedido;
   /** La caja a despachar. `null` si falta peso o medidas, o si no entra en un bulto. */
   paquete: Paquete | null;
+  /** El socio reconocido por su sesión, y si este pedido usa su segundo par. Null si no hay. */
+  socio: { numero: number; plan: SocioDelCarrito["plan"]; canjePendiente: boolean; canje: boolean } | null;
   /**
    * Lo que se ahorró: por volumen o con el cupón, el que se haya aplicado
    * (nunca los dos). 0 si no hubo descuento.
@@ -138,6 +140,8 @@ export async function resolverCarrito(
     eleccion?: EleccionEnvio;
     /** El código que escribió o aplicó el comprador (ver lib/cupones.ts). */
     cupon?: unknown;
+    /** El socio que entró con su mail (lib/socios-cuenta.ts): envío gratis y su segundo par. */
+    socio?: SocioDelCarrito | null;
   } = {}
 ): Promise<CarritoResuelto> {
   // Para cobrar, las tres lecturas van sin cache y sin red de contención: si
@@ -242,6 +246,9 @@ export async function resolverCarrito(
   items = membresia.items;
   for (const varianteId of membresia.quitados) descartados.push({ varianteId, motivo: "no-existe" });
   ahorro += membresia.incluido;
+  // El segundo par del socio que entró con su mail, con la misma regla.
+  const canje = aplicarCanje(items, opciones.socio, Number.isFinite(topePar) ? topePar : 0, esCategoriaDeAnteojos);
+  ahorro += canje;
 
   // El envío se calcula como siempre, con el subtotal sin el cupón: el cupón
   // no cambia quién tiene envío gratis.
@@ -269,6 +276,7 @@ export async function resolverCarrito(
     paquete,
     destino: opciones.destino,
     eleccion: opciones.eleccion,
+    socio: Boolean(opciones.socio),
   });
 
   return {
@@ -289,6 +297,9 @@ export async function resolverCarrito(
     cupon: promocion.cupon,
     subtotalSinCupon: subtotalParaEnvio,
     dineroMP: items.length > 0 ? aplicarDineroMP(items) : null,
+    socio: opciones.socio
+      ? { numero: opciones.socio.numero, plan: opciones.socio.plan, canjePendiente: opciones.socio.canjePendiente, canje: canje > 0 }
+      : null,
   };
 }
 
@@ -322,6 +333,8 @@ async function resolverEnvio(datos: {
   paquete: Paquete | null;
   destino?: Partial<DestinoEnvio>;
   eleccion?: EleccionEnvio;
+  /** Un socio reconocido: el envío es gratis en todos sus pedidos. */
+  socio?: boolean;
 }): Promise<{
   envio: number;
   opcionesEnvio: OpcionEnvio[];
@@ -332,8 +345,8 @@ async function resolverEnvio(datos: {
 }> {
   const hayItems = datos.items.length > 0;
   const umbrales = { amba: datos.config.envioGratisAmbaDesde, nacional: datos.config.envioGratisDesde };
-  // Con la membresía en el pedido, el envío es gratis siempre (lib/socios.ts).
-  const socio = conMembresia(datos.items);
+  // Con la membresía en el pedido, o si compra un socio, el envío es gratis siempre (lib/socios.ts).
+  const socio = Boolean(datos.socio) || conMembresia(datos.items);
   const gratisEn = (zona: ZonaEnvio | null) => hayItems && (socio || esEnvioGratis(datos.subtotal, zona, umbrales));
 
   const destino = destinoCompleto(datos.destino);

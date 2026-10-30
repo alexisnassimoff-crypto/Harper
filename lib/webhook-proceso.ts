@@ -22,7 +22,8 @@ import {
 import { obtenerPago as obtenerPagoReal, type PagoMP } from "./mercadopago";
 import { descontarStock } from "./stock";
 import { conMembresia } from "./socios";
-import { registrarSocio } from "./socios-alta";
+import { numeroDeSocio, registrarSocio } from "./socios-alta";
+import { registrarCanje } from "./socios-cuenta";
 import { esPedidoConDineroMP, TIPO_DINERO_EN_CUENTA } from "./dinero-mp";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import {
@@ -715,6 +716,31 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
             .filter(Boolean)
             .join(" "),
         };
+      }
+    }
+
+    // El segundo par de un socio que entró con su mail (lib/socios-cuenta.ts):
+    // queda anotado en su fila. Idempotente por pedido; si ya lo había
+    // canjeado en otro pedido no se pisa: Harper lo revisa antes de despachar.
+    const conCanje = items.find((i) => i.canje)?.canje;
+    if (conCanje) {
+      await verificar("canje");
+      const avisar = (texto: string) => {
+        datosConSocio = { ...datosConSocio, alerta: [datosConSocio.alerta, texto].filter(Boolean).join(" ") };
+      };
+      try {
+        const canje = await registrarCanje({ socioId: conCanje.socioId, numeroPedido: numero });
+        datosConSocio = { ...datosConSocio, canje: { numero: conCanje.numero, plan: canje.estado === "sin-socio" ? "Socio" : canje.cuenta.plan } };
+        if (canje.estado === "conflicto") {
+          avisar(`Usó el segundo par del socio ${numeroDeSocio(conCanje.numero)}, que ya figuraba canjeado en el pedido ${canje.cuenta.segundoParPedido || "(sin número)"}: revisalo antes de despacharlo.`);
+        } else if (canje.estado === "sin-socio") {
+          avisar(`Usó el segundo par del socio ${numeroDeSocio(conCanje.numero)}, pero su fila ya no está en Socios.`);
+        }
+      } catch (error) {
+        if (!esErrorPermanente(error)) throw error;
+        console.error("[webhook] no se pudo anotar el canje del socio", numero, error);
+        datosConSocio = { ...datosConSocio, canje: { numero: conCanje.numero, plan: "Socio" } };
+        avisar(`Usó el segundo par del socio ${numeroDeSocio(conCanje.numero)} y no se pudo anotar en Socios: anotalo a mano.`);
       }
     }
 

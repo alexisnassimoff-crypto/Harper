@@ -11,12 +11,19 @@ import { tablasIniciales, type RegistroFixture } from "./datos";
  * Soporta lo que la tienda usa: listar con fórmula y orden, leer un registro,
  * crear y actualizar (de a uno o en lote).
  *
- * El estado vive en el módulo: mientras el proceso corra, los pedidos creados
- * en una prueba se pueden leer después. Al reiniciar, vuelve al catálogo.
+ * El estado vive en el proceso: mientras corra, los pedidos creados en una
+ * prueba se pueden leer después. Al reiniciar, vuelve al catálogo. Va en
+ * `globalThis` porque Next arma las rutas de la API y las páginas por
+ * separado, cada una con su copia de los módulos: sin esto, una página no veía
+ * lo que una ruta acababa de escribir (en el Airtable real, las dos leen la
+ * misma base).
  */
 
-const tablas = tablasIniciales();
-let secuencia = 0;
+const compartido = globalThis as typeof globalThis & {
+  __harperFixtures?: { tablas: ReturnType<typeof tablasIniciales>; secuencia: number };
+};
+const estado = (compartido.__harperFixtures ??= { tablas: tablasIniciales(), secuencia: 0 });
+const tablas = estado.tablas;
 
 type Init = {
   method?: string;
@@ -31,8 +38,8 @@ function tabla(id: string): RegistroFixture[] {
 }
 
 function nuevoId() {
-  secuencia += 1;
-  return `recFIX${secuencia.toString().padStart(11, "0")}`;
+  estado.secuencia += 1;
+  return `recFIX${estado.secuencia.toString().padStart(11, "0")}`;
 }
 
 function comparar(a: unknown, b: unknown) {
@@ -177,5 +184,5 @@ export function atender<T>(path: string, init: Init): T {
 export function reiniciar() {
   tablas.clear();
   for (const [id, filas] of tablasIniciales()) tablas.set(id, filas);
-  secuencia = 0;
+  estado.secuencia = 0;
 }

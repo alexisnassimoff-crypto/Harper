@@ -3,6 +3,7 @@ import { limpiarItems, resolverCarrito } from "@/lib/pedidos";
 import { sugerirParaCarrito } from "@/lib/sugerencias";
 import { buscarCupon } from "@/lib/cupones";
 import { verificarCuotas } from "@/lib/cuotas-servidor";
+import { socioDeLaPeticion, socioParaElCarrito } from "@/lib/socios-cuenta";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,9 @@ export async function POST(request: Request) {
 
   // El cupón se resuelve acá, en el servidor; si es de primera compra, eso lo
   // comprueba el checkout, que es donde se sabe quién compra.
-  const resuelto = await resolverCarrito(limpiarItems(items), { cupon });
+  // El socio que entró con su mail ve su envío gratis y su segundo par incluido.
+  const socio = await socioDeLaPeticion(request);
+  const resuelto = await resolverCarrito(limpiarItems(items), { cupon, socio: socio ? socioParaElCarrito(socio) : null });
 
   // Las sugerencias no pueden romper el carrito: si fallan, se muestra igual.
   const cuponAplicado = resuelto.cupon?.estado === "aplicado" ? (buscarCupon(resuelto.cupon.codigo)?.porcentaje ?? 0) : 0;
@@ -49,7 +52,7 @@ export async function POST(request: Request) {
   // monto, igual que en las fichas. Sin respuesta de Mercado Pago, no hay.
   // También para el total sin el envío, que es lo que muestra el checkout
   // mientras no sabe la dirección (el envío depende de la zona).
-  const pideCuotas = cuotas === true && resuelto.items.length > 0;
+  const pideCuotas = cuotas === true && resuelto.items.length > 0 && resuelto.total > 0;
   const [sugerencias, cuotasVerificadas, cuotasSinEnvio] = await Promise.all([
     sugerirParaCarrito(resuelto.items, cuponAplicado).catch((error) => {
       console.error("[carrito] no se pudieron armar las sugerencias:", error);
@@ -84,6 +87,7 @@ export async function POST(request: Request) {
         }
       : null,
     sugerencias,
+    socio: resuelto.socio,
     cuotas: cuotasVerificadas ? { ...cuotasVerificadas, monto: resuelto.total } : null,
     cuotasSinEnvio: cuotasSinEnvio ? { ...cuotasSinEnvio, monto: resuelto.subtotal } : null,
   });

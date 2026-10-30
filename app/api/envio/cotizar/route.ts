@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { socioDeLaPeticion, socioParaElCarrito } from "@/lib/socios-cuenta";
 import { claveDeIp, consumirCuota } from "@/lib/cuota";
 import { verificarCuotas } from "@/lib/cuotas-servidor";
 import { cotizacionParaComprador, type CotizacionEnvio } from "@/lib/envio-gratis";
@@ -85,7 +86,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const carrito = await resolverCarrito(items, { destino, cupon: cuerpo.cupon });
+    // El socio que entró con su mail: envío gratis y su segundo par (lib/socios-cuenta.ts).
+    const socio = await socioDeLaPeticion(request);
+    const carrito = await resolverCarrito(items, { destino, cupon: cuerpo.cupon, socio: socio ? socioParaElCarrito(socio) : null });
     const envio = cotizacionParaComprador(carrito, {
       amba: carrito.config.envioGratisAmbaDesde,
       nacional: carrito.config.envioGratisDesde,
@@ -94,7 +97,7 @@ export async function POST(request: Request) {
     // Las cuotas sin interés se anuncian solo para el total exacto: se
     // verifican para el total con este envío (también si es gratis o la
     // tarifa plana), que es lo que se cobra.
-    const verificadas = await conLimite(verificarCuotas(carrito.total), ESPERA_CUOTAS_MS, null);
+    const verificadas = carrito.total > 0 ? await conLimite(verificarCuotas(carrito.total), ESPERA_CUOTAS_MS, null) : null;
     const cuotas: CotizacionEnvio["cuotas"] = verificadas ? { ...verificadas, monto: carrito.total } : null;
 
     return NextResponse.json({ ...envio, cuotas } satisfies CotizacionEnvio, { headers: sinCache });

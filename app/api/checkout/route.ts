@@ -25,6 +25,8 @@ import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
 import { leerMedioPago, MEDIO_DINERO_MP, NOTA_DINERO_MP } from "@/lib/dinero-mp";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
+import { socioDeLaPeticion, socioParaElCarrito } from "@/lib/socios-cuenta";
+import { confirmarCanjeSinPago } from "@/lib/socios-canje";
 
 export const dynamic = "force-dynamic";
 
@@ -120,8 +122,13 @@ export async function POST(request: Request) {
   const eleccion = leerEleccionEnvio(cuerpo.envio);
 
   try {
+    // El socio que entró con su mail: envío gratis y, si lo tiene, su segundo
+    // par incluido. La fila se lee fresca (lib/socios-cuenta.ts).
+    const socio = await socioDeLaPeticion(request);
+
     // Para cobrar se lee el catálogo sin cache y sin red de contención.
     const carrito = await resolverCarrito(items, {
+      socio: socio ? socioParaElCarrito(socio) : null,
       paraCobrar: true,
       destino: {
         cp: cliente.cp,
@@ -252,6 +259,46 @@ export async function POST(request: Request) {
     };
     const cupon = carrito.cupon?.estado === "aplicado" ? constanciaDelCupon(carrito.cupon, formatearPrecio) : null;
     const envio = { campos: camposDeEnvio(carrito.envioDelPedido, cliente), nota: notaDeEnvio(carrito.envioDelPedido) };
+
+    // El segundo par de un socio, solo y con envío gratis: no hay nada que
+    // cobrar, así que no pasa por Mercado Pago (lib/socios-canje.ts).
+    if (cobro.total === 0) {
+      if (!socio || !cobro.items.some((i) => i.canje)) {
+        return NextResponse.json({ error: "No hay nada que cobrar en tu carrito." }, { status: 400 });
+      }
+      const ce = envio.campos as Record<string, unknown>;
+      const resultado = await confirmarCanjeSinPago({
+        socio,
+        numero,
+        clienteId,
+        crearPedido: () =>
+          crearPedido({ ...campos, Estado: "pagado", MP_status: "canje de socio, sin pago" }, envio, factura, null, false),
+        anularPedido,
+        datosMail: {
+          numero,
+          items: cobro.items,
+          subtotal: cobro.subtotal,
+          envio: carrito.envio,
+          total: 0,
+          cliente,
+          config: carrito.config,
+          sitio: urlDelSitio(request),
+          facturacion: factura,
+          envioDetalle: ce.Envio_transportista
+            ? {
+                transportista: String(ce.Envio_transportista),
+                servicio: String(ce.Envio_servicio_codigo ?? ""),
+                plazo: String(ce.Envio_plazo ?? ""),
+                costoReal: typeof ce.Envio_costo_real === "number" ? ce.Envio_costo_real : null,
+                bonificado: ce.Envio_bonificado === true,
+              }
+            : null,
+        },
+      });
+      if (!resultado.ok) return NextResponse.json({ error: resultado.error }, { status: resultado.status });
+      return NextResponse.json({ numero, initPoint: `/gracias?pedido=${encodeURIComponent(numero)}` });
+    }
+
     const pedido = await crearPedido(campos, envio, factura, cupon, Boolean(dineroMP));
 
     pedidoId = pedido.id;

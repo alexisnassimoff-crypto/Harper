@@ -108,6 +108,8 @@ export type ItemResuelto = {
   descuentoDineroMP?: number;
   /** Los pesos que no se cobran porque el par va incluido en la membresía (lib/socios.ts). */
   incluido?: number;
+  /** Si el par incluido es el segundo par de un socio: de qué fila de Socios (lo pone el servidor). */
+  canje?: { socioId: string; numero: number };
   cantidad: number;
   subtotal: number;
   stockDisponible: number;

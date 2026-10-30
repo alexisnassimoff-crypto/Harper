@@ -36,6 +36,8 @@ export type CarritoResueltoCliente = {
   cuotas?: (CuotasVerificadas & { monto: number }) | null;
   /** Solo si se pidieron y hay envío: las mismas, para el total sin el envío. */
   cuotasSinEnvio?: (CuotasVerificadas & { monto: number }) | null;
+  /** El socio que entró con su mail: envío gratis y, si `canje`, su segundo par incluido en este carrito. */
+  socio?: { numero: number; plan: "Socio" | "Socio con aumento"; canjePendiente: boolean; canje: boolean } | null;
 };
 
 /**

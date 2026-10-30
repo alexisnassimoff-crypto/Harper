@@ -116,14 +116,46 @@ export function aplicarMembresia(
   });
 
   if (!hay) return { items: quedan, quitados, incluido: 0 };
+  return { items: quedan, quitados, incluido: incluirUnPar(quedan, topePar, esDeAnteojos)?.incluido ?? 0 };
+}
 
-  const par = quedan.find((i) => esDeAnteojos(i.categoria) && i.subtotal > 0);
-  if (!par) return { items: quedan, quitados, incluido: 0 };
+/** Un par del primer renglón de anteojos que se paga, hasta `topePar`. Null si no hay. */
+function incluirUnPar(items: ItemResuelto[], topePar: number, esDeAnteojos: (categoria: Categoria) => boolean) {
+  const par = items.find((i) => esDeAnteojos(i.categoria) && i.subtotal > 0);
+  if (!par) return null;
 
   const incluido = Math.round(Math.min(par.subtotal / par.cantidad, topePar > 0 ? topePar : Infinity));
   par.subtotal -= incluido;
   par.precioUnitario = par.subtotal / par.cantidad;
   par.incluido = incluido;
+  return { par, incluido };
+}
 
-  return { items: quedan, quitados, incluido };
+/** Lo que el carrito sabe del socio reconocido (lib/socios-cuenta.ts). */
+export type SocioDelCarrito = {
+  id: string;
+  numero: number;
+  plan: "Socio" | "Socio con aumento";
+  /** Todavía no canjeó su segundo par. */
+  canjePendiente: boolean;
+};
+
+/**
+ * El segundo par de un socio reconocido (Ale, 30/10/2026: entra con su mail y
+ * lo canjea). Con la misma regla que el primero: un par, hasta lo que cuesta
+ * un anteojo de la línea de siempre; si el elegido cuesta más, se paga la
+ * diferencia. No corre si el pedido trae otra membresía (ahí el incluido es
+ * el primer par de esa) ni si ya lo canjeó. Devuelve lo que ahorra.
+ */
+export function aplicarCanje(
+  items: ItemResuelto[],
+  socio: SocioDelCarrito | null | undefined,
+  topePar: number,
+  esDeAnteojos: (categoria: Categoria) => boolean
+): number {
+  if (!socio?.canjePendiente || conMembresia(items)) return 0;
+  const incluido = incluirUnPar(items, topePar, esDeAnteojos);
+  if (!incluido) return 0;
+  incluido.par.canje = { socioId: socio.id, numero: socio.numero };
+  return incluido.incluido;
 }

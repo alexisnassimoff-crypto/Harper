@@ -84,6 +84,9 @@ export default function Footer({
           <Link href="/legales/devoluciones#garantia" className="pie__enlace">
             Garantía
           </Link>
+          <Link href="/socios/mi-cuenta" className="pie__enlace">
+            Soy socio
+          </Link>
         </nav>
 
         <nav className="pie__columna" aria-label="Legales">
