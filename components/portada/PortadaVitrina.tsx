@@ -10,16 +10,16 @@ import { caracteristicasDe } from "@/lib/caracteristicas";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import type { ConfigTienda } from "@/lib/config";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA } from "@/lib/confianza";
-import { CUPON_BIENVENIDA } from "@/lib/cupones";
+import { CUPON_BIENVENIDA, HAY_CUPONES } from "@/lib/cupones";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { conEspera, verificarCuotas } from "@/lib/cuotas-servidor";
-import { getTramos } from "@/lib/descuentos";
+import { escalaDe, fraseDeLaEscala, getTramos, nombreDelTramo } from "@/lib/descuentos";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { LINEAS, lineasDeLaPortada } from "@/lib/lineas";
 import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
-import { armarPack, CANTIDADES_PACK, paresDisponibles } from "@/lib/packs";
+import { armarPack, cantidadesDePack, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
 import type { Producto, Variante } from "@/lib/tipos";
 import { rutaDeVariante } from "@/lib/variantes";
@@ -78,7 +78,10 @@ export default async function PortadaVitrina({ productos, config }: { productos:
 
   const tramos = await getTramos();
   const categoria = modelos[0]?.categoria ?? "Anteojos";
-  const packs = precio ? CANTIDADES_PACK.map((cantidad) => armarPack({ precio, cantidad, tramos, categoria })) : [];
+  const packs = precio ? cantidadesDePack(tramos, categoria).map((cantidad) => armarPack({ precio, cantidad, tramos, categoria })) : [];
+  // La escala «llevá 3, pagá 2 · llevá 5, pagá 3» (Ale, 30/10/2026); vacía si no hay.
+  const escala = escalaDe(tramos, categoria);
+  const tramoDe = (cantidad: number) => escala.find((t) => t.desdeUnidades === cantidad) ?? null;
   const todos = precio && modelos.length > 1 ? armarPack({ precio, cantidad: modelos.length, tramos, categoria }) : null;
 
   // Las cuotas de cada monto que se anuncia, confirmadas una por una con Mercado Pago.
@@ -113,9 +116,11 @@ export default async function PortadaVitrina({ productos, config }: { productos:
 
   const confirmados = modelos.length > 0 && modelos.every((m) => caracteristicasDe(m) !== null);
   const pack1 = packs.find((p) => p.cantidad === 1);
-  const pack2 = packs.find((p) => p.cantidad === 2);
+  // El primer pack de más de un par: el de la promoción (3 con la escala, 2 sin ella).
+  const pack2 = packs.find((p) => p.cantidad > 1);
   const cuota1 = pack1 ? cuotasDe(pack1.total) : undefined;
   const cuota2 = pack2 ? cuotasDe(pack2.total) : undefined;
+  const nombrePromo = pack2 ? (tramoDe(pack2.cantidad) ? nombreDelTramo(tramoDe(pack2.cantidad)!) : `${mayuscula(enLetras(pack2.cantidad))} pares`) : null;
   const colores = coloresConStock(modelos);
   const incluye = modelos[0]?.incluye ?? [];
   const textoIncluye = incluye.length ? `Con ${incluye.map((i) => i.charAt(0).toLowerCase() + i.slice(1)).join(" y ")}.` : null;
@@ -132,19 +137,31 @@ export default async function PortadaVitrina({ productos, config }: { productos:
     config.portadaSubtitulo ||
     (precio
       ? `${mayuscula(enLetras(modelos.length))} ${lineaVitrina.nombre.toLowerCase()}, ${enLetras(colores)} colores y un solo precio: ${formatearPrecio(precio)} el par.${
-          cuota2 ? ` Dos pares, en ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}.` : ""
+          cuota2 && nombrePromo ? ` ${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}.` : ""
         }`
       : `${mayuscula(enLetras(modelos.length))} ${lineaVitrina.nombre.toLowerCase()} y ${enLetras(colores)} colores.`);
 
   const filas: FilaDeADos[] = packs.map((p) => {
     const cuota = textoCuota(cuotasDe(p.total));
     const envio = envioDe(p.totalParaEnvio);
-    const destacada = p.cantidad === 2;
+    const destacada = p.cantidad === pack2?.cantidad;
+    const tramo = tramoDe(p.cantidad);
+    const ultimo = p.cantidad === packs[packs.length - 1]?.cantidad;
     return {
       cantidad: p.cantidad,
-      apodo: p.cantidad === 1 ? "Para arrancar" : p.cantidad === 2 ? "La cuenta que cierra" : "Para cuando no te decidís",
-      titulo: `${p.cantidad} ${p.cantidad === 1 ? "par" : "pares"}${p.porcentaje ? ` · ${p.porcentaje} % OFF` : ""}`,
+      apodo: tramo
+        ? ultimo
+          ? "Mejor precio por par"
+          : `Llevás ${enLetras(tramo.desdeUnidades - tramo.paga)} gratis`
+        : p.cantidad === 1
+          ? "Para arrancar"
+          : p.cantidad === 2
+            ? "La cuenta que cierra"
+            : "Para cuando no te decidís",
+      titulo: tramo ? nombreDelTramo(tramo) : `${p.cantidad} ${p.cantidad === 1 ? "par" : "pares"}${p.porcentaje ? ` · ${p.porcentaje} % OFF` : ""}`,
       total: formatearPrecio(p.total),
+      // El precio de a uno por la cantidad: el tachado es real.
+      tachado: p.cantidad > 1 && p.lista > p.total ? formatearPrecio(p.lista) : null,
       detalle: [
         cuota,
         p.cantidad > 1 ? `Cada par te queda en ${formatearPrecio(p.precioUnitario)}` : null,
@@ -229,7 +246,12 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const portadaAsiLlega = vitrina[0] ? modelos[0].variantes[vitrina[0].inicial]?.fotoPortada : null;
   const cuotasAnteojos = cuota1 ?? null;
   const ambaConUnPar = precio !== null && gratisAmba(precio);
-  const paisConDos = pack2 ? gratisPais(pack2.totalParaEnvio) : false;
+  // Con cuántos pares el envío es gratis a todo el país (null si con 5 todavía no).
+  const paresPaisGratis =
+    precio !== null
+      ? ([1, 2, 3, 4, 5].find((n) => gratisPais(armarPack({ precio, cantidad: n, tramos, categoria }).totalParaEnvio)) ?? null)
+      : null;
+  const paisConDos = paresPaisGratis !== null && paresPaisGratis > 1;
   const complementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
   // Los cristales con aumento los vende Harper: se consultan por WhatsApp (Ale, 30/10/2026).
   const consultaAumento = enlaceWhatsApp(config.whatsapp, mensajeGraduadosModelo(""));
@@ -250,7 +272,9 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           letraChica,
           todos: todos
             ? {
-                texto: `Sumá los ${enLetras(modelos.length)} · ${formatearPrecio(todos.total)}${todos.porcentaje ? ` · ${todos.porcentaje} % OFF` : ""}`,
+                texto: `Sumá los ${enLetras(modelos.length)} · ${formatearPrecio(todos.total)}${
+                  todos.porcentaje ? (escala.length > 0 ? ` · cada par a ${formatearPrecio(todos.precioUnitario)}` : ` · ${todos.porcentaje} % OFF`) : ""
+                }`,
               }
             : null,
         }}
@@ -354,6 +378,17 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               : `Con dinero en tu cuenta de Mercado Pago, ${PORCENTAJE_DINERO_MP} % OFF extra.`
           }
           totales={Object.fromEntries(packs.map((p) => [p.cantidad, formatearPrecio(p.total)]))}
+          encabezado={
+            escala.length > 0
+              ? {
+                  // El stock es limitado de verdad (Ale, 30/10/2026).
+                  etiqueta: "Stock limitado",
+                  titulo: `${nombreDelTramo(escala[0])}.`,
+                  bajada:
+                    "Uno para la semana, otro para el finde y otro para cuando se te ocurra. Mezclá modelos y colores: el descuento se aplica solo.",
+                }
+              : undefined
+          }
         />
       ) : null}
 
@@ -435,7 +470,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           ) : null}
           {paisConDos ? (
             <div>
-              <dt>2</dt>
+              <dt>{paresPaisGratis}</dt>
               <dd>pares y el envío es gratis a todo el país.</dd>
             </div>
           ) : null}
@@ -448,10 +483,16 @@ export default async function PortadaVitrina({ productos, config }: { productos:
             <dd>meses de garantía por defectos de fabricación.</dd>
           </div>
         </dl>
-        <p className="cuentas__cupon">
-          ¿Primera compra? <strong>{CUPON_BIENVENIDA.codigo}</strong>: {CUPON_BIENVENIDA.porcentaje} % OFF. No se suma a la promo por
-          cantidad: se aplica la que más te conviene.
-        </p>
+        {HAY_CUPONES ? (
+          <p className="cuentas__cupon">
+            ¿Primera compra? <strong>{CUPON_BIENVENIDA.codigo}</strong>: {CUPON_BIENVENIDA.porcentaje} % OFF. No se suma a la promo por
+            cantidad: se aplica la que más te conviene.
+          </p>
+        ) : escala.length > 0 ? (
+          <p className="cuentas__cupon">
+            <strong>{escala.map((t) => nombreDelTramo(t)).join(" · ")}</strong>. Mezclá modelos y colores: se aplica solo.
+          </p>
+        ) : null}
       </section>
 
       <PreguntasFrecuentes
@@ -470,7 +511,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           diasArrepentimiento: DIAS_ARREPENTIMIENTO,
           diasCambio: DIAS_CAMBIO,
           mesesGarantia: MESES_GARANTIA,
-          cupon: CUPON_BIENVENIDA,
+          cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
+          escala: fraseDeLaEscala(tramos, categoria),
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
         })}
       />
@@ -495,7 +537,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           {precio ? (
             <p>
               {modelos.length === 4 ? "Los cuatro" : "Todos"} a {formatearPrecio(precio)}.
-              {paisConDos ? " Con dos, envío gratis a todo el país." : ""}
+              {paisConDos && paresPaisGratis ? ` Con ${enLetras(paresPaisGratis)}, envío gratis a todo el país.` : ""}
             </p>
           ) : null}
           <a href="#los-modelos" className="boton cierre__boton">
@@ -524,8 +566,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           despuesDe="vitrina-portada"
           precioPar={precio}
           invitacion={
-            cuota2
-              ? `Dos pares, en ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}`
+            cuota2 && nombrePromo
+              ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}`
               : `Cada par, ${formatearPrecio(precio)}`
           }
         />

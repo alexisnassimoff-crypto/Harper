@@ -1,3 +1,4 @@
+import type { OfertaDeEscala } from "./descuentos";
 import { RECORTES_ANTEOJOS } from "./recortes-anteojos";
 import type { Producto, Variante } from "./tipos";
 
@@ -130,11 +131,27 @@ export function empujeDeLaBarra(datos: {
   subtotalSinCupon: number;
   precioPar: number;
   envioGratisDesde: number;
+  /** Dónde está en la escala «llevá 3, pagá 2 · llevá 5, pagá 3»; null sin escala. */
+  escala?: OfertaDeEscala | null;
 }): string | null {
-  const { pares, actual, proximo, cupon, subtotalSinCupon, precioPar, envioGratisDesde } = datos;
+  const { pares, actual, proximo, cupon, subtotalSinCupon, precioPar, envioGratisDesde, escala = null } = datos;
   if (pares <= 0) return null;
   const gratisPais = envioGratisDesde > 0 && subtotalSinCupon >= envioGratisDesde;
   const gratisConUnoMas = envioGratisDesde > 0 && !gratisPais && subtotalSinCupon + precioPar >= envioGratisDesde;
+
+  if (escala && cupon === 0) {
+    const { actual: escalon, siguiente } = escala;
+    const aplicado = escalon ? `Llevá ${escalon.lleva}, pagá ${escalon.paga} aplicado` : null;
+    if (siguiente) {
+      const gratis = siguiente.lleva - siguiente.paga;
+      const premio =
+        gratis === 1 ? (siguiente.faltan === 1 ? "te lo llevás gratis" : "uno te sale gratis") : `te llevás ${gratis} gratis`;
+      const envio = siguiente.faltan === 1 && gratisConUnoMas ? " y el envío es gratis a todo el país" : "";
+      const sumar = siguiente.faltan === 1 ? (pares === 1 ? "Sumá otro" : "Uno más") : `Sumá ${siguiente.faltan} más`;
+      return `${aplicado ? `${aplicado}. ` : ""}${sumar} y ${premio}${envio}.`;
+    }
+    if (aplicado) return `${aplicado}${gratisPais ? " y envío gratis a todo el país" : ""}.`;
+  }
 
   if (proximo && proximo.faltan === 1) {
     const ganancias = [

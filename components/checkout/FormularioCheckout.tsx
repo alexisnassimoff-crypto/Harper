@@ -29,7 +29,7 @@ import CodigoDescuento from "./CodigoDescuento";
 import { PROVINCIAS } from "./provincias";
 import ReconocerComprador from "./ReconocerComprador";
 import { marcarCuponBienvenidaUsado } from "@/components/carrito/cuponUsado";
-import { buscarCupon } from "@/lib/cupones";
+import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import { useCotizacionEnvio, type Cotizacion } from "./useEnvio";
 
 const CLAVE_DATOS = "harper.datos.v1";
@@ -1286,7 +1286,7 @@ export default function FormularioCheckout({
           {listaItems}
         </ul>
 
-        <CodigoDescuento estado={carrito.cupon ?? null} />
+        {HAY_CUPONES ? <CodigoDescuento estado={carrito.cupon ?? null} /> : null}
 
         {/* La cuenta se lee de arriba abajo: lista − descuento + envío = total. */}
         <div className="fila">

@@ -10,8 +10,10 @@ import CtaFija from "./CtaFija";
 import Galeria from "./Galeria";
 import ConsultaGraduados from "./ConsultaGraduados";
 import CuponBienvenida from "./CuponBienvenida";
-import { buscarCupon } from "@/lib/cupones";
+import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import OfertaCantidad from "./OfertaCantidad";
+import OpcionesPares, { type OpcionPares } from "./OpcionesPares";
+import HojaPack, { type ColorDeADos, type HojaPackControl } from "@/components/HojaPack";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { parrafosDe } from "@/lib/descripcion";
 import type { Confianza } from "@/lib/confianza";
@@ -33,6 +35,7 @@ export default function FichaProducto({
   precioSinImpuestos = null,
   whatsapp = null,
   calificacion = null,
+  pares = null,
 }: {
   producto: Producto;
   tramos?: Tramo[];
@@ -47,6 +50,11 @@ export default function FichaProducto({
   whatsapp?: string | null;
   /** El promedio y la cantidad de opiniones de todos los productos Harper; null si no hay. */
   calificacion?: { promedio: number; total: number } | null;
+  /**
+   * «Llevá 3, pagá 2 · Llevá 5, pagá 3»: las opciones y los colores de todos
+   * los anteojos para armar el pack. Null si la categoría no tiene escala.
+   */
+  pares?: { opciones: OpcionPares[]; colores: ColorDeADos[]; totales: Record<number, string> } | null;
 }) {
   const router = useRouter();
   const { items, agregar, cupon, abrirPanel } = useCarrito();
@@ -59,6 +67,12 @@ export default function FichaProducto({
     () => varianteInicial ?? indiceVarianteInicial(producto)
   );
   const [agregado, setAgregado] = useState(false);
+  // Abre con el primer pack elegido, como las tiendas de un solo producto;
+  // 1 par queda a un toque.
+  const [paresElegidos, setParesElegidos] = useState(() => pares?.opciones.find((o) => o.cantidad > 1)?.cantidad ?? 1);
+  const hoja = useRef<HojaPackControl>(null);
+  const conPack = Boolean(pares) && paresElegidos > 1;
+  const opcionElegida = pares?.opciones.find((o) => o.cantidad === paresElegidos) ?? null;
   // Sube con cada toque en un color: la galería vuelve a la primera foto.
   const [toquesDeColor, setToquesDeColor] = useState(0);
 
@@ -127,6 +141,11 @@ export default function FichaProducto({
     setAgregado(true);
     // En escritorio, el carrito se abre al costado con lo que lleva.
     abrirPanel();
+  }
+
+  // El pack arranca con este color y se completa en la hoja.
+  function armarPack() {
+    hoja.current?.abrir(paresElegidos, variante.agotada ? {} : { [variante.id]: 1 });
   }
 
   function comprarAhora() {
@@ -233,7 +252,7 @@ export default function FichaProducto({
         {/* El beneficio de primera compra, arriba de todo (Ale, 30/10/2026):
             se ve sin buscarlo, se aplica con un toque y no se mete entre el
             modelo, el precio, el color y las características. */}
-        <CuponBienvenida precio={producto.precio} estadoServidor={carritoResuelto?.cupon ?? null} />
+        {HAY_CUPONES ? <CuponBienvenida precio={producto.precio} estadoServidor={carritoResuelto?.cupon ?? null} /> : null}
 
         <div className="pila" style={{ gap: "0.6rem" }}>
           {calificacion ? (
@@ -289,9 +308,17 @@ export default function FichaProducto({
 
         {selectorDeColor("datos")}
 
+        {pares ? <OpcionesPares opciones={pares.opciones} elegida={paresElegidos} alElegir={setParesElegidos} /> : null}
+
         {/* Compra */}
         <div ref={bloqueCompra} className="pila" style={{ gap: "0.75rem" }}>
-          {variante.agotada ? (
+          {conPack ? (
+            // Con un pack elegido, el botón abre la hoja para completar los pares
+            // (este color ya va adentro): se pueden mezclar modelos y colores.
+            <button type="button" className="boton boton--bloque" onClick={armarPack}>
+              Elegir mis {paresElegidos} pares
+            </button>
+          ) : variante.agotada ? (
             <button type="button" className="boton boton--bloque" disabled>
               Sin stock en este color
             </button>
@@ -330,17 +357,18 @@ export default function FichaProducto({
 
         <MensajesConfianza mensajes={confianza} variante="lista" />
 
-        {/* La promoción del segundo par, en una línea y solo para anteojos.
-            Sin tablas de tramos: los mayores se aplican en el servidor, pero
-            no se publicitan. */}
-        <OfertaCantidad
-          tramos={tramos}
-          categoria={producto.categoria}
-          precioLista={producto.precio}
-          cantidadEnCarrito={unidadesEnCategoria}
-          descuentoAplicado={descuentoAplicado}
-          cuponPorcentaje={cuponPorcentaje}
-        />
+        {/* Sin escala, la promoción del segundo par en una línea (solo
+            anteojos); con la escala, las opciones de arriba ya la cuentan. */}
+        {pares ? null : (
+          <OfertaCantidad
+            tramos={tramos}
+            categoria={producto.categoria}
+            precioLista={producto.precio}
+            cantidadEnCarrito={unidadesEnCategoria}
+            descuentoAplicado={descuentoAplicado}
+            cuponPorcentaje={cuponPorcentaje}
+          />
+        )}
 
         {producto.incluye.length > 0 ? (
           <section className="pila ficha-producto__bloque">
@@ -392,13 +420,22 @@ export default function FichaProducto({
       </div>
 
       <CtaFija
-        visible={(!compraEnPantalla || avisoCookies) && !variante.agotada}
-        nombre={`${producto.nombre} · ${variante.color}`}
-        precio={formatearPrecio(producto.precio)}
-        detalle={cuotas ? `${cuotas.cuotas} cuotas de ${precioConCentavos(cuotas.montoCuota)} · CFTEA ${cuotas.cftea}` : null}
+        visible={(!compraEnPantalla || avisoCookies) && (conPack || !variante.agotada)}
+        nombre={conPack && opcionElegida ? opcionElegida.titulo : `${producto.nombre} · ${variante.color}`}
+        precio={conPack && opcionElegida ? opcionElegida.total : formatearPrecio(producto.precio)}
+        detalle={
+          conPack
+            ? (opcionElegida?.cuota ?? null)
+            : cuotas
+              ? `${cuotas.cuotas} cuotas de ${precioConCentavos(cuotas.montoCuota)} · CFTEA ${cuotas.cftea}`
+              : null
+        }
         ocupado={enTransicion}
-        alComprar={comprarAhora}
+        alComprar={conPack ? armarPack : comprarAhora}
+        textoBoton={conPack ? `Elegir mis ${paresElegidos}` : "Comprar ahora"}
       />
+
+      {pares ? <HojaPack ref={hoja} colores={pares.colores} totales={pares.totales} /> : null}
 
     </div>
   );

@@ -1,4 +1,4 @@
-import { conDescuento, porcentajeParaCantidad, type Tramo } from "./descuentos";
+import { conDescuento, escalaDe, porcentajeParaCantidad, totalConDescuento, type Tramo } from "./descuentos";
 import type { Categoria } from "./tipos";
 
 /**
@@ -15,6 +15,15 @@ export const CANTIDADES_PACK = [1, 2, 4] as const;
 
 /** El pack que aparece elegido al entrar. */
 export const PACK_RECOMENDADO = 2;
+
+/**
+ * Las cantidades que se ofrecen: 1 y cada escalón de la escala «llevá N,
+ * pagá M» (1, 3 y 5 desde el 30/10/2026). Sin escala, las de siempre.
+ */
+export function cantidadesDePack(tramos: Tramo[], categoria: Categoria): number[] {
+  const escala = escalaDe(tramos, categoria).map((t) => t.desdeUnidades);
+  return escala.length > 0 ? [1, ...escala] : [...CANTIDADES_PACK];
+}
 
 /** Un complemento que se suma al pack (el estuche), a su precio de siempre. */
 export type ExtraPack = { precio: number; categoria: Categoria };
@@ -52,11 +61,13 @@ export function armarPack(datos: {
 }): Pack {
   const { precio, cantidad, tramos, extra = null } = datos;
 
-  // Con los descuentos por cantidad: el complemento va solo (1 unidad).
+  // Con los descuentos por cantidad: el complemento va solo (1 unidad). El
+  // total de los pares se redondea una sola vez, como al cobrar.
   const porTramo = porcentajeParaCantidad(tramos, datos.categoria, cantidad);
-  const unitarioPorTramo = conDescuento(precio, porTramo);
+  const paresPorTramo = totalConDescuento(precio * cantidad, porTramo);
+  const unitarioPorTramo = paresPorTramo / cantidad;
   const extraPorTramo = extra ? conDescuento(extra.precio, porcentajeParaCantidad(tramos, extra.categoria, 1)) : 0;
-  const totalPorTramo = unitarioPorTramo * cantidad + extraPorTramo;
+  const totalPorTramo = paresPorTramo + extraPorTramo;
 
   // Con el cupón: todo a precio de lista menos el cupón.
   const porCupon = datos.cuponPorcentaje ?? 0;

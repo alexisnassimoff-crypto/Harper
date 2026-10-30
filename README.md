@@ -317,10 +317,21 @@ comprador.
 Los tramos viven en la tabla `Descuentos`: categoría, unidades mínimas y porcentaje.
 Aplica el más alto que alcance el pedido.
 
-**Al público se le cuenta solo el primer tramo, en una línea** (en anteojos:
-"Llevá 2 pares y obtenés 5% off en cada uno"). No hay tablas de tramos en las
-fichas ni en el carrito. Los tramos mayores se siguen aplicando igual en el
-servidor y el carrito los muestra como "Descuento".
+**Anteojos: «llevá 3, pagá 2 · llevá 5, pagá 3»** (desde el 30/10/2026). Son filas
+con `Paga_unidades` (Desde 3 y Paga 2; Desde 5 y Paga 3) y sin `Porcentaje`: el
+porcentaje sale exacto de la cuenta (33,33…% y 40%). Si una categoría tiene filas con
+`Paga_unidades`, la web ignora sus filas por porcentaje. El total de la categoría se
+redondea una sola vez (3 × $ 89.900 son $ 179.800 justos) y, si un unitario queda con
+fracción de peso, a Mercado Pago se le manda partido en pesos enteros.
+
+La ficha y la portada muestran las tres opciones (1 par, 3x2 y 5x3) con el precio de
+a uno por la cantidad tachado —un precio real—, lo que queda cada par y la cuota
+verificada, y «Stock limitado». La ficha abre con el 3x2 elegido y arma el pack en una
+hoja con todos los modelos y colores.
+
+En las demás categorías (estuches, paños), **al público se le cuenta solo el primer
+tramo, en una línea**. Los tramos mayores se siguen aplicando igual en el servidor y el
+carrito los muestra como "Descuento".
 
 **Las unidades se cuentan por categoría, no por producto ni por color.** Alguien que
 lleva un M500 negro, un O300 rojo y un R100 marrón está comprando tres estuches. Exigir
@@ -490,8 +501,10 @@ comprado o no, el código vence a los 10 minutos y los intentos están
 limitados por mail y por IP (lib/reconocer-cliente.ts). El código no se guarda:
 viaja firmado con una clave que sale de `MP_WEBHOOK_SECRET`.
 
-Si ya compró, la ficha y la portada dejan de ofrecerle HARPER10 (es solo
-para la primera compra) y, si lo tenía aplicado, se le avisa antes de pagar.
+HARPER10 dejó de ofrecerse el 30/10/2026 (la promoción es la escala de anteojos):
+`CUPONES` en lib/cupones.ts está vacío, no se muestra ningún casillero de código y un
+HARPER10 guardado en un navegador no descuenta nada. Para volver a tener un cupón,
+alcanza con agregarlo a esa lista.
 
 ## Envíos
 

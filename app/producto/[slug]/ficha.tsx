@@ -4,7 +4,14 @@ import FichaProducto from "@/components/producto/FichaProducto";
 import EventoPixel from "@/components/EventoPixel";
 import GrillaProductos from "@/components/GrillaProductos";
 import Opiniones from "@/components/portada/Opiniones";
-import { getTramos } from "@/lib/descuentos";
+import { escalaDe, getTramos, nombreDelTramo } from "@/lib/descuentos";
+import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
+import { armarPack } from "@/lib/packs";
+import { enLetras, fotosDeVitrina } from "@/lib/vitrina";
+import type { OpcionPares } from "@/components/producto/OpcionesPares";
+import type { ColorDeADos } from "@/components/HojaPack";
+import type { Producto } from "@/lib/tipos";
+import type { Tramo } from "@/lib/descuentos";
 import { getProducto, getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
@@ -64,6 +71,57 @@ export async function metadataFicha(slug: string, color?: string): Promise<Metad
   };
 }
 
+/**
+ * «Llevá 3, pagá 2 · Llevá 5, pagá 3» en la ficha: las opciones con su total,
+ * el precio de a uno tachado y la cuota confirmada con Mercado Pago, y los
+ * colores de todos los modelos de la categoría para armar el pack. Null si la
+ * categoría no tiene escala o no queda stock.
+ */
+async function paresDeLaFicha(producto: Producto, tramos: Tramo[], delMismoTipo: Producto[]) {
+  const escala = escalaDe(tramos, producto.categoria);
+  if (escala.length === 0) return null;
+
+  const colores: ColorDeADos[] = delMismoTipo.flatMap((m) =>
+    m.variantes.map((v) => ({
+      id: v.id,
+      sku: v.sku,
+      modeloSlug: m.slug,
+      modeloNombre: m.nombre,
+      precio: m.precio,
+      color: v.color,
+      foto: fotosDeVitrina(v, m.fotoPrincipal ?? "").adentro,
+      agotada: v.agotada,
+    })),
+  );
+  if (!colores.some((c) => !c.agotada)) return null;
+
+  const packs = [1, ...escala.map((t) => t.desdeUnidades)].map((cantidad) =>
+    armarPack({ precio: producto.precio, cantidad, tramos, categoria: producto.categoria }),
+  );
+  const cuotas = await Promise.all(packs.map((p) => verificarCuotas(p.total)));
+  const ultimo = escala[escala.length - 1];
+
+  const opciones: OpcionPares[] = packs.map((p, i) => {
+    const tramo = escala.find((t) => t.desdeUnidades === p.cantidad) ?? null;
+    const cuota = cuotas[i];
+    return {
+      cantidad: p.cantidad,
+      titulo: tramo ? nombreDelTramo(tramo) : "1 par",
+      sello: tramo ? (tramo === ultimo ? "Mejor precio por par" : `Llevás ${enLetras(tramo.desdeUnidades - tramo.paga)} gratis`) : null,
+      total: formatearPrecio(p.total),
+      tachado: p.lista > p.total ? formatearPrecio(p.lista) : null,
+      porPar: p.cantidad > 1 ? `Cada par ${formatearPrecio(p.precioUnitario)}` : null,
+      cuota: cuota ? `${cuota.cuotas} cuotas sin interés de ${precioConCentavos(cuota.montoCuota)}` : null,
+    };
+  });
+
+  // El total en el botón de la hoja solo si todos los modelos cuestan lo mismo.
+  const mismoPrecio = delMismoTipo.every((m) => m.precio === producto.precio);
+  const totales = mismoPrecio ? Object.fromEntries(packs.map((p) => [p.cantidad, formatearPrecio(p.total)])) : {};
+
+  return { opciones, colores, totales };
+}
+
 export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   const producto = await getProducto(slug);
   if (!producto) notFound();
@@ -78,6 +136,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
     datosGuardadosDeMercadoLibre(),
   ]);
   const opiniones = mercadoLibre?.opiniones ?? null;
+  const pares = await paresDeLaFicha(producto, tramos, delMismoTipo);
 
   const otros = delMismoTipo.filter((p) => p.id !== producto.id);
   const varianteInicial = indiceVarianteInicial(producto, color);
@@ -162,6 +221,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         precioSinImpuestos={netoDe(config.impuestosNacionales, producto.categoria, producto.precio)}
         whatsapp={config.whatsapp || null}
         calificacion={opiniones ? { promedio: opiniones.promedio, total: opiniones.total } : null}
+        pares={pares}
       />
 
       <Opiniones opiniones={opiniones} reputacion={mercadoLibre?.reputacion ?? null} />

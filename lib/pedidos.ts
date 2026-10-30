@@ -25,10 +25,10 @@ import { codigoEnviaDeProvincia } from "./provincias-envia";
 import { entraEnLaTarifa, IVA_ENVIO, PLAZO_REPARTO, precioDeRueddo, zonaDeRueddo, type ZonaRueddo } from "./rueddo";
 import { aplicarMejorPromocion, type CuponResuelto } from "./cupones";
 import {
-  conDescuento,
   getTramos,
   getTramosParaCobrar,
   porcentajeParaCantidad,
+  totalConDescuento,
   type Tramo,
 } from "./descuentos";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
@@ -203,21 +203,31 @@ export async function resolverCarrito(
   // El descuento se calcula recién acá porque depende del TOTAL de unidades de
   // la categoría: tres estuches de modelos distintos suman tres. Contarlo por
   // línea mataría justo la venta variada que queremos.
+  //
+  // Se redondea una sola vez, sobre el total de la categoría: tres pares de
+  // $ 89.900 con «llevá 3, pagá 2» son $ 179.800 justos. Ese total se reparte
+  // entre los renglones y el redondeo lo absorbe el más grande, como con dinero
+  // en Mercado Pago; un unitario puede quedar con fracción de peso y a Mercado
+  // Pago se le manda partido en pesos enteros (lib/mercadopago.ts).
   let ahorro = 0;
 
-  for (const item of items) {
-    const porcentaje = porcentajeParaCantidad(
-      tramos,
-      item.categoria,
-      porCategoria.get(item.categoria) ?? 0
-    );
-
+  for (const [categoria, unidades] of porCategoria) {
+    const porcentaje = porcentajeParaCantidad(tramos, categoria, unidades);
     if (porcentaje <= 0) continue;
 
-    item.descuento = porcentaje;
-    item.precioUnitario = conDescuento(item.precioLista, porcentaje);
-    item.subtotal = item.precioUnitario * item.cantidad;
-    ahorro += (item.precioLista - item.precioUnitario) * item.cantidad;
+    const deLaCategoria = items.filter((i) => i.categoria === categoria);
+    const lista = deLaCategoria.reduce((total, i) => total + i.precioLista * i.cantidad, 0);
+    const total = totalConDescuento(lista, porcentaje);
+    const lineas = deLaCategoria.map((i) => totalConDescuento(i.precioLista * i.cantidad, porcentaje));
+    const mayor = deLaCategoria.reduce((m, i, n) => (i.precioLista * i.cantidad > deLaCategoria[m].precioLista * deLaCategoria[m].cantidad ? n : m), 0);
+    lineas[mayor] += total - lineas.reduce((suma, l) => suma + l, 0);
+
+    deLaCategoria.forEach((item, n) => {
+      item.descuento = porcentaje;
+      item.subtotal = lineas[n];
+      item.precioUnitario = lineas[n] / item.cantidad;
+    });
+    ahorro += lista - total;
   }
 
   // El envío se calcula como siempre, con el subtotal sin el cupón: el cupón

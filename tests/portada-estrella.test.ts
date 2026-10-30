@@ -42,6 +42,12 @@ test("las preguntas dicen solo lo confirmado", () => {
   assert.match(texto("¿Puedo cambiarlos"), /10 días .* 30 días .* 6 meses de garantía/);
   assert.match(texto("¿Hay descuento"), /HARPER10 .* 10% OFF/);
 
+  // Sin cupón (desde el 30/10/2026), la pregunta es por la escala.
+  const conEscala = preguntasDePortada({ ...BASE, cupon: null, escala: "llevá 3 y pagá 2, o llevá 5 y pagá 3" });
+  const escala = conEscala.find((p) => p.pregunta === "¿Hay descuento por llevar más de un par?")?.respuesta ?? "";
+  assert.match(escala, /^Sí: llevá 3 y pagá 2, o llevá 5 y pagá 3\. Podés mezclar modelos y colores/);
+  assert.ok(!conEscala.some((p) => /HARPER10/.test(p.respuesta)));
+
   // Sin cuotas confirmadas ni características ni WhatsApp: no se afirma nada de eso.
   const sinNada = preguntasDePortada({ ...BASE, cuotas: null, caracteristicas: null, incluye: ["Estuche rígido", "Paño de microfibra"] });
   assert.ok(!sinNada.some((p) => /cuotas/.test(p.respuesta)));
@@ -68,11 +74,17 @@ test("la barra de anuncios: el banner de Config primero, las cuotas solo si est�
     "Envío gratis en compras superiores a $150.000",
     "6 cuotas sin interés en anteojos con Visa y Mastercard · CFTEA 0,00 %",
     "10% OFF extra pagando con dinero en Mercado Pago",
-    "HARPER10: 10% OFF en tu primera compra",
   ]);
-  assert.deepEqual(anunciosDelHeader({ banner: " ", cuotas: null }), [
+  assert.deepEqual(anunciosDelHeader({ banner: " ", cuotas: null }), ["10% OFF extra pagando con dinero en Mercado Pago"]);
+  // Con la escala de anteojos, va segunda; HARPER10 ya no se anuncia.
+  const escala = [
+    { categoria: "Anteojos" as const, desdeUnidades: 3, porcentaje: 100 / 3, paga: 2 },
+    { categoria: "Anteojos" as const, desdeUnidades: 5, porcentaje: 40, paga: 3 },
+  ];
+  assert.deepEqual(anunciosDelHeader({ banner: "Envío gratis", cuotas: null, escala }), [
+    "Envío gratis",
+    "Llevá 3, pagá 2 · Llevá 5, pagá 3 en anteojos",
     "10% OFF extra pagando con dinero en Mercado Pago",
-    "HARPER10: 10% OFF en tu primera compra",
   ]);
 });
 

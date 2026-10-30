@@ -95,11 +95,15 @@ export async function crearPreferencia(opciones: {
   sitio: string;
   soloDineroEnCuenta?: boolean;
 }): Promise<Preferencia> {
-  // Con dinero en Mercado Pago, en pesos enteros: un renglón que no se divide justo
-  // por la cantidad (el 10% sobre dos pares) va partido en dos. Los demás
-  // quedan como siempre, un renglón por producto con su precio unitario.
+  // En pesos enteros: un renglón que no se divide justo por la cantidad (el 10%
+  // de dinero en Mercado Pago sobre dos pares, o tres pares iguales con «llevá
+  // 3, pagá 2») va partido en dos. Los demás quedan como siempre, un renglón
+  // por producto con su precio unitario.
   const items = opciones.items.flatMap((i) =>
-    (i.descuentoDineroMP ? unidadesParaCobrar(i) : [{ precio: i.precioUnitario, cantidad: i.cantidad }]).map((u) => ({
+    (i.descuentoDineroMP || !Number.isInteger(i.precioUnitario)
+      ? unidadesParaCobrar(i)
+      : [{ precio: i.precioUnitario, cantidad: i.cantidad }]
+    ).map((u) => ({
       id: i.sku,
       title: `${i.nombre} — ${i.color}`,
       quantity: u.cantidad,

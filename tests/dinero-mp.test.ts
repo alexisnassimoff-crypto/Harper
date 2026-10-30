@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 process.env.HARPER_FIXTURES = "1";
 delete process.env.VERCEL;
 
-import { aplicarMejorPromocion } from "../lib/cupones";
+import { aplicarMejorPromocion, CUPON_BIENVENIDA } from "../lib/cupones";
 import { getProductos } from "../lib/catalogo";
 import { resolverCarrito } from "../lib/pedidos";
 import {
@@ -42,7 +42,8 @@ function item(precioLista: number, cantidad: number, descuento = 0, varianteId =
 const total = (items: ItemResuelto[]) => items.reduce((t, i) => t + i.subtotal, 0);
 
 test("HARPER10 + dinero en Mercado Pago: $ 89.900 → $ 80.910 → $ 72.819 (ahorro $ 17.081, no el 20%)", () => {
-  const conCupon = aplicarMejorPromocion([item(89900, 1)], "HARPER10");
+  // HARPER10 ya no se ofrece (30/10/2026): la cuenta queda probada con la lista explícita.
+  const conCupon = aplicarMejorPromocion([item(89900, 1)], "HARPER10", [CUPON_BIENVENIDA]);
   const t = aplicarDineroMP(conCupon.items);
   assert.equal(conCupon.cupon?.ahorro, 8990);
   assert.equal(t.ahorro, 8091);
@@ -62,7 +63,7 @@ test("sin cupón, dos pares: 5% por cantidad y después 10% por dinero en Mercad
 });
 
 test("con cupón y dos pares: el cupón (10%, el mayor) y después el dinero en Mercado Pago (10%)", () => {
-  const promo = aplicarMejorPromocion([item(89900, 2, 5)], "HARPER10");
+  const promo = aplicarMejorPromocion([item(89900, 2, 5)], "HARPER10", [CUPON_BIENVENIDA]);
   assert.equal(promo.cupon?.estado, "aplicado");
   const t = aplicarDineroMP(promo.items);
   assert.equal(t.subtotal, 145638);
@@ -126,7 +127,7 @@ test("en el carrito real: el precio con dinero en Mercado Pago va junto al de si
   const par = [{ productoSlug: "amatista", varianteId: amatista.variantes[0].id, cantidad: 1 }];
   const chico = [{ productoSlug: "m500", varianteId: estuche.variantes[0].id, cantidad: 1 }];
 
-  const con = await resolverCarrito(par, { cupon: "HARPER10" });
+  const con = await resolverCarrito(par);
   assert.ok(con.dineroMP);
   assert.equal(con.dineroMP.subtotal, Math.round(con.subtotal * 0.9));
   assert.equal(con.dineroMP.ahorro, con.subtotal - con.dineroMP.subtotal);

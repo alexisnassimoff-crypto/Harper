@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { textoPorcentaje } from "@/lib/descuentos";
 import { precio as formatearPrecio } from "@/lib/formato";
 import type { ItemResuelto } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
@@ -99,7 +100,7 @@ export default function LineaCarrito({
         ) : null}
         <span>{formatearPrecio(item.subtotal)}</span>
         {item.descuento > 0 ? (
-          <div style={{ fontSize: "0.75rem", color: "var(--verde)" }}>−{item.descuento}%</div>
+          <div style={{ fontSize: "0.75rem", color: "var(--verde)" }}>−{textoPorcentaje(item.descuento)}%</div>
         ) : null}
       </div>
     </li>

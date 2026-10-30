@@ -15,6 +15,7 @@ import PanelCarrito from "@/components/carrito/PanelCarrito";
 import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import { anunciosDelHeader } from "@/lib/anuncios";
+import { escalaDe, getTramos } from "@/lib/descuentos";
 import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 
 const raleway = Raleway({
@@ -83,7 +84,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const [config, productos] = await Promise.all([getConfig(), getProductos()]);
+  const [config, productos, tramos] = await Promise.all([getConfig(), getProductos(), getTramos()]);
   // El menú y el pie muestran solo las categorías con productos publicados:
   // las previstas (sol, Clip-On, receta) aparecen solas cuando tengan.
   const categorias = categoriasConProductos(productos).map((c) => ({ nombre: c.nombre, slug: c.slug }));
@@ -153,7 +154,10 @@ export default async function RootLayout({
           <a className="saltar-al-contenido" href="#contenido">
             Saltar al contenido
           </a>
-          <Header anuncios={anunciosDelHeader({ banner: config.bannerTexto, cuotas })} categorias={categorias} />
+          <Header
+            anuncios={anunciosDelHeader({ banner: config.bannerTexto, cuotas, escala: escalaDe(tramos, "Anteojos") })}
+            categorias={categorias}
+          />
           <main id="contenido" tabIndex={-1}>
             <TransicionDePagina>{children}</TransicionDePagina>
           </main>

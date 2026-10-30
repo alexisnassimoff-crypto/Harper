@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { normalizarCodigo } from "@/lib/cupones";
+import { buscarCupon, normalizarCodigo } from "@/lib/cupones";
 import type { ItemCarrito } from "@/lib/tipos";
 
 const CLAVE = "harper.carrito.v1";
@@ -85,7 +85,9 @@ export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setItems(leerGuardado());
     try {
-      setCupon(normalizarCodigo(window.localStorage.getItem(CLAVE_CUPON)) || null);
+      // Un código que ya no existe (HARPER10 desde el 30/10/2026) no se recupera.
+      const guardado = normalizarCodigo(window.localStorage.getItem(CLAVE_CUPON));
+      setCupon(buscarCupon(guardado) ? guardado : null);
     } catch {
       // Sin almacenamiento, sin cupón guardado.
     }

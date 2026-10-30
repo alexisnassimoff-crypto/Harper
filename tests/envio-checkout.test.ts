@@ -194,13 +194,13 @@ test("con la tarifa del reparto, el comprobante se cobra sin volver a calcular a
   assert.equal(consultas, 0);
 });
 
-test("el cupón no cambia quién tiene envío gratis", async () => {
+test("con «llevá 3, pagá 2» el envío gratis se mira sobre lo que se paga, y un HARPER10 viejo no cambia nada", async () => {
   reiniciar();
-  const carrito = await resolverCarrito([citrino(1)], { destino: CABA, cupon: "HARPER10" });
-  assert.equal(carrito.cupon?.estado, "aplicado");
-  assert.ok(carrito.subtotal < 89900);
-  assert.equal(carrito.envioBonificado, true);
-  assert.equal(carrito.envio, 0);
+  const tres = await resolverCarrito([citrino(3)], { destino: CABA, cupon: "HARPER10" });
+  assert.equal(tres.cupon?.estado, "invalido");
+  assert.equal(tres.subtotal, 179800);
+  assert.equal(tres.envioBonificado, true);
+  assert.equal(tres.envio, 0);
 });
 
 test("con el comprobante se cobra eso sin volver a cotizar", async () => {
