@@ -2710,15 +2710,18 @@ p {
 .ficha-producto__colores--foto {
   display: none;
 }
+.ficha-producto__color-elegido {
+  align-self: center;
+  margin-left: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+}
 @media (max-width: 47.99rem) {
   /* Más apretado: los colores tienen que entrar arriba de la barra de compra. */
   .ficha-producto__colores--foto {
     display: block;
     order: 1;
     margin-top: -0.35rem;
-  }
-  .ficha-producto__colores--foto legend {
-    margin-bottom: 0.4rem;
   }
   .ficha-producto .galeria__minis {
     order: 2;
