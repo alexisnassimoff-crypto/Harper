@@ -54,11 +54,15 @@ test("las órdenes pagadas se suman por publicación y ventana; sale_fee es por 
 
 test("las publicaciones salen del multiget y se saltean las que no contestaron 200", () => {
   const pubs = leerPublicaciones([
-    { code: 200, body: { id: "MLA1", title: "Estuche", status: "active", price: 15_990, available_quantity: 3, listing_type_id: "gold_special", permalink: "https://x" } },
+    {
+      code: 200,
+      body: { id: "MLA1", title: "Estuche", status: "active", price: 15_990, available_quantity: 3, listing_type_id: "gold_special", permalink: "https://x", shipping: { logistic_type: "fulfillment" } },
+    },
     { code: 404, body: { message: "not found" } },
   ]);
   assert.equal(pubs.length, 1);
   assert.equal(pubs[0].precio, 15_990);
+  assert.equal(pubs[0].logistica, "fulfillment");
 });
 
 test("las visitas vienen en una lista aunque se pida una sola publicación", () => {
@@ -137,7 +141,7 @@ const anuncio = (a: Partial<Anuncio> & Pick<Anuncio, "grupoId">): Anuncio => ({
   ...a,
 });
 
-const pub = (id: string, titulo: string) => ({ id, titulo, estado: "active", precio: 1, stock: 1, tipo: "", permalink: "" });
+const pub = (id: string, titulo: string) => ({ id, titulo, estado: "active", precio: 1, stock: 1, tipo: "", permalink: "", logistica: "fulfillment" });
 
 const deGrupo = (item: string, grupoId: string, costo: number): AnuncioDePublicacion => ({
   item,

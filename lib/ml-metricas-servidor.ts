@@ -75,7 +75,7 @@ async function idsDePublicaciones(vendedor: number, token: string): Promise<stri
 async function publicaciones(ids: string[], token: string) {
   const lotes: string[][] = [];
   for (let i = 0; i < ids.length; i += 20) lotes.push(ids.slice(i, i + 20));
-  const atributos = "id,title,status,price,available_quantity,listing_type_id,permalink";
+  const atributos = "id,title,status,price,available_quantity,listing_type_id,permalink,shipping";
   const respuestas = await deA(lotes, EN_PARALELO, (lote) =>
     pedirML(`/items?ids=${lote.join(",")}&attributes=${atributos}`, { token })
   );
