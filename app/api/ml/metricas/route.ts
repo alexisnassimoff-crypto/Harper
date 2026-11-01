@@ -4,6 +4,7 @@ import { mlConfigurado } from "@/lib/ml-auth";
 import { textoDeCorrida, type Corrida } from "@/lib/ml-avisos";
 import { CLAVE_CRON_RECHAZADO, CLAVE_ULTIMA_CORRIDA, correrAvisosDiarios, escribirClave } from "@/lib/ml-avisos-servidor";
 import { ActualizacionEnCurso, actualizarMetricasML } from "@/lib/ml-metricas-servidor";
+import { fotoDePromociones, guardarPromociones } from "@/lib/ml-promociones-servidor";
 
 export const dynamic = "force-dynamic";
 // Dos pedidos de visitas por publicación, de a cinco: lleva su tiempo.
@@ -46,8 +47,12 @@ export async function GET(request: Request) {
   try {
     const metricas = await actualizarMetricasML();
     const avisosMail = await correrAvisosDiarios();
+    // Las promociones son un agregado: si fallan, la corrida igual anduvo.
+    const promociones = await fotoDePromociones()
+      .then((foto) => guardarPromociones(foto))
+      .catch((error: Error) => ({ error: error.message }));
     await registrar({ ...corrida, ok: true, publicaciones: metricas.publicaciones });
-    return NextResponse.json({ ok: true, ...metricas, avisosMail });
+    return NextResponse.json({ ok: true, ...metricas, avisosMail, promociones });
   } catch (error) {
     if (error instanceof ActualizacionEnCurso) {
       return NextResponse.json({ error: error.message }, { status: 409 });

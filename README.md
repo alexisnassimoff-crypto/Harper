@@ -229,6 +229,9 @@ Central de promociones (`/seller-promotions/items/{id}?app_version=v2`) las
 promociones de cada publicación activa: activas, programadas e invitaciones
 de ML, con el % de descuento, las fechas, el aporte de ML y un aviso si el
 precio con descuento cruza un escalón de costos ($15.000, $24.000, $33.000).
+Cada lectura, y la actualización diaria, se guardan en la tabla
+**Promociones ML** (una fila por publicación y promoción, con la respuesta
+cruda de ML). Las que dejan de aparecer quedan como «ya no está».
 
 **Competencia.** `/api/ml/competencia?token=<SYNC_TOKEN>&ver=1` muestra lo
 que Mercado Libre deja leer de la competencia:

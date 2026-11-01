@@ -19,6 +19,8 @@ export type Promocion = {
   /** % del descuento que pone Mercado Libre y el que pone el vendedor (campañas compartidas). */
   aporteML: number | null;
   aporteVendedor: number | null;
+  /** La promoción tal como vino de ML, recortada: los campos cambian según el tipo. */
+  crudo: string;
 };
 
 const numero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -38,12 +40,13 @@ export function leerPromociones(cuerpo: unknown): Promocion[] {
         tipo,
         nombre: texto(p.name),
         estado: texto(p.status) ?? "",
-        precio: numero(p.price) ?? numero(p.deal_price) ?? numero(p.new_price),
+        precio: numero(p.price) ?? numero(p.deal_price) ?? numero(p.new_price) ?? numero(p.suggested_discounted_price),
         precioOriginal: numero(p.original_price),
         desde: texto(p.start_date),
         hasta: texto(p.finish_date),
         aporteML: numero(p.meli_percentage) ?? numero(p.meli_percent),
         aporteVendedor: numero(p.seller_percentage) ?? numero(p.seller_percent),
+        crudo: JSON.stringify(p).slice(0, 2_000),
       },
     ];
   });
@@ -111,6 +114,52 @@ export function separarPromociones(pubs: PublicacionConPromo[]) {
   return { activas, invitaciones };
 }
 
+export type FilaPromocion = {
+  Clave: string;
+  ML_id: string;
+  Titulo: string;
+  Tipo: string;
+  Nombre: string | null;
+  Estado: string;
+  Precio_lista: number | null;
+  Precio_promo: number | null;
+  Descuento: number | null;
+  Aporte_ML: number | null;
+  Aporte_vendedor: number | null;
+  Desde: string | null;
+  Hasta: string | null;
+  Escalon: string | null;
+  Crudo: string;
+  Actualizado: string;
+};
+
+/** Una fila por publicación y promoción, para la tabla Promociones ML. */
+export function filasDePromociones(pubs: PublicacionConPromo[], ahora: number): FilaPromocion[] {
+  return pubs.flatMap((pub) =>
+    pub.promociones.map((promo, i) => {
+      const lista = promo.precioOriginal ?? pub.precioLista;
+      return {
+        Clave: `${pub.id} · ${promo.id ?? `${promo.tipo}-${i}`}`,
+        ML_id: pub.id,
+        Titulo: pub.titulo,
+        Tipo: nombreDeTipo(promo.tipo),
+        Nombre: promo.nombre,
+        Estado: promo.estado,
+        Precio_lista: lista,
+        Precio_promo: promo.precio,
+        Descuento: descuento(promo, pub.precioLista),
+        Aporte_ML: promo.aporteML,
+        Aporte_vendedor: promo.aporteVendedor,
+        Desde: promo.desde,
+        Hasta: promo.hasta,
+        Escalon: escalonCruzado(lista, promo.precio),
+        Crudo: promo.crudo,
+        Actualizado: new Date(ahora).toISOString(),
+      };
+    })
+  );
+}
+
 const escapar = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const pesos = (n: number | null) => (n === null ? "—" : `$${Math.round(n).toLocaleString("es-AR")}`);
 
@@ -136,7 +185,7 @@ export type FotoPromociones = {
 };
 
 /** Las promociones como página, para abrir desde el celular. */
-export function paginaDePromociones(f: FotoPromociones): string {
+export function paginaDePromociones(f: FotoPromociones, guardado?: string): string {
   const gris = "color:#78756c";
   const tabla = (cabecera: string[], filas: string[][]) =>
     `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr>${cabecera
@@ -199,5 +248,6 @@ export function paginaDePromociones(f: FotoPromociones): string {
         .join("")}</ul>`
     );
   }
+  if (guardado) partes.push(`<p style="${gris};font-size:12px;margin-top:16px">${escapar(guardado)}</p>`);
   return `<div style="font-family:Helvetica,Arial,sans-serif;color:#1f1e1b;font-size:14px;line-height:1.45;max-width:960px;margin:0 auto">${partes.join("")}</div>`;
 }

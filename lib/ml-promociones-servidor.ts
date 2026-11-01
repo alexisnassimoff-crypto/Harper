@@ -1,13 +1,16 @@
-import { listRecords } from "./airtable";
+import { createRecord, listRecords, updateRecords } from "./airtable";
 import { tokenVigente } from "./ml-auth";
 import { pedirML } from "./ml-cliente";
 import { TABLA_METRICAS_ML } from "./ml-metricas-servidor";
-import { leerPromociones, type FotoPromociones, type PublicacionConPromo } from "./ml-promociones";
+import { filasDePromociones, leerPromociones, type FilaPromocion, type FotoPromociones, type PublicacionConPromo } from "./ml-promociones";
 
 /**
  * Las promociones de cada publicación activa, leídas de la Central de
- * promociones de Mercado Libre. Las publicaciones salen de Metricas ML.
+ * promociones de Mercado Libre. Las publicaciones salen de Metricas ML. Cada
+ * lectura queda en la tabla Promociones ML.
  */
+
+export const TABLA_PROMOCIONES_ML = "tblC8MCMjIVqsp0YQ";
 
 type FilaMetricas = { ML_id?: string; Titulo?: string; Estado?: string; Precio?: number };
 
@@ -43,4 +46,30 @@ export async function fotoDePromociones(ahora = Date.now()): Promise<FotoPromoci
     publicaciones,
     errores,
   };
+}
+
+/**
+ * Escribe la foto en Promociones ML: actualiza por Clave, crea las nuevas y
+ * marca «ya no está» las que no aparecieron (no se borran: queda la historia).
+ */
+export async function guardarPromociones(foto: FotoPromociones, ahora = Date.now()) {
+  const filas = filasDePromociones(foto.publicaciones, ahora);
+  const existentes = await listRecords<{ Clave?: string; Estado?: string; ML_id?: string }>(TABLA_PROMOCIONES_ML, { revalidate: 0 });
+  const registroDe = new Map(existentes.flatMap((r) => (r.fields.Clave ? [[r.fields.Clave, r.id] as const] : [])));
+  const vistas = new Set(filas.map((f) => f.Clave));
+  // Una publicación que no se pudo leer no marca sus promociones como terminadas.
+  const sinLeer = new Set(foto.errores.map((e) => e.id));
+
+  const actualizar = filas.flatMap((f) => {
+    const id = registroDe.get(f.Clave);
+    return id ? [{ id, fields: f }] : [];
+  });
+  const ausentes = existentes
+    .filter((r) => r.fields.Clave && !vistas.has(r.fields.Clave) && r.fields.Estado !== "ya no está" && !sinLeer.has(r.fields.ML_id ?? ""))
+    .map((r) => ({ id: r.id, fields: { Estado: "ya no está", Actualizado: new Date(ahora).toISOString() } as Partial<FilaPromocion> }));
+
+  await updateRecords<Partial<FilaPromocion>>(TABLA_PROMOCIONES_ML, [...actualizar, ...ausentes]);
+  const nuevas = filas.filter((f) => !registroDe.has(f.Clave));
+  for (const fila of nuevas) await createRecord<FilaPromocion>(TABLA_PROMOCIONES_ML, fila);
+  return { promociones: filas.length, nuevas: nuevas.length, yaNoEstan: ausentes.length };
 }
