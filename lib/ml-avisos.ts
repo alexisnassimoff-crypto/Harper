@@ -18,6 +18,8 @@ export type FilaStock = {
   estado: string;
   stock: number | null;
   unidades30: number;
+  /** Unidades de los últimos 7 días. */
+  unidades7: number;
   permalink: string;
   logistica: string;
 };
@@ -34,14 +36,17 @@ export type ParametrosFull = {
   diasReposicion: number;
   /** Margen por si la reposición se atrasa o las ventas suben. */
   diasSeguridad: number;
+  /** Con cuántos días de anticipación se avisa la fecha límite para armar el envío. */
+  avisoAnticipado: number;
 };
 
 export const PARAMETROS_FULL: ParametrosFull = {
   costoColecta: 30_000,
   diasSinCargo: 30,
   almacenamientoUnidadMes: null,
-  diasReposicion: 10,
-  diasSeguridad: 5,
+  diasReposicion: 11,
+  diasSeguridad: 7,
+  avisoAnticipado: 7,
 };
 
 /** El ciclo nunca baja de dos semanas: menos es pagar una colecta por semana. */
@@ -84,6 +89,10 @@ export type ItemPlan = {
   titulo: string;
   stock: number;
   porDia: number;
+  /** Unidades por semana con las que se calcula (la más alta entre 7 y 30 días). */
+  porSemana: number;
+  /** La venta de los últimos 7 días va más rápido que la de 30. */
+  acelera: boolean;
   /** Días que alcanza el stock al ritmo de los últimos 30. */
   dias: number;
   /** Cuánto mandar para cubrir reposición + ciclo + seguridad desde hoy. */
@@ -111,6 +120,8 @@ export type PlanDeEnvio = {
   costoMensual: number;
   /** En cuántos días hay que armar el envío (0 = ya). */
   diasHastaEnvio: number | null;
+  /** La fecha límite para armar el envío (YYYY-MM-DD), si se pasó `hoy`. */
+  fechaLimite: string | null;
   hayQueEnviar: boolean;
   items: ItemPlan[];
   lentos: StockLento[];
@@ -120,8 +131,17 @@ export type PlanDeEnvio = {
 const LENTO_MINIMO = 3;
 const LENTO_PROPORCION = 0.25;
 
-/** Se avisa cuando faltan estos días o menos para el punto de reposición, así hay tiempo de armarlo. */
-export const AVISO_ANTICIPADO_DIAS = 3;
+/**
+ * El ritmo de venta para planear: el más alto entre los últimos 7 días y los
+ * últimos 30. Si la venta se acelera, el promedio de 30 días se queda corto y
+ * el stock se termina antes de lo calculado; si se frena, conviene un poco de
+ * más antes que quedarse sin.
+ */
+export function ritmoDeVenta(f: Pick<FilaStock, "unidades30" | "unidades7">): { porDia: number; acelera: boolean } {
+  const de30 = f.unidades30 / 30;
+  const de7 = f.unidades7 / 7;
+  return { porDia: Math.max(de30, de7), acelera: de7 > de30 * 1.2 && f.unidades7 >= 3 };
+}
 
 /**
  * El plan: un solo envío para todas las publicaciones de Full, cuando la
@@ -132,13 +152,13 @@ export const AVISO_ANTICIPADO_DIAS = 3;
  * Mercado Libre pausa sola la publicación que llega a cero, así que una
  * pausada sin stock que vendió en los últimos 30 días también entra.
  */
-export function planDeEnvio(filas: FilaStock[], p: ParametrosFull): PlanDeEnvio {
+export function planDeEnvio(filas: FilaStock[], p: ParametrosFull, hoy?: string): PlanDeEnvio {
   const deFull = filas.filter((f) => f.logistica === "fulfillment");
   const vendibles = deFull.flatMap((f) => {
     const stock = f.stock ?? 0;
-    const porDia = f.unidades30 / 30;
+    const { porDia, acelera } = ritmoDeVenta(f);
     const vendible = f.estado === "active" || (f.estado === "paused" && stock === 0);
-    return vendible && porDia > 0 ? [{ f, stock, porDia, dias: stock / porDia }] : [];
+    return vendible && porDia > 0 ? [{ f, stock, porDia, acelera, dias: stock / porDia }] : [];
   });
 
   const { ciclo, motivo, costoMensual } = cicloOptimo(p, vendibles.reduce((t, v) => t + v.porDia, 0));
@@ -146,11 +166,13 @@ export function planDeEnvio(filas: FilaStock[], p: ParametrosFull): PlanDeEnvio 
   const cubrir = p.diasReposicion + ciclo + p.diasSeguridad;
 
   const items: ItemPlan[] = vendibles
-    .map(({ f, stock, porDia, dias }) => ({
+    .map(({ f, stock, porDia, acelera, dias }) => ({
       id: f.id,
       titulo: f.titulo,
       stock,
       porDia,
+      porSemana: Math.round(porDia * 7 * 10) / 10,
+      acelera,
       dias,
       mandar: Math.max(0, Math.ceil(porDia * cubrir - stock)),
       seAgotaAntes: dias < p.diasReposicion,
@@ -166,7 +188,7 @@ export function planDeEnvio(filas: FilaStock[], p: ParametrosFull): PlanDeEnvio 
   const lentos: StockLento[] = deFull
     .flatMap((f) => {
       const stock = f.stock ?? 0;
-      const porDia = f.unidades30 / 30;
+      const { porDia } = ritmoDeVenta(f);
       const excedente = Math.floor(stock - porDia * cubrir);
       // Unas pocas unidades de más en un producto que vende no es stock lento.
       const importante = excedente >= LENTO_MINIMO && excedente >= stock * LENTO_PROPORCION;
@@ -180,7 +202,8 @@ export function planDeEnvio(filas: FilaStock[], p: ParametrosFull): PlanDeEnvio 
     motivoCiclo: motivo,
     costoMensual,
     diasHastaEnvio,
-    hayQueEnviar: diasHastaEnvio !== null && diasHastaEnvio <= AVISO_ANTICIPADO_DIAS,
+    fechaLimite: hoy && diasHastaEnvio !== null ? sumarDias(hoy, diasHastaEnvio) : null,
+    hayQueEnviar: diasHastaEnvio !== null && diasHastaEnvio <= p.avisoAnticipado,
     items,
     lentos,
   };
@@ -502,6 +525,7 @@ function tablaDeEnvio(plan: PlanDeEnvio): { html: string; texto: string } {
     .map(
       (i) => `<tr>
 <td style="${CELDA}">${i.seAgotaAntes ? "🔴 " : ""}<a href="${escapar(i.permalink)}" style="color:#16150f">${escapar(i.titulo)}</a></td>
+<td style="${CELDA};text-align:right">${i.porSemana}${i.acelera ? " ↑" : ""}</td>
 <td style="${CELDA};text-align:right">${i.stock}</td>
 <td style="${CELDA};text-align:right">${i.stock === 0 ? "sin stock" : dias(i.dias)}</td>
 <td style="${CELDA};text-align:right"><strong>${i.mandar}</strong></td>
@@ -511,12 +535,15 @@ function tablaDeEnvio(plan: PlanDeEnvio): { html: string; texto: string } {
   const total = plan.items.reduce((t, i) => t + i.mandar, 0);
   return {
     html: `<table ${TABLA}>
-<tr><th style="${CELDA};text-align:left">Publicación</th><th style="${CELDA};text-align:right">Stock</th><th style="${CELDA};text-align:right">Alcanza</th><th style="${CELDA};text-align:right">Mandar</th></tr>
+<tr><th style="${CELDA};text-align:left">Publicación</th><th style="${CELDA};text-align:right">Vende por semana</th><th style="${CELDA};text-align:right">Stock</th><th style="${CELDA};text-align:right">Alcanza</th><th style="${CELDA};text-align:right">Mandar</th></tr>
 ${filas}
-<tr><td style="${CELDA}"><strong>Total del envío</strong></td><td style="${CELDA}"></td><td style="${CELDA}"></td><td style="${CELDA};text-align:right"><strong>${total}</strong></td></tr>
+<tr><td style="${CELDA}"><strong>Total del envío</strong></td><td style="${CELDA}"></td><td style="${CELDA}"></td><td style="${CELDA}"></td><td style="${CELDA};text-align:right"><strong>${total}</strong></td></tr>
 </table>`,
     texto: [
-      ...plan.items.map((i) => `- ${i.seAgotaAntes ? "SE AGOTA ANTES: " : ""}${i.titulo}: stock ${i.stock}, alcanza ${i.stock === 0 ? "sin stock" : dias(i.dias)}, mandar ${i.mandar}`),
+      ...plan.items.map(
+        (i) =>
+          `- ${i.seAgotaAntes ? "SE AGOTA ANTES: " : ""}${i.titulo}: vende ${i.porSemana}/semana${i.acelera ? " (acelerando)" : ""}, stock ${i.stock}, alcanza ${i.stock === 0 ? "sin stock" : dias(i.dias)}, mandar ${i.mandar}`
+      ),
       `Total del envío: ${total}`,
     ].join("\n"),
   };
@@ -524,10 +551,18 @@ ${filas}
 
 function notaDelPlan(plan: PlanDeEnvio, p: ParametrosFull): string {
   return (
-    `Un solo envío cada ${plan.ciclo} días (${plan.motivoCiclo}): ~${precio(plan.costoMensual)} por mes de Full. ` +
-    `«Mandar» cubre ${p.diasReposicion} días de reposición + ${plan.ciclo} del ciclo + ${p.diasSeguridad} de seguridad, al ritmo de los últimos 30 días. ` +
-    `Lo que está en camino a Full no figura en el stock hasta que se acredita.`
+    `Un solo envío cada ${plan.ciclo} días (${plan.motivoCiclo}): ~${precio(plan.costoMensual)} por mes de colectas. ` +
+    `«Mandar» cubre ${p.diasReposicion} días hasta que está a la venta + ${plan.ciclo} del ciclo + ${p.diasSeguridad} de seguridad. ` +
+    `El ritmo es el más alto entre los últimos 7 y 30 días (↑ = se está acelerando).`
   );
+}
+
+/** «a más tardar el 07/11 (en 6 días)», «hoy mismo». */
+function cuandoArmar(plan: PlanDeEnvio): string {
+  if (plan.diasHastaEnvio === null) return "";
+  if (plan.diasHastaEnvio === 0) return "hoy mismo";
+  const fecha = plan.fechaLimite ? `a más tardar el ${fechaCorta(plan.fechaLimite)} ` : "";
+  return `${fecha}(en ${plan.diasHastaEnvio} ${plan.diasHastaEnvio === 1 ? "día" : "días"})`;
 }
 
 function bloqueLentos(plan: PlanDeEnvio, p: ParametrosFull): { html: string; texto: string } {
@@ -543,17 +578,17 @@ function bloqueLentos(plan: PlanDeEnvio, p: ParametrosFull): { html: string; tex
 export function mailDeEnvio(plan: PlanDeEnvio, p: ParametrosFull): Mail {
   const tabla = tablaDeEnvio(plan);
   const agotan = plan.items.filter((i) => i.seAgotaAntes).length;
-  const cuando = plan.diasHastaEnvio ? `en ${plan.diasHastaEnvio} días` : "ya";
+  const cuando = cuandoArmar(plan);
   const nota = notaDelPlan(plan, p);
   return {
     asunto: `Full: armá el envío ${cuando}${agotan ? ` (${agotan} se ${agotan === 1 ? "agota" : "agotan"} antes de que llegue)` : ""}`,
     html: `<div style="${ESTILO}">
-<p style="font-size:17px;margin:0 0 12px"><strong>Hay que armar el envío a Full ${cuando}</strong></p>
+<p style="font-size:17px;margin:0 0 12px"><strong>Armá el envío a Full ${cuando}</strong></p>
 ${tabla.html}
-<p style="${GRIS}">${escapar(nota)}${agotan ? " 🔴 = se queda sin stock antes de que llegue este envío." : ""}</p>
+<p style="${GRIS}">${escapar(nota)} Desde que decidís mandar hasta que está a la venta pasan ~${p.diasReposicion} días.${agotan ? " 🔴 = se queda sin stock antes de que llegue este envío." : ""}</p>
 ${bloqueLentos(plan, p).html}
 </div>`,
-    texto: `Hay que armar el envío a Full ${cuando}\n\n${tabla.texto}\n\n${nota}${bloqueLentos(plan, p).texto}`,
+    texto: `Armá el envío a Full ${cuando}\n\n${tabla.texto}\n\n${nota}${bloqueLentos(plan, p).texto}`,
   };
 }
 
@@ -607,7 +642,22 @@ export type DatosSemana = {
   parametros: ParametrosFull;
   decisiones: DecisionARevisar[];
   preguntas: ResumenPreguntas | null;
+  /** Lo que falta hacer, de la tabla Pendientes. Se repite hasta que está hecho. */
+  pendientes?: Pendiente[];
 };
+
+export type Pendiente = { tarea: string; desde: string; prioridad: number | null };
+
+/** Las tareas de Ale sin hacer, por prioridad y antigüedad. */
+export function pendientesDeAle(filas: { Tarea?: unknown; Para?: unknown; Estado?: unknown; Desde?: unknown; Prioridad?: unknown }[]): Pendiente[] {
+  return filas
+    .flatMap((f) =>
+      f.Para === "Ale" && f.Estado !== "Hecha" && typeof f.Tarea === "string" && f.Tarea
+        ? [{ tarea: f.Tarea, desde: typeof f.Desde === "string" ? f.Desde : "", prioridad: typeof f.Prioridad === "number" ? f.Prioridad : null }]
+        : []
+    )
+    .sort((a, b) => (a.prioridad ?? 99) - (b.prioridad ?? 99) || a.desde.localeCompare(b.desde));
+}
 
 export function mailSemanal(d: DatosSemana): Mail {
   const { actual: va, anterior: vb } = d.ventas;
@@ -653,14 +703,21 @@ ${fila("Unidades", [String(va.unidades), String(vb.unidades), variacion(va.unida
 
   const p = d.plan;
   const envio = tablaDeEnvio(p);
-  const cuandoEnvio = p.diasHastaEnvio === null ? null : p.diasHastaEnvio === 0 ? "ya" : `en ${p.diasHastaEnvio} días`;
+  const cuandoEnvio = p.diasHastaEnvio === null ? null : cuandoArmar(p);
   const planHtml = cuandoEnvio
-    ? `<p style="margin:16px 0 4px"><strong>Próximo envío a Full: ${cuandoEnvio}</strong></p>${p.items.length ? envio.html : ""}<p style="${GRIS}">${escapar(notaDelPlan(p, d.parametros))}</p>`
+    ? `<p style="margin:16px 0 4px"><strong>Próximo envío a Full: armarlo ${cuandoEnvio}</strong></p>${p.items.length ? envio.html : ""}<p style="${GRIS}">${escapar(notaDelPlan(p, d.parametros))}</p>`
     : `<p style="margin:16px 0 0"><strong>Envío a Full</strong>: no hay publicaciones de Full con ventas.</p>`;
   const lentos = bloqueLentos(p, d.parametros);
 
   const preguntasHtml = d.preguntas
     ? `<p style="margin:16px 0 0"><strong>Preguntas</strong>: ${d.preguntas.total} recibidas, ${d.preguntas.solas} respondidas solas, ${d.preguntas.borradores} pasaron por vos${d.preguntas.pendientes ? `, <strong>${d.preguntas.pendientes} sin responder</strong>` : ""}.</p>`
+    : "";
+
+  const pendientes = d.pendientes ?? [];
+  const pendientesHtml = pendientes.length
+    ? `<p style="margin:16px 0 0"><strong>Pendientes tuyos</strong> (tabla Pendientes: marcalos «Hecha» o avisame)</p>${lista(
+        pendientes.map((x) => `${escapar(x.tarea)}${x.desde ? ` <span style="color:#78756c">(desde el ${fechaCorta(x.desde)})</span>` : ""}`)
+      )}`
     : "";
 
   const decisionesHtml = d.decisiones.length
@@ -684,9 +741,10 @@ ${fila("Unidades", [String(va.unidades), String(vb.unidades), variacion(va.unida
     "",
     d.ads.actual ? `Publicidad de la semana: ${precio(d.ads.actual.costo)}, ACOS ${d.ads.actual.acos ?? "—"}%` : "Publicidad: sin datos",
     "",
-    cuandoEnvio ? `Próximo envío a Full: ${cuandoEnvio}\n${p.items.length ? envio.texto : ""}\n${notaDelPlan(p, d.parametros)}` : "Envío a Full: no hay publicaciones de Full con ventas.",
+    cuandoEnvio ? `Próximo envío a Full: armarlo ${cuandoEnvio}\n${p.items.length ? envio.texto : ""}\n${notaDelPlan(p, d.parametros)}` : "Envío a Full: no hay publicaciones de Full con ventas.",
     lentos.texto,
     ...(d.preguntas ? ["", `Preguntas: ${d.preguntas.total} recibidas, ${d.preguntas.solas} respondidas solas, ${d.preguntas.pendientes} sin responder.`] : []),
+    ...(pendientes.length ? ["", "Pendientes tuyos:", ...pendientes.map((x) => `- ${x.tarea}${x.desde ? ` (desde el ${fechaCorta(x.desde)})` : ""}`)] : []),
     ...(d.decisiones.length ? ["", "Decisiones para revisar:", ...d.decisiones.map((x) => `- ${fechaCorta(x.revisar)}: ${x.decision}`)] : []),
   ].join("\n");
 
@@ -706,6 +764,7 @@ ${adsHtml}
 ${planHtml}
 ${lentos.html}
 ${preguntasHtml}
+${pendientesHtml}
 ${decisionesHtml}
 </div>`,
     texto,

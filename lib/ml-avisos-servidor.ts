@@ -13,6 +13,7 @@ import {
   mailDeEnvio,
   mailSemanal,
   PARAMETROS_FULL,
+  pendientesDeAle,
   planDeEnvio,
   resumenDePreguntas,
   resumenDeVentas,
@@ -47,6 +48,7 @@ import { TABLA_PREGUNTAS_ML } from "./ml-preguntas-servidor";
 const TABLA_DECISIONES = "tbljuMCTM1vkBM16r";
 const TABLA_COSTOS = "tblEkjLXaXO1Fy0zd";
 const TABLA_ENVIOS_FULL = "tblBHkTmGdlr3fdyj";
+const TABLA_PENDIENTES = "tblAMt8vVWOBORCPo";
 const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
 const EN_PARALELO = 5;
 
@@ -95,6 +97,7 @@ async function parametrosFull(): Promise<ParametrosFull> {
     almacenamientoUnidadMes: valor.get("full_almacenamiento_unidad_mes") && Number.isFinite(almacenamiento) ? almacenamiento : null,
     diasReposicion: numero("full_dias_reposicion", PARAMETROS_FULL.diasReposicion),
     diasSeguridad: numero("full_dias_seguridad", PARAMETROS_FULL.diasSeguridad),
+    avisoAnticipado: numero("full_aviso_anticipado_dias", PARAMETROS_FULL.avisoAnticipado),
   };
 }
 
@@ -109,6 +112,7 @@ type FilaMetricasGuardada = {
   Estado?: string;
   Stock?: number;
   Unidades_30d?: number;
+  Unidades_7d?: number;
   Permalink?: string;
   Logistica?: string;
 };
@@ -126,6 +130,7 @@ async function filasDeStock(): Promise<FilaStock[]> {
             estado: f.Estado ?? "",
             stock: typeof f.Stock === "number" ? f.Stock : null,
             unidades30: typeof f.Unidades_30d === "number" ? f.Unidades_30d : 0,
+            unidades7: typeof f.Unidades_7d === "number" ? f.Unidades_7d : 0,
             permalink: f.Permalink ?? "",
             logistica: f.Logistica ?? "",
           },
@@ -144,8 +149,15 @@ export type ResultadoAviso = { enviado: boolean; motivo: string; mail?: Mail; [d
 export async function avisoDeEnvio(opciones: { enviar: boolean; forzar?: boolean; ahora?: number }): Promise<ResultadoAviso> {
   const ahora = opciones.ahora ?? Date.now();
   const parametros = await parametrosFull();
-  const plan = planDeEnvio(await filasDeStock(), parametros);
-  const datos = { ciclo: plan.ciclo, diasHastaEnvio: plan.diasHastaEnvio, publicaciones: plan.items.length, lentos: plan.lentos.length };
+  const plan = planDeEnvio(await filasDeStock(), parametros, fechaArgentina(ahora));
+  const datos = {
+    ciclo: plan.ciclo,
+    diasHastaEnvio: plan.diasHastaEnvio,
+    fechaLimite: plan.fechaLimite,
+    publicaciones: plan.items.length,
+    unidades: plan.items.reduce((t, i) => t + i.mandar, 0),
+    lentos: plan.lentos.length,
+  };
   const mail = plan.items.length ? mailDeEnvio(plan, parametros) : undefined;
 
   if (!opciones.enviar) return { ...datos, enviado: false, motivo: "vista previa", mail };
@@ -251,7 +263,7 @@ export async function resumenSemanal(opciones: { enviar: boolean; forzar?: boole
   const base = anunciante ? `/advertising/${anunciante.site}/advertisers/${anunciante.id}/product_ads` : null;
   const adsDelRango = (r: Rango) => (base ? conRespaldo("publicidad", () => adsDe(base, r, token), null) : Promise.resolve(null));
 
-  const [ordenes, adsSemana, adsAnterior, adsPeriodos, filas, parametros, decisiones, preguntas, costosFilas, envios] = await Promise.all([
+  const [ordenes, adsSemana, adsAnterior, adsPeriodos, filas, parametros, decisiones, preguntas, costosFilas, envios, pendientes] = await Promise.all([
     ordenesPagadasEntre(vendedor, desde, hasta, token),
     adsDelRango(s.actual),
     adsDelRango(s.anterior),
@@ -262,6 +274,7 @@ export async function resumenSemanal(opciones: { enviar: boolean; forzar?: boole
     tabla<{ Recibida?: string; Estado?: string }>(TABLA_PREGUNTAS_ML),
     tabla<{ ML_id?: string; Costo_unitario_sin_IVA?: number; Packaging?: number }>(TABLA_COSTOS),
     tabla<{ Fecha?: string; Costo_colecta?: number }>(TABLA_ENVIOS_FULL),
+    tabla<{ Tarea?: string; Para?: string; Estado?: string; Desde?: string; Prioridad?: number }>(TABLA_PENDIENTES),
   ]);
 
   const costos = new Map<string, CostoProducto>(
@@ -295,10 +308,11 @@ export async function resumenSemanal(opciones: { enviar: boolean; forzar?: boole
     meses: periodos.slice(1).map((p) => ({ titulo: p.titulo, totales: totalesEntre(ordenes, p.rango) })),
     ganancias,
     ads: { actual: adsSemana, anterior: adsAnterior },
-    plan: planDeEnvio(filas, parametros),
+    plan: planDeEnvio(filas, parametros, hoy),
     parametros,
     decisiones: decisionesARevisar(decisiones, hoy),
     preguntas: resumenDePreguntas(preguntas, s.actual),
+    pendientes: pendientesDeAle(pendientes),
   });
 
   const datos = { enviosSinCosto: fallidos, ganancias: ganancias.map((g) => ({ periodo: g.titulo, ganancia: g.ganancia.ganancia, margen: g.ganancia.margen })) };

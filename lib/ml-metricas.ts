@@ -127,6 +127,29 @@ export function sumarOrdenes(ordenes: unknown[], v: Ventanas): VentasPorPublicac
   return total;
 }
 
+/**
+ * Unidades vendidas por publicación en los últimos `dias` días hasta `hasta`
+ * (inclusive, hora de Argentina). Sirve para ver si la venta se acelera.
+ */
+export function unidadesUltimosDias(ordenes: unknown[], hasta: string, dias: number): Map<string, number> {
+  let desde = hasta;
+  for (let i = 1; i < dias; i += 1) desde = diaAnterior(desde);
+  const total = new Map<string, number>();
+  for (const orden of ordenes) {
+    const o = orden as { status?: string; date_created?: string; order_items?: unknown[] };
+    if (o.status !== "paid" || !o.date_created) continue;
+    const creada = Date.parse(o.date_created);
+    if (Number.isNaN(creada)) continue;
+    const dia = fechaArgentina(creada);
+    if (dia < desde || dia > hasta) continue;
+    for (const linea of o.order_items ?? []) {
+      const l = linea as { item?: { id?: string }; quantity?: number };
+      if (l.item?.id) total.set(l.item.id, (total.get(l.item.id) ?? 0) + (numero(l.quantity) ?? 0));
+    }
+  }
+  return total;
+}
+
 // ---------------------------------------------------------------------------
 // Visitas
 // ---------------------------------------------------------------------------
@@ -305,6 +328,7 @@ export type FilaMetricas = {
   Visitas_30d_previos: number | null;
   Unidades_30d: number;
   Unidades_30d_previos: number;
+  Unidades_7d: number;
   Facturado_30d: number;
   Comision_ML_30d: number;
   Conversion_30d: number | null;
@@ -337,6 +361,8 @@ export function armarFilas(datos: {
   publicaciones: Publicacion[];
   visitas: Map<string, { actual: number | null; previa: number | null }>;
   ventas: VentasPorPublicacion;
+  /** Unidades de los últimos 7 días por publicación. */
+  ventas7?: Map<string, number>;
   anuncios: Anuncio[] | null;
   porPublicacion: Map<string, AnuncioDePublicacion>;
   v: Ventanas;
@@ -381,6 +407,7 @@ export function armarFilas(datos: {
       Visitas_30d_previos: vis.previa,
       Unidades_30d: ven.actual.unidades,
       Unidades_30d_previos: ven.previa.unidades,
+      Unidades_7d: datos.ventas7?.get(p.id) ?? 0,
       Facturado_30d: redondear(ven.actual.facturado),
       Comision_ML_30d: redondear(ven.actual.comision),
       Conversion_30d: vis.actual ? Math.round((ven.actual.unidades / vis.actual) * 10_000) / 10_000 : null,
