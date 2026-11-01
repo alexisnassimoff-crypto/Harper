@@ -1,9 +1,15 @@
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { tokenVigente } from "./ml-auth";
 import { ErrorML, idDeLaCuenta, pedirML } from "./ml-cliente";
+import { diaAnterior, fechaArgentina, leerAnunciante } from "./ml-metricas";
+import { TABLA_METRICAS_ML } from "./ml-metricas-servidor";
 import {
+  idsConReferencia,
   idsDeLink,
   leerBusqueda,
+  leerCompetitividad,
+  leerReferencia,
+  METRICAS_COMPETITIVIDAD,
   leerPrecioDeVenta,
   leerPublicacionAjena,
   leerReputacion,
@@ -11,13 +17,17 @@ import {
   posicionesEnBusqueda,
   type FotoCompetencia,
   type Prueba,
+  type ReferenciaDePrecio,
   type PublicacionAjena,
   type VendedorCompetidor,
 } from "./ml-competencia";
 
 /**
- * Lee con la cuenta de Harper a los competidores de la tabla Competencia y
- * dónde aparece cada uno en las búsquedas clave. Cada pedido queda anotado en
+ * La competencia con lo que Mercado Libre deja leer: las Referencias de
+ * precios de cada publicación propia (comparada con las parecidas) y la
+ * competitividad de las campañas de publicidad. Además prueba leer a los
+ * competidores de la tabla Competencia y las búsquedas clave (al 1/11/2026
+ * Mercado Libre rechaza las dos cosas con 403). Cada pedido queda anotado en
  * `pruebas`: Mercado Libre restringe qué se puede leer de otros vendedores, y
  * esto muestra exactamente qué deja y qué no.
  */
@@ -37,6 +47,10 @@ const CAMPOS_ITEM =
   "id,title,price,original_price,seller_id,status,sold_quantity,listing_type_id,shipping,permalink,catalog_product_id";
 
 type FilaCompetencia = { Nombre?: string; Vendedor?: string; Link?: string };
+type FilaMetricas = { ML_id?: string; Titulo?: string; Estado?: string; Unidades_30d?: number };
+
+/** Como mucho, cuántas referencias de precio se piden por corrida. */
+const MAXIMO_REFERENCIAS = 25;
 
 async function busquedasClave(): Promise<string[]> {
   const filas = await listRecords<{ Valor?: string }>(TABLAS.config, {
@@ -56,15 +70,47 @@ export async function fotoDeLaCompetencia(ahora = Date.now()): Promise<FotoCompe
   const pruebas: Prueba[] = [];
 
   /** Un pedido que puede fallar: queda anotado y devuelve null. */
-  async function intentar<T>(que: string, ruta: string): Promise<T | null> {
+  async function intentar<T>(que: string, ruta: string, headers?: Record<string, string>): Promise<T | null> {
     try {
-      const r = await pedirML<T>(ruta, { token });
+      const r = await pedirML<T>(ruta, { token, headers });
       pruebas.push({ que, status: 200, ok: true, detalle: "" });
       return r;
     } catch (error) {
       pruebas.push({ que, status: error instanceof ErrorML ? error.status : null, ok: false, detalle: (error as Error).message.slice(0, 200) });
       return null;
     }
+  }
+
+  // 0a. Tu precio contra las publicaciones parecidas: Referencias de precios.
+  // Si la lista de ML no trae nada, se piden las publicaciones activas que más venden.
+  const metricas = (await listRecords<FilaMetricas>(TABLA_METRICAS_ML, { revalidate: 0 })).map((r) => r.fields);
+  const tituloDe = new Map(metricas.flatMap((m) => (m.ML_id ? [[m.ML_id, m.Titulo ?? m.ML_id] as [string, string]] : [])));
+  let conReferencia = idsConReferencia(await intentar("Referencias de precios: lista", `/suggestions/user/${miId}/items`));
+  if (!conReferencia.length) {
+    conReferencia = metricas
+      .filter((m) => m.ML_id && m.Estado === "active" && (m.Unidades_30d ?? 0) > 0)
+      .sort((a, b) => (b.Unidades_30d ?? 0) - (a.Unidades_30d ?? 0))
+      .map((m) => m.ML_id as string);
+  }
+  const referencias: ReferenciaDePrecio[] = [];
+  for (const id of conReferencia.slice(0, MAXIMO_REFERENCIAS)) {
+    const r = leerReferencia(await intentar(`Referencias de precios: ${id}`, `/suggestions/items/${id}/details`), tituloDe.get(id));
+    if (r) referencias.push(r);
+  }
+
+  // 0b. Publicidad: cuántas veces te gana otro vendedor (últimos 7 días completos).
+  let publicidad: FotoCompetencia["publicidad"] = null;
+  const anunciante = leerAnunciante(await intentar("Publicidad: anunciante", "/advertising/advertisers?product_id=PADS", { "Api-Version": "1" }));
+  if (anunciante) {
+    const hasta = diaAnterior(fechaArgentina(ahora));
+    let desde = hasta;
+    for (let i = 0; i < 6; i++) desde = diaAnterior(desde);
+    const cuerpo = await intentar(
+      "Publicidad: competitividad de las campañas",
+      `/advertising/${anunciante.site}/advertisers/${anunciante.id}/product_ads/campaigns/search?limit=50&offset=0&date_from=${desde}&date_to=${hasta}&metrics=${METRICAS_COMPETITIVIDAD}`,
+      { "api-version": "2" }
+    );
+    if (cuerpo) publicidad = { desde, hasta, campanas: leerCompetitividad(cuerpo) };
   }
 
   const filas = (await listRecords<FilaCompetencia>(TABLA_COMPETENCIA, { revalidate: 0 })).map((r) => r.fields);
@@ -159,6 +205,8 @@ export async function fotoDeLaCompetencia(ahora = Date.now()): Promise<FotoCompe
   return {
     fecha: new Date(ahora).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" }),
     pruebas,
+    referencias,
+    publicidad,
     publicaciones,
     vendedores,
     busquedas,

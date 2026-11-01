@@ -224,15 +224,19 @@ Para verlos o mandarlos a mano:
 para ver el mail, `&enviar=1` para mandarlo y `&forzar=1` para mandarlo aunque
 ya se haya mandado.
 
-**Competencia.** Los competidores se cargan a mano en la tabla
-**Competencia** (vendedor o link de una publicación; sirve el link de
-compartir de la app). `/api/ml/competencia?token=<SYNC_TOKEN>&ver=1` los lee
-con la cuenta de Harper: precio (con promociones), cuotas sin interés, Full,
-envío gratis, vendidas y reputación, y dónde aparece cada uno (y Harper) en
-las búsquedas clave (clave `competencia_busquedas` de Config, una por línea).
-Mercado Libre restringe qué se puede leer de otros vendedores: la página
-empieza con qué dejó leer y qué no. Mercado Libre no publica a quién sigue
-cada vendedor en la app, por eso la lista es a mano.
+**Competencia.** `/api/ml/competencia?token=<SYNC_TOKEN>&ver=1` muestra lo
+que Mercado Libre deja leer de la competencia:
+
+- **Referencias de precios** (`/suggestions/...`): cada publicación propia
+  contra las parecidas. Muestra el precio de referencia de ML, el más bajo, la
+  diferencia en % y con qué publicaciones compara.
+- **Competitividad de la publicidad** (métricas de campaña de Product Ads,
+  últimos 7 días): cuántas veces salió el anuncio y cuántas lo ganó otro
+  vendedor por ranking o se perdió por presupuesto.
+- Además prueba leer a los competidores de la tabla **Competencia** y las
+  búsquedas clave (clave `competencia_busquedas` de Config). Al 1/11/2026,
+  Mercado Libre rechaza las dos cosas con 403. La página termina con qué dejó
+  leer y qué contestó cuando no dejó.
 
 **Puesta en marcha (una vez)**
 
