@@ -11,6 +11,7 @@ import {
   leerResumenAds,
   mailDeEnvio,
   mailSemanal,
+  motivoSinPlan,
   PARAMETROS_FULL,
   pendientesDeAle,
   planDeEnvio,
@@ -262,4 +263,11 @@ test("el mail semanal trae la semana, el mes, la ganancia real y el próximo env
   assert.match(mail.texto, /Próximo envío a Full: armarlo hoy mismo/);
   assert.match(mail.texto, /Pendientes tuyos:\n- Subir Anteojos New a ROAS 8 \(desde el 01\/11\)/);
   assert.match(mail.texto, /15\/11: ROAS anteojos/);
+});
+
+test("sin plan de envío, el aviso dice por qué", () => {
+  assert.match(motivoSinPlan([]), /vacía/);
+  // Las filas escritas antes de que existiera la columna Logistica.
+  assert.match(motivoSinPlan([fila("rect", 128, 113, "active", "")]), /10:30/);
+  assert.match(motivoSinPlan([fila("rect", 128, 113, "active", "cross_docking")]), /nada que reponer/);
 });

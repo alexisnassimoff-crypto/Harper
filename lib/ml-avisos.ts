@@ -209,6 +209,15 @@ export function planDeEnvio(filas: FilaStock[], p: ParametrosFull, hoy?: string)
   };
 }
 
+/** Por qué no hay plan de envío, dicho para Ale. */
+export function motivoSinPlan(filas: FilaStock[]): string {
+  if (!filas.length) return "La tabla Metricas ML está vacía: todavía no corrió la actualización diaria (10:30).";
+  if (filas.every((f) => !f.logistica)) {
+    return "Todavía no está cargado si cada publicación es de Full. Se completa en la actualización diaria de las 10:30: después de esa hora, volvé a abrir este link.";
+  }
+  return "No hay publicaciones de Full con ventas en los últimos 30 días: no hay nada que reponer.";
+}
+
 /** Lo que cambia el aviso: qué publicaciones van en el envío. */
 export function firmaDelPlan(plan: PlanDeEnvio): string {
   return plan.items

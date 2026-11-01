@@ -12,6 +12,7 @@ import {
   leerResumenAds,
   mailDeEnvio,
   mailSemanal,
+  motivoSinPlan,
   PARAMETROS_FULL,
   pendientesDeAle,
   planDeEnvio,
@@ -149,7 +150,8 @@ export type ResultadoAviso = { enviado: boolean; motivo: string; mail?: Mail; [d
 export async function avisoDeEnvio(opciones: { enviar: boolean; forzar?: boolean; ahora?: number }): Promise<ResultadoAviso> {
   const ahora = opciones.ahora ?? Date.now();
   const parametros = await parametrosFull();
-  const plan = planDeEnvio(await filasDeStock(), parametros, fechaArgentina(ahora));
+  const filas = await filasDeStock();
+  const plan = planDeEnvio(filas, parametros, fechaArgentina(ahora));
   const datos = {
     ciclo: plan.ciclo,
     diasHastaEnvio: plan.diasHastaEnvio,
@@ -160,13 +162,13 @@ export async function avisoDeEnvio(opciones: { enviar: boolean; forzar?: boolean
   };
   const mail = plan.items.length ? mailDeEnvio(plan, parametros) : undefined;
 
-  if (!opciones.enviar) return { ...datos, enviado: false, motivo: "vista previa", mail };
+  if (!opciones.enviar) return { ...datos, enviado: false, motivo: mail ? "vista previa" : motivoSinPlan(filas), mail };
 
   if (!plan.hayQueEnviar && !opciones.forzar) {
     await escribirClave(CLAVE_FIRMA_ENVIO, "");
-    return { ...datos, enviado: false, motivo: plan.diasHastaEnvio === null ? "no hay publicaciones de Full con ventas" : `el próximo envío es en ${plan.diasHastaEnvio} días` };
+    return { ...datos, enviado: false, motivo: plan.diasHastaEnvio === null ? motivoSinPlan(filas) : `el próximo envío es en ${plan.diasHastaEnvio} días` };
   }
-  if (!mail) return { ...datos, enviado: false, motivo: "no hay nada para mandar" };
+  if (!mail) return { ...datos, enviado: false, motivo: motivoSinPlan(filas) };
 
   const firma = firmaDelPlan(plan);
   const [firmaAnterior, enviadoAntes] = await Promise.all([leerClave(CLAVE_FIRMA_ENVIO), leerClave(CLAVE_FECHA_ENVIO)]);

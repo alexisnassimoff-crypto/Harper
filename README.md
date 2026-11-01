@@ -224,6 +224,16 @@ Para verlos o mandarlos a mano:
 para ver el mail, `&enviar=1` para mandarlo y `&forzar=1` para mandarlo aunque
 ya se haya mandado.
 
+**Competencia.** Los competidores se cargan a mano en la tabla
+**Competencia** (vendedor o link de una publicación; sirve el link de
+compartir de la app). `/api/ml/competencia?token=<SYNC_TOKEN>&ver=1` los lee
+con la cuenta de Harper: precio (con promociones), cuotas sin interés, Full,
+envío gratis, vendidas y reputación, y dónde aparece cada uno (y Harper) en
+las búsquedas clave (clave `competencia_busquedas` de Config, una por línea).
+Mercado Libre restringe qué se puede leer de otros vendedores: la página
+empieza con qué dejó leer y qué no. Mercado Libre no publica a quién sigue
+cada vendedor en la app, por eso la lista es a mano.
+
 **Puesta en marcha (una vez)**
 
 1. En la aplicación de [developers.mercadolibre.com.ar](https://developers.mercadolibre.com.ar)
@@ -332,6 +342,7 @@ precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
 | `POST /api/ml/notificaciones` | Recibe las notificaciones de Mercado Libre y procesa las preguntas |
 | `GET/POST /api/ml/preguntas/aprobar` | Muestra y publica un borrador aprobado desde el mail |
 | `GET /api/ml/avisos` | Ver o mandar a mano la alerta de stock y el resumen semanal |
+| `GET /api/ml/competencia` | Precios y posición en búsquedas de los competidores de la tabla Competencia |
 
 ## Desarrollo local
 
