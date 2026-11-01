@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   descuento,
+  filasDePromociones,
   escalonCruzado,
   fechaCorta,
   leerPromociones,
@@ -27,7 +28,9 @@ test("las promociones de una publicación, vengan en lista o en results", () => 
     { status: "started" },
   ]);
   assert.equal(lista.length, 2);
-  assert.deepEqual(lista[0], {
+  const { crudo, ...primera } = lista[0];
+  assert.ok(crudo.includes("Cyber Monday"));
+  assert.deepEqual(primera, {
     id: "P-MLA1",
     tipo: "DEAL",
     nombre: "Cyber Monday",
@@ -40,6 +43,8 @@ test("las promociones de una publicación, vengan en lista o en results", () => 
     aporteVendedor: null,
   });
   assert.equal(lista[1].aporteML, 5);
+  // Una invitación sin price trae el precio sugerido.
+  assert.equal(leerPromociones([{ type: "DEAL", status: "candidate", suggested_discounted_price: 7_300 }])[0].precio, 7_300);
   assert.equal(lista[1].aporteVendedor, 10);
   assert.equal(leerPromociones({ results: [{ type: "PRICE_DISCOUNT", status: "started", price: 1 }] }).length, 1);
   assert.deepEqual(leerPromociones(null), []);
@@ -108,4 +113,29 @@ test("la página muestra el descuento, el aviso de escalón y escapa los título
 
   const vacia = paginaDePromociones({ fecha: "x", publicaciones: [], errores: [] });
   assert.ok(vacia.includes("Ninguna publicación tiene una promoción activa o programada"));
+});
+
+test("las filas para Airtable: una por publicación y promoción, con clave única", () => {
+  const filas = filasDePromociones(
+    [
+      {
+        id: "MLA1",
+        titulo: "Paños",
+        precioLista: 29_900,
+        promociones: leerPromociones([
+          { id: "P-1", type: "PRICE_DISCOUNT", status: "pending", price: 23_920, start_date: "2026-11-02", finish_date: "2026-11-04" },
+          { type: "DEAL", status: "candidate", price: 25_000 },
+        ]),
+      },
+    ],
+    Date.parse("2026-11-01T15:00:00Z")
+  );
+  assert.equal(filas.length, 2);
+  assert.equal(filas[0].Clave, "MLA1 · P-1");
+  assert.equal(filas[1].Clave, "MLA1 · DEAL-1");
+  assert.equal(filas[0].Tipo, "Descuento propio");
+  assert.equal(filas[0].Descuento, 20);
+  assert.match(filas[0].Escalon ?? "", /24\.000/);
+  assert.equal(filas[0].Precio_lista, 29_900);
+  assert.equal(filas[0].Actualizado, "2026-11-01T15:00:00.000Z");
 });
