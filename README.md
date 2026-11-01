@@ -171,10 +171,12 @@ Dos cosas que usan la misma conexión con la cuenta vendedora:
   días y de los 30 anteriores. Claude la lee desde Airtable para analizar con
   números reales.
 - **Anuncios ML**: Product Ads agrupa los anuncios por publicación o junta
-  todos los colores de un modelo en un grupo. Las métricas de un grupo de
-  varios colores no se pueden repartir por color: van en esta tabla, una fila
-  por grupo con su campaña y sus publicaciones, y en Metricas ML cada
-  publicación dice a qué grupo pertenece.
+  todos los colores de un modelo en un grupo. Esta tabla tiene una fila por
+  grupo, con su campaña y sus publicaciones. En Metricas ML cada publicación
+  tiene sus propias métricas de anuncios (se piden publicación por
+  publicación dentro de cada grupo) y dice a qué grupo pertenece.
+- Una sola actualización a la vez: si el link se abre mientras corre otra
+  (por ejemplo, al recargar la página), contesta 409 y no duplica filas.
 - **Preguntas ML**: cada pregunta nueva llega al instante. Un agente con
   Claude lee la ficha de la publicación y decide:
   - si la respuesta sale entera de la ficha (stock, colores, medidas, envío

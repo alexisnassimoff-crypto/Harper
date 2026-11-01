@@ -5,13 +5,15 @@ import {
   armarFilasAnuncios,
   leerAnunciante,
   leerAnuncios,
+  anunciosDeGruposItem,
+  leerAnunciosDelGrupo,
   leerCampanas,
-  leerGruposDePublicaciones,
   leerPublicaciones,
   leerVisitas,
   sumarOrdenes,
   ventanas,
   type Anuncio,
+  type AnuncioDePublicacion,
 } from "../lib/ml-metricas";
 
 // 30/10/2026 a las 10:30 en Argentina.
@@ -102,15 +104,20 @@ test("Product Ads: se toma el anunciante de Argentina, y cada grupo con su id, t
   });
 });
 
-test("la búsqueda por publicaciones dice a qué grupo pertenece cada una, y las campañas su nombre", () => {
-  const grupoDe = leerGruposDePublicaciones({
-    results: [
-      { id: 900, ad_group_external_id: "MLA1", ad_group_type: "FAMILY" },
-      { id: 900, ad_group_external_id: "MLA2", ad_group_type: "FAMILY" },
-      { id: 901, ad_group_external_id: "MLA3", ad_group_type: "ITEM" },
-    ],
-  });
-  assert.deepEqual([...grupoDe], [["MLA1", "900"], ["MLA2", "900"], ["MLA3", "901"]]);
+test("el detalle de un grupo trae las métricas de cada publicación, y las campañas su nombre", () => {
+  const { anuncios, total } = leerAnunciosDelGrupo(
+    {
+      paging: { total: 2 },
+      results: [
+        { item_id: "MLA1", family_id: 900, metrics: { prints: 500, clicks: 10, cost: 2_000, total_amount: 89_000, units_quantity: 1, acos: 2.2 } },
+        { item_id: "MLA2", family_id: 900, metrics: { prints: 50, clicks: 0, cost: 0 } },
+      ],
+    },
+    "77"
+  );
+  assert.equal(total, 2);
+  assert.deepEqual(anuncios[0], { item: "MLA1", grupoId: "77", impresiones: 500, clics: 10, costo: 2_000, ventas: 89_000, unidades: 1, acos: 2.2 });
+  assert.equal(anuncios[1].ventas, 0);
   assert.deepEqual([...leerCampanas({ results: [{ id: 7, name: "Anteojos New" }] })], [["7", "Anteojos New"]]);
 });
 
@@ -130,6 +137,17 @@ const anuncio = (a: Partial<Anuncio> & Pick<Anuncio, "grupoId">): Anuncio => ({
 
 const pub = (id: string, titulo: string) => ({ id, titulo, estado: "active", precio: 1, stock: 1, tipo: "", permalink: "" });
 
+const deGrupo = (item: string, grupoId: string, costo: number): AnuncioDePublicacion => ({
+  item,
+  grupoId,
+  impresiones: 100,
+  clics: 5,
+  costo,
+  ventas: 0,
+  unidades: 0,
+  acos: null,
+});
+
 test("las filas: visita que no se pudo leer queda vacía y la conversión es sobre visitas", () => {
   const v = ventanas(AHORA);
   const filas = armarFilas({
@@ -137,7 +155,7 @@ test("las filas: visita que no se pudo leer queda vacía y la conversión es sob
     visitas: new Map([["MLA1", { actual: 400, previa: 300 }]]),
     ventas: new Map([["MLA1", { actual: { unidades: 8, facturado: 127_920, comision: 16_000 }, previa: { unidades: 5, facturado: 0, comision: 0 } }]]),
     anuncios: [],
-    grupoDe: new Map(),
+    porPublicacion: new Map(),
     v,
     ahora: AHORA,
     avisos: [],
@@ -151,35 +169,37 @@ test("las filas: visita que no se pudo leer queda vacía y la conversión es sob
   assert.equal(filas[0].Ventana, "2026-09-30 a 2026-10-29");
 });
 
-test("los anuncios: un grupo de una sola publicación llena sus columnas; uno de varios colores no se reparte", () => {
+test("los anuncios: cada publicación tiene las suyas aunque su grupo junte varios colores", () => {
   const v = ventanas(AHORA);
   const anuncios = [
     anuncio({ grupoId: "10", externo: "MLA1", tipo: "ITEM", titulo: "Rectangular", impresiones: 1000, clics: 20, costo: 3_000, ventas: 30_000, unidades: 2, acos: 10 }),
     anuncio({ grupoId: "20", externo: "FAM", titulo: "Citrino", costo: 72_000, impresiones: 9 }),
     anuncio({ grupoId: "30", externo: "FAM2", titulo: "Jordan" }),
   ];
-  const grupoDe = new Map([["MLA2", "20"], ["MLA3", "20"]]);
+  // El ITEM se completa con sus propias métricas si falta su detalle.
+  const porPublicacion = new Map(
+    [deGrupo("MLA2", "20", 50_000), deGrupo("MLA3", "20", 22_000), ...anunciosDeGruposItem(anuncios)].map((a) => [a.item, a])
+  );
   const filas = armarFilas({
     publicaciones: [pub("MLA1", "Rectangular"), pub("MLA2", "Citrino negro"), pub("MLA3", "Citrino carey"), pub("MLA4", "Sin anuncio")],
     visitas: new Map(),
     ventas: new Map(),
     anuncios,
-    grupoDe,
+    porPublicacion,
     v,
     ahora: AHORA,
     avisos: [],
   });
 
-  // ITEM: se reconoce por el id externo aunque no venga en la búsqueda por publicación.
   assert.equal(filas[0].Ads_costo, 3_000);
   assert.equal(filas[0].Grupo_anuncios, "Rectangular");
-  // FAMILY de dos colores: sin métricas por color, con el grupo a la vista.
-  assert.equal(filas[1].Ads_costo, null);
-  assert.match(filas[1].Grupo_anuncios, /Citrino \(compartido por 2 publicaciones/);
+  assert.equal(filas[1].Ads_costo, 50_000);
+  assert.equal(filas[2].Ads_costo, 22_000);
+  assert.equal(filas[2].Grupo_anuncios, "Citrino");
   assert.equal(filas[3].Ads_costo, 0);
   assert.equal(filas.length, 4);
 
-  const grupos = armarFilasAnuncios({ anuncios, grupoDe, publicaciones: [pub("MLA2", "Citrino negro"), pub("MLA3", "Citrino carey")], campanas: new Map(), v, ahora: AHORA });
+  const grupos = armarFilasAnuncios({ anuncios, porPublicacion, publicaciones: [pub("MLA2", "Citrino negro"), pub("MLA3", "Citrino carey")], campanas: new Map([["", ""]]), v, ahora: AHORA });
   // El grupo sin impresiones ni costo (Jordan) no se escribe.
   assert.deepEqual(grupos.map((g) => g.Grupo), ["Rectangular", "Citrino"]);
   assert.equal(grupos[1].Publicaciones, "MLA2 — Citrino negro\nMLA3 — Citrino carey");
@@ -192,7 +212,7 @@ test("sin Product Ads, las columnas de anuncios quedan vacías (no en cero) y el
     visitas: new Map(),
     ventas: new Map(),
     anuncios: null,
-    grupoDe: new Map(),
+    porPublicacion: new Map(),
     v: ventanas(AHORA),
     ahora: AHORA,
     avisos: ["Product Ads sin datos"],
