@@ -257,7 +257,11 @@ una.
    - Tópicos: tildar **Questions**.
 2. Volver a autorizar la cuenta, porque los permisos nuevos no se suman a los
    tokens viejos: abrir `https://harperar.vercel.app/api/ml/conectar?token=<SYNC_TOKEN>`.
-3. En Vercel, cargar `ANTHROPIC_API_KEY` y redeployar.
+3. En Vercel, cargar `ANTHROPIC_API_KEY` y `CRON_SECRET` (el mismo valor que
+   `SYNC_TOKEN`) y redeployar. Sin `CRON_SECRET`, Vercel llama al cron diario
+   sin clave y la ruta lo rechaza: no se actualizan las métricas ni salen los
+   avisos. Cada corrida queda anotada en Config: `ml_metricas_ultima_corrida`
+   (cómo terminó) y `ml_cron_rechazado` (si Vercel llamó y se rechazó).
 4. Probar las métricas a mano:
    `https://harperar.vercel.app/api/ml/metricas?token=<SYNC_TOKEN>`. La
    respuesta dice cuántas publicaciones y órdenes leyó y, si Product Ads no

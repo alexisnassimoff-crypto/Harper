@@ -211,11 +211,29 @@ export function planDeEnvio(filas: FilaStock[], p: ParametrosFull, hoy?: string)
 
 /** Por qué no hay plan de envío, dicho para Ale. */
 export function motivoSinPlan(filas: FilaStock[]): string {
-  if (!filas.length) return "La tabla Metricas ML está vacía: todavía no corrió la actualización diaria (10:30).";
+  if (!filas.length) return "La tabla Metricas ML está vacía: todavía no corrió la actualización de métricas.";
   if (filas.every((f) => !f.logistica)) {
-    return "Todavía no está cargado si cada publicación es de Full. Se completa en la actualización diaria de las 10:30: después de esa hora, volvé a abrir este link.";
+    return "Todavía no está cargado si cada publicación es de Full: falta que corra la actualización de métricas (sola, a las 10:30, o a mano con /api/ml/metricas).";
   }
   return "No hay publicaciones de Full con ventas en los últimos 30 días: no hay nada que reponer.";
+}
+
+export type Corrida = { cuando: number; origen: "cron" | "a mano"; ok: boolean; publicaciones?: number; error?: string };
+
+/** Una línea para la clave ml_metricas_ultima_corrida de Config. */
+export function textoDeCorrida(c: Corrida): string {
+  const cuando = new Date(c.cuando).toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    day: "numeric",
+    month: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const resultado = c.ok
+    ? `bien${typeof c.publicaciones === "number" ? `, ${c.publicaciones} publicaciones` : ""}`
+    : `falló: ${(c.error ?? "sin detalle").slice(0, 300)}`;
+  return `${cuando} · ${c.origen} · ${resultado}`;
 }
 
 /** Lo que cambia el aviso: qué publicaciones van en el envío. */

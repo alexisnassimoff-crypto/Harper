@@ -56,6 +56,10 @@ const EN_PARALELO = 5;
 const CLAVE_FIRMA_ENVIO = "ml_aviso_envio_firma";
 const CLAVE_FECHA_ENVIO = "ml_aviso_envio_enviado";
 const CLAVE_SEMANA = "ml_resumen_semanal_enviado";
+/** Cómo terminó la última actualización de métricas (la escribe /api/ml/metricas). */
+export const CLAVE_ULTIMA_CORRIDA = "ml_metricas_ultima_corrida";
+/** La última vez que Vercel llamó al cron y la ruta lo rechazó. */
+export const CLAVE_CRON_RECHAZADO = "ml_cron_rechazado";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
@@ -65,12 +69,12 @@ async function filasDeConfig(formula: string) {
   return listRecords<FilaConfig>(TABLAS.config, { filterByFormula: formula, revalidate: 0 });
 }
 
-async function leerClave(clave: string): Promise<string> {
+export async function leerClave(clave: string): Promise<string> {
   const filas = await filasDeConfig(`{Clave} = '${escaparFormula(clave)}'`);
   return filas[0]?.fields.Valor?.trim() ?? "";
 }
 
-async function escribirClave(clave: string, valor: string) {
+export async function escribirClave(clave: string, valor: string) {
   const filas = await filasDeConfig(`{Clave} = '${escaparFormula(clave)}'`);
   if (filas[0]) {
     await updateRecord<FilaConfig>(TABLAS.config, filas[0].id, { Valor: valor });
@@ -162,7 +166,11 @@ export async function avisoDeEnvio(opciones: { enviar: boolean; forzar?: boolean
   };
   const mail = plan.items.length ? mailDeEnvio(plan, parametros) : undefined;
 
-  if (!opciones.enviar) return { ...datos, enviado: false, motivo: mail ? "vista previa" : motivoSinPlan(filas), mail };
+  if (!opciones.enviar) {
+    if (mail) return { ...datos, enviado: false, motivo: "vista previa", mail };
+    const ultima = await leerClave(CLAVE_ULTIMA_CORRIDA).catch(() => "");
+    return { ...datos, enviado: false, motivo: `${motivoSinPlan(filas)}${ultima ? ` Última actualización: ${ultima}.` : ""}` };
+  }
 
   if (!plan.hayQueEnviar && !opciones.forzar) {
     await escribirClave(CLAVE_FIRMA_ENVIO, "");
