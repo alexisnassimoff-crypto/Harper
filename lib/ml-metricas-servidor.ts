@@ -22,6 +22,7 @@ import {
   type FilaAnuncio,
   type FilaMetricas,
   type Ventanas,
+  unidadesUltimosDias,
 } from "./ml-metricas";
 
 /**
@@ -316,6 +317,7 @@ async function actualizar(ahora: number) {
     publicaciones: pubs,
     visitas: vis,
     ventas: sumarOrdenes(ordenes, v),
+    ventas7: unidadesUltimosDias(ordenes, v.hasta, 7),
     anuncios: ads.anuncios,
     porPublicacion: ads.porPublicacion,
     v,

@@ -12,24 +12,27 @@ import {
   mailDeEnvio,
   mailSemanal,
   PARAMETROS_FULL,
+  pendientesDeAle,
   planDeEnvio,
+  ritmoDeVenta,
   resumenDePreguntas,
   resumenDeVentas,
   semanas,
   type FilaStock,
 } from "../lib/ml-avisos";
 
-const fila = (id: string, stock: number | null, unidades30: number, estado = "active", logistica = "fulfillment"): FilaStock => ({
+const fila = (id: string, stock: number | null, unidades30: number, estado = "active", logistica = "fulfillment", unidades7 = 0): FilaStock => ({
   id,
   titulo: `Pub ${id}`,
   estado,
   stock,
   unidades30,
+  unidades7,
   permalink: `https://x/${id}`,
   logistica,
 });
 
-const P = { ...PARAMETROS_FULL, diasReposicion: 10, diasSeguridad: 5 };
+const P = { ...PARAMETROS_FULL, diasReposicion: 10, diasSeguridad: 5, avisoAnticipado: 3 };
 
 test("ciclo de envío: sin tarifa de almacenamiento no se pasa de los días sin cargo; con tarifa busca el más barato", () => {
   const sinTarifa = cicloOptimo(P, 10);
@@ -73,9 +76,49 @@ test("el plan: un solo envío con todo lo de Full, cuando la primera llega al pu
   assert.equal(firmaDelPlan(plan), "agotada,marron,rect");
 
   const mail = mailDeEnvio(plan, P);
-  assert.match(mail.asunto, /armá el envío ya \(2 se agotan antes de que llegue\)/);
+  assert.match(mail.asunto, /armá el envío hoy mismo \(2 se agotan antes de que llegue\)/);
   assert.match(mail.texto, /Total del envío: 79/);
   assert.match(mail.texto, /Stock lento en Full/);
+});
+
+test("el ritmo de venta usa la última semana si va más rápido que el mes", () => {
+  assert.deepEqual(ritmoDeVenta({ unidades30: 30, unidades7: 7 }), { porDia: 1, acelera: false });
+  const r = ritmoDeVenta({ unidades30: 30, unidades7: 14 });
+  assert.equal(r.porDia, 2);
+  assert.equal(r.acelera, true);
+  // Si la última semana viene floja, se sigue planeando con el mes.
+  assert.equal(ritmoDeVenta({ unidades30: 60, unidades7: 3 }).porDia, 2);
+  // Con la venta acelerada, el mismo stock alcanza menos días y hay que mandar más.
+  const normal = planDeEnvio([fila("rect", 60, 30, "active", "fulfillment", 7)], P).items;
+  const rapido = planDeEnvio([fila("rect", 60, 30, "active", "fulfillment", 14)], P).items[0];
+  assert.equal(normal.length, 0); // 60 días de stock: todavía no hace falta
+  assert.equal(rapido.mandar, 30); // 2 por día × 45 − 60
+  assert.equal(rapido.acelera, true);
+});
+
+test("con los tiempos reales (11 días hasta la venta, 7 de seguridad, aviso 7 antes) da la fecha límite con tiempo", () => {
+  const real = { ...PARAMETROS_FULL };
+  assert.equal(real.diasReposicion, 11);
+  // 113 por mes = 3,77 por día; 128 unidades = 34 días. Punto de reposición: 18 días → armarlo en 15 días.
+  const plan = planDeEnvio([fila("rect", 128, 113)], real, "2026-11-01");
+  assert.equal(plan.diasHastaEnvio, 15);
+  assert.equal(plan.fechaLimite, "2026-11-16");
+  assert.equal(plan.hayQueEnviar, false); // falta más de una semana
+  const cerca = planDeEnvio([fila("rect", 90, 113)], real, "2026-11-01"); // 23 días → armarlo en 5
+  assert.equal(cerca.hayQueEnviar, true);
+  assert.match(mailDeEnvio(cerca, real).asunto, /a más tardar el 06\/11 \(en 5 días\)/);
+});
+
+test("los pendientes de Ale se repiten por prioridad y antigüedad hasta que están hechos", () => {
+  assert.deepEqual(
+    pendientesDeAle([
+      { Tarea: "Publicar packs", Para: "Ale", Estado: "Pendiente", Desde: "2026-11-01", Prioridad: 2 },
+      { Tarea: "ROAS 8", Para: "Ale", Estado: "Pendiente", Desde: "2026-11-01", Prioridad: 1 },
+      { Tarea: "Hecha", Para: "Ale", Estado: "Hecha", Desde: "2026-10-01", Prioridad: 1 },
+      { Tarea: "De Claude", Para: "Claude", Estado: "Pendiente", Desde: "2026-11-01", Prioridad: 1 },
+    ]).map((p) => p.tarea),
+    ["ROAS 8", "Publicar packs"]
+  );
 });
 
 test("el plan avisa con anticipación y no antes", () => {
@@ -208,6 +251,7 @@ test("el mail semanal trae la semana, el mes, la ganancia real y el próximo env
     parametros: P,
     decisiones: [{ decision: "ROAS anteojos", revisar: "2026-11-15", estado: "Probando" }],
     preguntas: { total: 4, solas: 3, borradores: 1, pendientes: 1 },
+    pendientes: [{ tarea: "Subir Anteojos New a ROAS 8", desde: "2026-11-01", prioridad: 1 }],
   });
   assert.match(mail.asunto, /semana del 26\/10 al 01\/11/);
   assert.match(mail.asunto, /\+25%/);
@@ -215,6 +259,7 @@ test("el mail semanal trae la semana, el mes, la ganancia real y el próximo env
   assert.match(mail.texto, /octubre completo: \$\s?4\.007\.585/);
   assert.match(mail.texto, /Ganancia real/);
   assert.match(mail.html, /Margen sobre ventas sin IVA/);
-  assert.match(mail.texto, /Próximo envío a Full: ya/);
+  assert.match(mail.texto, /Próximo envío a Full: armarlo hoy mismo/);
+  assert.match(mail.texto, /Pendientes tuyos:\n- Subir Anteojos New a ROAS 8 \(desde el 01\/11\)/);
   assert.match(mail.texto, /15\/11: ROAS anteojos/);
 });

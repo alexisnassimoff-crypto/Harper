@@ -11,6 +11,7 @@ import {
   leerPublicaciones,
   leerVisitas,
   sumarOrdenes,
+  unidadesUltimosDias,
   ventanas,
   type Anuncio,
   type AnuncioDePublicacion,
@@ -50,6 +51,21 @@ test("las órdenes pagadas se suman por publicación y ventana; sale_fee es por 
     actual: { unidades: 2, facturado: 20_000, comision: 2_600 },
     previa: { unidades: 2, facturado: 18_000, comision: 1_100 },
   });
+});
+
+test("las unidades de los últimos 7 días, en hora de Argentina", () => {
+  const orden = (fecha: string, cantidad: number) => ({ status: "paid", date_created: fecha, order_items: [{ item: { id: "MLA1" }, quantity: cantidad }] });
+  const u = unidadesUltimosDias(
+    [
+      orden("2026-10-29T10:00:00.000-03:00", 2), // último día
+      orden("2026-10-23T10:00:00.000-03:00", 3), // primer día de los 7
+      orden("2026-10-22T23:00:00.000-03:00", 5), // afuera
+      orden("2026-10-30T09:00:00.000-03:00", 7), // después de «hasta»
+    ],
+    "2026-10-29",
+    7
+  );
+  assert.equal(u.get("MLA1"), 5);
 });
 
 test("las publicaciones salen del multiget y se saltean las que no contestaron 200", () => {
