@@ -5,6 +5,8 @@ import {
   TABLAS,
   updateRecord,
 } from "./airtable";
+import { cerrojoDesdeEntorno, soltarSinFallar, tomarConEspera } from "./cerrojo";
+import { RELOJ_REAL } from "./webhook-lock";
 
 /**
  * Conexión OAuth con Mercado Libre.
@@ -140,16 +142,54 @@ export async function canjearCodigo(codigo: string, redirectUri: string) {
   return tokens.access_token;
 }
 
+/** La llave de la renovación: una sola instancia renueva a la vez. */
+const CLAVE_RENOVACION = "harper:ml:renovar-token";
+const TTL_RENOVACION_MS = 20_000;
+const ESPERA_RENOVACION_MS = 10_000;
+
+async function tokenGuardadoVigente(): Promise<string | null> {
+  const actual = await leerClave("ml_access_token");
+  const vence = Number(await leerClave("ml_token_vence")) || 0;
+  return actual && Date.now() < vence ? actual : null;
+}
+
 /**
  * Devuelve un access token vigente, renovándolo si hace falta.
  * Lanza con un mensaje claro si la cuenta todavía no se conectó.
+ *
+ * Mercado Libre acepta cada refresh token UNA sola vez. La portada, el
+ * webhook de preguntas y el cron de métricas piden token por su cuenta: si
+ * dos renovaran a la vez con el mismo refresh token, la segunda fallaría y
+ * podría dejar la cuenta desconectada. Con Redis configurado, la renovación
+ * va bajo cerrojo y quien espera vuelve a leer el token que dejó el otro.
  */
 export async function tokenVigente(): Promise<string> {
-  const actual = await leerClave("ml_access_token");
-  const vence = Number(await leerClave("ml_token_vence")) || 0;
+  const guardado = await tokenGuardadoVigente();
+  if (guardado) return guardado;
 
-  if (actual && Date.now() < vence) return actual;
+  const cerrojo = cerrojoDesdeEntorno();
+  if (!cerrojo) return renovar();
 
+  const nonce = await tomarConEspera(cerrojo, CLAVE_RENOVACION, TTL_RENOVACION_MS, {
+    esperaMaxMs: ESPERA_RENOVACION_MS,
+    reloj: RELOJ_REAL,
+  });
+
+  if (!nonce) {
+    // Otra instancia sigue renovando: si ya terminó, su token sirve.
+    const deOtro = await tokenGuardadoVigente();
+    if (deOtro) return deOtro;
+    throw new Error("Otra renovación del token de Mercado Libre sigue en curso: se reintenta");
+  }
+
+  try {
+    return (await tokenGuardadoVigente()) ?? (await renovar());
+  } finally {
+    await soltarSinFallar(cerrojo, CLAVE_RENOVACION, nonce);
+  }
+}
+
+async function renovar(): Promise<string> {
   const refresh = await leerClave("ml_refresh_token");
 
   if (!refresh) {

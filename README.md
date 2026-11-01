@@ -44,6 +44,8 @@ cliente no tiene efecto.
 | `Clientes` | Lista de compradores y de mails capturados sin compra |
 | `Config` | Costo de envío, textos y datos legales, sin tocar código |
 | `Descuentos` | Tramos de descuento por cantidad. Cambiar un valor acá cambia la web |
+| `Metricas ML` | Visitas, ventas y Product Ads por publicación. Se reescribe todos los días |
+| `Preguntas ML` | Preguntas de Mercado Libre y qué hizo el agente con cada una |
 
 ## Puesta en marcha
 
@@ -157,6 +159,56 @@ Copia las fotos de cada fila enlazada a su variante. Después corré
 El importador **nunca asigna una foto a un producto por su cuenta**: sin el
 enlace manual del paso 2 no toca nada.
 
+## Métricas y preguntas de Mercado Libre
+
+Dos cosas que usan la misma conexión con la cuenta vendedora:
+
+- **Metricas ML**: todos los días a las 10:30 (hora de Argentina, después de
+  que Mercado Libre actualiza Product Ads) se reescribe una fila por
+  publicación con visitas, unidades vendidas, facturado, comisión, conversión
+  y Product Ads (impresiones, clics, costo, ventas, ACOS), de los últimos 30
+  días y de los 30 anteriores. Claude la lee desde Airtable para analizar con
+  números reales.
+- **Preguntas ML**: cada pregunta nueva llega al instante. Un agente con
+  Claude lee la ficha de la publicación y decide:
+  - si la respuesta sale entera de la ficha (stock, colores, medidas, envío
+    gratis), **la publica sola**;
+  - si no, **manda un borrador al mail de pedidos** con un botón "Revisar y
+    publicar". Se publica lo que diga la columna Respuesta en ese momento: se
+    puede corregir en Airtable antes de tocar el botón.
+
+  El código revisa toda respuesta antes de publicarla: nunca sale una con
+  mail, teléfono, link, redes o partes sin completar, aunque el agente la haya
+  aprobado. Cada pregunta queda en la tabla con lo que se hizo y por qué.
+
+**Puesta en marcha (una vez)**
+
+1. En la aplicación de [developers.mercadolibre.com.ar](https://developers.mercadolibre.com.ar)
+   (Mis aplicaciones → Harper Web → Editar):
+   - Permisos: además de lectura y `offline_access`, habilitar **escritura**
+     (para publicar respuestas), y **Publicidad** si aparece (para Product
+     Ads).
+   - **URL de notificaciones**: `https://harperar.vercel.app/api/ml/notificaciones`
+   - Tópicos: tildar **Questions**.
+2. Volver a autorizar la cuenta, porque los permisos nuevos no se suman a los
+   tokens viejos: abrir `https://harperar.vercel.app/api/ml/conectar?token=<SYNC_TOKEN>`.
+3. En Vercel, cargar `ANTHROPIC_API_KEY` y redeployar.
+4. Probar las métricas a mano:
+   `https://harperar.vercel.app/api/ml/metricas?token=<SYNC_TOKEN>`. La
+   respuesta dice cuántas publicaciones y órdenes leyó y, si Product Ads no
+   trajo datos, por qué.
+
+**Para tener en cuenta**
+
+- Mercado Libre exige contestar cada notificación en menos de 500 ms o
+  desactiva el tópico: la ruta contesta primero y procesa después.
+- Con Redis (Upstash) configurado, la renovación del token de Mercado Libre
+  va bajo cerrojo: la portada, el agente y el cron piden token por su cuenta
+  y Mercado Libre acepta cada refresh token una sola vez.
+- La comisión sale de `sale_fee` de cada orden multiplicado por la cantidad.
+  Conviene compararla una vez con una venta real en Mercado Libre.
+- Visitas que no se pudieron leer quedan vacías, no en cero.
+
 ## Cargar un producto
 
 1. En `Productos`, crear el registro: nombre, slug (minúscula y sin espacios),
@@ -233,6 +285,9 @@ precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
 | `POST /api/sync-media` | Espeja fotos y videos a Blob |
 | `POST /api/pedidos/notificar-envio` | Manda el mail con el tracking |
 | `GET /api/importar-ml` | Trae las publicaciones de Mercado Libre |
+| `GET /api/ml/metricas` | Actualiza la tabla Metricas ML (cron diario) |
+| `POST /api/ml/notificaciones` | Recibe las notificaciones de Mercado Libre y procesa las preguntas |
+| `GET/POST /api/ml/preguntas/aprobar` | Muestra y publica un borrador aprobado desde el mail |
 
 ## Desarrollo local
 
