@@ -1,19 +1,23 @@
 import { createRecord, listRecords, updateRecords } from "./airtable";
+import { cerrojoDesdeEntorno, soltarSinFallar, tomarConEspera } from "./cerrojo";
 import { tokenVigente } from "./ml-auth";
 import { ErrorML, idDeLaCuenta, pedirML } from "./ml-cliente";
+import { RELOJ_REAL } from "./webhook-lock";
 import {
   armarFilas,
   armarFilasAnuncios,
   leerAnunciante,
   leerAnuncios,
+  anunciosDeGruposItem,
+  leerAnunciosDelGrupo,
   leerCampanas,
-  leerGruposDePublicaciones,
   leerPublicaciones,
   leerVisitas,
   METRICAS_ADS,
   sumarOrdenes,
   ventanas,
   type Anuncio,
+  type AnuncioDePublicacion,
   type FilaAnuncio,
   type FilaMetricas,
   type Ventanas,
@@ -126,19 +130,19 @@ async function ordenesPagadas(vendedor: number, v: Ventanas, token: string): Pro
 
 type DatosAnuncios = {
   anuncios: Anuncio[] | null;
-  /** Publicación → grupo de anuncios. */
-  grupoDe: Map<string, string>;
+  /** Las métricas de cada publicación dentro de su grupo. */
+  porPublicacion: Map<string, AnuncioDePublicacion>;
   campanas: Map<string, string>;
   avisos: string[];
 };
 
 /**
- * Los grupos de Product Ads con sus métricas, a qué grupo pertenece cada
- * publicación y el nombre de cada campaña. Si Product Ads no está disponible,
+ * Los grupos de Product Ads con sus métricas, las de cada publicación dentro
+ * de su grupo y el nombre de cada campaña. Si Product Ads no está disponible,
  * anuncios es null y el motivo va en avisos.
  */
-async function anuncios(v: Ventanas, ids: string[], token: string): Promise<DatosAnuncios> {
-  const sinDatos = (aviso: string): DatosAnuncios => ({ anuncios: null, grupoDe: new Map(), campanas: new Map(), avisos: [aviso] });
+async function anuncios(v: Ventanas, token: string): Promise<DatosAnuncios> {
+  const sinDatos = (aviso: string): DatosAnuncios => ({ anuncios: null, porPublicacion: new Map(), campanas: new Map(), avisos: [aviso] });
   try {
     const anunciante = leerAnunciante(
       await pedirML("/advertising/advertisers?product_id=PADS", { token, headers: { "Api-Version": "1" } })
@@ -159,19 +163,34 @@ async function anuncios(v: Ventanas, ids: string[], token: string): Promise<Dato
       if (pagina.anuncios.length === 0 || offset + 100 >= pagina.total) break;
     }
 
-    // El mapa publicación → grupo y los nombres de campaña son un agregado:
-    // si fallan, las métricas de los grupos igual se guardan.
+    // El detalle por publicación y los nombres de campaña son un agregado:
+    // si fallan, las métricas de los grupos igual se guardan. Solo se pide el
+    // detalle de los grupos que mostraron o gastaron algo.
     const avisos: string[] = [];
-    const grupoDe = new Map<string, string>();
-    try {
-      for (let i = 0; i < ids.length; i += 20) {
-        const lote = ids.slice(i, i + 20).map(encodeURIComponent).join(",");
-        const r = await pedirML(`${base}/ad_groups/search?filters[item_ids]=${lote}&limit=50`, { token, headers: v2 });
-        for (const [item, grupo] of leerGruposDePublicaciones(r)) grupoDe.set(item, grupo);
+    const porPublicacion = new Map<string, AnuncioDePublicacion>();
+    const conActividad = todos.filter((a) => a.impresiones > 0 || a.costo > 0);
+    const sinDetalle: Anuncio[] = [];
+    await deA(conActividad, EN_PARALELO, async (grupo) => {
+      try {
+        for (let offset = 0; offset < 1_000; offset += 50) {
+          const pagina = leerAnunciosDelGrupo(
+            await pedirML(
+              `/advertising/${anunciante.site}/product_ads/ad_groups/${encodeURIComponent(grupo.grupoId)}/ads` +
+                `?date_from=${v.desde}&date_to=${v.hasta}&limit=50&offset=${offset}&metrics=${METRICAS_ADS.toLowerCase()}`,
+              { token, headers: v2 }
+            ),
+            grupo.grupoId
+          );
+          for (const a of pagina.anuncios) porPublicacion.set(a.item, a);
+          if (pagina.anuncios.length === 0 || offset + 50 >= pagina.total) break;
+        }
+      } catch (error) {
+        sinDetalle.push(grupo);
+        avisos.push(`Product Ads: sin detalle por publicación del grupo «${grupo.titulo}» (${(error as Error).message})`);
       }
-    } catch (error) {
-      avisos.push(`Product Ads: no se pudo saber a qué grupo pertenece cada publicación (${(error as Error).message})`);
-    }
+    });
+    // Un grupo ITEM sin detalle es de una sola publicación: sus métricas son las de ella.
+    for (const a of anunciosDeGruposItem(sinDetalle)) if (!porPublicacion.has(a.item)) porPublicacion.set(a.item, a);
 
     let campanas = new Map<string, string>();
     try {
@@ -180,7 +199,7 @@ async function anuncios(v: Ventanas, ids: string[], token: string): Promise<Dato
       avisos.push(`Product Ads: no se pudieron leer los nombres de las campañas (${(error as Error).message})`);
     }
 
-    return { anuncios: todos, grupoDe, campanas, avisos };
+    return { anuncios: todos, porPublicacion, campanas, avisos };
   } catch (error) {
     // 404 "No permissions found": la cuenta no tiene Product Ads habilitado.
     // 403: la aplicación no tiene el permiso de publicidad. Ninguno se
@@ -242,7 +261,36 @@ async function guardarAnuncios(filas: FilaAnuncio[]) {
   return filas.length;
 }
 
+/** Otra actualización está en curso: esta no corre. */
+export class ActualizacionEnCurso extends Error {
+  constructor() {
+    super("Ya hay una actualización de métricas en curso. Probá de nuevo en unos minutos.");
+    this.name = "ActualizacionEnCurso";
+  }
+}
+
+const CLAVE_METRICAS = "harper:ml:metricas";
+/** Más que maxDuration de la ruta, por si la instancia muere sin soltar. */
+const TTL_METRICAS_MS = 330_000;
+
+/**
+ * Una sola actualización a la vez. Dos corridas simultáneas (el cron y el
+ * link abierto a mano, o el link recargado) leerían la tabla vacía las dos y
+ * crearían cada fila dos veces.
+ */
 export async function actualizarMetricasML(ahora = Date.now()) {
+  const cerrojo = cerrojoDesdeEntorno();
+  if (!cerrojo) return actualizar(ahora);
+  const nonce = await tomarConEspera(cerrojo, CLAVE_METRICAS, TTL_METRICAS_MS, { esperaMaxMs: 0, reloj: RELOJ_REAL });
+  if (!nonce) throw new ActualizacionEnCurso();
+  try {
+    return await actualizar(ahora);
+  } finally {
+    await soltarSinFallar(cerrojo, CLAVE_METRICAS, nonce);
+  }
+}
+
+async function actualizar(ahora: number) {
   const token = await tokenVigente();
   const vendedor = await idDeLaCuenta(token);
   const v = ventanas(ahora);
@@ -253,7 +301,7 @@ export async function actualizarMetricasML(ahora = Date.now()) {
     publicaciones(ids, token),
     visitas(ids, v, hoy, token),
     ordenesPagadas(vendedor, v, token),
-    anuncios(v, ids, token),
+    anuncios(v, token),
   ]);
 
   const filas = armarFilas({
@@ -261,7 +309,7 @@ export async function actualizarMetricasML(ahora = Date.now()) {
     visitas: vis,
     ventas: sumarOrdenes(ordenes, v),
     anuncios: ads.anuncios,
-    grupoDe: ads.grupoDe,
+    porPublicacion: ads.porPublicacion,
     v,
     ahora,
     avisos: ads.avisos,
@@ -270,7 +318,7 @@ export async function actualizarMetricasML(ahora = Date.now()) {
   const escritura = await guardar(filas, ahora);
   const gruposEscritos = ads.anuncios
     ? await guardarAnuncios(
-        armarFilasAnuncios({ anuncios: ads.anuncios, grupoDe: ads.grupoDe, publicaciones: pubs, campanas: ads.campanas, v, ahora })
+        armarFilasAnuncios({ anuncios: ads.anuncios, porPublicacion: ads.porPublicacion, publicaciones: pubs, campanas: ads.campanas, v, ahora })
       )
     : 0;
 
@@ -280,7 +328,7 @@ export async function actualizarMetricasML(ahora = Date.now()) {
     ordenes: ordenes.length,
     gruposDeAnuncios: ads.anuncios?.length ?? null,
     gruposConActividad: gruposEscritos,
-    publicacionesConGrupo: ads.grupoDe.size,
+    publicacionesConAnuncio: ads.porPublicacion.size,
     ...escritura,
     avisos: ads.avisos,
   };

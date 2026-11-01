@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { tokenValido } from "@/lib/media";
 import { mlConfigurado } from "@/lib/ml-auth";
-import { actualizarMetricasML } from "@/lib/ml-metricas-servidor";
+import { ActualizacionEnCurso, actualizarMetricasML } from "@/lib/ml-metricas-servidor";
 
 export const dynamic = "force-dynamic";
 // Dos pedidos de visitas por publicación, de a cinco: lleva su tiempo.
@@ -30,6 +30,9 @@ export async function GET(request: Request) {
   try {
     return NextResponse.json({ ok: true, ...(await actualizarMetricasML()) });
   } catch (error) {
+    if (error instanceof ActualizacionEnCurso) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     console.error("[ml/metricas] falló:", error);
     return NextResponse.json({ error: (error as Error).message }, { status: 502 });
   }
