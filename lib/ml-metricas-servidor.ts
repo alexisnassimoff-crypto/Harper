@@ -12,6 +12,7 @@ import {
   leerAnunciosDelGrupo,
   leerCampanas,
   leerPublicaciones,
+  leerStockPorUbicacion,
   leerVisitas,
   METRICAS_ADS,
   sumarOrdenes,
@@ -21,6 +22,8 @@ import {
   type Campana,
   type FilaAnuncio,
   type FilaMetricas,
+  type Publicacion,
+  type StockPorUbicacion,
   type Ventanas,
   unidadesUltimosDias,
 } from "./ml-metricas";
@@ -76,11 +79,34 @@ async function idsDePublicaciones(vendedor: number, token: string): Promise<stri
 async function publicaciones(ids: string[], token: string) {
   const lotes: string[][] = [];
   for (let i = 0; i < ids.length; i += 20) lotes.push(ids.slice(i, i + 20));
-  const atributos = "id,title,status,price,available_quantity,listing_type_id,permalink,shipping";
+  const atributos = "id,title,status,price,available_quantity,listing_type_id,permalink,shipping,user_product_id";
   const respuestas = await deA(lotes, EN_PARALELO, (lote) =>
     pedirML(`/items?ids=${lote.join(",")}&attributes=${atributos}`, { token })
   );
   return respuestas.flatMap(leerPublicaciones);
+}
+
+/**
+ * Dónde está el stock de cada publicación (Full o depósito propio). Es un
+ * agregado: si Mercado Libre no lo da, la corrida sigue y queda el aviso.
+ */
+async function stockPorUbicacion(pubs: Publicacion[], token: string) {
+  const mapa = new Map<string, StockPorUbicacion>();
+  const fallas: string[] = [];
+  await deA(
+    pubs.filter((p) => p.userProduct),
+    EN_PARALELO,
+    async (p) => {
+      try {
+        const s = leerStockPorUbicacion(await pedirML(`/user-products/${encodeURIComponent(p.userProduct as string)}/stock`, { token }));
+        if (s) mapa.set(p.id, s);
+      } catch (error) {
+        fallas.push((error as Error).message);
+      }
+    }
+  );
+  const avisos = fallas.length ? [`Stock por ubicación: no se pudo leer en ${fallas.length} publicaciones (${fallas[0].slice(0, 150)})`] : [];
+  return { mapa, avisos };
 }
 
 /**
@@ -312,17 +338,19 @@ async function actualizar(ahora: number) {
     ordenesPagadas(vendedor, v, token),
     anuncios(v, token),
   ]);
+  const ubicacion = await stockPorUbicacion(pubs, token);
 
   const filas = armarFilas({
     publicaciones: pubs,
     visitas: vis,
     ventas: sumarOrdenes(ordenes, v),
     ventas7: unidadesUltimosDias(ordenes, v.hasta, 7),
+    stockPorUbicacion: ubicacion.mapa,
     anuncios: ads.anuncios,
     porPublicacion: ads.porPublicacion,
     v,
     ahora,
-    avisos: ads.avisos,
+    avisos: [...ads.avisos, ...ubicacion.avisos],
   });
 
   const escritura = await guardar(filas, ahora);

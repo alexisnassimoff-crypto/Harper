@@ -22,7 +22,17 @@ export type FilaStock = {
   unidades7: number;
   permalink: string;
   logistica: string;
+  /**
+   * Unidades que están en depósitos de Mercado Libre. null si no se pudo leer:
+   * en ese caso se usa `stock`, que suma todas las ubicaciones.
+   */
+  stockFull?: number | null;
 };
+
+/** El stock que está en Full: el leído por ubicación o, si falta, el total. */
+export function stockEnFull(f: Pick<FilaStock, "stock" | "stockFull">): number {
+  return f.stockFull ?? f.stock ?? 0;
+}
 
 /** Lo que cuesta Full y cuánto tarda la reposición (tabla Config, claves full_*). */
 export type ParametrosFull = {
@@ -153,9 +163,11 @@ export function ritmoDeVenta(f: Pick<FilaStock, "unidades30" | "unidades7">): { 
  * pausada sin stock que vendió en los últimos 30 días también entra.
  */
 export function planDeEnvio(filas: FilaStock[], p: ParametrosFull, hoy?: string): PlanDeEnvio {
-  const deFull = filas.filter((f) => f.logistica === "fulfillment");
+  // La logística dice cómo está configurada la publicación, no dónde está el
+  // stock: una de Full puede tener todo en el depósito propio.
+  const deFull = filas.filter((f) => f.logistica === "fulfillment" || (f.stockFull ?? 0) > 0);
   const vendibles = deFull.flatMap((f) => {
-    const stock = f.stock ?? 0;
+    const stock = stockEnFull(f);
     const { porDia, acelera } = ritmoDeVenta(f);
     const vendible = f.estado === "active" || (f.estado === "paused" && stock === 0);
     return vendible && porDia > 0 ? [{ f, stock, porDia, acelera, dias: stock / porDia }] : [];
@@ -187,7 +199,7 @@ export function planDeEnvio(filas: FilaStock[], p: ParametrosFull, hoy?: string)
   // tiempo que el resto y es el que termina pagando almacenamiento.
   const lentos: StockLento[] = deFull
     .flatMap((f) => {
-      const stock = f.stock ?? 0;
+      const stock = stockEnFull(f);
       const { porDia } = ritmoDeVenta(f);
       const excedente = Math.floor(stock - porDia * cubrir);
       // Unas pocas unidades de más en un producto que vende no es stock lento.
@@ -562,7 +574,7 @@ function tablaDeEnvio(plan: PlanDeEnvio): { html: string; texto: string } {
   const total = plan.items.reduce((t, i) => t + i.mandar, 0);
   return {
     html: `<table ${TABLA}>
-<tr><th style="${CELDA};text-align:left">Publicación</th><th style="${CELDA};text-align:right">Vende por semana</th><th style="${CELDA};text-align:right">Stock</th><th style="${CELDA};text-align:right">Alcanza</th><th style="${CELDA};text-align:right">Mandar</th></tr>
+<tr><th style="${CELDA};text-align:left">Publicación</th><th style="${CELDA};text-align:right">Vende por semana</th><th style="${CELDA};text-align:right">En Full</th><th style="${CELDA};text-align:right">Alcanza</th><th style="${CELDA};text-align:right">Mandar</th></tr>
 ${filas}
 <tr><td style="${CELDA}"><strong>Total del envío</strong></td><td style="${CELDA}"></td><td style="${CELDA}"></td><td style="${CELDA}"></td><td style="${CELDA};text-align:right"><strong>${total}</strong></td></tr>
 </table>`,

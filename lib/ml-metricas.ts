@@ -52,8 +52,15 @@ export type Publicacion = {
   stock: number | null;
   tipo: string;
   permalink: string;
-  /** fulfillment = Full; xd_drop_off, drop_off, self_service = la despacha el vendedor. */
+  /**
+   * Cómo está configurado el envío: fulfillment = Full; xd_drop_off, drop_off,
+   * self_service = la despacha el vendedor. NO dice dónde está el stock: una
+   * publicación de Full puede tener el stock en el depósito propio (ver
+   * leerStockPorUbicacion).
+   */
   logistica: string;
+  /** El producto de usuario (MLAU…), para leer el stock por ubicación. */
+  userProduct: string | null;
 };
 
 const numero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -76,9 +83,30 @@ export function leerPublicaciones(respuesta: unknown): Publicacion[] {
         tipo: texto(b.listing_type_id),
         permalink: texto(b.permalink),
         logistica: texto((b.shipping as { logistic_type?: unknown } | undefined)?.logistic_type),
+        userProduct: typeof b.user_product_id === "string" && b.user_product_id ? b.user_product_id : null,
       },
     ];
   });
+}
+
+export type StockPorUbicacion = { full: number; deposito: number };
+
+/**
+ * Dónde está el stock, de /user-products/{id}/stock: meli_facility es un
+ * depósito de Mercado Libre (Full); el resto (selling_address,
+ * seller_warehouse) es stock propio.
+ */
+export function leerStockPorUbicacion(respuesta: unknown): StockPorUbicacion | null {
+  const ubicaciones = (respuesta as { locations?: unknown } | null)?.locations;
+  if (!Array.isArray(ubicaciones)) return null;
+  const s = { full: 0, deposito: 0 };
+  for (const u of ubicaciones) {
+    const x = u as { type?: unknown; quantity?: unknown };
+    const cantidad = numero(x.quantity) ?? 0;
+    if (x.type === "meli_facility") s.full += cantidad;
+    else s.deposito += cantidad;
+  }
+  return s;
 }
 
 // ---------------------------------------------------------------------------
@@ -322,6 +350,9 @@ export type FilaMetricas = {
   Estado: string;
   Precio: number | null;
   Stock: number | null;
+  /** Stock en depósitos de Mercado Libre (Full) y propio; null si no se pudo leer. */
+  Stock_full: number | null;
+  Stock_deposito: number | null;
   Tipo_publicacion: string;
   Permalink: string | null;
   Visitas_30d: number | null;
@@ -363,6 +394,8 @@ export function armarFilas(datos: {
   ventas: VentasPorPublicacion;
   /** Unidades de los últimos 7 días por publicación. */
   ventas7?: Map<string, number>;
+  /** Dónde está el stock de cada publicación. */
+  stockPorUbicacion?: Map<string, StockPorUbicacion>;
   anuncios: Anuncio[] | null;
   porPublicacion: Map<string, AnuncioDePublicacion>;
   v: Ventanas;
@@ -401,6 +434,8 @@ export function armarFilas(datos: {
       Estado: p.estado,
       Precio: p.precio,
       Stock: p.stock,
+      Stock_full: datos.stockPorUbicacion?.get(p.id)?.full ?? null,
+      Stock_deposito: datos.stockPorUbicacion?.get(p.id)?.deposito ?? null,
       Tipo_publicacion: p.tipo,
       Permalink: p.permalink || null,
       Visitas_30d: vis.actual,

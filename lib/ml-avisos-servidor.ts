@@ -116,6 +116,7 @@ type FilaMetricasGuardada = {
   ML_id?: string;
   Estado?: string;
   Stock?: number;
+  Stock_full?: number;
   Unidades_30d?: number;
   Unidades_7d?: number;
   Permalink?: string;
@@ -134,6 +135,7 @@ async function filasDeStock(): Promise<FilaStock[]> {
             titulo: f.Titulo ?? f.ML_id,
             estado: f.Estado ?? "",
             stock: typeof f.Stock === "number" ? f.Stock : null,
+            stockFull: typeof f.Stock_full === "number" ? f.Stock_full : null,
             unidades30: typeof f.Unidades_30d === "number" ? f.Unidades_30d : 0,
             unidades7: typeof f.Unidades_7d === "number" ? f.Unidades_7d : 0,
             permalink: f.Permalink ?? "",

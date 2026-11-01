@@ -219,6 +219,14 @@ actualización diaria:
   Full**). No incluye Ganancias, gastos fijos ni devoluciones posteriores.
   Las publicaciones sin costo cargado quedan afuera y se avisa.
 
+**Stock por ubicación.** El tipo de logística de una publicación
+(`shipping.logistic_type`) dice cómo está configurado el envío, no dónde está
+la mercadería: una publicación «de Full» puede tener el stock en el depósito
+propio. Por eso la actualización diaria lee `/user-products/{id}/stock` y
+guarda en Metricas ML `Stock_full` (depósitos de ML) y `Stock_deposito`. El
+plan de Full usa solo `Stock_full`; si no se pudo leer, usa el stock total y
+lo avisa.
+
 Para verlos o mandarlos a mano:
 `/api/ml/avisos?token=<SYNC_TOKEN>&tipo=envio` o `&tipo=semanal`, con `&ver=1`
 para ver el mail, `&enviar=1` para mandarlo y `&forzar=1` para mandarlo aunque

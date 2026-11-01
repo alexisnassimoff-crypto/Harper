@@ -17,6 +17,7 @@ import {
   pendientesDeAle,
   planDeEnvio,
   ritmoDeVenta,
+  stockEnFull,
   resumenDePreguntas,
   resumenDeVentas,
   semanas,
@@ -277,4 +278,22 @@ test("la última corrida de métricas queda en una línea, en hora de Argentina"
   const cuando = Date.parse("2026-11-01T13:31:00Z");
   assert.equal(textoDeCorrida({ cuando, origen: "cron", ok: true, publicaciones: 40 }), "1/11, 10:31 · cron · bien, 40 publicaciones");
   assert.equal(textoDeCorrida({ cuando, origen: "a mano", ok: false, error: "Mercado Libre 500" }), "1/11, 10:31 · a mano · falló: Mercado Libre 500");
+});
+
+test("el plan usa el stock que está en Full, no el del depósito propio", () => {
+  assert.equal(stockEnFull({ stock: 30, stockFull: 0 }), 0);
+  assert.equal(stockEnFull({ stock: 30, stockFull: null }), 30);
+  assert.equal(stockEnFull({ stock: null }), 0);
+
+  // Sol: publicación de Full con 30 en el depósito y nada en Full, sin ventas: no es stock lento en Full.
+  const sol = { ...fila("sol", 30, 0, "active", "fulfillment"), stockFull: 0 };
+  // Rectangular: 140 en total pero solo 20 en Full; vende 3 por día.
+  const rect = { ...fila("rect", 140, 90, "active", "fulfillment"), stockFull: 20 };
+  const plan = planDeEnvio([sol, rect], P);
+  assert.equal(plan.lentos.length, 0);
+  assert.equal(plan.items[0].id, "rect");
+  assert.equal(plan.items[0].stock, 20);
+  // 20 en Full a 3 por día alcanzan ~6,7 días: está debajo del punto de reposición.
+  assert.equal(plan.diasHastaEnvio, 0);
+  assert.equal(plan.items[0].seAgotaAntes, true);
 });
