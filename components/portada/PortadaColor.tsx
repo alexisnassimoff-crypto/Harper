@@ -44,17 +44,19 @@ export type DatosPortada = {
 const minuscula = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice(1);
 
 export default function PortadaColor({ colores, inicial, datos }: { colores: ColorPortada[]; inicial: number; datos: DatosPortada }) {
-  const [elegido, setElegido] = useState(Math.min(Math.max(inicial, 0), colores.length - 1));
-  const color = colores[elegido];
+  // Se guarda el id del color, no su posición: si la lista cambia (un modelo
+  // se agota y la portada se regenera), la elección no apunta a otro color.
+  const [elegidoId, setElegidoId] = useState(() => (colores[inicial] ?? colores[0])?.id);
+  const color = colores.find((c) => c.id === elegidoId) ?? colores[inicial] ?? colores[0];
   if (!color) return null;
 
   // Los círculos, agrupados por modelo y en el orden de la vitrina.
-  const modelos: { nombre: string; colores: { c: ColorPortada; i: number }[] }[] = [];
-  colores.forEach((c, i) => {
+  const modelos: { nombre: string; colores: ColorPortada[] }[] = [];
+  for (const c of colores) {
     const grupo = modelos.find((m) => m.nombre === c.modeloNombre);
-    if (grupo) grupo.colores.push({ c, i });
-    else modelos.push({ nombre: c.modeloNombre, colores: [{ c, i }] });
-  });
+    if (grupo) grupo.colores.push(c);
+    else modelos.push({ nombre: c.modeloNombre, colores: [c] });
+  }
 
   return (
     <section id="vitrina-portada" className="portada-color" style={{ "--tinte": color.tinte } as CSSProperties} aria-labelledby="portada-titulo">
@@ -89,18 +91,18 @@ export default function PortadaColor({ colores, inicial, datos }: { colores: Col
             <div key={m.nombre} className="portada-color__grupo">
               <span className="portada-color__modelo">{m.nombre}</span>
               <span className="portada-color__circulos">
-                {m.colores.map(({ c, i }) => (
+                {m.colores.map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     role="radio"
-                    aria-checked={i === elegido}
+                    aria-checked={c.id === color.id}
                     aria-label={`${c.modeloNombre} ${c.color}${c.agotada ? ", agotado" : ""}`}
                     title={c.color}
                     className="portada-color__circulo"
                     data-agotada={c.agotada || undefined}
                     style={{ background: c.colorHex }}
-                    onClick={() => setElegido(i)}
+                    onClick={() => setElegidoId(c.id)}
                   />
                 ))}
               </span>

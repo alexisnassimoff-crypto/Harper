@@ -138,7 +138,10 @@ export default function Vitrina({ modelos, datos }: { modelos: ModeloVitrina[]; 
           <h2 id="los-modelos-titulo" className="titulo-serif">
             {datos.precio ? TEXTOS.modelos.titulo : TEXTOS.modelos.tituloSinPrecio}
           </h2>
-          <p className="apagado">{hayAlSol ? TEXTOS.modelos.bajadaConSol : TEXTOS.modelos.bajada}</p>
+          <p className="apagado">
+            {datos.precio ? `${TEXTOS.modelos.mismoPrecio} ` : null}
+            {hayAlSol ? TEXTOS.modelos.bajadaConSol : TEXTOS.modelos.bajada}
+          </p>
           {interruptor("vitrina-modelos__interruptor")}
         </div>
 

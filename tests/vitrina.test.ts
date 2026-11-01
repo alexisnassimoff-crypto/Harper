@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { baseDeFoto, coloresConStock, empujeDeLaBarra, enLetras, fotosDeVitrina, modoDePortada, precioUnico } from "../lib/vitrina";
+import { baseDeFoto, coloresConStock, empujeDeLaBarra, enLetras, fotosDeVitrina, modoDePortada, precioUnico, tinteDe, tinteDeColor } from "../lib/vitrina";
+import { TEXTOS } from "../lib/textos";
 
 test("la foto de cada color: los recortes al sol y adentro si existen; si no, la primera y nada al sol", () => {
   assert.equal(baseDeFoto("/productos/anteojos/citrino-carey-1.webp"), "citrino-carey");
@@ -94,4 +95,33 @@ test("las líneas: disponibles con stock; mientras no, «Próximamente» con los
 
   // Nada de precios ni códigos de fábrica en lo que se publica.
   assert.ok(!/KG\d|K0\d|RMB|\d{2,}\s*(?:yuan|元)/.test(JSON.stringify(LINEAS)));
+});
+
+test("cada color de un modelo tiene su fondo: al tocar otro color, el fondo cambia", () => {
+  const modelos: [string, string[]][] = [
+    ["citrino", ["Negro", "Ámbar traslúcido", "Gris traslúcido", "Carey"]],
+    ["amatista", ["Negro", "Ámbar traslúcido", "Gris traslúcido"]],
+    ["obsidiana", ["Negro", "Ámbar traslúcido", "Gris traslúcido"]],
+    ["cuarzo", ["Negro", "Ámbar traslúcido"]],
+    ["nuevo", ["Negro", "Carey", "Gris"]],
+  ];
+  modelos.forEach(([slug, colores], i) => {
+    const tintes = colores.map((c) => tinteDeColor(slug, c, i));
+    assert.equal(new Set(tintes).size, colores.length, `${slug}: ${tintes.join(", ")}`);
+  });
+  // El negro conserva el tinte del modelo cuando ningún otro color lo usa.
+  assert.equal(tinteDeColor("obsidiana", "Negro", 2), tinteDe("obsidiana", 2));
+});
+
+test("Socios: «N lugares numerados» solo mientras nadie se anotó; con cero lugares, ocupados", () => {
+  assert.equal(TEXTOS.socios.cupos(100, 100), "100 lugares numerados");
+  assert.equal(TEXTOS.socios.cupos(99, 100), "Quedan 99 de 100 lugares");
+  assert.equal(TEXTOS.socios.cupos(0, 100), "Los 100 lugares ya están ocupados");
+  assert.equal(TEXTOS.socios.cupos(0, 0), "Los 0 lugares ya están ocupados");
+});
+
+test("«Todos cuestan lo mismo.» no está en las bajadas: la portada lo agrega solo con un único precio", () => {
+  assert.ok(!/cuestan lo mismo/i.test(TEXTOS.modelos.bajada));
+  assert.ok(!/cuestan lo mismo/i.test(TEXTOS.modelos.bajadaConSol));
+  assert.equal(TEXTOS.modelos.mismoPrecio, "Todos cuestan lo mismo.");
 });

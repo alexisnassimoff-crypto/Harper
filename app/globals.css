@@ -2650,7 +2650,10 @@ p {
     padding: 0 0.8rem 0.8rem;
   }
   .ficha__titulo {
-    font-size: 0.9375rem;
+    font-size: 1rem;
+    font-stretch: 100%;
+    letter-spacing: 0.06em;
+    overflow-wrap: anywhere;
   }
   .ficha__precio {
     font-size: 0.875rem;
@@ -5806,8 +5809,14 @@ main:has(.cierre:last-child) ~ .pie {
     margin-top: 1.25rem;
     font-size: 1.0625rem;
   }
+  /* La foto está agrandada y se asoma a la columna de texto: los controles van por encima. */
+  .portada-color__colores,
+  .portada-color__compra {
+    position: relative;
+    z-index: 1;
+  }
   .portada-color__colores {
-    grid-template-columns: repeat(4, auto);
+    grid-template-columns: repeat(2, auto);
     justify-content: start;
     column-gap: 1.75rem;
     margin-top: 1.75rem;
@@ -5897,7 +5906,9 @@ main:has(.cierre:last-child) ~ .pie {
     gap: 5rem;
   }
   .asi-llega .cuentas__lista {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     column-gap: 2rem;
     margin-top: 3.5rem;
   }
@@ -5908,18 +5919,6 @@ main:has(.cierre:last-child) ~ .pie {
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     gap: 4.5rem;
     align-items: start;
-  }
-  .lo-que-viene__lineas li {
-    grid-template-columns: 14rem 1fr auto;
-    align-items: baseline;
-    column-gap: 1.5rem;
-  }
-  .lo-que-viene__promesa {
-    grid-column: 2;
-    grid-row: 1;
-  }
-  .lo-que-viene__cuantos {
-    grid-column: 3;
   }
   .lo-que-viene__acciones {
     flex-direction: row;
@@ -5939,5 +5938,26 @@ main:has(.cierre:last-child) ~ .pie {
   }
   .cierre {
     padding-block: 6rem 5rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .lo-que-viene__lineas li {
+    grid-template-columns: 14rem 1fr auto;
+    align-items: baseline;
+    column-gap: 1.5rem;
+  }
+  .lo-que-viene__promesa {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .lo-que-viene__cuantos {
+    grid-column: 3;
+  }
+}
+
+@media (min-width: 80rem) {
+  .portada-color__colores {
+    grid-template-columns: repeat(4, auto);
   }
 }

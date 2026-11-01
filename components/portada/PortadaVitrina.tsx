@@ -216,7 +216,13 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   );
   const inicialPortada = Math.max(
     0,
-    coloresPortada.findIndex((c) => !c.agotada && c.alSol && plano(c.color).startsWith("carey")),
+    [
+      (c: ColorPortada) => !c.agotada && c.alSol && plano(c.color).startsWith("carey"),
+      (c: ColorPortada) => !c.agotada && c.alSol,
+      (c: ColorPortada) => !c.agotada,
+    ]
+      .map((elegible) => coloresPortada.findIndex(elegible))
+      .find((i) => i >= 0) ?? 0,
   );
 
   // Un mismo par, adentro y al sol: el primero que tenga las dos fotos.
@@ -528,9 +534,9 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           precioPar={precio}
           invitacion={
             cuota2 && tramo2 && nombrePromo
-              ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}`
+              ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)} · CFTEA ${cuota2.cftea}`
               : cuota1
-                ? `${formatearPrecio(precio)} · ${cuota1.cuotas} cuotas de ${precioConCentavos(cuota1.montoCuota)}`
+                ? `${formatearPrecio(precio)} · ${cuota1.cuotas} cuotas sin interés de ${precioConCentavos(cuota1.montoCuota)} · CFTEA ${cuota1.cftea}`
                 : `Cada par, ${formatearPrecio(precio)}`
           }
         />

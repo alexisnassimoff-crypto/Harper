@@ -37,8 +37,10 @@ export const TEXTOS = {
   modelos: {
     titulo: "¿Con cuál salís hoy?",
     tituloSinPrecio: "¿Con cuál salís hoy?",
-    bajada: "Todos cuestan lo mismo. Tocá un color para verlo.",
-    bajadaConSol: "Todos cuestan lo mismo. Tocá un color para verlo, al sol o adentro.",
+    /** Solo si todos los modelos cuestan lo mismo (precioUnico). */
+    mismoPrecio: "Todos cuestan lo mismo.",
+    bajada: "Tocá un color para verlo.",
+    bajadaConSol: "Tocá un color para verlo, al sol o adentro.",
     todos: "¿No te decidís?",
     todosBoton: "Llevate uno de cada modelo",
   },
@@ -120,7 +122,7 @@ export const TEXTOS = {
     etiqueta: "Socios Harper",
     /** Mientras nadie se anotó, «100 lugares numerados»: «quedan 100 de 100» dice que no hay nadie. */
     cupos: (quedan: number, cupos: number) =>
-      quedan >= cupos ? `${cupos} lugares numerados` : quedan > 0 ? `Quedan ${quedan} de ${cupos} lugares` : `Los ${cupos} lugares ya están ocupados`,
+      quedan > 0 && quedan >= cupos ? `${cupos} lugares numerados` : quedan > 0 ? `Quedan ${quedan} de ${cupos} lugares` : `Los ${cupos} lugares ya están ocupados`,
     titulo: "Tus anteojos, resueltos por un año.",
     bajada:
       "Te hacés socio una vez y durante 12 meses tenés dos pares, envío gratis y reposición si se rompen o los perdés. Son pocos lugares y van numerados.",
