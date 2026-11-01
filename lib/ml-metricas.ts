@@ -125,12 +125,34 @@ export function sumarOrdenes(ordenes: unknown[], v: Ventanas): VentasPorPublicac
 }
 
 // ---------------------------------------------------------------------------
+// Visitas
+// ---------------------------------------------------------------------------
+
+/**
+ * La respuesta de /items/visits?ids=…: Mercado Libre la devuelve como lista
+ * (una entrada por publicación pedida), aunque se pida una sola.
+ */
+export function leerVisitas(respuesta: unknown): number | null {
+  const fila = (Array.isArray(respuesta) ? respuesta[0] : respuesta) as { total_visits?: unknown } | null | undefined;
+  return numero(fila?.total_visits);
+}
+
+// ---------------------------------------------------------------------------
 // Product Ads
 // ---------------------------------------------------------------------------
 
+/**
+ * Un grupo de anuncios. Product Ads agrupa por publicación (ITEM) o junta
+ * todos los colores de un modelo en un grupo (FAMILY): en ese caso las
+ * métricas son del grupo entero y no se pueden repartir por color.
+ */
 export type Anuncio = {
+  /** ID del grupo en Product Ads. */
+  grupoId: string;
   /** item_id si el grupo es de una publicación; id de familia o catálogo si no. */
-  id: string;
+  externo: string;
+  tipo: string;
+  campanaId: string;
   titulo: string;
   impresiones: number;
   clics: number;
@@ -143,17 +165,29 @@ export type Anuncio = {
 /** Las métricas que se le piden a Product Ads. */
 export const METRICAS_ADS = ["CLICKS", "PRINTS", "COST", "TOTAL_AMOUNT", "UNITS_QUANTITY", "ACOS"].join(",");
 
-/** La respuesta de /advertising/{site}/advertisers/{id}/product_ads/ad_groups/search. */
+const id = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v) : "");
+
+/** La respuesta de /advertising/{site}/advertisers/{id}/product_ads/ad_groups/search con métricas. */
 export function leerAnuncios(respuesta: unknown): { anuncios: Anuncio[]; total: number } {
   const r = respuesta as { results?: unknown[]; paging?: { total?: number } } | null;
   const anuncios = (r?.results ?? []).flatMap((fila) => {
-    const g = fila as { ad_group_external_id?: unknown; title?: unknown; metrics?: Record<string, unknown> };
-    const id = g.ad_group_external_id == null ? "" : String(g.ad_group_external_id);
-    if (!id) return [];
+    const g = fila as {
+      id?: unknown;
+      ad_group_external_id?: unknown;
+      ad_group_type?: unknown;
+      campaign_id?: unknown;
+      title?: unknown;
+      metrics?: Record<string, unknown>;
+    };
+    const grupoId = id(g.id);
+    if (!grupoId) return [];
     const m = g.metrics ?? {};
     return [
       {
-        id,
+        grupoId,
+        externo: id(g.ad_group_external_id),
+        tipo: texto(g.ad_group_type),
+        campanaId: id(g.campaign_id),
         titulo: texto(g.title),
         impresiones: numero(m.prints) ?? 0,
         clics: numero(m.clicks) ?? 0,
@@ -165,6 +199,34 @@ export function leerAnuncios(respuesta: unknown): { anuncios: Anuncio[]; total: 
     ];
   });
   return { anuncios, total: numero(r?.paging?.total) ?? anuncios.length };
+}
+
+/**
+ * A qué grupo pertenece cada publicación, de la búsqueda de grupos con
+ * filters[item_ids]: ahí ad_group_external_id es el item_id pedido y id es el
+ * grupo (que en un FAMILY comparten varias publicaciones).
+ */
+export function leerGruposDePublicaciones(respuesta: unknown): Map<string, string> {
+  const resultados = (respuesta as { results?: unknown[] } | null)?.results ?? [];
+  return new Map(
+    resultados.flatMap((fila) => {
+      const g = fila as { id?: unknown; ad_group_external_id?: unknown };
+      const item = id(g.ad_group_external_id);
+      const grupo = id(g.id);
+      return item && grupo ? [[item, grupo] as const] : [];
+    })
+  );
+}
+
+/** Nombre de cada campaña, de /product_ads/campaigns/search. */
+export function leerCampanas(respuesta: unknown): Map<string, string> {
+  const resultados = (respuesta as { results?: unknown[] } | null)?.results ?? [];
+  return new Map(
+    resultados.flatMap((fila) => {
+      const c = fila as { id?: unknown; name?: unknown };
+      return id(c.id) ? [[id(c.id), texto(c.name)] as const] : [];
+    })
+  );
 }
 
 /** El anunciante de Product Ads de Argentina, de /advertising/advertisers?product_id=PADS. */
@@ -204,6 +266,7 @@ export type FilaMetricas = {
   Ads_ventas: number | null;
   Ads_unidades: number | null;
   ACOS: number | null;
+  Grupo_anuncios: string;
   Ventana: string;
   Actualizado: string;
   Avisos: string;
@@ -211,18 +274,30 @@ export type FilaMetricas = {
 
 const redondear = (n: number) => Math.round(n * 100) / 100;
 
+/** Las publicaciones de cada grupo, a partir de publicación → grupo. */
+function publicacionesPorGrupo(grupoDe: Map<string, string>): Map<string, string[]> {
+  const porGrupo = new Map<string, string[]>();
+  for (const [item, grupo] of grupoDe) porGrupo.set(grupo, [...(porGrupo.get(grupo) ?? []), item]);
+  return porGrupo;
+}
+
 /**
- * Una fila por publicación, más una por cada grupo de anuncios que no sea de
- * una publicación propia (Product Ads agrupa por familia o catálogo).
+ * Una fila por publicación.
  *
  * Una visita que no se pudo leer queda vacía, no en cero: un cero diría
  * "nadie la vio" y llevaría a una conclusión falsa.
+ *
+ * Las columnas de anuncios se llenan solo cuando el grupo es de esa
+ * publicación sola. Si el grupo junta varios colores, sus métricas van a la
+ * tabla Anuncios ML (ver `armarFilasAnuncios`) y la publicación dice a qué
+ * grupo pertenece: repartirlas por color sería inventar.
  */
 export function armarFilas(datos: {
   publicaciones: Publicacion[];
   visitas: Map<string, { actual: number | null; previa: number | null }>;
   ventas: VentasPorPublicacion;
   anuncios: Anuncio[] | null;
+  grupoDe: Map<string, string>;
   v: Ventanas;
   ahora: number;
   avisos: string[];
@@ -231,21 +306,34 @@ export function armarFilas(datos: {
   const ventana = `${v.desde} a ${v.hasta}`;
   const actualizado = new Date(datos.ahora).toISOString();
   const avisos = datos.avisos.join("\n");
-  const anuncioDe = new Map((anuncios ?? []).map((a) => [a.id, a]));
+  const anuncioDe = new Map((anuncios ?? []).map((a) => [a.grupoId, a]));
+  // Un grupo ITEM se reconoce también por su id externo, aunque falte en la búsqueda por publicación.
+  const grupoDe = new Map(datos.grupoDe);
+  for (const a of anuncios ?? []) if (a.tipo !== "FAMILY" && a.externo && !grupoDe.has(a.externo)) grupoDe.set(a.externo, a.grupoId);
+  const porGrupo = publicacionesPorGrupo(grupoDe);
 
-  const columnasAds = (a: Anuncio | undefined) =>
-    anuncios === null
-      ? { Ads_impresiones: null, Ads_clics: null, Ads_costo: null, Ads_ventas: null, Ads_unidades: null, ACOS: null }
-      : {
-          Ads_impresiones: a?.impresiones ?? 0,
-          Ads_clics: a?.clics ?? 0,
-          Ads_costo: redondear(a?.costo ?? 0),
-          Ads_ventas: redondear(a?.ventas ?? 0),
-          Ads_unidades: a?.unidades ?? 0,
-          ACOS: a?.acos ?? null,
-        };
+  const columnasAds = (item: string) => {
+    const vacio = { Ads_impresiones: null, Ads_clics: null, Ads_costo: null, Ads_ventas: null, Ads_unidades: null, ACOS: null };
+    if (anuncios === null) return { ...vacio, Grupo_anuncios: "" };
+    const grupo = grupoDe.get(item);
+    const a = grupo ? anuncioDe.get(grupo) : undefined;
+    if (!a) {
+      return { Ads_impresiones: 0, Ads_clics: 0, Ads_costo: 0, Ads_ventas: 0, Ads_unidades: 0, ACOS: null, Grupo_anuncios: "" };
+    }
+    const cuantas = porGrupo.get(a.grupoId)?.length ?? 1;
+    if (cuantas > 1) return { ...vacio, Grupo_anuncios: `${a.titulo} (compartido por ${cuantas} publicaciones: ver Anuncios ML)` };
+    return {
+      Ads_impresiones: a.impresiones,
+      Ads_clics: a.clics,
+      Ads_costo: redondear(a.costo),
+      Ads_ventas: redondear(a.ventas),
+      Ads_unidades: a.unidades,
+      ACOS: a.acos,
+      Grupo_anuncios: a.titulo,
+    };
+  };
 
-  const filas: FilaMetricas[] = publicaciones.map((p) => {
+  return publicaciones.map((p) => {
     const vis = visitas.get(p.id) ?? { actual: null, previa: null };
     const ven = ventas.get(p.id) ?? { actual: vacias(), previa: vacias() };
     return {
@@ -263,37 +351,65 @@ export function armarFilas(datos: {
       Facturado_30d: redondear(ven.actual.facturado),
       Comision_ML_30d: redondear(ven.actual.comision),
       Conversion_30d: vis.actual ? Math.round((ven.actual.unidades / vis.actual) * 10_000) / 10_000 : null,
-      ...columnasAds(anuncioDe.get(p.id)),
+      ...columnasAds(p.id),
       Ventana: ventana,
       Actualizado: actualizado,
       Avisos: avisos,
     };
   });
+}
 
-  const propias = new Set(publicaciones.map((p) => p.id));
-  for (const a of anuncios ?? []) {
-    if (propias.has(a.id)) continue;
-    filas.push({
-      Titulo: a.titulo || `Grupo de anuncios ${a.id}`,
-      ML_id: a.id,
-      Estado: "solo anuncio",
-      Precio: null,
-      Stock: null,
-      Tipo_publicacion: "",
-      Permalink: null,
-      Visitas_30d: null,
-      Visitas_30d_previos: null,
-      Unidades_30d: 0,
-      Unidades_30d_previos: 0,
-      Facturado_30d: 0,
-      Comision_ML_30d: 0,
-      Conversion_30d: null,
-      ...columnasAds(a),
-      Ventana: ventana,
-      Actualizado: actualizado,
-      Avisos: avisos,
+export type FilaAnuncio = {
+  Grupo: string;
+  Grupo_id: string;
+  Tipo: string;
+  Campana: string;
+  Publicaciones: string;
+  Impresiones: number;
+  Clics: number;
+  Costo: number;
+  Ventas: number;
+  Unidades: number;
+  ACOS: number | null;
+  Ventana: string;
+  Actualizado: string;
+};
+
+/**
+ * Una fila por grupo de anuncios que tuvo actividad en la ventana (los que no
+ * mostraron ni gastaron nada solo harían ruido).
+ */
+export function armarFilasAnuncios(datos: {
+  anuncios: Anuncio[];
+  grupoDe: Map<string, string>;
+  publicaciones: Publicacion[];
+  campanas: Map<string, string>;
+  v: Ventanas;
+  ahora: number;
+}): FilaAnuncio[] {
+  const tituloDe = new Map(datos.publicaciones.map((p) => [p.id, p.titulo]));
+  const porGrupo = publicacionesPorGrupo(datos.grupoDe);
+  const ventana = `${datos.v.desde} a ${datos.v.hasta}`;
+  const actualizado = new Date(datos.ahora).toISOString();
+
+  return datos.anuncios
+    .filter((a) => a.impresiones > 0 || a.costo > 0)
+    .map((a) => {
+      const items = porGrupo.get(a.grupoId) ?? (a.tipo !== "FAMILY" && a.externo ? [a.externo] : []);
+      return {
+        Grupo: a.titulo || `Grupo ${a.grupoId}`,
+        Grupo_id: a.grupoId,
+        Tipo: a.tipo,
+        Campana: datos.campanas.get(a.campanaId) ?? "",
+        Publicaciones: items.map((item) => `${item} — ${tituloDe.get(item) ?? "(no está en la cuenta)"}`).join("\n"),
+        Impresiones: a.impresiones,
+        Clics: a.clics,
+        Costo: redondear(a.costo),
+        Ventas: redondear(a.ventas),
+        Unidades: a.unidades,
+        ACOS: a.acos,
+        Ventana: ventana,
+        Actualizado: actualizado,
+      };
     });
-  }
-
-  return filas;
 }

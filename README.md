@@ -45,6 +45,7 @@ cliente no tiene efecto.
 | `Config` | Costo de envío, textos y datos legales, sin tocar código |
 | `Descuentos` | Tramos de descuento por cantidad. Cambiar un valor acá cambia la web |
 | `Metricas ML` | Visitas, ventas y Product Ads por publicación. Se reescribe todos los días |
+| `Anuncios ML` | Product Ads por grupo de anuncios (los colores de un modelo van juntos). Se reescribe todos los días |
 | `Preguntas ML` | Preguntas de Mercado Libre y qué hizo el agente con cada una |
 
 ## Puesta en marcha
@@ -169,6 +170,11 @@ Dos cosas que usan la misma conexión con la cuenta vendedora:
   y Product Ads (impresiones, clics, costo, ventas, ACOS), de los últimos 30
   días y de los 30 anteriores. Claude la lee desde Airtable para analizar con
   números reales.
+- **Anuncios ML**: Product Ads agrupa los anuncios por publicación o junta
+  todos los colores de un modelo en un grupo. Las métricas de un grupo de
+  varios colores no se pueden repartir por color: van en esta tabla, una fila
+  por grupo con su campaña y sus publicaciones, y en Metricas ML cada
+  publicación dice a qué grupo pertenece.
 - **Preguntas ML**: cada pregunta nueva llega al instante. Un agente con
   Claude lee la ficha de la publicación y decide:
   - si la respuesta sale entera de la ficha (stock, colores, medidas, envío

@@ -1,6 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { armarFilas, leerAnunciante, leerAnuncios, leerPublicaciones, sumarOrdenes, ventanas } from "../lib/ml-metricas";
+import {
+  armarFilas,
+  armarFilasAnuncios,
+  leerAnunciante,
+  leerAnuncios,
+  leerCampanas,
+  leerGruposDePublicaciones,
+  leerPublicaciones,
+  leerVisitas,
+  sumarOrdenes,
+  ventanas,
+  type Anuncio,
+} from "../lib/ml-metricas";
 
 // 30/10/2026 a las 10:30 en Argentina.
 const AHORA = Date.parse("2026-10-30T13:30:00Z");
@@ -47,7 +59,14 @@ test("las publicaciones salen del multiget y se saltean las que no contestaron 2
   assert.equal(pubs[0].precio, 15_990);
 });
 
-test("Product Ads: se toma el anunciante de Argentina y las métricas de cada grupo", () => {
+test("las visitas vienen en una lista aunque se pida una sola publicación", () => {
+  assert.equal(leerVisitas([{ item_id: "MLA1", total_visits: 1222 }]), 1222);
+  assert.equal(leerVisitas({ item_id: "MLA1", total_visits: 5 }), 5);
+  assert.equal(leerVisitas([]), null);
+  assert.equal(leerVisitas(null), null);
+});
+
+test("Product Ads: se toma el anunciante de Argentina, y cada grupo con su id, tipo y campaña", () => {
   assert.deepEqual(
     leerAnunciante({ advertisers: [{ advertiser_id: 1, site_id: "MLB" }, { advertiser_id: 2, site_id: "MLA" }] }),
     { id: 2, site: "MLA" }
@@ -56,46 +75,124 @@ test("Product Ads: se toma el anunciante de Argentina y las métricas de cada gr
 
   const { anuncios, total } = leerAnuncios({
     paging: { total: 1 },
-    results: [{ ad_group_external_id: "MLA1", title: "Estuche", metrics: { prints: 1000, clicks: 20, cost: 3_000, total_amount: 30_000, units_quantity: 2, acos: 10 } }],
+    results: [
+      {
+        id: 1553910303,
+        ad_group_external_id: "1553910303916497",
+        ad_group_type: "FAMILY",
+        campaign_id: 353605357,
+        title: "Estuche Ovalado",
+        metrics: { prints: 1000, clicks: 20, cost: 3_000, total_amount: 30_000, units_quantity: 2, acos: 10 },
+      },
+    ],
   });
   assert.equal(total, 1);
-  assert.deepEqual(anuncios[0], { id: "MLA1", titulo: "Estuche", impresiones: 1000, clics: 20, costo: 3_000, ventas: 30_000, unidades: 2, acos: 10 });
+  assert.deepEqual(anuncios[0], {
+    grupoId: "1553910303",
+    externo: "1553910303916497",
+    tipo: "FAMILY",
+    campanaId: "353605357",
+    titulo: "Estuche Ovalado",
+    impresiones: 1000,
+    clics: 20,
+    costo: 3_000,
+    ventas: 30_000,
+    unidades: 2,
+    acos: 10,
+  });
 });
 
-test("las filas: visita que no se pudo leer queda vacía, conversión sobre visitas, y grupos de anuncios sin publicación propia", () => {
+test("la búsqueda por publicaciones dice a qué grupo pertenece cada una, y las campañas su nombre", () => {
+  const grupoDe = leerGruposDePublicaciones({
+    results: [
+      { id: 900, ad_group_external_id: "MLA1", ad_group_type: "FAMILY" },
+      { id: 900, ad_group_external_id: "MLA2", ad_group_type: "FAMILY" },
+      { id: 901, ad_group_external_id: "MLA3", ad_group_type: "ITEM" },
+    ],
+  });
+  assert.deepEqual([...grupoDe], [["MLA1", "900"], ["MLA2", "900"], ["MLA3", "901"]]);
+  assert.deepEqual([...leerCampanas({ results: [{ id: 7, name: "Anteojos New" }] })], [["7", "Anteojos New"]]);
+});
+
+const anuncio = (a: Partial<Anuncio> & Pick<Anuncio, "grupoId">): Anuncio => ({
+  externo: "",
+  tipo: "FAMILY",
+  campanaId: "",
+  titulo: "",
+  impresiones: 0,
+  clics: 0,
+  costo: 0,
+  ventas: 0,
+  unidades: 0,
+  acos: null,
+  ...a,
+});
+
+const pub = (id: string, titulo: string) => ({ id, titulo, estado: "active", precio: 1, stock: 1, tipo: "", permalink: "" });
+
+test("las filas: visita que no se pudo leer queda vacía y la conversión es sobre visitas", () => {
   const v = ventanas(AHORA);
   const filas = armarFilas({
-    publicaciones: [
-      { id: "MLA1", titulo: "Estuche", estado: "active", precio: 15_990, stock: 3, tipo: "gold_special", permalink: "https://x" },
-      { id: "MLA2", titulo: "Paño", estado: "paused", precio: 3_000, stock: 0, tipo: "gold_special", permalink: "" },
-    ],
+    publicaciones: [pub("MLA1", "Estuche"), pub("MLA2", "Paño")],
     visitas: new Map([["MLA1", { actual: 400, previa: 300 }]]),
     ventas: new Map([["MLA1", { actual: { unidades: 8, facturado: 127_920, comision: 16_000 }, previa: { unidades: 5, facturado: 0, comision: 0 } }]]),
-    anuncios: [
-      { id: "MLA1", titulo: "Estuche", impresiones: 1000, clics: 20, costo: 3_000, ventas: 30_000, unidades: 2, acos: 10 },
-      { id: "FAM99", titulo: "Familia", impresiones: 5, clics: 0, costo: 10, ventas: 0, unidades: 0, acos: null },
-    ],
+    anuncios: [],
+    grupoDe: new Map(),
     v,
     ahora: AHORA,
     avisos: [],
   });
 
-  assert.equal(filas.length, 3);
+  assert.equal(filas.length, 2);
   assert.equal(filas[0].Conversion_30d, 0.02);
-  assert.equal(filas[0].Ads_costo, 3_000);
   assert.equal(filas[1].Visitas_30d, null);
   assert.equal(filas[1].Conversion_30d, null);
   assert.equal(filas[1].Ads_clics, 0);
-  assert.equal(filas[2].Estado, "solo anuncio");
   assert.equal(filas[0].Ventana, "2026-09-30 a 2026-10-29");
+});
+
+test("los anuncios: un grupo de una sola publicación llena sus columnas; uno de varios colores no se reparte", () => {
+  const v = ventanas(AHORA);
+  const anuncios = [
+    anuncio({ grupoId: "10", externo: "MLA1", tipo: "ITEM", titulo: "Rectangular", impresiones: 1000, clics: 20, costo: 3_000, ventas: 30_000, unidades: 2, acos: 10 }),
+    anuncio({ grupoId: "20", externo: "FAM", titulo: "Citrino", costo: 72_000, impresiones: 9 }),
+    anuncio({ grupoId: "30", externo: "FAM2", titulo: "Jordan" }),
+  ];
+  const grupoDe = new Map([["MLA2", "20"], ["MLA3", "20"]]);
+  const filas = armarFilas({
+    publicaciones: [pub("MLA1", "Rectangular"), pub("MLA2", "Citrino negro"), pub("MLA3", "Citrino carey"), pub("MLA4", "Sin anuncio")],
+    visitas: new Map(),
+    ventas: new Map(),
+    anuncios,
+    grupoDe,
+    v,
+    ahora: AHORA,
+    avisos: [],
+  });
+
+  // ITEM: se reconoce por el id externo aunque no venga en la búsqueda por publicación.
+  assert.equal(filas[0].Ads_costo, 3_000);
+  assert.equal(filas[0].Grupo_anuncios, "Rectangular");
+  // FAMILY de dos colores: sin métricas por color, con el grupo a la vista.
+  assert.equal(filas[1].Ads_costo, null);
+  assert.match(filas[1].Grupo_anuncios, /Citrino \(compartido por 2 publicaciones/);
+  assert.equal(filas[3].Ads_costo, 0);
+  assert.equal(filas.length, 4);
+
+  const grupos = armarFilasAnuncios({ anuncios, grupoDe, publicaciones: [pub("MLA2", "Citrino negro"), pub("MLA3", "Citrino carey")], campanas: new Map(), v, ahora: AHORA });
+  // El grupo sin impresiones ni costo (Jordan) no se escribe.
+  assert.deepEqual(grupos.map((g) => g.Grupo), ["Rectangular", "Citrino"]);
+  assert.equal(grupos[1].Publicaciones, "MLA2 — Citrino negro\nMLA3 — Citrino carey");
+  assert.equal(grupos[0].Publicaciones, "MLA1 — (no está en la cuenta)");
 });
 
 test("sin Product Ads, las columnas de anuncios quedan vacías (no en cero) y el aviso va en cada fila", () => {
   const filas = armarFilas({
-    publicaciones: [{ id: "MLA1", titulo: "Estuche", estado: "active", precio: 1, stock: 1, tipo: "", permalink: "" }],
+    publicaciones: [pub("MLA1", "Estuche")],
     visitas: new Map(),
     ventas: new Map(),
     anuncios: null,
+    grupoDe: new Map(),
     v: ventanas(AHORA),
     ahora: AHORA,
     avisos: ["Product Ads sin datos"],
