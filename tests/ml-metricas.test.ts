@@ -9,6 +9,7 @@ import {
   leerAnunciosDelGrupo,
   leerCampanas,
   leerPublicaciones,
+  leerStockPorUbicacion,
   leerVisitas,
   sumarOrdenes,
   unidadesUltimosDias,
@@ -72,13 +73,28 @@ test("las publicaciones salen del multiget y se saltean las que no contestaron 2
   const pubs = leerPublicaciones([
     {
       code: 200,
-      body: { id: "MLA1", title: "Estuche", status: "active", price: 15_990, available_quantity: 3, listing_type_id: "gold_special", permalink: "https://x", shipping: { logistic_type: "fulfillment" } },
+      body: { id: "MLA1", title: "Estuche", status: "active", price: 15_990, available_quantity: 3, listing_type_id: "gold_special", permalink: "https://x", shipping: { logistic_type: "fulfillment" }, user_product_id: "MLAU1" },
     },
     { code: 404, body: { message: "not found" } },
   ]);
   assert.equal(pubs.length, 1);
   assert.equal(pubs[0].precio, 15_990);
   assert.equal(pubs[0].logistica, "fulfillment");
+  assert.equal(pubs[0].userProduct, "MLAU1");
+});
+
+test("el stock por ubicación separa lo que está en Full del depósito propio", () => {
+  // Una publicación «de Full» con todo el stock en el depósito propio (pasó con los anteojos de sol).
+  assert.deepEqual(
+    leerStockPorUbicacion({ locations: [{ type: "meli_facility", quantity: 0 }, { type: "selling_address", quantity: 30 }] }),
+    { full: 0, deposito: 30 }
+  );
+  assert.deepEqual(
+    leerStockPorUbicacion({ locations: [{ type: "meli_facility", quantity: 3 }, { type: "seller_warehouse", quantity: 2 }, { type: "selling_address", quantity: 1 }] }),
+    { full: 3, deposito: 3 }
+  );
+  assert.equal(leerStockPorUbicacion({ error: "not_found" }), null);
+  assert.equal(leerStockPorUbicacion(null), null);
 });
 
 test("las visitas vienen en una lista aunque se pida una sola publicación", () => {
@@ -157,7 +173,7 @@ const anuncio = (a: Partial<Anuncio> & Pick<Anuncio, "grupoId">): Anuncio => ({
   ...a,
 });
 
-const pub = (id: string, titulo: string) => ({ id, titulo, estado: "active", precio: 1, stock: 1, tipo: "", permalink: "", logistica: "fulfillment" });
+const pub = (id: string, titulo: string) => ({ id, titulo, estado: "active", precio: 1, stock: 1, tipo: "", permalink: "", logistica: "fulfillment", userProduct: null });
 
 const deGrupo = (item: string, grupoId: string, costo: number): AnuncioDePublicacion => ({
   item,
@@ -189,6 +205,23 @@ test("las filas: visita que no se pudo leer queda vacía y la conversión es sob
   assert.equal(filas[1].Conversion_30d, null);
   assert.equal(filas[1].Ads_clics, 0);
   assert.equal(filas[0].Ventana, "2026-09-30 a 2026-10-29");
+  // Sin stock por ubicación, las columnas quedan vacías (no en cero).
+  assert.equal(filas[0].Stock_full, null);
+  assert.equal(filas[0].Stock_deposito, null);
+
+  const conUbicacion = armarFilas({
+    publicaciones: [pub("MLA1", "Sol")],
+    visitas: new Map(),
+    ventas: new Map(),
+    stockPorUbicacion: new Map([["MLA1", { full: 0, deposito: 30 }]]),
+    anuncios: [],
+    porPublicacion: new Map(),
+    v,
+    ahora: AHORA,
+    avisos: [],
+  });
+  assert.equal(conUbicacion[0].Stock_full, 0);
+  assert.equal(conUbicacion[0].Stock_deposito, 30);
 });
 
 test("los anuncios: cada publicación tiene las suyas aunque su grupo junte varios colores", () => {
