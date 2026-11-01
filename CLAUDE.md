@@ -12,7 +12,8 @@ resumen semanal). El negocio vive en la base de Airtable **Harper**
 2. Si hace falta, mirar los datos: **Metricas ML** (`tblBsnFGfuDJdgzAO`),
    **Anuncios ML** (`tblqegsPcKPH5PyTR`), **Preguntas ML** (`tblnAnZxDI5VlWaQ3`),
    **Datos del negocio** (`tblUoWPVIPkgVQPRJ`), **Costos ML**
-   (`tblEkjLXaXO1Fy0zd`) y **Envios a Full** (`tblBHkTmGdlr3fdyj`).
+   (`tblEkjLXaXO1Fy0zd`), **Envios a Full** (`tblBHkTmGdlr3fdyj`) y
+   **Competencia** (`tblFbqlG2S0qooix7`, se lee con `/api/ml/competencia`).
 3. **Al final de cada respuesta, repetir los pendientes de Ale** que sigan sin
    hacer, hasta que Ale confirme que los hizo. Cuando confirme, marcar la fila
    «Hecha» con la fecha en `Hecha_el`.
