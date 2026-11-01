@@ -109,12 +109,15 @@ async function visitas(ids: string[], v: Ventanas, hoy: string, token: string) {
   return new Map(pares);
 }
 
-async function ordenesPagadas(vendedor: number, v: Ventanas, token: string): Promise<unknown[]> {
+/**
+ * Las órdenes pagadas creadas entre dos días (YYYY-MM-DD, en hora de
+ * Argentina, los dos incluidos). Mercado Libre usa solo la hora de estos
+ * filtros; quien las use recorta el día en hora de Argentina.
+ */
+export async function ordenesPagadasEntre(vendedor: number, dia1: string, dia2: string, token: string): Promise<unknown[]> {
   const ordenes: unknown[] = [];
-  // Mercado Libre usa solo la hora de estos filtros; el día se recorta
-  // después en hora de Argentina (lib/ml-metricas.ts).
-  const desde = `${v.desdePrevia}T00:00:00.000-03:00`;
-  const hasta = `${v.hasta}T23:59:59.000-03:00`;
+  const desde = `${dia1}T00:00:00.000-03:00`;
+  const hasta = `${dia2}T23:59:59.000-03:00`;
 
   for (let offset = 0; offset < 10_000; offset += 50) {
     const pagina = await pedirML<{ results?: unknown[]; paging?: { total?: number } }>(
@@ -127,6 +130,10 @@ async function ordenesPagadas(vendedor: number, v: Ventanas, token: string): Pro
     if (lote.length === 0 || offset + 50 >= (pagina?.paging?.total ?? 0)) break;
   }
   return ordenes;
+}
+
+function ordenesPagadas(vendedor: number, v: Ventanas, token: string): Promise<unknown[]> {
+  return ordenesPagadasEntre(vendedor, v.desdePrevia, v.hasta, token);
 }
 
 type DatosAnuncios = {
