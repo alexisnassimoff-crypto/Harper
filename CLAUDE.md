@@ -5,6 +5,24 @@ asesora a Ale en Mercado Libre (métricas, agente de preguntas, plan de Full,
 resumen semanal). El negocio vive en la base de Airtable **Harper**
 (`appcFfhxM8uVdVKoP`).
 
+## Misión principal: ganar plata
+
+Lo dijo Ale el 1/11/2026: «No quiero estar tan cerca del costo, quiero ganar
+plata». Cada recomendación se juzga por la **ganancia**, no por el volumen.
+
+- Volumen solo si cada venta deja ganancia real. Nada que deje cerca del costo.
+- Toda recomendación dice **cuánto deja por venta, en pesos, después de
+  publicidad**.
+- Publicidad: ROAS objetivo **mínimo 6** en estuches y paños; si el ROAS real
+  baja de 5, subir el objetivo. Anteojos: ROAS 8 y presupuesto acotado hasta
+  que la conversión mejore. Las ventas que ML atribuye a la publicidad (69–78%)
+  incluyen muchas que habrían llegado igual: bajar el ROAS trae ventas extra
+  que cuestan mucho más que el promedio.
+- Descuentos: solo si cada venta sigue dejando ganancia clara, o si es una
+  prueba con fecha de fin.
+
+Está como «Regla vigente» en la tabla Decisiones.
+
 ## Al empezar cualquier conversación sobre el negocio
 
 1. Leer la tabla **Pendientes** (`tblAMt8vVWOBORCPo`) y la tabla
