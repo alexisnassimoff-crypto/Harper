@@ -272,9 +272,7 @@ export default function FichaProducto({
             </a>
           ) : null}
           <span className="label">{producto.categoria}</span>
-          <h1 style={{ fontSize: "clamp(2rem, 5vw, 2.75rem)" }}>
-            {producto.nombre}
-          </h1>
+          <h1 className="ficha-producto__nombre">{producto.nombre}</h1>
 
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem" }}>
             <span style={{ fontSize: "1.375rem" }}>

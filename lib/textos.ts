@@ -17,7 +17,11 @@
 
 export const TEXTOS = {
   portada: {
-    titulo: "Salís a la calle y se oscurecen solos.",
+    titulo: "Los anteojos también se eligen como la ropa.",
+    /** La frase de antes de la portada; ahora abre «Un mismo par». */
+    sensacion: "Salís a la calle y se oscurecen solos.",
+    etiqueta: "Filtro de luz azul · Fotocromáticos · UV400",
+    bajadaMarca: "Hoy vuelven a ser un accesorio: los elegís por el color, por la forma y por cómo los combinás con lo que te ponés.",
     /** «Anteojos fotocromáticos con filtro de luz azul, a $ 89.900 el par.» Solo con las características confirmadas. */
     bajada: (precio: string | null) => `Anteojos fotocromáticos con filtro de luz azul${precio ? `, a ${precio} el par` : ""}.`,
     bajadaSinConfirmar: (precio: string | null) => `Anteojos Harper${precio ? `, a ${precio} el par` : ""}.`,
@@ -31,10 +35,10 @@ export const TEXTOS = {
     titulo: "Un par para cada ocasión.",
   },
   modelos: {
-    titulo: "Todos cuestan lo mismo. Elegí el que más te guste.",
-    tituloSinPrecio: "Elegí el que más te guste.",
-    bajada: "Tocá un color para verlo.",
-    bajadaConSol: "Tocá un color para verlo, al sol o adentro.",
+    titulo: "¿Con cuál salís hoy?",
+    tituloSinPrecio: "¿Con cuál salís hoy?",
+    bajada: "Todos cuestan lo mismo. Tocá un color para verlo.",
+    bajadaConSol: "Todos cuestan lo mismo. Tocá un color para verlo, al sol o adentro.",
     todos: "¿No te decidís?",
     todosBoton: "Llevate uno de cada modelo",
   },
@@ -47,6 +51,10 @@ export const TEXTOS = {
     /** «Vienen con estuche rígido Harper y paño de microfibra.» */
     incluye: (lista: string) => `Vienen con ${lista}.`,
     cierre: (precio: string) => `Todo eso por ${precio}. Y preparate, porque te van a preguntar dónde los compraste.`,
+    /** La misma frase en dos partes, para poner el precio en otra letra. */
+    todoEso: "Todo eso por",
+    preparate: "Y preparate, porque te van a preguntar dónde los compraste.",
+    aumento: "¿Usás aumento? Te ponemos los cristales oftálmicos.",
   },
   pack: {
     bajada: "Uno para la semana, otro para el finde y otro para regalar. Podés mezclar modelos y colores, y el descuento se aplica solo.",
@@ -57,6 +65,7 @@ export const TEXTOS = {
     bajada: (lineas: string, modelos: number, colores: number) =>
       `Se vienen anteojos ${lineas}: ${modelos} modelos nuevos en ${colores} colores.`,
     boton: "Enterate primero en Instagram",
+    socios: "Si sos socio, elegís 72 horas antes que el resto.",
   },
   unDia: {
     etiqueta: "Un día cualquiera",
@@ -109,7 +118,9 @@ export const TEXTOS = {
   /** Socios Harper (lib/socios.ts). Lo que se promete acá es lo que Ale aprobó para la membresía. */
   socios: {
     etiqueta: "Socios Harper",
-    cupos: (quedan: number, cupos: number) => (quedan > 0 ? `Quedan ${quedan} de ${cupos} lugares` : `Los ${cupos} lugares ya están ocupados`),
+    /** Mientras nadie se anotó, «100 lugares numerados»: «quedan 100 de 100» dice que no hay nadie. */
+    cupos: (quedan: number, cupos: number) =>
+      quedan >= cupos ? `${cupos} lugares numerados` : quedan > 0 ? `Quedan ${quedan} de ${cupos} lugares` : `Los ${cupos} lugares ya están ocupados`,
     titulo: "Tus anteojos, resueltos por un año.",
     bajada:
       "Te hacés socio una vez y durante 12 meses tenés dos pares, envío gratis y reposición si se rompen o los perdés. Son pocos lugares y van numerados.",
@@ -232,7 +243,7 @@ export const TEXTOS = {
     },
     /** Al final de la portada, después del precio del par. */
     cierre: " O hacete socio y tenés dos pares en el año.",
-    anuncio: (quedan: number) => `Socios Harper: quedan ${quedan} lugares`,
+    anuncio: (quedan: number, cupos?: number) => (cupos !== undefined && quedan >= cupos ? `Socios Harper: ${cupos} lugares numerados` : `Socios Harper: quedan ${quedan} lugares`),
     pregunta: "¿Qué es Socios Harper?",
     respuesta: (precio: string) =>
       `Una membresía de 12 meses: pagás ${precio} una vez y tenés dos pares en el año, envío gratis siempre, una reposición si se rompen o los perdés y precio congelado para los pares extra. Los lugares son pocos y van numerados.`,

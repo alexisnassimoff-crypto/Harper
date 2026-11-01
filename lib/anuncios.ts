@@ -18,12 +18,12 @@ export function anunciosDelHeader(datos: {
   banner: string;
   cuotas: CuotasVerificadas | null;
   escala?: Tramo[];
-  socios?: { quedan: number } | null;
+  socios?: { quedan: number; cupos?: number } | null;
 }): string[] {
   const escala = datos.escala ?? [];
   return [
     datos.banner.trim(),
-    datos.socios && datos.socios.quedan > 0 ? TEXTOS.socios.anuncio(datos.socios.quedan) : "",
+    datos.socios && datos.socios.quedan > 0 ? TEXTOS.socios.anuncio(datos.socios.quedan, datos.socios.cupos) : "",
     escala.length > 0 ? `${escala.map((t) => nombreDelTramo(t)).join(" · ")} en anteojos` : "",
     datos.cuotas
       ? `${datos.cuotas.cuotas} cuotas sin interés en anteojos con ${NOMBRE_MARCAS} · CFTEA ${datos.cuotas.cftea}`

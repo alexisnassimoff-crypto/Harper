@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Instrument_Serif, Raleway } from "next/font/google";
+import { Hanken_Grotesk, Kalnia } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
@@ -19,27 +19,21 @@ import { planesDeSocio } from "@/lib/socios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
 import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 
-const raleway = Raleway({
+// La tipografía (Ale, 30/10/2026: «una que combine completamente con Harper»).
+// Kalnia, una didona moderna de trazos finos y letras anchas como el logo, para
+// los títulos y solo en tamaños grandes; Hanken Grotesk para todo lo demás:
+// texto, precios (con números de altura fija), botones y etiquetas.
+const texto = Hanken_Grotesk({
   subsets: ["latin"],
   display: "swap",
   variable: "--fuente-texto",
 });
 
-// La serif de los títulos de la portada (conversa con el logo) y la mono de
-// las etiquetas y la numeración. Solo los pesos que se usan.
-const serif = Instrument_Serif({
+const titulos = Kalnia({
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
+  axes: ["wdth"],
   display: "swap",
   variable: "--fuente-titulos",
-});
-
-const mono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  display: "swap",
-  variable: "--fuente-etiquetas",
 });
 
 const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";
@@ -141,7 +135,7 @@ export default async function RootLayout({
   ];
 
   return (
-    <html lang="es" className={`${raleway.variable} ${serif.variable} ${mono.variable}`}>
+    <html lang="es" className={`${texto.variable} ${titulos.variable}`}>
       <head>
         <script
           type="application/ld+json"

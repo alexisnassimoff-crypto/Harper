@@ -27,6 +27,19 @@ export function tinteDe(slug: string, indice: number): string {
 }
 
 /**
+ * El fondo de cada color (la portada y las tarjetas lo cambian al tocar un
+ * color): el negro va sobre el tinte del modelo y los demás, sobre uno que
+ * acompaña al armazón. Así dos colores del mismo modelo no comparten fondo.
+ */
+export function tinteDeColor(slug: string, color: string, indice: number): string {
+  const c = color.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (c.startsWith("carey")) return "#f2e4bc";
+  if (c.startsWith("ambar")) return slug === "cuarzo" ? "#efdcd3" : "#eedfca";
+  if (c.startsWith("gris")) return slug === "amatista" ? "#e4deec" : "#e2e6ec";
+  return tinteDe(slug, indice);
+}
+
+/**
  * La forma de cada modelo, en una línea, para la vitrina. Se ve en las fotos;
  * no afirma materiales ni nada que no esté confirmado. Un modelo nuevo va sin
  * línea hasta que alguien la escriba.

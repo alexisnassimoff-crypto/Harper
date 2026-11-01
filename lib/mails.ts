@@ -82,11 +82,11 @@ export async function enviarMailConDetalle(envio: Envio): Promise<{ ok: true } |
 /* ==========================================================================
    Plantillas
    Los clientes de mail no soportan flexbox ni grid: todo va con tablas y CSS
-   inline. Raleway tampoco carga en Gmail ni Outlook, por eso la familia
+   inline. Hanken Grotesk no carga en Gmail ni Outlook, por eso la familia
    degrada a Helvetica y Arial.
    ========================================================================== */
 
-const FUENTE = "Raleway, Helvetica, Arial, sans-serif";
+const FUENTE = "'Hanken Grotesk', Helvetica, Arial, sans-serif";
 
 function escaparHtml(texto: string) {
   return texto
