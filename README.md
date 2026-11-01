@@ -224,6 +224,12 @@ Para verlos o mandarlos a mano:
 para ver el mail, `&enviar=1` para mandarlo y `&forzar=1` para mandarlo aunque
 ya se haya mandado.
 
+**Promociones.** `/api/ml/promociones?token=<SYNC_TOKEN>&ver=1` lee de la
+Central de promociones (`/seller-promotions/items/{id}?app_version=v2`) las
+promociones de cada publicación activa: activas, programadas e invitaciones
+de ML, con el % de descuento, las fechas, el aporte de ML y un aviso si el
+precio con descuento cruza un escalón de costos ($15.000, $24.000, $33.000).
+
 **Competencia.** `/api/ml/competencia?token=<SYNC_TOKEN>&ver=1` muestra lo
 que Mercado Libre deja leer de la competencia:
 
@@ -358,6 +364,7 @@ precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
 | `POST /api/ml/notificaciones` | Recibe las notificaciones de Mercado Libre y procesa las preguntas |
 | `GET/POST /api/ml/preguntas/aprobar` | Muestra y publica un borrador aprobado desde el mail |
 | `GET /api/ml/avisos` | Ver o mandar a mano la alerta de stock y el resumen semanal |
+| `GET /api/ml/promociones` | Promociones activas, programadas e invitaciones de ML de cada publicación |
 | `GET /api/ml/competencia` | Precios y posición en búsquedas de los competidores de la tabla Competencia |
 
 ## Desarrollo local
