@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  erroresAgrupados,
+  estadoDeReferencia,
+  idsConReferencia,
   idsDeLink,
+  leerCompetitividad,
+  leerReferencia,
   leerBusqueda,
   leerPrecioDeVenta,
   leerPublicacionAjena,
@@ -155,6 +160,76 @@ test("el resumen de acceso agrupa las pruebas por tipo de dato", () => {
   );
 });
 
+test("las referencias de precios: la lista y el detalle con las publicaciones parecidas", () => {
+  assert.deepEqual(idsConReferencia({ total: 2, items: ["MLA1", "MLA2", "otra cosa"] }), ["MLA1", "MLA2"]);
+  assert.deepEqual(idsConReferencia({ results: [{ item_id: "MLA3" }] }), ["MLA3"]);
+  assert.deepEqual(idsConReferencia(null), []);
+
+  const r = leerReferencia(
+    {
+      item_id: "MLA3024740550",
+      status: "with_benchmark_high",
+      current_price: { amount: 8_900 },
+      suggested_price: { amount: 7_990 },
+      lowest_price: { amount: 6_500 },
+      percent_difference: 11.4,
+      applicable_suggestion: true,
+      metadata: {
+        graph: [
+          { price: { amount: 7_500 }, info: { id: "MLA9", title: "Estuche rígido", sold_quantity: 250, permalink: "https://x" } },
+          { price: 6_500, title: "Otro" },
+        ],
+      },
+    },
+    "Estuche rectangular"
+  );
+  assert.equal(r?.titulo, "Estuche rectangular");
+  assert.equal(r?.precio, 8_900);
+  assert.equal(r?.sugerido, 7_990);
+  assert.equal(r?.masBajo, 6_500);
+  assert.equal(r?.diferencia, 11.4);
+  assert.equal(r?.aplicable, true);
+  assert.deepEqual(r?.similares, [
+    { id: "MLA9", titulo: "Estuche rígido", precio: 7_500, vendidas: 250, permalink: "https://x" },
+    { id: null, titulo: "Otro", precio: 6_500, vendidas: null, permalink: null },
+  ]);
+  assert.equal(leerReferencia({ status: "x" }), null);
+
+  assert.equal(estadoDeReferencia("with_benchmark_highest"), "Más caro que la referencia y que la competencia");
+  assert.equal(estadoDeReferencia("no_benchmark_ok"), "no benchmark ok");
+  assert.equal(estadoDeReferencia(null), "—");
+});
+
+test("la competitividad de cada campaña de publicidad", () => {
+  assert.deepEqual(
+    leerCompetitividad({
+      results: [
+        { id: 1, name: "Anteojos New", metrics: { impression_share: 41.2, top_impression_share: 12, lost_impression_share_by_budget: 0, lost_impression_share_by_ad_rank: 58.8 } },
+        { id: 2, metrics: {} },
+      ],
+    }),
+    [
+      { nombre: "Anteojos New", cuota: 41.2, arriba: 12, perdidaPresupuesto: 0, perdidaRanking: 58.8 },
+      { nombre: "2", cuota: null, arriba: null, perdidaPresupuesto: null, perdidaRanking: null },
+    ]
+  );
+});
+
+test("los rechazos se agrupan por motivo, sin la ruta", () => {
+  assert.deepEqual(
+    erroresAgrupados([
+      { que: "a", status: 403, ok: false, detalle: "Mercado Libre 403 en /sites/MLA/search?q=x (forbidden)" },
+      { que: "b", status: 403, ok: false, detalle: "Mercado Libre 403 en /sites/MLA/search?q=y (forbidden)" },
+      { que: "c", status: 404, ok: false, detalle: "Mercado Libre 404 en /user-products/MLAU1 (not_found)" },
+      { que: "d", status: 200, ok: true, detalle: "" },
+    ]),
+    [
+      { motivo: "403 (forbidden)", veces: 2 },
+      { motivo: "404 (not_found)", veces: 1 },
+    ]
+  );
+});
+
 test("la página escapa lo que viene de Mercado Libre y muestra lo que no se pudo leer", () => {
   const html = paginaDeCompetencia({
     fecha: "1/11/26 10:00",
@@ -162,6 +237,20 @@ test("la página escapa lo que viene de Mercado Libre y muestra lo que no se pud
       { que: "Publicaciones de otros vendedores: MLA1", status: 200, ok: true, detalle: "" },
       { que: "Búsquedas: estuche", status: 403, ok: false, detalle: "forbidden <x>" },
     ],
+    referencias: [
+      {
+        id: "MLA2",
+        titulo: "Rectangular",
+        estado: "with_benchmark_high",
+        precio: 8_900,
+        sugerido: 7_990,
+        masBajo: 6_500,
+        diferencia: 11.4,
+        aplicable: true,
+        similares: [{ id: "MLA9", titulo: "Rígido <i>", precio: 7_500, vendidas: 250, permalink: null }],
+      },
+    ],
+    publicidad: { desde: "2026-10-25", hasta: "2026-10-31", campanas: [{ nombre: "Anteojos New", cuota: 41.2, arriba: 12, perdidaPresupuesto: 0, perdidaRanking: 58.8 }] },
     publicaciones: [{ ...pub("MLA1", 5, 7_990), titulo: "Estuche <b>rígido</b>", nombre: "Kyar", cuotasSinInteres: true }],
     vendedores: [{ nombre: "Soluna", como: null, id: null, reputacion: null, publicaciones: null, ejemplos: [] }],
     busquedas: [{ texto: "estuche", total: null, posiciones: [] }],
@@ -172,6 +261,17 @@ test("la página escapa lo que viene de Mercado Libre y muestra lo que no se pud
   assert.ok(html.includes("✅ Publicaciones de otros vendedores: 1 de 1"));
   assert.ok(html.includes("❌ Búsquedas: 0 de 1"));
   assert.ok(html.includes("forbidden &lt;x&gt;"));
-  assert.ok(html.includes("no encontrado"));
-  assert.ok(html.includes("Sin resultados legibles"));
+  assert.ok(html.includes("No se pudo leer a: Soluna"));
+  // Una búsqueda sin resultados no ocupa lugar.
+  assert.ok(!html.includes("Búsqueda «estuche»"));
+  assert.ok(html.includes("Más caro que la referencia"));
+  assert.ok(html.includes("+11%"));
+  assert.ok(html.includes("Rígido &lt;i&gt; — $7.500 · 250 vendidas"));
+  assert.ok(html.includes("59%"));
+});
+
+test("sin referencias ni publicidad, la página lo dice", () => {
+  const html = paginaDeCompetencia({ fecha: "x", pruebas: [], referencias: [], publicidad: null, publicaciones: [], vendedores: [], busquedas: [] });
+  assert.ok(html.includes("no devolvió referencias"));
+  assert.ok(html.includes("no devolvió estas métricas"));
 });

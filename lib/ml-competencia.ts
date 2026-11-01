@@ -156,6 +156,113 @@ export function posicionesEnBusqueda(
   });
 }
 
+export type Similar = { id: string | null; titulo: string; precio: number | null; vendidas: number | null; permalink: string | null };
+
+export type ReferenciaDePrecio = {
+  id: string;
+  titulo: string;
+  estado: string | null;
+  precio: number | null;
+  sugerido: number | null;
+  masBajo: number | null;
+  /** Cuánto más caro (en %) que la referencia, según Mercado Libre. */
+  diferencia: number | null;
+  aplicable: boolean | null;
+  similares: Similar[];
+};
+
+/** Un monto que puede venir como número o como { amount }. */
+const monto = (v: unknown) => numero(v) ?? numero(objeto(v).amount);
+
+/** Los ids de /suggestions/user/{id}/items, venga la lista donde venga. */
+export function idsConReferencia(cuerpo: unknown): string[] {
+  const b = objeto(cuerpo);
+  const lista = [b.items, b.results, b.item_ids, cuerpo].find(Array.isArray) as unknown[] | undefined;
+  return (lista ?? []).flatMap((x) => {
+    const id = typeof x === "string" ? x : texto(objeto(x).item_id) ?? texto(objeto(x).id);
+    return id && /^MLA\d+$/.test(id) ? [id] : [];
+  });
+}
+
+/**
+ * La referencia de precio de una publicación propia, de
+ * /suggestions/items/{id}/details: el precio que Mercado Libre considera
+ * competitivo, el más bajo entre las parecidas y las publicaciones con que
+ * compara (metadata.graph).
+ */
+export function leerReferencia(cuerpo: unknown, titulo = ""): ReferenciaDePrecio | null {
+  const b = objeto(cuerpo);
+  const id = texto(b.item_id) ?? texto(b.id);
+  if (!id) return null;
+  const grafico = objeto(b.metadata).graph;
+  const similares = (Array.isArray(grafico) ? grafico : []).map((g): Similar => {
+    const e = objeto(g);
+    const info = objeto(e.info);
+    return {
+      id: texto(info.id) ?? texto(e.item_id) ?? texto(e.id),
+      titulo: texto(info.title) ?? texto(e.title) ?? "",
+      precio: monto(e.price),
+      vendidas: numero(info.sold_quantity) ?? numero(e.sold_quantity),
+      permalink: texto(info.permalink) ?? texto(e.permalink),
+    };
+  });
+  return {
+    id,
+    titulo: titulo || id,
+    estado: texto(b.status),
+    precio: monto(b.current_price),
+    sugerido: monto(b.suggested_price),
+    masBajo: monto(b.lowest_price),
+    diferencia: numero(b.percent_difference),
+    aplicable: typeof b.applicable_suggestion === "boolean" ? b.applicable_suggestion : null,
+    similares,
+  };
+}
+
+/** El estado de la referencia, dicho para Ale. */
+export function estadoDeReferencia(estado: string | null): string {
+  switch (estado) {
+    case "with_benchmark_highest":
+      return "Más caro que la referencia y que la competencia";
+    case "with_benchmark_high":
+      return "Más caro que la referencia";
+    case null:
+      return "—";
+    default:
+      return estado.replace(/_/g, " ");
+  }
+}
+
+export type CompetitividadCampana = {
+  nombre: string;
+  /** % de las veces que el anuncio salió, de todas las que pudo salir. */
+  cuota: number | null;
+  /** % de las veces que salió primero. */
+  arriba: number | null;
+  /** % que no salió por falta de presupuesto. */
+  perdidaPresupuesto: number | null;
+  /** % que no salió porque otro vendedor rankeó mejor. */
+  perdidaRanking: number | null;
+};
+
+export const METRICAS_COMPETITIVIDAD = "impression_share,top_impression_share,lost_impression_share_by_budget,lost_impression_share_by_ad_rank";
+
+/** La competitividad de cada campaña, de campaigns/search con esas métricas. */
+export function leerCompetitividad(cuerpo: unknown): CompetitividadCampana[] {
+  const resultados = objeto(cuerpo).results;
+  return (Array.isArray(resultados) ? resultados : []).map((r) => {
+    const c = objeto(r);
+    const m = objeto(c.metrics);
+    return {
+      nombre: texto(c.name) ?? String(c.id ?? ""),
+      cuota: numero(m.impression_share),
+      arriba: numero(m.top_impression_share),
+      perdidaPresupuesto: numero(m.lost_impression_share_by_budget),
+      perdidaRanking: numero(m.lost_impression_share_by_ad_rank),
+    };
+  });
+}
+
 export type Prueba = { que: string; status: number | null; ok: boolean; detalle: string };
 
 export type VendedorCompetidor = {
@@ -171,6 +278,8 @@ export type VendedorCompetidor = {
 export type FotoCompetencia = {
   fecha: string;
   pruebas: Prueba[];
+  referencias: ReferenciaDePrecio[];
+  publicidad: { desde: string; hasta: string; campanas: CompetitividadCampana[] } | null;
   publicaciones: (PublicacionAjena & { nombre: string })[];
   vendedores: VendedorCompetidor[];
   busquedas: { texto: string; total: number | null; posiciones: Posicion[] }[];
@@ -189,14 +298,29 @@ export function resumenDeAcceso(pruebas: Prueba[]): { que: string; ok: number; t
   return [...grupos].map(([que, g]) => ({ que, ...g }));
 }
 
+/** Los rechazos agrupados por motivo, sin la ruta (que cambia en cada pedido). */
+export function erroresAgrupados(pruebas: Prueba[]): { motivo: string; veces: number }[] {
+  const grupos = new Map<string, number>();
+  for (const p of pruebas) {
+    if (p.ok) continue;
+    const motivo = `${p.status ?? "sin respuesta"} ${p.detalle.replace(/^Mercado Libre \d+ en \S+ ?/, "")}`.trim();
+    grupos.set(motivo, (grupos.get(motivo) ?? 0) + 1);
+  }
+  return [...grupos].map(([motivo, veces]) => ({ motivo, veces })).sort((a, b) => b.veces - a.veces);
+}
+
 const escapar = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const pesos = (n: number | null) => (n === null ? "—" : `$${Math.round(n).toLocaleString("es-AR")}`);
 const sino = (b: boolean | null) => (b === null ? "—" : b ? "sí" : "no");
 
+const porcentaje = (n: number | null) => (n === null ? "—" : `${Math.round(n)}%`);
+
 /** La foto de la competencia como página, para abrir desde el celular. */
 export function paginaDeCompetencia(f: FotoCompetencia): string {
-  const estilo =
-    "font-family:Helvetica,Arial,sans-serif;color:#1f1e1b;font-size:14px;line-height:1.45";
+  const estilo = "font-family:Helvetica,Arial,sans-serif;color:#1f1e1b;font-size:14px;line-height:1.45";
+  const gris = "color:#78756c";
+  const h2 = (t: string) => `<h2 style="font-size:16px;margin:24px 0 8px">${t}</h2>`;
+  const nota = (t: string) => `<p style="${gris};font-size:13px;margin:4px 0 8px">${t}</p>`;
   const tabla = (cabecera: string[], filas: string[][]) =>
     `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr>${cabecera
       .map((c) => `<th style="text-align:left;border-bottom:1px solid #d9d6cc;padding:6px 8px;white-space:nowrap">${c}</th>`)
@@ -206,25 +330,58 @@ export function paginaDeCompetencia(f: FotoCompetencia): string {
   const titulo = (p: { titulo: string; permalink?: string | null }) =>
     p.permalink ? `<a href="${escapar(p.permalink)}" style="color:#1f1e1b">${escapar(p.titulo)}</a>` : escapar(p.titulo);
 
-  const acceso = resumenDeAcceso(f.pruebas)
-    .map((a) => `<li>${a.ok === a.total ? "✅" : a.ok ? "⚠️" : "❌"} ${escapar(a.que)}: ${a.ok} de ${a.total}</li>`)
-    .join("");
-  const fallas = f.pruebas.filter((p) => !p.ok);
-
   const partes = [
     `<h1 style="font-size:20px;margin:0 0 4px">Competencia en Mercado Libre</h1>`,
-    `<p style="color:#78756c;margin:0 0 16px">${escapar(f.fecha)}</p>`,
-    `<h2 style="font-size:16px">Qué deja leer Mercado Libre</h2><ul style="padding-left:20px">${acceso || "<li>No se probó nada: la tabla Competencia está vacía.</li>"}</ul>`,
-    fallas.length
-      ? `<details><summary style="cursor:pointer;color:#78756c">Detalle de lo que no se pudo leer (${fallas.length})</summary><ul style="padding-left:20px;color:#78756c;font-size:12px">${fallas
-          .map((p) => `<li>${escapar(p.que)} — ${p.status ?? "sin respuesta"}: ${escapar(p.detalle)}</li>`)
-          .join("")}</ul></details>`
-      : "",
+    `<p style="${gris};margin:0 0 8px">${escapar(f.fecha)}</p>`,
   ];
 
+  // 1. Tu precio contra las publicaciones parecidas (Referencias de precios).
+  partes.push(h2("Tu precio contra la competencia"));
+  if (f.referencias.length) {
+    partes.push(
+      nota("Referencias de precios de Mercado Libre: compara cada publicación tuya con las parecidas."),
+      tabla(
+        ["Publicación", "Tu precio", "Referencia ML", "Más bajo", "Diferencia", "Estado"],
+        f.referencias.map((r) => [
+          escapar(r.titulo),
+          pesos(r.precio),
+          pesos(r.sugerido),
+          pesos(r.masBajo),
+          r.diferencia === null ? "—" : `${r.diferencia > 0 ? "+" : ""}${Math.round(r.diferencia)}%`,
+          escapar(estadoDeReferencia(r.estado)),
+        ])
+      )
+    );
+    for (const r of f.referencias.filter((r) => r.similares.length)) {
+      partes.push(
+        `<p style="margin:12px 0 4px;font-size:13px"><strong>${escapar(r.titulo)}</strong>, comparada con:</p><ul style="margin:0;padding-left:20px;font-size:13px">${r.similares
+          .slice(0, 5)
+          .map((x) => `<li>${titulo(x)} — ${pesos(x.precio)}${x.vendidas === null ? "" : ` · ${x.vendidas.toLocaleString("es-AR")} vendidas`}</li>`)
+          .join("")}</ul>`
+      );
+    }
+  } else {
+    partes.push(nota("Mercado Libre no devolvió referencias de precios para tus publicaciones (ver abajo qué contestó)."));
+  }
+
+  // 2. Publicidad: cuánto te gana la competencia en las subastas.
+  partes.push(h2("Publicidad: cuántas veces te gana otro vendedor"));
+  if (f.publicidad?.campanas.length) {
+    partes.push(
+      nota(`Del ${escapar(f.publicidad.desde)} al ${escapar(f.publicidad.hasta)}. «Perdidas por ranking»: veces que tu anuncio podía salir y salió el de otro vendedor.`),
+      tabla(
+        ["Campaña", "Salió", "Salió primero", "Perdidas por presupuesto", "Perdidas por ranking"],
+        f.publicidad.campanas.map((c) => [escapar(c.nombre), porcentaje(c.cuota), porcentaje(c.arriba), porcentaje(c.perdidaPresupuesto), porcentaje(c.perdidaRanking)])
+      )
+    );
+  } else {
+    partes.push(nota("Mercado Libre no devolvió estas métricas (ver abajo qué contestó)."));
+  }
+
+  // 3. Los competidores de la tabla y las búsquedas: solo si algo se pudo leer.
   if (f.publicaciones.length) {
     partes.push(
-      `<h2 style="font-size:16px">Publicaciones de la tabla</h2>`,
+      h2("Publicaciones de la tabla Competencia"),
       tabla(
         ["Publicación", "Vendedor", "Precio", "Antes", "Cuotas s/int.", "Full", "Envío gratis", "Vendidas"],
         f.publicaciones.map((p) => [
@@ -240,15 +397,15 @@ export function paginaDeCompetencia(f: FotoCompetencia): string {
       )
     );
   }
-
-  if (f.vendedores.length) {
+  const encontrados = f.vendedores.filter((v) => v.id !== null);
+  if (encontrados.length) {
     partes.push(
-      `<h2 style="font-size:16px">Vendedores</h2>`,
+      h2("Vendedores"),
       tabla(
         ["Nombre", "Apodo en ML", "Reputación", "Ventas", "Publicaciones", "Ejemplos"],
-        f.vendedores.map((v) => [
+        encontrados.map((v) => [
           escapar(v.nombre),
-          v.reputacion?.apodo ? escapar(v.reputacion.apodo) : v.id === null ? "no encontrado" : "—",
+          escapar(v.reputacion?.apodo ?? "—"),
           escapar([v.reputacion?.nivel, v.reputacion?.medalla].filter(Boolean).join(" · ") || "—"),
           v.reputacion?.ventas === null || v.reputacion?.ventas === undefined ? "—" : v.reputacion.ventas.toLocaleString("es-AR"),
           v.publicaciones === null ? "—" : String(v.publicaciones),
@@ -260,25 +417,39 @@ export function paginaDeCompetencia(f: FotoCompetencia): string {
       )
     );
   }
-
-  for (const b of f.busquedas) {
+  const faltan = f.vendedores.filter((v) => v.id === null).map((v) => v.nombre);
+  if (faltan.length) partes.push(nota(`No se pudo leer a: ${escapar(faltan.join(", "))}.`));
+  for (const b of f.busquedas.filter((b) => b.posiciones.length)) {
     partes.push(
-      `<h2 style="font-size:16px">Búsqueda «${escapar(b.texto)}»${b.total === null ? "" : ` <span style="color:#78756c;font-weight:normal">(${b.total.toLocaleString("es-AR")} resultados)</span>`}</h2>`,
-      b.posiciones.length
-        ? tabla(
-            ["Puesto", "Publicación", "Quién", "Precio", "Cuotas s/int.", "Full"],
-            b.posiciones.map((p) => [
-              String(p.puesto),
-              escapar(p.titulo),
-              p.quien ? `<strong>${escapar(p.quien)}</strong>` : escapar(p.vendedor ?? "—"),
-              pesos(p.precio),
-              sino(p.cuotasSinInteres),
-              sino(p.full),
-            ])
-          )
-        : `<p style="color:#78756c">Sin resultados legibles.</p>`
+      h2(`Búsqueda «${escapar(b.texto)}»${b.total === null ? "" : ` <span style="${gris};font-weight:normal">(${b.total.toLocaleString("es-AR")} resultados)</span>`}`),
+      tabla(
+        ["Puesto", "Publicación", "Quién", "Precio", "Cuotas s/int.", "Full"],
+        b.posiciones.map((p) => [
+          String(p.puesto),
+          escapar(p.titulo),
+          p.quien ? `<strong>${escapar(p.quien)}</strong>` : escapar(p.vendedor ?? "—"),
+          pesos(p.precio),
+          sino(p.cuotasSinInteres),
+          sino(p.full),
+        ])
+      )
     );
   }
+
+  // 4. Qué deja leer Mercado Libre, con los rechazos agrupados por motivo.
+  const acceso = resumenDeAcceso(f.pruebas)
+    .map((a) => `<li>${a.ok === a.total ? "✅" : a.ok ? "⚠️" : "❌"} ${escapar(a.que)}: ${a.ok} de ${a.total}</li>`)
+    .join("");
+  const errores = erroresAgrupados(f.pruebas);
+  partes.push(
+    h2("Qué deja leer Mercado Libre"),
+    `<ul style="padding-left:20px;margin:0">${acceso || "<li>No se probó nada.</li>"}</ul>`,
+    errores.length
+      ? `<p style="margin:12px 0 4px;font-size:13px"><strong>Qué contestó cuando no dejó</strong></p><ul style="padding-left:20px;margin:0;${gris};font-size:12px">${errores
+          .map((e) => `<li>${escapar(e.motivo)}${e.veces > 1 ? ` (${e.veces} veces)` : ""}</li>`)
+          .join("")}</ul>`
+      : ""
+  );
 
   return `<div style="${estilo};max-width:860px;margin:0 auto">${partes.join("")}</div>`;
 }
