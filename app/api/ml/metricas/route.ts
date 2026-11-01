@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { tokenValido } from "@/lib/media";
 import { mlConfigurado } from "@/lib/ml-auth";
+import { correrAvisosDiarios } from "@/lib/ml-avisos-servidor";
 import { ActualizacionEnCurso, actualizarMetricasML } from "@/lib/ml-metricas-servidor";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +10,9 @@ export const maxDuration = 300;
 
 /**
  * Actualiza la tabla "Metricas ML" con las visitas, ventas y Product Ads de
- * cada publicación (últimos 30 días y los 30 anteriores).
+ * cada publicación (últimos 30 días y los 30 anteriores). Después manda los
+ * avisos por mail: la alerta de stock si hace falta y, los lunes, el resumen
+ * de la semana (lib/ml-avisos-servidor.ts).
  *
  * Se dispara con el cron diario (ver vercel.json) o a mano:
  *   GET /api/ml/metricas?token=<SYNC_TOKEN>
@@ -28,7 +31,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    return NextResponse.json({ ok: true, ...(await actualizarMetricasML()) });
+    const metricas = await actualizarMetricasML();
+    const avisosMail = await correrAvisosDiarios();
+    return NextResponse.json({ ok: true, ...metricas, avisosMail });
   } catch (error) {
     if (error instanceof ActualizacionEnCurso) {
       return NextResponse.json({ error: error.message }, { status: 409 });

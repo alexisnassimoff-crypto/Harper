@@ -194,6 +194,22 @@ Dos cosas que usan la misma conexión con la cuenta vendedora:
   mail, teléfono, link, redes o partes sin completar, aunque el agente la haya
   aprobado. Cada pregunta queda en la tabla con lo que se hizo y por qué.
 
+**Avisos por mail** (al mail de pedidos de Config), después de la
+actualización diaria:
+
+- **Alerta de stock**: cuando una publicación tiene menos de 21 días de stock
+  al ritmo de los últimos 30, con cuánto mandar para cubrir 60 días. Si la
+  alerta es igual a la del último mail no se repite, salvo que haya pasado
+  una semana. Lo que está en camino a Full no cuenta hasta que se acredita.
+- **Resumen semanal**, los lunes: ventas, pedidos y unidades contra la semana
+  anterior, lo que más vendió y lo que más cayó, publicidad, stock,
+  preguntas y las decisiones con revisión en los próximos 7 días.
+
+Para verlos o mandarlos a mano:
+`/api/ml/avisos?token=<SYNC_TOKEN>&tipo=stock` o `&tipo=semanal`, con `&ver=1`
+para ver el mail, `&enviar=1` para mandarlo y `&forzar=1` para mandarlo aunque
+ya se haya mandado.
+
 **Puesta en marcha (una vez)**
 
 1. En la aplicación de [developers.mercadolibre.com.ar](https://developers.mercadolibre.com.ar)
@@ -301,6 +317,7 @@ precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
 | `GET /api/ml/metricas` | Actualiza la tabla Metricas ML (cron diario) |
 | `POST /api/ml/notificaciones` | Recibe las notificaciones de Mercado Libre y procesa las preguntas |
 | `GET/POST /api/ml/preguntas/aprobar` | Muestra y publica un borrador aprobado desde el mail |
+| `GET /api/ml/avisos` | Ver o mandar a mano la alerta de stock y el resumen semanal |
 
 ## Desarrollo local
 
