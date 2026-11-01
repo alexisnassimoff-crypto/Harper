@@ -64,7 +64,14 @@ async function busquedasClave(): Promise<string[]> {
   return propias.length ? propias : BUSQUEDAS_POR_DEFECTO;
 }
 
-export async function fotoDeLaCompetencia(ahora = Date.now()): Promise<FotoCompetencia> {
+/**
+ * `terceros` vuelve a probar leer a los competidores de la tabla y las
+ * búsquedas. Desde el 1/11/2026 Mercado Libre contesta 403 a todo eso, así que
+ * por defecto no se pide.
+ */
+export async function fotoDeLaCompetencia(opciones: { ahora?: number; terceros?: boolean } = {}): Promise<FotoCompetencia> {
+  const ahora = opciones.ahora ?? Date.now();
+  const terceros = opciones.terceros ?? false;
   const token = await tokenVigente();
   const miId = await idDeLaCuenta(token);
   const pruebas: Prueba[] = [];
@@ -82,11 +89,17 @@ export async function fotoDeLaCompetencia(ahora = Date.now()): Promise<FotoCompe
   }
 
   // 0a. Tu precio contra las publicaciones parecidas: Referencias de precios.
-  // Si la lista de ML no trae nada, se piden las publicaciones activas que más venden.
+  // Un 404 de la lista es la respuesta de ML («no tiene publicaciones con
+  // sugerencia»). Si falla de otra forma, se piden las activas que más venden.
   const metricas = (await listRecords<FilaMetricas>(TABLA_METRICAS_ML, { revalidate: 0 })).map((r) => r.fields);
   const tituloDe = new Map(metricas.flatMap((m) => (m.ML_id ? [[m.ML_id, m.Titulo ?? m.ML_id] as [string, string]] : [])));
-  let conReferencia = idsConReferencia(await intentar("Referencias de precios: lista", `/suggestions/user/${miId}/items`));
-  if (!conReferencia.length) {
+  const lista = await intentar("Referencias de precios: lista", `/suggestions/user/${miId}/items`);
+  const respuestaLista = pruebas[pruebas.length - 1];
+  let notaReferencias: string | null = null;
+  let conReferencia = idsConReferencia(lista);
+  if (respuestaLista.status === 404) {
+    notaReferencias = respuestaLista.detalle.match(/\(([^)]*)\)\s*$/)?.[1] ?? "sin referencias";
+  } else if (!conReferencia.length) {
     conReferencia = metricas
       .filter((m) => m.ML_id && m.Estado === "active" && (m.Unidades_30d ?? 0) > 0)
       .sort((a, b) => (b.Unidades_30d ?? 0) - (a.Unidades_30d ?? 0))
@@ -105,15 +118,21 @@ export async function fotoDeLaCompetencia(ahora = Date.now()): Promise<FotoCompe
     const hasta = diaAnterior(fechaArgentina(ahora));
     let desde = hasta;
     for (let i = 0; i < 6; i++) desde = diaAnterior(desde);
-    const cuerpo = await intentar(
-      "Publicidad: competitividad de las campañas",
-      `/advertising/${anunciante.site}/advertisers/${anunciante.id}/product_ads/campaigns/search?limit=50&offset=0&date_from=${desde}&date_to=${hasta}&metrics=${METRICAS_COMPETITIVIDAD}`,
-      { "api-version": "2" }
-    );
-    if (cuerpo) publicidad = { desde, hasta, campanas: leerCompetitividad(cuerpo) };
+    const campanas = (metricas: string[]) =>
+      `/advertising/${anunciante.site}/advertisers/${anunciante.id}/product_ads/campaigns/search` +
+      `?limit=50&offset=0&date_from=${desde}&date_to=${hasta}&metrics=${metricas.join(",")}`;
+    const v2 = { "api-version": "2" };
+    const juntas = await intentar("Publicidad: competitividad de las campañas", campanas(METRICAS_COMPETITIVIDAD), v2);
+    // Si no las acepta juntas, de a una: así se ve cuál no existe.
+    const cuerpos = juntas
+      ? [juntas]
+      : (
+          await Promise.all(METRICAS_COMPETITIVIDAD.map((m) => intentar(`Publicidad: métrica ${m.toLowerCase()}`, campanas([m]), v2)))
+        ).filter((c) => c !== null);
+    if (cuerpos.length) publicidad = { desde, hasta, campanas: leerCompetitividad(cuerpos) };
   }
 
-  const filas = (await listRecords<FilaCompetencia>(TABLA_COMPETENCIA, { revalidate: 0 })).map((r) => r.fields);
+  const filas = terceros ? (await listRecords<FilaCompetencia>(TABLA_COMPETENCIA, { revalidate: 0 })).map((r) => r.fields) : [];
 
   // 1. Las publicaciones de los links.
   const publicaciones: FotoCompetencia["publicaciones"] = [];
@@ -196,7 +215,7 @@ export async function fotoDeLaCompetencia(ahora = Date.now()): Promise<FotoCompe
   // 3. Las búsquedas clave.
   const competidores = new Map<number, string>(vendedores.flatMap((v) => (v.id === null ? [] : [[v.id, v.nombre] as [number, string]])));
   const busquedas: FotoCompetencia["busquedas"] = [];
-  for (const q of await busquedasClave()) {
+  for (const q of terceros ? await busquedasClave() : []) {
     const cuerpo = await intentar<unknown>(`Búsquedas: ${q}`, `/sites/MLA/search?q=${encodeURIComponent(q)}&limit=50`);
     const { total, resultados } = cuerpo ? leerBusqueda(cuerpo) : { total: null, resultados: [] as PublicacionAjena[] };
     busquedas.push({ texto: q, total, posiciones: posicionesEnBusqueda(resultados, miId, competidores) });
@@ -206,6 +225,8 @@ export async function fotoDeLaCompetencia(ahora = Date.now()): Promise<FotoCompe
     fecha: new Date(ahora).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" }),
     pruebas,
     referencias,
+    notaReferencias,
+    terceros,
     publicidad,
     publicaciones,
     vendedores,

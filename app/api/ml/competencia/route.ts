@@ -14,6 +14,7 @@ export const maxDuration = 300;
  *
  *   GET /api/ml/competencia?token=<SYNC_TOKEN>         → JSON
  *   GET /api/ml/competencia?token=<SYNC_TOKEN>&ver=1   → página para el celular
+ *   &terceros=1  vuelve a probar leer a otros vendedores y las búsquedas (403 desde el 1/11/2026)
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const foto = await fotoDeLaCompetencia();
+    const foto = await fotoDeLaCompetencia({ terceros: url.searchParams.get("terceros") === "1" });
     if (url.searchParams.get("ver") === "1") {
       return new Response(
         `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Competencia</title></head><body style="margin:0;padding:24px 16px;background:#faf9f6">${paginaDeCompetencia(foto)}</body></html>`,

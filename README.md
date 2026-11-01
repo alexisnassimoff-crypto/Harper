@@ -233,10 +233,18 @@ que Mercado Libre deja leer de la competencia:
 - **Competitividad de la publicidad** (métricas de campaña de Product Ads,
   últimos 7 días): cuántas veces salió el anuncio y cuántas lo ganó otro
   vendedor por ranking o se perdió por presupuesto.
-- Además prueba leer a los competidores de la tabla **Competencia** y las
-  búsquedas clave (clave `competencia_busquedas` de Config). Al 1/11/2026,
-  Mercado Libre rechaza las dos cosas con 403. La página termina con qué dejó
-  leer y qué contestó cuando no dejó.
+- Con `&terceros=1` prueba leer a los competidores de la tabla
+  **Competencia** y las búsquedas clave (clave `competencia_busquedas` de
+  Config). Al 1/11/2026 Mercado Libre rechaza las dos cosas con 403
+  («access_denied», «caller is not allowed to access this user product»), y
+  por eso no se pide por defecto. La página termina con qué dejó leer y qué
+  contestó cuando no dejó.
+
+Resultado del 1/11/2026: ninguna publicación de Harper tiene referencia de
+precio (404 «has no items with price suggestion»). La competitividad de
+campaña contestó 400 con las métricas en minúsculas; ahora van en mayúsculas,
+como las demás de Product Ads, y si igual no las acepta juntas se piden de a
+una.
 
 **Puesta en marcha (una vez)**
 

@@ -22,15 +22,26 @@ export class ErrorML extends Error {
   }
 }
 
-/** El motivo que da Mercado Libre. Sus respuestas de error no traen el token. */
+/**
+ * El motivo que da Mercado Libre. Sus respuestas de error no traen el token.
+ * Si no trae error, message ni code (algunos 400 de Product Ads), va el cuerpo
+ * tal cual, recortado.
+ */
 async function motivo(respuesta: Response): Promise<string> {
-  const cuerpo = (await respuesta.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!cuerpo) return "";
-  return ["error", "message", "code"]
-    .map((k) => (typeof cuerpo[k] === "string" ? (cuerpo[k] as string) : ""))
+  const crudo = await respuesta.text().catch(() => "");
+  let cuerpo: unknown = null;
+  try {
+    cuerpo = JSON.parse(crudo);
+  } catch {
+    return crudo.trim().slice(0, 200);
+  }
+  if (!cuerpo || typeof cuerpo !== "object") return crudo.trim().slice(0, 200);
+  const c = cuerpo as Record<string, unknown>;
+  const conocido = ["error", "message", "code"]
+    .map((k) => (typeof c[k] === "string" ? (c[k] as string) : ""))
     .filter(Boolean)
-    .join(": ")
-    .slice(0, 200);
+    .join(": ");
+  return (conocido || JSON.stringify(cuerpo)).slice(0, 200);
 }
 
 export async function pedirML<T = unknown>(
