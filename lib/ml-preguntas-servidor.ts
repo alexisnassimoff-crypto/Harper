@@ -135,7 +135,8 @@ async function avisarBorrador(datos: {
   const secreto = process.env.SYNC_TOKEN ?? "";
   const { pregunta, titulo, permalink, decision } = datos;
   const enlace = `${datos.origen}/api/ml/preguntas/aprobar?id=${pregunta.id}&firma=${firmaDeAprobacion(pregunta.id, secreto)}`;
-  const sePuedeAprobar = Boolean(secreto) && decision.respuesta && !problemaDeRespuesta(decision.respuesta);
+  const hayBorrador = Boolean(secreto) && Boolean(decision.respuesta);
+  const problema = decision.respuesta ? problemaDeRespuesta(decision.respuesta) : null;
 
   const html = `<div style="font-family:Helvetica,Arial,sans-serif;color:#16150f;max-width:600px;line-height:1.5">
 <p style="font-size:13px;color:#78756c;margin:0 0 4px">Pregunta en <a href="${escapar(permalink)}" style="color:#78756c">${escapar(titulo)}</a></p>
@@ -144,10 +145,14 @@ async function avisarBorrador(datos: {
 <p style="background:#f2f0ec;padding:12px 14px;margin:0 0 12px;white-space:pre-wrap">${escapar(decision.respuesta || "(sin borrador)")}</p>
 <p style="font-size:13px;color:#78756c;margin:0 0 20px">Por qué no la respondió solo: ${escapar(decision.motivo)}</p>
 ${
-  sePuedeAprobar
-    ? `<p><a href="${enlace}" style="display:inline-block;background:#16150f;color:#faf9f6;padding:12px 20px;text-decoration:none">Revisar y publicar</a></p>
-<p style="font-size:13px;color:#78756c">Si querés cambiarla, editá la columna Respuesta en la tabla Preguntas ML de Airtable antes de tocar el botón: se publica lo que diga ahí.</p>`
-    : `<p style="font-size:13px;color:#78756c">Este borrador no se puede publicar tal cual (falta completar algo). Respondela desde Mercado Libre.</p>`
+  hayBorrador
+    ? `${
+        problema
+          ? `<p style="font-size:13px;color:#a8321e">Antes de publicar hay que corregirlo: ${escapar(problema)}. Editá la columna Respuesta en la tabla Preguntas ML de Airtable y después tocá el botón.</p>`
+          : ""
+      }<p><a href="${enlace}" style="display:inline-block;background:#16150f;color:#faf9f6;padding:12px 20px;text-decoration:none">Revisar y publicar</a></p>
+<p style="font-size:13px;color:#78756c">Se publica lo que diga la columna Respuesta de Airtable en ese momento: si querés cambiarla, editala antes de tocar el botón.</p>`
+    : `<p style="font-size:13px;color:#78756c">El agente no dejó borrador. Respondela desde Mercado Libre.</p>`
 }
 </div>`;
 
@@ -157,7 +162,8 @@ ${
     `Borrador: ${decision.respuesta || "(sin borrador)"}`,
     `Por qué no la respondió solo: ${decision.motivo}`,
     "",
-    sePuedeAprobar ? `Revisar y publicar: ${enlace}` : "Respondela desde Mercado Libre.",
+    problema ? `Antes de publicar hay que corregirlo: ${problema}. Editá la columna Respuesta en Airtable.` : "",
+    hayBorrador ? `Revisar y publicar: ${enlace}` : "Respondela desde Mercado Libre.",
   ].join("\n");
 
   return enviarMailConDetalle({

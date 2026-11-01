@@ -1,4 +1,4 @@
-import { firmaValida } from "@/lib/ml-preguntas";
+import { firmaValida, problemaDeRespuesta } from "@/lib/ml-preguntas";
 import { aprobarBorrador, borradorDe } from "@/lib/ml-preguntas-servidor";
 
 export const dynamic = "force-dynamic";
@@ -40,12 +40,16 @@ export async function GET(request: Request) {
   if (!fila) return pagina("<p>No encontré esa pregunta.</p>", 404);
 
   const pendiente = fila.Estado === "borrador" || fila.Estado === "error";
+  const problema = problemaDeRespuesta(fila.Respuesta ?? "");
   return pagina(`<p style="font-size:13px;color:#78756c;margin:0">${escapar(fila.Publicacion ?? "")}</p>
 <p style="font-size:17px"><strong>«${escapar(fila.Pregunta ?? "")}»</strong></p>
 <p style="font-size:13px;color:#78756c;margin:0 0 4px">Se va a publicar esta respuesta</p>
 <p style="background:#f2f0ec;padding:12px 14px;white-space:pre-wrap">${escapar(fila.Respuesta ?? "")}</p>
 ${
-  pendiente
+  pendiente && problema
+    ? `<p style="color:#a8321e">Todavía no se puede publicar: ${escapar(problema)}.</p>
+<p style="font-size:13px;color:#78756c">Editá la columna Respuesta en la tabla Preguntas ML de Airtable y recargá esta página.</p>`
+    : pendiente
     ? `<form method="post"><button type="submit" style="background:#16150f;color:#faf9f6;border:0;padding:12px 20px;font-size:15px;cursor:pointer">Publicar en Mercado Libre</button></form>
 <p style="font-size:13px;color:#78756c">¿Querés cambiarla? Editá la columna Respuesta en Airtable y recargá esta página.</p>`
     : `<p>Esta pregunta ya no espera aprobación (está «${escapar(fila.Estado ?? "")}»).</p>`

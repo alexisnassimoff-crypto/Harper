@@ -4,6 +4,7 @@ import {
   fichaDePublicacion,
   firmaDeAprobacion,
   firmaValida,
+  INSTRUCCIONES,
   leerDecision,
   leerPregunta,
   preguntaDeNotificacion,
@@ -46,6 +47,14 @@ test("la ficha junta lo que el agente puede usar y dice el stock sin dar el núm
   assert.match(ficha, /- Negro \(sin stock\)/);
   assert.match(ficha, /envío gratis/);
   assert.match(ficha, /Cierre con imán\./);
+});
+
+test("una publicación en Full lo dice en la ficha, que es lo que habilita la respuesta sobre plazos", () => {
+  const { ficha } = fichaDePublicacion({ title: "Estuche", shipping: { free_shipping: false, logistic_type: "fulfillment" } }, null);
+  assert.match(ficha, /despacha Mercado Libre \(Full\)/);
+  assert.match(INSTRUCCIONES, /si la ficha dice "despacha Mercado Libre \(Full\)"/);
+  const { ficha: sinFull } = fichaDePublicacion({ title: "Anteojo", shipping: { logistic_type: "xd_drop_off" } }, null);
+  assert.doesNotMatch(sinFull, /Full/);
 });
 
 test("la decisión del modelo se valida antes de usarla", () => {
