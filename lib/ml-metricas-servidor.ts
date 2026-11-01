@@ -18,6 +18,7 @@ import {
   ventanas,
   type Anuncio,
   type AnuncioDePublicacion,
+  type Campana,
   type FilaAnuncio,
   type FilaMetricas,
   type Ventanas,
@@ -132,7 +133,7 @@ type DatosAnuncios = {
   anuncios: Anuncio[] | null;
   /** Las métricas de cada publicación dentro de su grupo. */
   porPublicacion: Map<string, AnuncioDePublicacion>;
-  campanas: Map<string, string>;
+  campanas: Map<string, Campana>;
   avisos: string[];
 };
 
@@ -192,7 +193,7 @@ async function anuncios(v: Ventanas, token: string): Promise<DatosAnuncios> {
     // Un grupo ITEM sin detalle es de una sola publicación: sus métricas son las de ella.
     for (const a of anunciosDeGruposItem(sinDetalle)) if (!porPublicacion.has(a.item)) porPublicacion.set(a.item, a);
 
-    let campanas = new Map<string, string>();
+    let campanas = new Map<string, Campana>();
     try {
       campanas = leerCampanas(await pedirML(`${base}/campaigns/search?limit=50&offset=0`, { token, headers: v2 }));
     } catch (error) {
