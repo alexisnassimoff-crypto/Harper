@@ -10,10 +10,12 @@ import {
   fichaDePublicacion,
   firmaDeAprobacion,
   INSTRUCCIONES,
+  leerDatosDelNegocio,
   leerDecision,
   leerPregunta,
   mensajeParaElAgente,
   problemaDeRespuesta,
+  type DatoDelNegocio,
   type Decision,
   type Pregunta,
 } from "./ml-preguntas";
@@ -30,6 +32,8 @@ import { RELOJ_REAL } from "./webhook-lock";
  */
 
 export const TABLA_PREGUNTAS_ML = "tblnAnZxDI5VlWaQ3";
+/** Reglas generales que carga el dueño (facturación, envíos, garantía…). */
+export const TABLA_DATOS_NEGOCIO = "tblUoWPVIPkgVQPRJ";
 
 const MODELO = "claude-opus-5-5";
 const TTL_PREGUNTA_MS = 90_000;
@@ -87,8 +91,22 @@ async function leerFicha(itemId: string, token: string) {
   return fichaDePublicacion(item, descripcion);
 }
 
+/**
+ * Los datos del negocio activos. Si Airtable falla, el agente sigue solo con
+ * la ficha: con menos datos deriva más, nunca inventa.
+ */
+async function datosDelNegocio(): Promise<DatoDelNegocio[]> {
+  try {
+    const filas = await listRecords<{ Tema?: string; Dato?: string; Activo?: boolean }>(TABLA_DATOS_NEGOCIO, { revalidate: 0 });
+    return leerDatosDelNegocio(filas.map((f) => f.fields));
+  } catch (error) {
+    console.error("[ml/preguntas] no se pudieron leer los datos del negocio:", error);
+    return [];
+  }
+}
+
 /** Le pide la decisión a Claude. Nunca publica nada por su cuenta. */
-async function decidir(ficha: string, pregunta: string): Promise<Decision> {
+async function decidir(ficha: string, pregunta: string, datos: DatoDelNegocio[]): Promise<Decision> {
   const cliente = new Anthropic();
 
   const respuesta = await cliente.beta.messages.create({
@@ -100,7 +118,7 @@ async function decidir(ficha: string, pregunta: string): Promise<Decision> {
     fallbacks: "default",
     output_config: { effort: "medium", format: { type: "json_schema", schema: ESQUEMA_DECISION } },
     system: [{ type: "text", text: INSTRUCCIONES, cache_control: { type: "ephemeral" } }],
-    messages: [{ role: "user", content: mensajeParaElAgente(ficha, pregunta) }],
+    messages: [{ role: "user", content: mensajeParaElAgente(ficha, pregunta, datos) }],
   });
 
   if (respuesta.stop_reason === "refusal") {
@@ -222,7 +240,7 @@ export async function procesarPregunta(preguntaId: string, origen: string): Prom
 
     try {
       let decision: Decision = agenteConfigurado()
-        ? await decidir(ficha, pregunta.texto)
+        ? await decidir(ficha, pregunta.texto, await datosDelNegocio())
         : { accion: "derivar", respuesta: "", motivo: "Falta ANTHROPIC_API_KEY: el agente no está activo." };
 
       // El modelo decide, pero el código tiene la última palabra.

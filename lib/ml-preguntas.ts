@@ -174,11 +174,11 @@ export function problemaDeRespuesta(texto: string): string | null {
 /** El prompt del agente. Fijo, para que quede en cache entre preguntas. */
 export const INSTRUCCIONES = `Respondés preguntas de compradores en las publicaciones de Mercado Libre de Harper, una marca argentina de anteojos y estuches.
 
-Te paso la ficha de la publicación y la pregunta. La ficha es TODO lo que sabés: no tenés acceso al depósito, a los plazos de envío reales, al historial del comprador ni a nada más.
+Te paso la ficha de la publicación, los datos de Harper (reglas generales de la tienda que cargó el dueño: facturación, envíos, garantía, cambios y otras) y la pregunta. La ficha y los datos de Harper son TODO lo que sabés: no tenés acceso al depósito, a los plazos de envío reales, al historial del comprador ni a nada más. Si la ficha y los datos de Harper dicen cosas distintas, derivá.
 
 Decidí una de dos cosas:
 
-"responder": SOLO si cada dato de tu respuesta está escrito en la ficha. Casos típicos: si hay stock, qué colores o variantes hay, medidas y materiales que figuran en las características, si el envío es gratis, qué incluye según la descripción.
+"responder": SOLO si cada dato de tu respuesta está escrito en la ficha o en los datos de Harper. Casos típicos: si hay stock, qué colores o variantes hay, medidas y materiales que figuran en las características, si el envío es gratis, qué incluye según la descripción, y lo que digan los datos de Harper (por ejemplo, si hacen factura A).
 
 Plazos de entrega: si la ficha dice "despacha Mercado Libre (Full)" y preguntan cuándo llega, si llega a tal lugar o para tal fecha, respondé sin prometer ninguna fecha, con este texto: "¡Hola! El envío es por Mercado Envíos Full, así que sale directo desde el depósito de Mercado Libre. La fecha exacta de entrega a tu domicilio la ves en la publicación ingresando tu código postal, antes de comprar. Saludos, Harper." Si la ficha no dice Full, derivá.
 
@@ -194,9 +194,28 @@ Cómo escribir la respuesta:
 
 En "motivo" explicá en una oración, para la persona de Harper, por qué respondiste o derivaste y qué dato de la ficha usaste.`;
 
+/** Una regla general de Harper, de la tabla «Datos del negocio». */
+export type DatoDelNegocio = { tema: string; dato: string };
+
+/** Las filas activas de la tabla «Datos del negocio», sin las vacías. */
+export function leerDatosDelNegocio(filas: { Tema?: unknown; Dato?: unknown; Activo?: unknown }[]): DatoDelNegocio[] {
+  return filas.flatMap((f) => {
+    const dato = typeof f.Dato === "string" ? f.Dato.trim() : "";
+    if (f.Activo !== true || !dato) return [];
+    return [{ tema: typeof f.Tema === "string" ? f.Tema.trim() : "", dato }];
+  });
+}
+
 /** El mensaje con los datos variables, después del prompt fijo. */
-export function mensajeParaElAgente(ficha: string, pregunta: string): string {
-  return `<ficha_de_la_publicacion>\n${ficha}\n</ficha_de_la_publicacion>\n\n<pregunta_del_comprador>\n${pregunta}\n</pregunta_del_comprador>`;
+export function mensajeParaElAgente(ficha: string, pregunta: string, datos: DatoDelNegocio[] = []): string {
+  const delNegocio = datos.length
+    ? datos.map((d) => `- ${d.tema ? `${d.tema}: ` : ""}${d.dato}`).join("\n")
+    : "(no hay datos cargados)";
+  return (
+    `<ficha_de_la_publicacion>\n${ficha}\n</ficha_de_la_publicacion>\n\n` +
+    `<datos_de_harper>\n${delNegocio}\n</datos_de_harper>\n\n` +
+    `<pregunta_del_comprador>\n${pregunta}\n</pregunta_del_comprador>`
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -5,8 +5,10 @@ import {
   firmaDeAprobacion,
   firmaValida,
   INSTRUCCIONES,
+  leerDatosDelNegocio,
   leerDecision,
   leerPregunta,
+  mensajeParaElAgente,
   preguntaDeNotificacion,
   problemaDeRespuesta,
 } from "../lib/ml-preguntas";
@@ -55,6 +57,18 @@ test("una publicación en Full lo dice en la ficha, que es lo que habilita la re
   assert.match(INSTRUCCIONES, /si la ficha dice "despacha Mercado Libre \(Full\)"/);
   const { ficha: sinFull } = fichaDePublicacion({ title: "Anteojo", shipping: { logistic_type: "xd_drop_off" } }, null);
   assert.doesNotMatch(sinFull, /Full/);
+});
+
+test("los datos del negocio activos van al agente junto con la ficha", () => {
+  const datos = leerDatosDelNegocio([
+    { Tema: "Facturación", Dato: " Hacemos factura A. ", Activo: true },
+    { Tema: "Viejo", Dato: "Ya no aplica", Activo: false },
+    { Tema: "Vacío", Dato: "  ", Activo: true },
+  ]);
+  assert.deepEqual(datos, [{ tema: "Facturación", dato: "Hacemos factura A." }]);
+  const mensaje = mensajeParaElAgente("Título: Estuche", "¿Hacen factura A?", datos);
+  assert.match(mensaje, /<datos_de_harper>\n- Facturación: Hacemos factura A\.\n<\/datos_de_harper>/);
+  assert.match(mensajeParaElAgente("Título: Estuche", "?"), /\(no hay datos cargados\)/);
 });
 
 test("la decisión del modelo se valida antes de usarla", () => {

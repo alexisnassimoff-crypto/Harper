@@ -47,6 +47,7 @@ cliente no tiene efecto.
 | `Metricas ML` | Visitas, ventas y Product Ads por publicación. Se reescribe todos los días |
 | `Anuncios ML` | Product Ads por grupo de anuncios (los colores de un modelo van juntos). Se reescribe todos los días |
 | `Preguntas ML` | Preguntas de Mercado Libre y qué hizo el agente con cada una |
+| `Datos del negocio` | Reglas generales (facturación, envíos, garantía…) que el agente usa para responder, además de la ficha |
 
 ## Puesta en marcha
 
@@ -184,6 +185,10 @@ Dos cosas que usan la misma conexión con la cuenta vendedora:
   - si no, **manda un borrador al mail de pedidos** con un botón "Revisar y
     publicar". Se publica lo que diga la columna Respuesta en ese momento: se
     puede corregir en Airtable antes de tocar el botón.
+
+  Además de la ficha, el agente lee la tabla **Datos del negocio**: reglas
+  generales que cargás vos (por ejemplo, "Hacemos factura A"). Un dato nuevo
+  se usa desde la pregunta siguiente, sin tocar código.
 
   El código revisa toda respuesta antes de publicarla: nunca sale una con
   mail, teléfono, link, redes o partes sin completar, aunque el agente la haya
