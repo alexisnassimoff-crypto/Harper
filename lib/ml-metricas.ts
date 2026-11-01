@@ -261,13 +261,15 @@ export function anunciosDeGruposItem(anuncios: Anuncio[]): AnuncioDePublicacion[
     }));
 }
 
-/** Nombre de cada campaña, de /product_ads/campaigns/search. */
-export function leerCampanas(respuesta: unknown): Map<string, string> {
+export type Campana = { nombre: string; roasObjetivo: number | null };
+
+/** Nombre y ROAS objetivo de cada campaña, de /product_ads/campaigns/search. */
+export function leerCampanas(respuesta: unknown): Map<string, Campana> {
   const resultados = (respuesta as { results?: unknown[] } | null)?.results ?? [];
   return new Map(
     resultados.flatMap((fila) => {
-      const c = fila as { id?: unknown; name?: unknown };
-      return id(c.id) ? [[id(c.id), texto(c.name)] as const] : [];
+      const c = fila as { id?: unknown; name?: unknown; roas_target?: unknown };
+      return id(c.id) ? [[id(c.id), { nombre: texto(c.name), roasObjetivo: numero(c.roas_target) }] as const] : [];
     })
   );
 }
@@ -398,6 +400,7 @@ export type FilaAnuncio = {
   Ventas: number;
   Unidades: number;
   ACOS: number | null;
+  ROAS_objetivo: number | null;
   Ventana: string;
   Actualizado: string;
 };
@@ -410,7 +413,7 @@ export function armarFilasAnuncios(datos: {
   anuncios: Anuncio[];
   porPublicacion: Map<string, AnuncioDePublicacion>;
   publicaciones: Publicacion[];
-  campanas: Map<string, string>;
+  campanas: Map<string, Campana>;
   v: Ventanas;
   ahora: number;
 }): FilaAnuncio[] {
@@ -428,7 +431,7 @@ export function armarFilasAnuncios(datos: {
         Grupo: a.titulo || `Grupo ${a.grupoId}`,
         Grupo_id: a.grupoId,
         Tipo: a.tipo,
-        Campana: datos.campanas.get(a.campanaId) ?? "",
+        Campana: datos.campanas.get(a.campanaId)?.nombre ?? "",
         Publicaciones: items.map((item) => `${item} — ${tituloDe.get(item) ?? "(no está en la cuenta)"}`).join("\n"),
         Impresiones: a.impresiones,
         Clics: a.clics,
@@ -436,6 +439,7 @@ export function armarFilasAnuncios(datos: {
         Ventas: redondear(a.ventas),
         Unidades: a.unidades,
         ACOS: a.acos,
+        ROAS_objetivo: datos.campanas.get(a.campanaId)?.roasObjetivo ?? null,
         Ventana: ventana,
         Actualizado: actualizado,
       };

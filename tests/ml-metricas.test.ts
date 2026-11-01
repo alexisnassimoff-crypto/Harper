@@ -118,7 +118,9 @@ test("el detalle de un grupo trae las métricas de cada publicación, y las camp
   assert.equal(total, 2);
   assert.deepEqual(anuncios[0], { item: "MLA1", grupoId: "77", impresiones: 500, clics: 10, costo: 2_000, ventas: 89_000, unidades: 1, acos: 2.2 });
   assert.equal(anuncios[1].ventas, 0);
-  assert.deepEqual([...leerCampanas({ results: [{ id: 7, name: "Anteojos New" }] })], [["7", "Anteojos New"]]);
+  assert.deepEqual([...leerCampanas({ results: [{ id: 7, name: "Anteojos New", roas_target: 8 }] })], [
+    ["7", { nombre: "Anteojos New", roasObjetivo: 8 }],
+  ]);
 });
 
 const anuncio = (a: Partial<Anuncio> & Pick<Anuncio, "grupoId">): Anuncio => ({
@@ -173,7 +175,7 @@ test("los anuncios: cada publicación tiene las suyas aunque su grupo junte vari
   const v = ventanas(AHORA);
   const anuncios = [
     anuncio({ grupoId: "10", externo: "MLA1", tipo: "ITEM", titulo: "Rectangular", impresiones: 1000, clics: 20, costo: 3_000, ventas: 30_000, unidades: 2, acos: 10 }),
-    anuncio({ grupoId: "20", externo: "FAM", titulo: "Citrino", costo: 72_000, impresiones: 9 }),
+    anuncio({ grupoId: "20", externo: "FAM", titulo: "Citrino", campanaId: "c1", costo: 72_000, impresiones: 9 }),
     anuncio({ grupoId: "30", externo: "FAM2", titulo: "Jordan" }),
   ];
   // El ITEM se completa con sus propias métricas si falta su detalle.
@@ -199,11 +201,14 @@ test("los anuncios: cada publicación tiene las suyas aunque su grupo junte vari
   assert.equal(filas[3].Ads_costo, 0);
   assert.equal(filas.length, 4);
 
-  const grupos = armarFilasAnuncios({ anuncios, porPublicacion, publicaciones: [pub("MLA2", "Citrino negro"), pub("MLA3", "Citrino carey")], campanas: new Map([["", ""]]), v, ahora: AHORA });
+  const grupos = armarFilasAnuncios({ anuncios, porPublicacion, publicaciones: [pub("MLA2", "Citrino negro"), pub("MLA3", "Citrino carey")], campanas: new Map([["c1", { nombre: "Anteojos New", roasObjetivo: 8 }]]), v, ahora: AHORA });
   // El grupo sin impresiones ni costo (Jordan) no se escribe.
   assert.deepEqual(grupos.map((g) => g.Grupo), ["Rectangular", "Citrino"]);
   assert.equal(grupos[1].Publicaciones, "MLA2 — Citrino negro\nMLA3 — Citrino carey");
   assert.equal(grupos[0].Publicaciones, "MLA1 — (no está en la cuenta)");
+  assert.equal(grupos[1].Campana, "Anteojos New");
+  assert.equal(grupos[1].ROAS_objetivo, 8);
+  assert.equal(grupos[0].ROAS_objetivo, null);
 });
 
 test("sin Product Ads, las columnas de anuncios quedan vacías (no en cero) y el aviso va en cada fila", () => {
