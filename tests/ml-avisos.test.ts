@@ -12,6 +12,7 @@ import {
   mailDeEnvio,
   mailSemanal,
   motivoSinPlan,
+  textoDeCorrida,
   PARAMETROS_FULL,
   pendientesDeAle,
   planDeEnvio,
@@ -268,6 +269,12 @@ test("el mail semanal trae la semana, el mes, la ganancia real y el próximo env
 test("sin plan de envío, el aviso dice por qué", () => {
   assert.match(motivoSinPlan([]), /vacía/);
   // Las filas escritas antes de que existiera la columna Logistica.
-  assert.match(motivoSinPlan([fila("rect", 128, 113, "active", "")]), /10:30/);
+  assert.match(motivoSinPlan([fila("rect", 128, 113, "active", "")]), /\/api\/ml\/metricas/);
   assert.match(motivoSinPlan([fila("rect", 128, 113, "active", "cross_docking")]), /nada que reponer/);
+});
+
+test("la última corrida de métricas queda en una línea, en hora de Argentina", () => {
+  const cuando = Date.parse("2026-11-01T13:31:00Z");
+  assert.equal(textoDeCorrida({ cuando, origen: "cron", ok: true, publicaciones: 40 }), "1/11, 10:31 · cron · bien, 40 publicaciones");
+  assert.equal(textoDeCorrida({ cuando, origen: "a mano", ok: false, error: "Mercado Libre 500" }), "1/11, 10:31 · a mano · falló: Mercado Libre 500");
 });
