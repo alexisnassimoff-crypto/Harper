@@ -200,6 +200,19 @@ test("las referencias de precios: la lista y el detalle con las publicaciones pa
   assert.equal(estadoDeReferencia(null), "—");
 });
 
+test("la competitividad se une por campaña cuando llega en varias respuestas, y las métricas en cualquier caja", () => {
+  assert.deepEqual(
+    leerCompetitividad([
+      { results: [{ id: 1, name: "Anteojos New", metrics: { IMPRESSION_SHARE: 40 } }] },
+      { results: [{ id: 1, name: "Anteojos New", metrics: { lost_impression_share_by_ad_rank: 60 } }, { id: 2, name: "Paños", metrics: { impression_share: 90 } }] },
+    ]),
+    [
+      { nombre: "Anteojos New", cuota: 40, arriba: null, perdidaPresupuesto: null, perdidaRanking: 60 },
+      { nombre: "Paños", cuota: 90, arriba: null, perdidaPresupuesto: null, perdidaRanking: null },
+    ]
+  );
+});
+
 test("la competitividad de cada campaña de publicidad", () => {
   assert.deepEqual(
     leerCompetitividad({
@@ -250,6 +263,8 @@ test("la página escapa lo que viene de Mercado Libre y muestra lo que no se pud
         similares: [{ id: "MLA9", titulo: "Rígido <i>", precio: 7_500, vendidas: 250, permalink: null }],
       },
     ],
+    notaReferencias: null,
+    terceros: true,
     publicidad: { desde: "2026-10-25", hasta: "2026-10-31", campanas: [{ nombre: "Anteojos New", cuota: 41.2, arriba: 12, perdidaPresupuesto: 0, perdidaRanking: 58.8 }] },
     publicaciones: [{ ...pub("MLA1", 5, 7_990), titulo: "Estuche <b>rígido</b>", nombre: "Kyar", cuotasSinInteres: true }],
     vendedores: [{ nombre: "Soluna", como: null, id: null, reputacion: null, publicaciones: null, ejemplos: [] }],
@@ -271,7 +286,13 @@ test("la página escapa lo que viene de Mercado Libre y muestra lo que no se pud
 });
 
 test("sin referencias ni publicidad, la página lo dice", () => {
-  const html = paginaDeCompetencia({ fecha: "x", pruebas: [], referencias: [], publicidad: null, publicaciones: [], vendedores: [], busquedas: [] });
+  const vacia = { fecha: "x", pruebas: [], referencias: [], notaReferencias: null, terceros: false, publicidad: null, publicaciones: [], vendedores: [], busquedas: [] };
+  const html = paginaDeCompetencia(vacia);
   assert.ok(html.includes("no devolvió referencias"));
   assert.ok(html.includes("no devolvió estas métricas"));
+  assert.ok(html.includes("&amp;terceros=1"));
+  // Cuando ML dice que no hay referencias, se muestra lo que dijo.
+  const conNota = paginaDeCompetencia({ ...vacia, notaReferencias: "user 1 has no items with price suggestion" });
+  assert.ok(conNota.includes("no tiene referencias de precio para ninguna publicación tuya"));
+  assert.ok(conNota.includes("user 1 has no items with price suggestion"));
 });

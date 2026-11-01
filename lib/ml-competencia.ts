@@ -245,22 +245,39 @@ export type CompetitividadCampana = {
   perdidaRanking: number | null;
 };
 
-export const METRICAS_COMPETITIVIDAD = "impression_share,top_impression_share,lost_impression_share_by_budget,lost_impression_share_by_ad_rank";
+/** En mayúsculas, como las demás métricas de Product Ads (en minúsculas contesta 400). */
+export const METRICAS_COMPETITIVIDAD = [
+  "IMPRESSION_SHARE",
+  "TOP_IMPRESSION_SHARE",
+  "LOST_IMPRESSION_SHARE_BY_BUDGET",
+  "LOST_IMPRESSION_SHARE_BY_AD_RANK",
+];
 
-/** La competitividad de cada campaña, de campaigns/search con esas métricas. */
-export function leerCompetitividad(cuerpo: unknown): CompetitividadCampana[] {
-  const resultados = objeto(cuerpo).results;
-  return (Array.isArray(resultados) ? resultados : []).map((r) => {
-    const c = objeto(r);
-    const m = objeto(c.metrics);
-    return {
-      nombre: texto(c.name) ?? String(c.id ?? ""),
-      cuota: numero(m.impression_share),
-      arriba: numero(m.top_impression_share),
-      perdidaPresupuesto: numero(m.lost_impression_share_by_budget),
-      perdidaRanking: numero(m.lost_impression_share_by_ad_rank),
-    };
-  });
+/**
+ * La competitividad de cada campaña, de campaigns/search con esas métricas.
+ * Acepta varias respuestas (una por métrica, si juntas no las acepta) y las
+ * une por campaña. Las métricas vuelven en minúsculas.
+ */
+export function leerCompetitividad(cuerpos: unknown | unknown[]): CompetitividadCampana[] {
+  const porCampana = new Map<string, { nombre: string; m: Record<string, unknown> }>();
+  for (const cuerpo of Array.isArray(cuerpos) ? cuerpos : [cuerpos]) {
+    const resultados = objeto(cuerpo).results;
+    for (const r of Array.isArray(resultados) ? resultados : []) {
+      const c = objeto(r);
+      const clave = String(c.id ?? c.name ?? "");
+      const actual = porCampana.get(clave) ?? { nombre: texto(c.name) ?? clave, m: {} };
+      const metricas = objeto(c.metrics);
+      for (const [k, v] of Object.entries(metricas)) actual.m[k.toLowerCase()] = v;
+      porCampana.set(clave, actual);
+    }
+  }
+  return [...porCampana.values()].map(({ nombre, m }) => ({
+    nombre,
+    cuota: numero(m.impression_share),
+    arriba: numero(m.top_impression_share),
+    perdidaPresupuesto: numero(m.lost_impression_share_by_budget),
+    perdidaRanking: numero(m.lost_impression_share_by_ad_rank),
+  }));
 }
 
 export type Prueba = { que: string; status: number | null; ok: boolean; detalle: string };
@@ -279,6 +296,10 @@ export type FotoCompetencia = {
   fecha: string;
   pruebas: Prueba[];
   referencias: ReferenciaDePrecio[];
+  /** Por qué no hay referencias, si Mercado Libre lo dijo. */
+  notaReferencias: string | null;
+  /** Si se probó leer a otros vendedores (está bloqueado desde el 1/11/2026). */
+  terceros: boolean;
   publicidad: { desde: string; hasta: string; campanas: CompetitividadCampana[] } | null;
   publicaciones: (PublicacionAjena & { nombre: string })[];
   vendedores: VendedorCompetidor[];
@@ -361,7 +382,13 @@ export function paginaDeCompetencia(f: FotoCompetencia): string {
       );
     }
   } else {
-    partes.push(nota("Mercado Libre no devolvió referencias de precios para tus publicaciones (ver abajo qué contestó)."));
+    partes.push(
+      nota(
+        f.notaReferencias
+          ? `Mercado Libre no tiene referencias de precio para ninguna publicación tuya (contestó: «${escapar(f.notaReferencias)}»).`
+          : "Mercado Libre no devolvió referencias de precios para tus publicaciones (ver abajo qué contestó)."
+      )
+    );
   }
 
   // 2. Publicidad: cuánto te gana la competencia en las subastas.
@@ -433,6 +460,13 @@ export function paginaDeCompetencia(f: FotoCompetencia): string {
           sino(p.full),
         ])
       )
+    );
+  }
+
+  if (!f.terceros) {
+    partes.push(
+      h2("Otros vendedores y búsquedas"),
+      nota("Mercado Libre no deja leer publicaciones de otros vendedores ni búsquedas (403, probado el 1/11/2026). Para volver a probar, agregá &amp;terceros=1 al link.")
     );
   }
 
