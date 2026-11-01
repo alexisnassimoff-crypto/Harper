@@ -47,6 +47,8 @@ cliente no tiene efecto.
 | `Metricas ML` | Visitas, ventas y Product Ads por publicación. Se reescribe todos los días |
 | `Anuncios ML` | Product Ads por grupo de anuncios (los colores de un modelo van juntos). Se reescribe todos los días |
 | `Preguntas ML` | Preguntas de Mercado Libre y qué hizo el agente con cada una |
+| `Costos ML` | Costo sin IVA y packaging de cada publicación, para la ganancia real |
+| `Envios a Full` | Cada envío a Full con el costo de la colecta |
 | `Datos del negocio` | Reglas generales (facturación, envíos, garantía…) que el agente usa para responder, además de la ficha |
 
 ## Puesta en marcha
@@ -197,16 +199,28 @@ Dos cosas que usan la misma conexión con la cuenta vendedora:
 **Avisos por mail** (al mail de pedidos de Config), después de la
 actualización diaria:
 
-- **Alerta de stock**: cuando una publicación tiene menos de 21 días de stock
-  al ritmo de los últimos 30, con cuánto mandar para cubrir 60 días. Si la
-  alerta es igual a la del último mail no se repite, salvo que haya pasado
-  una semana. Lo que está en camino a Full no cuenta hasta que se acredita.
-- **Resumen semanal**, los lunes: ventas, pedidos y unidades contra la semana
-  anterior, lo que más vendió y lo que más cayó, publicidad, stock,
-  preguntas y las decisiones con revisión en los próximos 7 días.
+- **Envío a Full**: un solo envío para todas las publicaciones de Full, así
+  se paga una sola colecta. El mail sale cuando la primera publicación llega
+  a su punto de reposición (días de reposición + seguridad), con cuánto mandar
+  de cada una para cubrir reposición + ciclo + seguridad. El ciclo sale de lo
+  que cuestan la colecta y el almacenamiento. Si no se conoce la tarifa de
+  almacenamiento, no se pasa de los días sin cargo. Los parámetros están en
+  Config (`full_costo_colecta`, `full_dias_sin_cargo`,
+  `full_almacenamiento_unidad_mes`, `full_dias_reposicion`,
+  `full_dias_seguridad`). También lista el **stock lento**: el que supera lo
+  que el plan mandaría y termina pagando almacenamiento (candidato a
+  promoción o a no reponer).
+- **Resumen semanal**, los lunes: ventas de la semana contra la anterior,
+  acumulado del mes (y el mes anterior completo la primera semana), y la
+  **ganancia real** en pesos y en %: ventas sin IVA menos cargos de ML (ya
+  incluyen costo fijo y cuotas), cupones, envíos a cargo del vendedor
+  (`/shipments/{id}/costs`), publicidad, IIBB e impuesto al cheque,
+  mercadería y packaging (tabla **Costos ML**) y colectas (tabla **Envios a
+  Full**). No incluye Ganancias, gastos fijos ni devoluciones posteriores.
+  Las publicaciones sin costo cargado quedan afuera y se avisa.
 
 Para verlos o mandarlos a mano:
-`/api/ml/avisos?token=<SYNC_TOKEN>&tipo=stock` o `&tipo=semanal`, con `&ver=1`
+`/api/ml/avisos?token=<SYNC_TOKEN>&tipo=envio` o `&tipo=semanal`, con `&ver=1`
 para ver el mail, `&enviar=1` para mandarlo y `&forzar=1` para mandarlo aunque
 ya se haya mandado.
 

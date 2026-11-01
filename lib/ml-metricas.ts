@@ -52,6 +52,8 @@ export type Publicacion = {
   stock: number | null;
   tipo: string;
   permalink: string;
+  /** fulfillment = Full; xd_drop_off, drop_off, self_service = la despacha el vendedor. */
+  logistica: string;
 };
 
 const numero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -73,6 +75,7 @@ export function leerPublicaciones(respuesta: unknown): Publicacion[] {
         stock: numero(b.available_quantity),
         tipo: texto(b.listing_type_id),
         permalink: texto(b.permalink),
+        logistica: texto((b.shipping as { logistic_type?: unknown } | undefined)?.logistic_type),
       },
     ];
   });
@@ -312,6 +315,7 @@ export type FilaMetricas = {
   Ads_unidades: number | null;
   ACOS: number | null;
   Grupo_anuncios: string;
+  Logistica: string;
   Ventana: string;
   Actualizado: string;
   Avisos: string;
@@ -381,6 +385,7 @@ export function armarFilas(datos: {
       Comision_ML_30d: redondear(ven.actual.comision),
       Conversion_30d: vis.actual ? Math.round((ven.actual.unidades / vis.actual) * 10_000) / 10_000 : null,
       ...columnasAds(p.id),
+      Logistica: p.logistica,
       Ventana: ventana,
       Actualizado: actualizado,
       Avisos: avisos,
