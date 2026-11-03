@@ -44,7 +44,10 @@
   --sombra-media: 0 10px 30px -12px rgb(22 21 15 / 0.22);
   --sombra-alta: 0 22px 48px -18px rgb(22 21 15 / 0.30);
 
-  /* Tipografía: Kalnia en los títulos (solo grandes), Hanken Grotesk en todo lo demás. */
+  /* Tipografía (Ale, 03/11/2026): solo dos en toda la web. Raleway en todo lo
+     que va sin serif y Safira March en los títulos. Georgia queda solo de
+     respaldo mientras no estén los archivos de Safira March. */
+  --fuente-titulos: "Safira March", Georgia, serif;
   --fuente-etiquetas: var(--fuente-texto);
   --tracking-titulo: -0.01em;
   --tracking-label: 0.16em;
@@ -471,7 +474,7 @@ p {
   font-size: 0.6875rem;
   font-weight: 600;
   line-height: 1;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
   pointer-events: none;
 }
 
@@ -638,7 +641,7 @@ p {
   min-width: 2rem;
   text-align: center;
   font-size: 0.9375rem;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* Checkout: la casilla de edad y Términos, con su error y la nota de datos. */
@@ -764,7 +767,7 @@ p {
 }
 .medio-pago__precio {
   font-size: 0.9375rem;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
   white-space: nowrap;
 }
 .checkout__acepta {
@@ -803,7 +806,7 @@ p {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--texto-suave);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 /* Las condiciones de las cuotas (contado y CFTEA), debajo de la cuota. */
 .cuotas-condiciones {
@@ -1234,7 +1237,7 @@ p {
   font: inherit;
   font-size: 1.125rem;
   letter-spacing: 0.3em;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .reconocer__usar {
   min-height: 2.75rem;
@@ -1348,7 +1351,6 @@ p {
   align-items: center;
   height: 1.125rem;
   margin: 0.125rem 0.6rem 0;
-  font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 0.75rem;
   font-weight: 400;
   color: #5e5e5e;
@@ -1857,7 +1859,6 @@ p {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-size: 1.0625rem;
   font-weight: 500;
-  font-stretch: 112%;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   transition: color var(--rapido) var(--curva);
@@ -2044,7 +2045,7 @@ p {
   font-size: 0.625rem;
   font-weight: 700;
   line-height: 1;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* ---------------------------------------------------------------------------
@@ -2263,7 +2264,7 @@ p {
   color: var(--texto-suave);
   font-size: 0.8125rem;
   letter-spacing: var(--tracking-titulo);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /* En celular las flechas estorban: el gesto es deslizar. */
@@ -2651,7 +2652,6 @@ p {
   }
   .ficha__titulo {
     font-size: 1rem;
-    font-stretch: 100%;
     letter-spacing: 0.06em;
     overflow-wrap: anywhere;
   }
@@ -2813,7 +2813,7 @@ p {
 }
 .medidas__valor {
   font-size: 0.9375rem;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .detalles {
@@ -2899,7 +2899,7 @@ p {
   margin-top: -0.1em;
 }
 .pago-seguro__total {
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 @media (max-width: 46rem) {
@@ -3598,7 +3598,7 @@ p {
   flex-direction: column;
   align-items: flex-end;
   gap: 0.1rem;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .pack__total {
   font-size: 1.0625rem;
@@ -3713,7 +3713,7 @@ p {
   font-size: 0.9375rem;
   font-weight: 600;
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .extra__precio s {
   font-size: 0.75rem;
@@ -3735,7 +3735,7 @@ p {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35rem 0.75rem;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .resumen-pack__total {
   font-size: 1.75rem;
@@ -3849,7 +3849,7 @@ p {
   font-size: 2.75rem;
   line-height: 1;
   font-weight: 300;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .opiniones__carril {
   display: grid;
@@ -3919,7 +3919,7 @@ p {
 }
 .vendedor__datos dt {
   font-size: 1.25rem;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .vendedor__datos dd {
   margin: 0;
@@ -4199,7 +4199,6 @@ p {
 .pieza__nombre {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 500;
-  font-stretch: 112%;
   font-size: 1.25rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -4239,7 +4238,7 @@ p {
 }
 .pieza__precio {
   font-size: 1.125rem;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .pieza__precio small {
   font-size: 0.8125rem;
@@ -4567,7 +4566,7 @@ p {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .hoja-pack__cantidad button {
   width: 2rem;
@@ -4779,7 +4778,7 @@ p {
   justify-items: end;
   font-size: 1.0625rem;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .opcion-pares__precio s {
   font-size: 0.8125rem;
@@ -5274,8 +5273,8 @@ p {
    La portada replanteada (Ale, 30/10/2026: «el home no me gusta, ni el
    diseño ni cómo está enfocado»). Arriba, un solo par sobre su color; abajo,
    los modelos una sola vez, un mismo par de la mañana a la noche, qué trae
-   cada par, socios, lo que viene, preguntas y el cierre. Kalnia solo en los
-   títulos grandes; los precios y todo lo chico, en Hanken Grotesk.
+   cada par, socios, lo que viene, preguntas y el cierre. Safira March en los
+   títulos; los precios y todo lo demás, en Raleway.
    ========================================================================== */
 
 .portada-color {
@@ -5427,7 +5426,6 @@ p {
 .ficha-producto__nombre {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 500;
-  font-stretch: 112%;
   font-size: clamp(1.75rem, 4.5vw, 2.5rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5639,7 +5637,7 @@ p {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--texto-suave);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .asi-llega__cierre {
   margin-top: 0.75rem;

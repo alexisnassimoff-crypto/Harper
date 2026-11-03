@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk, Kalnia } from "next/font/google";
+import { Raleway } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
@@ -19,21 +19,14 @@ import { planesDeSocio } from "@/lib/socios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
 import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 
-// La tipografía (Ale, 30/10/2026: «una que combine completamente con Harper»).
-// Kalnia, una didona moderna de trazos finos y letras anchas como el logo, para
-// los títulos y solo en tamaños grandes; Hanken Grotesk para todo lo demás:
-// texto, precios (con números de altura fija), botones y etiquetas.
-const texto = Hanken_Grotesk({
+// La tipografía (Ale, 03/11/2026): solo dos en toda la web. Raleway para todo
+// lo que va sin serif (texto, precios, botones, etiquetas) y Safira March para
+// lo que va con serif (los títulos). Safira March es de Din Studio, con licencia
+// comercial: sus archivos van en app/fuentes/ (ver globals.css, --fuente-titulos).
+const texto = Raleway({
   subsets: ["latin"],
   display: "swap",
   variable: "--fuente-texto",
-});
-
-const titulos = Kalnia({
-  subsets: ["latin"],
-  axes: ["wdth"],
-  display: "swap",
-  variable: "--fuente-titulos",
 });
 
 const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";
@@ -135,7 +128,7 @@ export default async function RootLayout({
   ];
 
   return (
-    <html lang="es" className={`${texto.variable} ${titulos.variable}`}>
+    <html lang="es" className={texto.variable}>
       <head>
         <script
           type="application/ld+json"
