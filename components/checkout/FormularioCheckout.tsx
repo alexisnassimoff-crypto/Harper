@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
-import { esMembresia } from "@/lib/categorias";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
 import { NOMBRE_MARCAS } from "@/lib/cuotas";
 import { esEnvioGratis, textoEnvioGratis } from "@/lib/envio-gratis";
@@ -19,7 +18,6 @@ import {
 } from "@/lib/facturacion";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { TEXTOS } from "@/lib/textos";
-import { numeroDeSocio } from "@/lib/socios-alta";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, DestinoEnvio, EleccionEnvio } from "@/lib/tipos";
@@ -788,10 +786,12 @@ export default function FormularioCheckout({
   // desde otro (los dos sobre el subtotal sin el cupón, como el servidor).
   const umbrales = { amba: carrito.envioGratisAmbaDesde ?? 0, nacional: carrito.envioGratisDesde };
   const gratisEnAmba = esEnvioGratis(carrito.subtotalSinCupon ?? carrito.subtotal, "amba", umbrales);
-  // Con la membresía, el envío es gratis siempre (lib/socios.ts): no hay mínimo que anunciar.
-  const conSocio = carrito.items.some((i) => esMembresia(i.categoria)) || Boolean(carrito.socio);
-  // El segundo par de un socio, solo: no hay nada que pagar y no pasa por Mercado Pago.
-  const sinPago = resumen.total === 0 && carrito.socio?.canje === true;
+  // Un suscriptor tiene el envío gratis siempre (lib/suscriptores.ts): no hay mínimo que anunciar.
+  // TODO etapa de interfaz de Suscriptores: mostrar el cupón, el saldo (con
+  // `usarSaldo`), el cashback y el reintento sin cupón (`usarCupon: false`).
+  const conSuscriptor = Boolean(carrito.suscriptor);
+  // Todo pagado con el saldo del suscriptor: no hay nada que pagar y no pasa por Mercado Pago.
+  const sinPago = resumen.total === 0 && conSuscriptor;
 
   // Con envío gratis y cotizado, el precio real tachado: lo paga Harper.
   // Mientras se cotiza la dirección, no se anuncia un precio que va a cambiar.
@@ -817,8 +817,8 @@ export default function FormularioCheckout({
   const notaEnvio = opcionEnvio
     ? (opcionEnvio.plazo ? `${opcionEnvio.plazo}.` : "Envío a domicilio.") +
       (cotizacion && !cotizacion.bonificado && cotizacion.gratisDesde > 0 ? ` Gratis desde ${formatearPrecio(cotizacion.gratisDesde)}.` : "")
-    : conSocio
-      ? TEXTOS.socios.envioGratis
+    : conSuscriptor
+      ? TEXTOS.suscriptores.envioGratis
       : // Sin cotizar para una dirección que no se sabe si es AMBA: no se le
         // anuncia el mínimo de AMBA al lado de un envío que se cobra.
         textoEnvioGratis(cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales);
@@ -838,7 +838,6 @@ export default function FormularioCheckout({
               {item.cantidad}× {item.nombre}
             </div>
             <div className="apagado">{item.color}</div>
-            {item.incluido ? <div style={{ color: "var(--verde)" }}>Incluido en tu membresía</div> : null}
           </div>
           <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal)}</span>
         </li>
@@ -1130,7 +1129,7 @@ export default function FormularioCheckout({
           {/* Medio de pago. Cada opción muestra su total, y el resumen y el
               botón cambian al instante. Las dos se pagan en Mercado Pago. */}
           {sinPago ? (
-            <p className="apagado">No tenés que pagar nada: es el segundo par de tu membresía.</p>
+            <p className="apagado">{TEXTOS.suscriptores.sinPago}</p>
           ) : resumenDineroMP && carrito.dineroMP ? (
             // Mientras se envía, no se cambia: lo que se ve es lo que se cobra.
             <fieldset className="medio-pago" disabled={enviando}>
@@ -1256,16 +1255,6 @@ export default function FormularioCheckout({
               <a href="/legales/terminos" target="_blank" rel="noopener" className="checkout__enlace">
                 Términos y condiciones
               </a>
-              {/* Con la membresía en el pedido, también sus condiciones (forman parte de los Términos). */}
-              {conSocio ? (
-                <>
-                  {" "}
-                  y las{" "}
-                  <a href="/legales/socios" target="_blank" rel="noopener" className="checkout__enlace">
-                    Condiciones de Socios Harper
-                  </a>
-                </>
-              ) : null}
               .
             </span>
           </label>
@@ -1321,8 +1310,8 @@ export default function FormularioCheckout({
             <span>
               {carrito.cupon?.estado === "aplicado"
                 ? `Cupón ${carrito.cupon.codigo}`
-                : carrito.items.some((i) => i.incluido)
-                  ? "Par incluido en tu membresía"
+                : carrito.suscriptor && (carrito.suscriptor.cupon > 0 || carrito.suscriptor.saldoUsado > 0)
+                  ? "Tus beneficios de suscriptor"
                   : "Descuento"}
             </span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
@@ -1359,13 +1348,7 @@ export default function FormularioCheckout({
           <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.ahorroTotal)}!</p>
         ) : null}
 
-        {carrito.socio ? (
-          <p className="checkout__socio">
-            {carrito.socio.canje
-              ? TEXTOS.socios.cuenta.checkoutCanje(numeroDeSocio(carrito.socio.numero))
-              : TEXTOS.socios.cuenta.checkout(numeroDeSocio(carrito.socio.numero))}
-          </p>
-        ) : null}
+        {carrito.suscriptor ? <p className="checkout__socio">{TEXTOS.suscriptores.checkout(carrito.suscriptor.email)}</p> : null}
 
         {fallo ? (
           <p ref={avisoFallo} role="alert" style={{ color: "var(--alerta)", fontSize: "0.8125rem" }}>
@@ -1388,7 +1371,7 @@ export default function FormularioCheckout({
             : pagarAlCotizar !== null
               ? "Calculando el envío…"
               : sinPago
-                ? TEXTOS.socios.cuenta.confirmar
+                ? TEXTOS.suscriptores.confirmar
                 : <TextoPagoSeguro total={totalBoton} />}
         </button>
 
@@ -1407,7 +1390,7 @@ export default function FormularioCheckout({
         total={totalBoton}
         ocupado={enviando}
         esperando={pagarAlCotizar !== null ? "Calculando el envío…" : undefined}
-        texto={sinPago ? TEXTOS.socios.cuenta.confirmar : undefined}
+        texto={sinPago ? TEXTOS.suscriptores.confirmar : undefined}
       />
     </form>
   );

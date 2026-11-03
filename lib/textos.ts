@@ -67,7 +67,6 @@ export const TEXTOS = {
     bajada: (lineas: string, modelos: number, colores: number) =>
       `Se vienen anteojos ${lineas}: ${modelos} modelos nuevos en ${colores} colores.`,
     boton: "Enterate primero en Instagram",
-    socios: "Si sos socio, elegís 72 horas antes que el resto.",
   },
   unDia: {
     etiqueta: "Un día cualquiera",
@@ -117,137 +116,32 @@ export const TEXTOS = {
     vieneBoton: "Ver lo que viene",
     cierre: "Anteojos para combinar. Buenos Aires, Argentina.",
   },
-  /** Socios Harper (lib/socios.ts). Lo que se promete acá es lo que Ale aprobó para la membresía. */
-  socios: {
-    etiqueta: "Socios Harper",
-    /** Mientras nadie se anotó, «100 lugares numerados»: «quedan 100 de 100» dice que no hay nadie. */
-    cupos: (quedan: number, cupos: number) =>
-      quedan > 0 && quedan >= cupos ? `${cupos} lugares numerados` : quedan > 0 ? `Quedan ${quedan} de ${cupos} lugares` : `Los ${cupos} lugares ya están ocupados`,
-    titulo: "Tus anteojos, resueltos por un año.",
-    bajada:
-      "Te hacés socio una vez y durante 12 meses tenés dos pares, envío gratis y reposición si se rompen o los perdés. Son pocos lugares y van numerados.",
-    periodo: "por 12 meses",
-    boton: "Hacerme socio",
-    lleno: "Sin lugares",
-    hojaTitulo: "Elegí tu primer par",
-    planSocio: {
-      apodo: "12 meses",
-      titulo: "Socio",
-      detalle: [
-        "2 pares de anteojos",
-        "Envío gratis siempre",
-        "1 reposición si se rompen o los perdés",
-        "Precio congelado en los pares extra",
-        "72 horas antes en cada lanzamiento",
-      ],
+  /**
+   * Suscriptores Harper (Ale, 03/11/2026, lib/suscriptores.ts). Los montos,
+   * el porcentaje, los días y las cuotas los pone el código; las cuotas, solo
+   * si Mercado Pago las confirmó y con el CFTEA al lado.
+   */
+  suscriptores: {
+    etiqueta: "Suscriptores Harper",
+    /** Los beneficios, uno por renglón y en este orden: la web y el mail de bienvenida dicen lo mismo. */
+    beneficios: {
+      /** «$ 10.000 de descuento en tu primera compra.» */
+      cupon: (monto: string) => `${monto} de descuento en tu primera compra.`,
+      cashback: (porcentaje: number, dias: number) =>
+        `Te devolvemos el ${porcentaje}% de lo que pagás en productos como saldo para tus próximas compras. Lo podés usar a los ${dias} días y no vence.`,
+      envio: "Envío gratis siempre, a todo el país.",
+      /** «6 cuotas sin interés con Visa y Mastercard · CFTEA 0,00 %.» Solo verificadas. */
+      cuotas: (cuotas: number, marcas: string, cftea: string) => `${cuotas} cuotas sin interés con ${marcas} · CFTEA ${cftea}.`,
     },
-    planAumento: {
-      apodo: "Con tus cristales",
-      titulo: "Socio con aumento",
-      detalle: ["Todo lo del plan Socio", "Cristales con aumento en los 2 pares", "La reposición, también con tus cristales"],
-    },
-    /**
-     * Los beneficios, uno por renglón y siempre en este orden: la tabla de
-     * /socios, las condiciones y el mail salen de acá. `socio` y `aumento` son
-     * lo que trae cada plan; null = no lo trae.
-     */
-    tablaTitulo: "Qué incluye cada plan",
-    beneficios: [
-      {
-        titulo: "2 pares de anteojos",
-        detalle:
-          "El primero lo elegís al hacerte socio. El segundo, cuando quieras durante los 12 meses, también de los modelos que lleguen después. Si cuesta más que un fotocromático, pagás solo la diferencia.",
-        socio: "2",
-        aumento: "2",
-      },
-      {
-        titulo: "Cristales con aumento",
-        detalle:
-          "Orgánicos y con filtro de luz azul, en los dos pares. Nos mandás tu receta por WhatsApp: en general están listos en 24 horas, más el envío.",
-        socio: null,
-        aumento: "En los 2 pares",
-      },
-      { titulo: "Envío gratis", detalle: "En todos tus pedidos durante los 12 meses, a todo el país.", socio: "Siempre", aumento: "Siempre" },
-      {
-        titulo: "Reposición",
-        detalle: "Si se rompen o los perdés, te mandamos otro par igual. Una vez durante la membresía.",
-        socio: "1",
-        aumento: "1, con tus cristales",
-      },
-      {
-        titulo: "Precio congelado",
-        detalle: "Los pares extra que compres durante el año, al precio del día en que te hiciste socio.",
-        socio: "12 meses",
-        aumento: "12 meses",
-      },
-      {
-        titulo: "Antes que nadie",
-        detalle: "En cada lanzamiento elegís 72 horas antes que el resto, cuando todavía están todos los colores.",
-        socio: "72 horas",
-        aumento: "72 horas",
-      },
-    ],
-    pasosTitulo: "Cómo funciona",
-    pasos: [
-      "Elegís el plan y tu primer par.",
-      "Pagás con Mercado Pago y te llega un mail con tu número de socio.",
-      "El segundo par lo canjeás acá cuando quieras, entrando con tu mail. La reposición y los cristales, por WhatsApp.",
-    ],
-    condicionesTitulo: "Las condiciones",
-    condiciones: [
-      "La membresía dura 12 meses desde el día del pago y no se renueva sola.",
-      "El segundo par y la reposición se piden una vez cada uno durante esos 12 meses. Si no los usás, vencen.",
-      "Tenés 10 días para arrepentirte, como en cualquier compra online.",
-      "Los lugares son pocos y van numerados. Cuando se ocupan todos, la inscripción se cierra.",
-    ],
-    condicionesEnlace: "Condiciones completas de Socios Harper",
-    envioGratis: "Con tu membresía, el envío es gratis a todo el país.",
-    /** El área del socio (/socios/mi-cuenta). */
-    cuenta: {
-      titulo: "Tu membresía",
-      entrarTitulo: "Entrá con tu mail",
-      entrarBajada: "El mismo con el que te hiciste socio. Te mandamos un código de 6 números.",
-      pedirCodigo: "Mandame el código",
-      codigoEnviado: (email: string) => `Si ${email} es de un socio, te llegó un código. Vence en 10 minutos.`,
-      entrar: "Entrar",
-      otroMail: "Usar otro mail",
-      noSocio: "¿Todavía no sos socio?",
-      verPlanes: "Ver los planes",
-      enlace: "¿Ya sos socio? Entrá con tu mail",
-      vence: (plan: string, fecha: string) => `${plan} · hasta el ${fecha}`,
-      segundoPar: "Tu segundo par",
-      segundoParPendiente: "Elegís el modelo y el color, y te llega con envío gratis.",
-      segundoParAumento: "Después nos mandás tu receta por WhatsApp para prepararle tus cristales.",
-      canjear: "Canjear mi segundo par",
-      canjeado: (pedido: string) => `Lo canjeaste en el pedido ${pedido}.`,
-      canjeadoSinPedido: "Ya lo canjeaste.",
-      hojaTitulo: "Elegí tu segundo par",
-      hojaBoton: "Seguir con el canje",
-      envioTitulo: "Envío gratis",
-      envio: "En todas tus compras en harper.ar, mientras estés con tu mail.",
-      reposicionTitulo: "Reposición",
-      reposicion: "Si se rompen o los perdés, escribinos y te mandamos otro par igual.",
-      reposicionBoton: "Pedir la reposición por WhatsApp",
-      reposicionUsada: "Ya la usaste.",
-      congeladoTitulo: "Precio congelado",
-      congelado: "Los pares extra, al precio del día en que te hiciste socio. Si el precio sube, pedilos por WhatsApp.",
-      anticipoTitulo: "Antes que nadie",
-      anticipo: "En cada lanzamiento te avisamos por mail 72 horas antes que al resto.",
-      salir: "Salir",
-      checkout: (numero: string) => `Socio ${numero}: envío gratis.`,
-      checkoutCanje: (numero: string) => `Socio ${numero}: este par es el segundo de tu membresía.`,
-      confirmar: "Confirmar canje",
-    },
-    enlace: "Ver todos los beneficios",
-    ficha: {
-      titulo: "Hacete socio con este par",
-      texto: "Este par va incluido. Durante 12 meses tenés otro par más, envío gratis, una reposición y precio congelado.",
-    },
-    /** Al final de la portada, después del precio del par. */
-    cierre: " O hacete socio y tenés dos pares en el año.",
-    anuncio: (quedan: number, cupos?: number) => (cupos !== undefined && quedan >= cupos ? `Socios Harper: ${cupos} lugares numerados` : `Socios Harper: quedan ${quedan} lugares`),
-    pregunta: "¿Qué es Socios Harper?",
-    respuesta: (precio: string) =>
-      `Una membresía de 12 meses: pagás ${precio} una vez y tenés dos pares en el año, envío gratis siempre, una reposición si se rompen o los perdés y precio congelado para los pares extra. Los lugares son pocos y van numerados.`,
+    comoUsarlos: "Entrá con tu mail en harper.ar antes de comprar: los beneficios se aplican solos en el carrito.",
+    envioGratis: "Por ser suscriptor, el envío es gratis a todo el país.",
+    /** En el checkout, con la sesión abierta. */
+    checkout: (email: string) => `Comprás como suscriptor con ${email}.`,
+    /** El pedido que se paga entero con saldo: no pasa por Mercado Pago. */
+    sinPago: "No tenés que pagar nada: lo cubre tu saldo.",
+    confirmar: "Confirmar pedido",
+    /** El checkout rechazó el cupón (ya hay una compra confirmada con ese mail o DNI). */
+    cuponRechazado: "El cupón de bienvenida es para la primera compra, y ya hay una compra con este mail o DNI.",
+    saldoCambio: "Tu saldo cambió mientras comprabas. Revisá el total antes de confirmar.",
   },
 };

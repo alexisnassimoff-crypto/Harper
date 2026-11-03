@@ -19,14 +19,10 @@ test("en Vercel el modo de prueba queda apagado aunque la variable esté cargada
   assert.equal(modoFixtures(), true);
 });
 
-test("el catálogo completo: 12 productos activos, con la membresía de Socios Harper", async () => {
+test("el catálogo completo: 10 productos activos, 4 anteojos primero", async () => {
   const productos = await getProductos();
 
-  assert.equal(productos.length, 12);
-  assert.deepEqual(
-    productos.filter((p) => p.categoria === "Membresía").map((p) => p.slug).sort(),
-    ["socios-harper", "socios-harper-aumento"]
-  );
+  assert.equal(productos.length, 10);
   assert.equal(productos.filter((p) => p.categoria === "Anteojos").length, 4);
   assert.equal(productos.filter((p) => p.categoria === "Estuches").length, 3);
   assert.equal(productos.filter((p) => p.categoria === "Paños").length, 3);
@@ -83,6 +79,4 @@ test("los slugs para el sitemap", async () => {
   const slugs = await getSlugs();
   assert.equal(slugs.length, 10);
   assert.ok(slugs.includes("m500"));
-  // La membresía no tiene ficha: tiene /socios.
-  assert.ok(!slugs.some((s) => s.startsWith("socios")));
 });

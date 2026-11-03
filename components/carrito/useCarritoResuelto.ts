@@ -6,6 +6,7 @@ import type { Tramo } from "@/lib/descuentos";
 import type { Sugerencia } from "@/lib/sugerencias";
 import type { CuponResuelto } from "@/lib/cupones";
 import type { CuotasVerificadas } from "@/lib/cuotas";
+import type { ResumenSuscriptor } from "@/lib/suscriptores";
 import { useCarrito } from "./CarritoContexto";
 
 export type CarritoResueltoCliente = {
@@ -36,8 +37,12 @@ export type CarritoResueltoCliente = {
   cuotas?: (CuotasVerificadas & { monto: number }) | null;
   /** Solo si se pidieron y hay envío: las mismas, para el total sin el envío. */
   cuotasSinEnvio?: (CuotasVerificadas & { monto: number }) | null;
-  /** El socio que entró con su mail: envío gratis y, si `canje`, su segundo par incluido en este carrito. */
-  socio?: { numero: number; plan: "Socio" | "Socio con aumento"; canjePendiente: boolean; canje: boolean } | null;
+  /**
+   * El suscriptor que entró con su mail: el cupón y el saldo aplicados, su
+   * saldo, el cashback que le vuelve y su tope de cuotas (lib/suscriptores.ts).
+   * Null si no hay sesión.
+   */
+  suscriptor?: ResumenSuscriptor | null;
 };
 
 /**

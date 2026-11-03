@@ -1,7 +1,5 @@
 import { listRecords, TABLAS } from "./airtable";
-import { getProductos } from "./catalogo";
 import { categoriaDesdeTexto } from "./categorias";
-import { planesDeSocio } from "./socios";
 import { aNumero } from "./formato";
 import type { Categoria } from "./tipos";
 
@@ -50,8 +48,7 @@ type FilaDescuento = {
  */
 export async function getTramos(): Promise<Tramo[]> {
   try {
-    const [tramos, productos] = await Promise.all([leerTramos(REVALIDATE), getProductos()]);
-    return tramosVigentes(tramos, planesDeSocio(productos) !== null);
+    return tramosVigentes(await leerTramos(REVALIDATE));
   } catch (error) {
     console.error("[descuentos] no se pudieron leer los tramos:", error);
     return [];
@@ -67,20 +64,19 @@ export async function getTramos(): Promise<Tramo[]> {
  * comprador reintenta en un minuto con el precio que vio.
  *
  * Vienen tal cual están en Airtable: el que cobra los pasa por
- * `tramosVigentes` con los productos que ya leyó (lib/pedidos.ts).
+ * `tramosVigentes` (lib/pedidos.ts).
  */
 export async function getTramosParaCobrar(): Promise<Tramo[]> {
   return leerTramos(0);
 }
 
 /**
- * Los tramos que corren de verdad. Con Socios Harper a la venta, el «llevá N,
- * pagá M» ya no se usa (Ale, 30/10/2026: la membresía reemplaza al 3x2; no
- * quiere que parezca que se regala mercadería), aunque en Airtable sigan
- * cargados. Después, en cada categoría con escala, manda la escala.
+ * Los tramos que corren de verdad: en cada categoría con escala («llevá N,
+ * pagá M»), manda la escala. El 3x2 / 5x3 se apagó en Airtable el 03/11/2026
+ * (Ale): lo que decide es la tabla Descuentos.
  */
-export function tramosVigentes(tramos: Tramo[], conSocios: boolean): Tramo[] {
-  return conEscala(conSocios ? tramos.filter((t) => !t.paga) : tramos).sort((a, b) => a.desdeUnidades - b.desdeUnidades);
+export function tramosVigentes(tramos: Tramo[]): Tramo[] {
+  return conEscala(tramos).sort((a, b) => a.desdeUnidades - b.desdeUnidades);
 }
 
 async function leerTramos(revalidate: number): Promise<Tramo[]> {

@@ -93,6 +93,8 @@ function entorno({ falla = () => false, airtableCaido = false }: { falla?: (envi
       actualizar: async (id: string, campos: Record<string, unknown>) => {
         Object.assign(filas.get(id) ?? {}, campos);
       },
+      // Sin Airtable de verdad: el cashback del pedido se prueba aparte (tests/suscriptores-cuenta.test.ts).
+      cashback: async () => null as string | null,
     },
   };
 }
@@ -191,4 +193,23 @@ test("solo si no queda constancia en ningún lado (ni Airtable ni aviso) no se d
   const r = await registrarArrepentimiento(solicitud, deps);
   assert.deepEqual(r, { ok: false });
   assert.equal(enviados.length, 0);
+});
+
+test("el cashback de suscriptor del pedido: la nota va solo al aviso a Harper; si no se pudo revisar, también lo dice", async () => {
+  const { enviados, deps } = entorno();
+  const r = await registrarArrepentimiento(solicitud, { ...deps, cashback: async () => "El cashback de $ 7.990 del pedido HARPER-314756B quedó Anulado en Saldos." });
+  assert.equal(r.ok, true);
+  const interno = enviados.find(aHarper)!;
+  assert.match(interno.texto, /quedó Anulado en Saldos/);
+  assert.match(interno.html, /quedó Anulado en Saldos/);
+  assert.doesNotMatch(enviados.find(alComprador)!.texto, /Saldos/);
+
+  const otro = entorno();
+  await registrarArrepentimiento(solicitud, {
+    ...otro.deps,
+    cashback: async () => {
+      throw new Error("Airtable 503");
+    },
+  });
+  assert.match(otro.enviados.find(aHarper)!.texto, /No se pudo revisar si el pedido tiene cashback/);
 });

@@ -113,13 +113,6 @@ test("cada color de un modelo tiene su fondo: al tocar otro color, el fondo camb
   assert.equal(tinteDeColor("obsidiana", "Negro", 2), tinteDe("obsidiana", 2));
 });
 
-test("Socios: «N lugares numerados» solo mientras nadie se anotó; con cero lugares, ocupados", () => {
-  assert.equal(TEXTOS.socios.cupos(100, 100), "100 lugares numerados");
-  assert.equal(TEXTOS.socios.cupos(99, 100), "Quedan 99 de 100 lugares");
-  assert.equal(TEXTOS.socios.cupos(0, 100), "Los 100 lugares ya están ocupados");
-  assert.equal(TEXTOS.socios.cupos(0, 0), "Los 0 lugares ya están ocupados");
-});
-
 test("«Todos cuestan lo mismo.» no está en las bajadas: la portada lo agrega solo con un único precio", () => {
   assert.ok(!/cuestan lo mismo/i.test(TEXTOS.modelos.bajada));
   assert.ok(!/cuestan lo mismo/i.test(TEXTOS.modelos.bajadaConSol));

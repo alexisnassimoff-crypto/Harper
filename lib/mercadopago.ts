@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { ItemResuelto, DatosCliente } from "./tipos";
 import { esUrlPublica } from "./sitio";
 import { TIPOS_EXCLUIDOS_DINERO_MP, unidadesParaCobrar } from "./dinero-mp";
+import { CUOTAS_TODOS } from "./suscriptores";
 
 /**
  * La API real. `MP_API_URL` la reemplaza SOLO fuera de Vercel: es para la
@@ -81,6 +82,9 @@ function fechaMP(fecha: Date) {
  * Con `soloDineroEnCuenta` (el pago con dinero en Mercado Pago), Mercado Pago ofrece
  * únicamente el dinero de la cuenta del comprador: sin tarjetas, sin efectivo
  * y sin cuotas sin tarjeta.
+ *
+ * `cuotasMaximas` es el tope de cuotas: 3 para todos y 6 para un suscriptor
+ * (Ale, 03/11/2026, lib/suscriptores.ts).
  */
 export async function crearPreferencia(opciones: {
   numeroPedido: string;
@@ -94,13 +98,15 @@ export async function crearPreferencia(opciones: {
   cliente: DatosCliente;
   sitio: string;
   soloDineroEnCuenta?: boolean;
+  cuotasMaximas?: number;
 }): Promise<Preferencia> {
   // En pesos enteros: un renglón que no se divide justo por la cantidad (el 10%
   // de dinero en Mercado Pago sobre dos pares, o tres pares iguales con «llevá
   // 3, pagá 2») va partido en dos. Los demás quedan como siempre, un renglón
   // por producto con su precio unitario.
-  // Un par incluido en la membresía va en $ 0: Mercado Pago no acepta renglones
-  // sin precio, así que no se le manda (el pedido sí lo lleva, para el stock).
+  // Un renglón pagado entero con el cupón o el saldo de un suscriptor va en
+  // $ 0: Mercado Pago no acepta renglones sin precio, así que no se le manda
+  // (el pedido sí lo lleva, para el stock).
   const items = opciones.items.flatMap((i) =>
     (i.descuentoDineroMP || !Number.isInteger(i.precioUnitario)
       ? unidadesParaCobrar(i)
@@ -176,7 +182,7 @@ export async function crearPreferencia(opciones: {
     binary_mode: true,
     payment_methods: opciones.soloDineroEnCuenta
       ? { excluded_payment_types: TIPOS_EXCLUIDOS_DINERO_MP.map((id) => ({ id })), installments: 1 }
-      : { excluded_payment_types: [{ id: "ticket" }, { id: "atm" }], installments: 12 },
+      : { excluded_payment_types: [{ id: "ticket" }, { id: "atm" }], installments: opciones.cuotasMaximas ?? CUOTAS_TODOS },
     // Sin esto la preferencia vive para siempre y un link viejo sigue cobrando
     // un precio que ya cambió. Se manda solo la fecha de fin: un
     // `expiration_date_from` clavado en "ahora" corre el riesgo de que Mercado

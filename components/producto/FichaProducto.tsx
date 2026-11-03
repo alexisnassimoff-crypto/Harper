@@ -25,8 +25,6 @@ import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import Estrellas, { formatearPuntaje } from "@/components/portada/Estrellas";
-import SocioEnLaFicha from "@/components/socios/SocioEnLaFicha";
-import type { Planes } from "@/lib/socios";
 
 export default function FichaProducto({
   producto,
@@ -38,7 +36,6 @@ export default function FichaProducto({
   whatsapp = null,
   calificacion = null,
   pares = null,
-  socios = null,
 }: {
   producto: Producto;
   tramos?: Tramo[];
@@ -58,8 +55,6 @@ export default function FichaProducto({
    * los anteojos para armar el pack. Null si la categoría no tiene escala.
    */
   pares?: { opciones: OpcionPares[]; colores: ColorDeADos[]; totales: Record<number, string> } | null;
-  /** Socios Harper, si está a la venta y este anteojo puede ser el par incluido. */
-  socios?: Planes | null;
 }) {
   const router = useRouter();
   const { items, agregar, cupon, abrirPanel } = useCarrito();
@@ -356,17 +351,6 @@ export default function FichaProducto({
           )}
         </div>
 
-        {socios && !conPack ? (
-          <SocioEnLaFicha
-            planes={socios}
-            par={
-              variante.agotada
-                ? null
-                : { productoSlug: producto.slug, varianteId: variante.id, sku: variante.sku, nombre: producto.nombre, precio: producto.precio }
-            }
-          />
-        ) : null}
-
         {/* Solo en los modelos cuyo armazón admite cristales graduados
             (confirmados en lib/caracteristicas.ts): una consulta, no una venta. */}
         {caracteristicas ? <ConsultaGraduados modelo={producto.nombre} whatsapp={whatsapp} /> : null}
@@ -375,7 +359,7 @@ export default function FichaProducto({
 
         {/* Sin escala, la promoción del segundo par en una línea (solo
             anteojos); con la escala, las opciones de arriba ya la cuentan. */}
-        {pares || socios ? null : (
+        {pares ? null : (
           <OfertaCantidad
             tramos={tramos}
             categoria={producto.categoria}

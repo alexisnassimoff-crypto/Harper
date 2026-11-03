@@ -1,9 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useState, type CSSProperties } from "react";
-import { TEXTOS } from "@/lib/textos";
 
 /**
  * La portada (Ale, 30/10/2026: «el home no me gusta, ni el diseño ni cómo
@@ -37,8 +35,6 @@ export type DatosPortada = {
   cuota: string | null;
   /** "Cuotas sin interés con Visa y Mastercard · CFTEA 0,00 %"; null sin cuotas. */
   letraChica: string | null;
-  /** El enlace a Socios Harper, si la membresía está a la venta. */
-  socios: string | null;
 };
 
 const minuscula = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice(1);
@@ -121,11 +117,6 @@ export default function PortadaColor({ colores, inicial, datos }: { colores: Col
             <a href="#los-modelos" className="boton portada-color__boton">
               {datos.boton}
             </a>
-            {datos.socios ? (
-              <Link href={datos.socios} className="portada-color__socios">
-                {TEXTOS.socios.cierre.trim()}
-              </Link>
-            ) : null}
           </div>
           {datos.letraChica ? <p className="portada-color__letra">{datos.letraChica}</p> : null}
         </div>

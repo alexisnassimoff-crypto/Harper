@@ -1,4 +1,4 @@
-import { categoriaDesdeTexto, esCategoriaDeAnteojos, esMembresia } from "./categorias";
+import { categoriaDesdeTexto } from "./categorias";
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { getProductos, getProductosParaCobrar } from "./catalogo";
 import {
@@ -34,7 +34,14 @@ import {
 } from "./descuentos";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
-import { aplicarCanje, aplicarMembresia, conMembresia, planesDeSocio, type SocioDelCarrito } from "./socios";
+import {
+  aplicarBeneficios,
+  cashbackDe,
+  CUPON_BIENVENIDA,
+  cuotasMaximas,
+  type ResumenSuscriptor,
+  type SuscriptorDelCarrito,
+} from "./suscriptores";
 import type {
   Categoria,
   DestinoEnvio,
@@ -73,8 +80,12 @@ export type CarritoResuelto = {
   envioDelPedido: EnvioDelPedido;
   /** La caja a despachar. `null` si falta peso o medidas, o si no entra en un bulto. */
   paquete: Paquete | null;
-  /** El socio reconocido por su sesión, y si este pedido usa su segundo par. Null si no hay. */
-  socio: { numero: number; plan: SocioDelCarrito["plan"]; canjePendiente: boolean; canje: boolean } | null;
+  /**
+   * Los beneficios del suscriptor reconocido por su sesión (lib/suscriptores.ts):
+   * el cupón y el saldo que se aplicaron, el saldo que tiene, el cashback que
+   * le vuelve y su tope de cuotas. Null si no hay suscriptor.
+   */
+  suscriptor: ResumenSuscriptor | null;
   /**
    * Lo que se ahorró: por volumen o con el cupón, el que se haya aplicado
    * (nunca los dos). 0 si no hubo descuento.
@@ -140,8 +151,18 @@ export async function resolverCarrito(
     eleccion?: EleccionEnvio;
     /** El código que escribió o aplicó el comprador (ver lib/cupones.ts). */
     cupon?: unknown;
-    /** El socio que entró con su mail (lib/socios-cuenta.ts): envío gratis y su segundo par. */
-    socio?: SocioDelCarrito | null;
+    /**
+     * El suscriptor que entró con su mail (lib/suscriptores-cuenta.ts): su
+     * cupón de bienvenida, envío gratis y, si lo pide, su saldo.
+     */
+    suscriptor?: SuscriptorDelCarrito | null;
+    /** El comprador pidió pagar con su saldo (lo único que decide el navegador). */
+    usarSaldo?: boolean;
+    /**
+     * Falso cuando el checkout rechazó el cupón (no es la primera compra con
+     * ese mail o DNI) y el comprador sigue sin él.
+     */
+    usarCupon?: boolean;
   } = {}
 ): Promise<CarritoResuelto> {
   // Para cobrar, las tres lecturas van sin cache y sin red de contención: si
@@ -153,8 +174,8 @@ export async function resolverCarrito(
     opciones.paraCobrar ? getConfigParaCobrar() : getConfig(),
     opciones.paraCobrar ? getTramosParaCobrar() : getTramos(),
   ]);
-  // Al cobrar, los tramos vienen crudos: con Socios Harper a la venta no corre el «llevá 3, pagá 2».
-  const tramos = opciones.paraCobrar ? tramosVigentes(tramosLeidos, planesDeSocio(productos) !== null) : tramosLeidos;
+  // Al cobrar, los tramos vienen crudos (ver tramosVigentes).
+  const tramos = opciones.paraCobrar ? tramosVigentes(tramosLeidos) : tramosLeidos;
 
   let items: ItemResuelto[] = [];
   const descartados: CarritoResuelto["descartados"] = [];
@@ -201,8 +222,7 @@ export async function resolverCarrito(
       stockDisponible: variante.stock,
     });
 
-    // La membresía no viaja en la caja.
-    if (!esMembresia(producto.categoria)) aEmpacar.push({ envase: producto.envase, cantidad });
+    aEmpacar.push({ envase: producto.envase, cantidad });
     porCategoria.set(
       producto.categoria,
       (porCategoria.get(producto.categoria) ?? 0) + cantidad
@@ -239,17 +259,6 @@ export async function resolverCarrito(
     ahorro += lista - total;
   }
 
-  // Socios Harper: una membresía por pedido y el primer par incluido. Vale
-  // hasta lo que cuesta un anteojo de la línea de siempre (lib/socios.ts).
-  const topePar = Math.min(...productos.filter((p) => p.categoria === "Anteojos").map((p) => p.precio));
-  const membresia = aplicarMembresia(items, Number.isFinite(topePar) ? topePar : 0, esCategoriaDeAnteojos);
-  items = membresia.items;
-  for (const varianteId of membresia.quitados) descartados.push({ varianteId, motivo: "no-existe" });
-  ahorro += membresia.incluido;
-  // El segundo par del socio que entró con su mail, con la misma regla.
-  const canje = aplicarCanje(items, opciones.socio, Number.isFinite(topePar) ? topePar : 0, esCategoriaDeAnteojos);
-  ahorro += canje;
-
   // El envío se calcula como siempre, con el subtotal sin el cupón: el cupón
   // no cambia quién tiene envío gratis.
   const subtotalParaEnvio = items.reduce((total, i) => total + i.subtotal, 0);
@@ -259,6 +268,18 @@ export async function resolverCarrito(
   const promocion = aplicarMejorPromocion(items, opciones.cupon);
   items = promocion.items;
   if (promocion.cupon?.estado === "aplicado") ahorro = promocion.cupon.ahorro;
+
+  // Suscriptores Harper (Ale, 03/11/2026): primero el cupón de bienvenida
+  // (si lo tiene y hay productos) y después el saldo (si lo pidió), cada uno
+  // repartido entre los renglones (lib/suscriptores.ts). Van antes del 10%
+  // de dinero en Mercado Pago: así el saldo que usa es el mismo pague como
+  // pague, y ese 10% corre sobre lo que queda.
+  const suscriptor = opciones.suscriptor ?? null;
+  const beneficios = aplicarBeneficios(items, {
+    cupon: suscriptor?.cuponDisponible && opciones.usarCupon !== false ? CUPON_BIENVENIDA : 0,
+    saldo: suscriptor && opciones.usarSaldo ? suscriptor.saldoDisponible : 0,
+  });
+  items = beneficios.items;
 
   const subtotal = items.reduce((total, i) => total + i.subtotal, 0);
   const paquete =
@@ -276,8 +297,9 @@ export async function resolverCarrito(
     paquete,
     destino: opciones.destino,
     eleccion: opciones.eleccion,
-    socio: Boolean(opciones.socio),
+    suscriptor: Boolean(suscriptor),
   });
+  const dineroMP = items.length > 0 ? aplicarDineroMP(items) : null;
 
   return {
     items,
@@ -296,9 +318,20 @@ export async function resolverCarrito(
     tramos,
     cupon: promocion.cupon,
     subtotalSinCupon: subtotalParaEnvio,
-    dineroMP: items.length > 0 ? aplicarDineroMP(items) : null,
-    socio: opciones.socio
-      ? { numero: opciones.socio.numero, plan: opciones.socio.plan, canjePendiente: opciones.socio.canjePendiente, canje: canje > 0 }
+    dineroMP,
+    suscriptor: suscriptor
+      ? {
+          email: suscriptor.email,
+          cupon: beneficios.cupon,
+          cuponDisponible: suscriptor.cuponDisponible,
+          saldoUsado: beneficios.saldo,
+          saldoDisponible: suscriptor.saldoDisponible,
+          // El cashback es sobre lo que paga en productos: sin el envío y
+          // después del cupón y del saldo.
+          cashbackPrevisto: cashbackDe(subtotal),
+          cashbackDineroMP: dineroMP ? cashbackDe(dineroMP.subtotal) : null,
+          cuotas: cuotasMaximas(true),
+        }
       : null,
   };
 }
@@ -333,8 +366,8 @@ async function resolverEnvio(datos: {
   paquete: Paquete | null;
   destino?: Partial<DestinoEnvio>;
   eleccion?: EleccionEnvio;
-  /** Un socio reconocido: el envío es gratis en todos sus pedidos. */
-  socio?: boolean;
+  /** Un suscriptor reconocido: el envío es gratis en todos sus pedidos. */
+  suscriptor?: boolean;
 }): Promise<{
   envio: number;
   opcionesEnvio: OpcionEnvio[];
@@ -345,9 +378,9 @@ async function resolverEnvio(datos: {
 }> {
   const hayItems = datos.items.length > 0;
   const umbrales = { amba: datos.config.envioGratisAmbaDesde, nacional: datos.config.envioGratisDesde };
-  // Con la membresía en el pedido, o si compra un socio, el envío es gratis siempre (lib/socios.ts).
-  const socio = Boolean(datos.socio) || conMembresia(datos.items);
-  const gratisEn = (zona: ZonaEnvio | null) => hayItems && (socio || esEnvioGratis(datos.subtotal, zona, umbrales));
+  // Si compra un suscriptor, el envío es gratis siempre (lib/suscriptores.ts).
+  const suscriptor = Boolean(datos.suscriptor);
+  const gratisEn = (zona: ZonaEnvio | null) => hayItems && (suscriptor || esEnvioGratis(datos.subtotal, zona, umbrales));
 
   const destino = destinoCompleto(datos.destino);
   const paquete = paqueteParaEnvia(datos.paquete, datos.config.envioPesoMinimoKg);

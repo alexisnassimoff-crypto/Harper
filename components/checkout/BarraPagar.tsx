@@ -31,7 +31,7 @@ export default function BarraPagar({
    * espera. El botón no se deshabilita, para no perder el foco.
    */
   esperando?: string;
-  /** Otro texto para el botón, cuando no hay nada que pagar (el canje de un socio). */
+  /** Otro texto para el botón, cuando no hay nada que pagar (todo con el saldo de un suscriptor). */
   texto?: string;
 }) {
   const [montado, setMontado] = useState(false);

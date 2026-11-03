@@ -40,16 +40,15 @@ export default async function Gracias({
   const rechazado = estado ? RECHAZADOS.has(estado) : false;
   const confirmado = estado ? ESTADOS_CONFIRMADOS.has(estado) : false;
 
-  // El segundo par de un socio, sin nada que pagar (lib/socios-canje.ts): no es una venta para el píxel.
-  const canje = confirmado && pedido !== null && pedido.total === 0;
+  // Pagado entero con el saldo de un suscriptor (lib/suscriptores-sin-pago.ts):
+  // sin importe, no va al píxel como venta.
+  const conSaldo = confirmado && pedido !== null && pedido.total === 0;
 
   const titulo = rechazado
     ? "El pago no se acreditó"
-    : canje
-      ? "Canjeaste tu segundo par"
-      : confirmado
-        ? "Gracias por tu compra"
-        : "Estamos confirmando tu pago";
+    : confirmado
+      ? "Gracias por tu compra"
+      : "Estamos confirmando tu pago";
 
   // Con la compra confirmada y algún armazón que admite cristales graduados,
   // una invitación a consultar. Solo el número de pedido viaja en el mensaje.
@@ -66,7 +65,7 @@ export default async function Gracias({
     {/* Purchase solo con el pago confirmado en Airtable. Mismo event_id que
         manda el webhook por la Conversions API, y una sola vez por pedido en
         este navegador: recargar no es otra compra. */}
-    {confirmado && pedido && !canje ? (
+    {confirmado && pedido && !conSaldo ? (
       <EventoPixel
         evento="Purchase"
         data={datosDeCompra({ items: pedido.items, valor: pedido.subtotal })}
@@ -108,8 +107,8 @@ export default async function Gracias({
       ) : (
         <>
           <p className="apagado">
-            {canje
-              ? "Es el segundo par de tu membresía, con envío gratis. Te mandamos la confirmación por mail y ya preparamos el envío."
+            {conSaldo
+              ? "Lo pagaste con tu saldo. Te mandamos la confirmación por mail y ya preparamos el envío."
               : confirmado
               ? "Te mandamos la confirmación por mail con el detalle y ya preparamos el envío."
               : "Estamos esperando que Mercado Pago nos confirme el pago. Apenas se acredite te llega el mail con el detalle y preparamos el envío."}

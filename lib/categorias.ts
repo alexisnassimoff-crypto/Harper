@@ -13,10 +13,6 @@
  *
  * Para agregar una categoría nueva: sumarla acá con su nombre exacto de
  * Airtable y su slug, y agregar esa opción al campo Categoria de Productos.
- *
- * «Membresía» es Socios Harper (lib/socios.ts): se vende como un producto
- * más, pero no es una sección de la tienda. No va al menú ni a la grilla ni
- * tiene ficha: tiene su página, /socios.
  */
 
 export const CATEGORIAS = [
@@ -26,7 +22,6 @@ export const CATEGORIAS = [
   { nombre: "Anteojos de receta", slug: "anteojos-de-receta", tipo: "anteojos" },
   { nombre: "Estuches", slug: "estuches", tipo: "complemento" },
   { nombre: "Paños", slug: "panos", tipo: "complemento" },
-  { nombre: "Membresía", slug: "socios", tipo: "membresia" },
 ] as const;
 
 export type Categoria = (typeof CATEGORIAS)[number]["nombre"];
@@ -69,13 +64,8 @@ export function esCategoriaDeAnteojos(nombre: Categoria): boolean {
   return infoCategoria(nombre).tipo === "anteojos";
 }
 
-/** Socios Harper: se vende como producto, pero no es una sección de la tienda. */
-export function esMembresia(nombre: Categoria): boolean {
-  return infoCategoria(nombre).tipo === "membresia";
-}
-
-/** Las categorías con productos publicados, en el orden del registro. Sin la membresía. */
+/** Las categorías con productos publicados, en el orden del registro. */
 export function categoriasConProductos(productos: { categoria: Categoria }[]): InfoCategoria[] {
   const presentes = new Set(productos.map((p) => p.categoria));
-  return CATEGORIAS.filter((c) => presentes.has(c.nombre) && c.tipo !== "membresia");
+  return CATEGORIAS.filter((c) => presentes.has(c.nombre));
 }

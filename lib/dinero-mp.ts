@@ -1,4 +1,3 @@
-import { esMembresia } from "./categorias";
 import { conDescuento } from "./descuentos";
 import type { ItemResuelto } from "./tipos";
 
@@ -82,8 +81,9 @@ export function aplicarDineroMP(
   items: ItemResuelto[],
   porcentaje: number = PORCENTAJE_DINERO_MP
 ): PrecioDineroMP {
-  // La membresía tiene precio fijo: el 10% no la toca (lib/socios.ts).
-  const conDescuentoMP = (i: ItemResuelto) => !esMembresia(i.categoria) && i.subtotal > 0;
+  // Un renglón pagado entero con el cupón o el saldo de un suscriptor queda en
+  // $ 0: no tiene nada que descontar.
+  const conDescuentoMP = (i: ItemResuelto) => i.subtotal > 0;
   const antes = items.reduce((total, i) => total + i.subtotal, 0);
   const base = items.filter(conDescuentoMP).reduce((total, i) => total + i.subtotal, 0);
   const baseConDescuento = conDescuento(base, porcentaje);

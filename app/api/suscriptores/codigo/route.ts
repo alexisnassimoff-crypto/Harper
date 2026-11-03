@@ -2,9 +2,8 @@ import { createHash } from "node:crypto";
 import { after, NextResponse } from "next/server";
 import { getConfig } from "@/lib/config";
 import { claveDeIp, consumirCuota } from "@/lib/cuota";
-import { enviarMail, mailCodigoSocio } from "@/lib/mails";
+import { enviarMail, mailCodigoSuscriptor } from "@/lib/mails";
 import { claveDeCodigos, codigoNuevo, crearDesafio, normalizarEmail } from "@/lib/reconocer-cliente";
-import { socioPorEmail } from "@/lib/socios-cuenta";
 
 export const dynamic = "force-dynamic";
 
@@ -14,14 +13,15 @@ const DIA = 24 * HORA;
 const sinCache = { "Cache-Control": "private, no-store" };
 
 /**
- * Pide el código para entrar como socio (lib/socios-sesion.ts).
+ * Pide el código para suscribirse o para entrar como suscriptor (Ale,
+ * 03/11/2026). El mismo código sirve para las dos cosas: lo confirma
+ * /api/suscriptores/confirmar.
  *
- *   POST /api/socios/codigo  { email }  → 200 { desafio }
+ *   POST /api/suscriptores/codigo  { email }  → 200 { desafio }
  *
- * Como /api/clientes/codigo: la respuesta es la misma sea socio o no (y el
- * mail sale después de responder), así desde afuera no se puede averiguar
- * quién es socio. Solo a un socio vigente le llega el código. Con topes por
- * IP, por mail y en total.
+ * La respuesta es la misma sea suscriptor o no, y el mail sale después de
+ * responder: desde afuera no se puede averiguar quién está suscripto. Con
+ * topes por IP, por mail y en total, como los de /api/clientes/codigo.
  */
 export async function POST(request: Request) {
   if (request.headers.get("sec-fetch-site") === "cross-site") {
@@ -37,9 +37,9 @@ export async function POST(request: Request) {
   const ip = claveDeIp(request.headers.get("x-forwarded-for")?.split(",")[0] ?? "");
   const delMail = createHash("sha256").update(email).digest("base64url").slice(0, 16);
   const cuota = await consumirCuota([
-    { clave: `socio-codigo-ip:${ip}`, ventanaMs: HORA, limite: 10 },
-    { clave: `socio-codigo-mail:${delMail}`, ventanaMs: 15 * MINUTO, limite: 3 },
-    { clave: "socio-codigo-total", ventanaMs: DIA, limite: 500 },
+    { clave: `suscriptor-codigo-ip:${ip}`, ventanaMs: HORA, limite: 10 },
+    { clave: `suscriptor-codigo-mail:${delMail}`, ventanaMs: 15 * MINUTO, limite: 3 },
+    { clave: "suscriptor-codigo-total", ventanaMs: DIA, limite: 500 },
   ]);
   if (cuota.excedida) {
     return NextResponse.json(
@@ -53,11 +53,10 @@ export async function POST(request: Request) {
 
   after(async () => {
     try {
-      if (!(await socioPorEmail(email))) return;
-      const enviado = await enviarMail(mailCodigoSocio({ email, codigo, config: await getConfig() }));
-      if (!enviado) console.warn("[socios] no salió el mail con el código");
+      const enviado = await enviarMail(mailCodigoSuscriptor({ email, codigo, config: await getConfig() }));
+      if (!enviado) console.warn("[suscriptores] no salió el mail con el código");
     } catch (error) {
-      console.error("[socios] no se pudo mandar el código:", error instanceof Error ? error.message : error);
+      console.error("[suscriptores] no se pudo mandar el código:", error instanceof Error ? error.message : error);
     }
   });
 

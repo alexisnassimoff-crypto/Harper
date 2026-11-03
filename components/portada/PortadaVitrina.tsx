@@ -21,8 +21,6 @@ import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { armarPack, cantidadesDePack, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
-import { planesDeSocio } from "@/lib/socios";
-import PlanesSocio from "@/components/socios/PlanesSocio";
 import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
 import { rutaDeVariante } from "@/lib/variantes";
@@ -198,8 +196,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       : null;
   const paisConDos = paresPaisGratis !== null && paresPaisGratis > 1;
   const complementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
-  // Socios Harper (Ale, 30/10/2026): donde estaba el «llevá 3, pagá 2».
-  const planes = planesDeSocio(productos, config.sociosCupos);
   // Los cristales con aumento los vende Harper: se consultan por WhatsApp (Ale, 30/10/2026).
   const consultaAumento = enlaceWhatsApp(config.whatsapp, mensajeGraduadosModelo(""));
 
@@ -252,7 +248,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           precio: precio ? formatearPrecio(precio) : null,
           cuota: textoCuota(cuota1),
           letraChica,
-          socios: planes && planes.quedan > 0 ? "/socios" : null,
         }}
       />
 
@@ -382,25 +377,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
 
       <Opiniones opiniones={opiniones} reputacion={reputacion} />
 
-      {planes ? (
-        <section className="de-a-dos socios-en-portada" aria-labelledby="socios-portada-titulo">
-          <div className="contenedor de-a-dos__grilla">
-            <div className="de-a-dos__texto">
-              <p className="etiqueta-mono">
-                {TEXTOS.socios.etiqueta} · {TEXTOS.socios.cupos(planes.quedan, planes.cupos)}
-              </p>
-              <h2 id="socios-portada-titulo" className="titulo-serif">
-                {TEXTOS.socios.titulo}
-              </h2>
-              <p className="de-a-dos__bajada">{TEXTOS.socios.bajada}</p>
-              <p className="de-a-dos__letra">
-                <Link href="/socios">{TEXTOS.socios.enlace}</Link>
-              </p>
-            </div>
-            <PlanesSocio planes={planes} colores={coloresPack} />
-          </div>
-        </section>
-      ) : precio && filas.length > 0 && hayPromo ? (
+      {precio && filas.length > 0 && hayPromo ? (
         <DeADos
           filas={filas}
           colores={coloresPack}
@@ -465,11 +442,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                 ))}
               </ul>
               <div className="lo-que-viene__acciones">
-                {planes ? (
-                  <Link href="/socios" className="lo-que-viene__socios">
-                    {TEXTOS.viene.socios}
-                  </Link>
-                ) : null}
                 {config.instagram ? (
                   <a href={config.instagram} target="_blank" rel="noopener noreferrer" className="boton boton--contorno lo-que-viene__boton">
                     {TEXTOS.viene.boton}
@@ -499,7 +471,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           mesesGarantia: MESES_GARANTIA,
           cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
           escala: fraseDeLaEscala(tramos, categoria),
-          socios: planes?.socio.precioTexto ?? null,
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
         })}
       />
@@ -513,9 +484,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           {precio ? (
             <p>
               {TEXTOS.cierre.precio(formatearPrecio(precio))}
-              {planes
-                ? TEXTOS.socios.cierre
-                : escala[0]
+              {escala[0]
                 ? TEXTOS.cierre.escala(enLetras(escala[0].desdeUnidades), enLetras(escala[0].paga ?? escala[0].desdeUnidades))
                 : paisConDos && paresPaisGratis
                   ? ` Con ${enLetras(paresPaisGratis)}, envío gratis a todo el país.`

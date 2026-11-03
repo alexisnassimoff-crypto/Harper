@@ -12,9 +12,6 @@ import { trackAgregarAlCarrito } from "@/lib/pixel";
  * anteojos juntos) y comprarlos de una. La usan la portada (DeADos) y la
  * ficha (las opciones «llevá 3, pagá 2»). Acá solo se cuenta cuántos pares
  * eligió: los montos vienen armados del servidor.
- *
- * Socios Harper la usa para elegir el primer par de la membresía: con
- * `extras`, la membresía entra al carrito junto con el par.
  */
 
 export type ColorDeADos = {
@@ -30,7 +27,7 @@ export type ColorDeADos = {
 
 export type EstucheDeADos = { slug: string; varianteId: string; sku: string; nombre: string; precio: number; precioTexto: string };
 
-/** Lo que entra al carrito junto con los pares (la membresía, por ejemplo). */
+/** Lo que entra al carrito junto con los pares. */
 export type ExtraDeLaHoja = { productoSlug: string; varianteId: string; sku: string; nombre: string; precio: number };
 
 export type HojaPackControl = {

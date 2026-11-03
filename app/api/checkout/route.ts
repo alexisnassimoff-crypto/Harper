@@ -25,8 +25,17 @@ import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
 import { leerMedioPago, MEDIO_DINERO_MP, NOTA_DINERO_MP } from "@/lib/dinero-mp";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
-import { socioDeLaPeticion, socioParaElCarrito } from "@/lib/socios-cuenta";
-import { confirmarCanjeSinPago } from "@/lib/socios-canje";
+import {
+  cashbackDe,
+  constanciaDelCuponDeBienvenida,
+  cuotasMaximas,
+  notasDeBeneficios,
+  type BeneficiosDelPedido,
+} from "@/lib/suscriptores";
+import { suscriptorDeLaSesion, suscriptorParaElCarrito } from "@/lib/suscriptores-cuenta";
+import { COOKIE_SUSCRIPTOR, leerCookie } from "@/lib/suscriptores-sesion";
+import { confirmarPedidoSinPago } from "@/lib/suscriptores-sin-pago";
+import { TEXTOS } from "@/lib/textos";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +74,10 @@ export async function POST(request: Request) {
     facturacion?: unknown;
     cupon?: unknown;
     medioPago?: unknown;
+    /** El suscriptor pidió pagar con su saldo. */
+    usarSaldo?: unknown;
+    /** Falso: sigue sin el cupón de bienvenida después de que se lo rechazamos. */
+    usarCupon?: unknown;
   };
 
   try {
@@ -122,13 +135,19 @@ export async function POST(request: Request) {
   const eleccion = leerEleccionEnvio(cuerpo.envio);
 
   try {
-    // El socio que entró con su mail: envío gratis y, si lo tiene, su segundo
-    // par incluido. La fila se lee fresca (lib/socios-cuenta.ts).
-    const socio = await socioDeLaPeticion(request);
+    // El suscriptor que entró con su mail (Ale, 03/11/2026): su cupón, su
+    // saldo, el envío gratis y las 6 cuotas. La fila y el saldo se leen
+    // frescos y sin red de contención, como el catálogo: si Airtable falla,
+    // no se cobra (lib/suscriptores-cuenta.ts).
+    const sesion = leerCookie(request.headers.get("cookie"), COOKIE_SUSCRIPTOR);
+    const cuenta = sesion ? await suscriptorDeLaSesion(sesion) : null;
+    const suscriptor = cuenta ? await suscriptorParaElCarrito(cuenta) : null;
 
     // Para cobrar se lee el catálogo sin cache y sin red de contención.
     const carrito = await resolverCarrito(items, {
-      socio: socio ? socioParaElCarrito(socio) : null,
+      suscriptor,
+      usarSaldo: cuerpo.usarSaldo === true,
+      usarCupon: cuerpo.usarCupon !== false,
       paraCobrar: true,
       destino: {
         cp: cliente.cp,
@@ -177,6 +196,17 @@ export async function POST(request: Request) {
           error: mensajeDelCupon({ ...carrito.cupon, estado: "no-primera-compra" }),
           cuponRechazado: carrito.cupon.codigo,
         },
+        { status: 409 }
+      );
+    }
+
+    // El cupón de bienvenida del suscriptor, también solo en la primera compra
+    // (como el viejo HARPER10): ni este mail ni este DNI con una compra
+    // confirmada. Si ya compró, no se cobra nada distinto de lo que vio: se le
+    // avisa y el checkout vuelve a pedir el carrito con `usarCupon: false`.
+    if (carrito.suscriptor && carrito.suscriptor.cupon > 0 && (await yaCompro(cliente.email, cliente.dni))) {
+      return NextResponse.json(
+        { error: TEXTOS.suscriptores.cuponRechazado, cuponBienvenidaRechazado: true },
         { status: 409 }
       );
     }
@@ -257,22 +287,52 @@ export async function POST(request: Request) {
       Terminos_aceptados: registroAceptacion(ahora),
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     };
-    const cupon = carrito.cupon?.estado === "aplicado" ? constanciaDelCupon(carrito.cupon, formatearPrecio) : null;
+    // Lo que el suscriptor usó y lo que le vuelve, para el pedido (Notas y
+    // Cupon) y para el webhook, que lo anota después del pago. El cashback es
+    // sobre lo que paga en productos, con el medio de pago que eligió.
+    const beneficios: BeneficiosDelPedido | null =
+      suscriptor && carrito.suscriptor
+        ? {
+            suscriptorId: suscriptor.id,
+            email: suscriptor.email,
+            cupon: carrito.suscriptor.cupon,
+            saldoUsado: carrito.suscriptor.saldoUsado,
+            cashback: cashbackDe(cobro.subtotal),
+          }
+        : null;
+    const cupon =
+      [
+        carrito.cupon?.estado === "aplicado" ? constanciaDelCupon(carrito.cupon, formatearPrecio) : null,
+        beneficios && beneficios.cupon > 0 ? constanciaDelCuponDeBienvenida(beneficios.cupon) : null,
+      ]
+        .filter(Boolean)
+        .join(" + ") || null;
+    const notasSuscriptor = beneficios ? notasDeBeneficios(beneficios).join("\n") : null;
     const envio = { campos: camposDeEnvio(carrito.envioDelPedido, cliente), nota: notaDeEnvio(carrito.envioDelPedido) };
 
-    // El segundo par de un socio, solo y con envío gratis: no hay nada que
-    // cobrar, así que no pasa por Mercado Pago (lib/socios-canje.ts).
+    // Todo pagado con el saldo del suscriptor, con su envío gratis: no hay
+    // nada que cobrar, así que no pasa por Mercado Pago
+    // (lib/suscriptores-sin-pago.ts).
     if (cobro.total === 0) {
-      if (!socio || !cobro.items.some((i) => i.canje)) {
+      if (!suscriptor || !beneficios || beneficios.saldoUsado <= 0) {
         return NextResponse.json({ error: "No hay nada que cobrar en tu carrito." }, { status: 400 });
       }
       const ce = envio.campos as Record<string, unknown>;
-      const resultado = await confirmarCanjeSinPago({
-        socio,
+      const resultado = await confirmarPedidoSinPago({
+        suscriptor,
         numero,
+        cupon: beneficios.cupon,
+        saldoUsado: beneficios.saldoUsado,
         clienteId,
         crearPedido: () =>
-          crearPedido({ ...campos, Estado: "pagado", MP_status: "canje de socio, sin pago" }, envio, factura, null, false),
+          crearPedido(
+            { ...campos, Estado: "pagado", MP_status: "pagado con saldo, sin Mercado Pago" },
+            envio,
+            factura,
+            cupon,
+            false,
+            notasSuscriptor
+          ),
         anularPedido,
         datosMail: {
           numero,
@@ -299,7 +359,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ numero, initPoint: `/gracias?pedido=${encodeURIComponent(numero)}` });
     }
 
-    const pedido = await crearPedido(campos, envio, factura, cupon, Boolean(dineroMP));
+    const pedido = await crearPedido(campos, envio, factura, cupon, Boolean(dineroMP), notasSuscriptor);
 
     pedidoId = pedido.id;
 
@@ -315,6 +375,8 @@ export async function POST(request: Request) {
       sitio: urlDelSitio(request),
       // Con "Dinero en Mercado Pago", Mercado Pago ofrece solo el saldo de la cuenta.
       soloDineroEnCuenta: Boolean(dineroMP),
+      // 3 cuotas para todos, 6 para un suscriptor (lib/suscriptores.ts).
+      cuotasMaximas: cuotasMaximas(Boolean(suscriptor)),
     });
 
     await updateRecord<FilaPedido>(TABLAS.pedidos, pedido.id, {
@@ -358,6 +420,8 @@ export async function POST(request: Request) {
  * el rechazo nombra uno, se saca solo ese y se reintenta. Si faltó alguno,
  * el envío también va al final de Notas, después de la facturación, que el
  * aviso interno lee del principio.
+ * Las líneas del suscriptor (lib/suscriptores.ts) van en Notas en todos los
+ * intentos, después de la facturación: el webhook las lee de ahí.
  * Si el rechazo era por otra cosa, el último intento falla igual que antes.
  */
 async function crearPedido(
@@ -365,7 +429,8 @@ async function crearPedido(
   envio: { campos: FilaPedido; nota: string },
   factura: FacturacionPedido,
   cupon: string | null,
-  conDineroMP: boolean
+  conDineroMP: boolean,
+  notasSuscriptor: string | null = null
 ) {
   const facturacion = camposDeFacturacion(factura);
   const conCupon = cupon ? { Cupon: cupon } : {};
@@ -394,7 +459,7 @@ async function crearPedido(
   }
   let rechazosEnvio = 0;
   const armar = ({ fila, notas }: Intento): FilaPedido => {
-    const texto = [...notas, envioIncompleto ? envio.nota : null].filter(Boolean).join("\n\n");
+    const texto = [...notas, notasSuscriptor, envioIncompleto ? envio.nota : null].filter(Boolean).join("\n\n");
     return { ...fila, ...camposEnvio, ...(texto ? { Notas: texto } : {}) };
   };
   // El campo del envío que nombra el rechazo de Airtable ("Unknown field

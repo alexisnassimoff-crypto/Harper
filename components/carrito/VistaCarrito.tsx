@@ -117,8 +117,8 @@ export default function VistaCarrito() {
             <span>
               {datos.cupon?.estado === "aplicado"
                 ? `Cupón ${datos.cupon.codigo}`
-                : datos.items.some((i) => i.incluido)
-                  ? "Par incluido en tu membresía"
+                : datos.suscriptor && (datos.suscriptor.cupon > 0 || datos.suscriptor.saldoUsado > 0)
+                  ? "Tus beneficios de suscriptor"
                   : "Descuento"}
             </span>
             <span>−{formatearPrecio(resumen.descuento)}</span>

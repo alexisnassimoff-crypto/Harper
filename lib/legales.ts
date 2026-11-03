@@ -22,3 +22,10 @@ export function versionTerminosLegible(version = VERSION_TERMINOS): string {
 export function registroAceptacion(momento: Date, version = VERSION_TERMINOS): string {
   return `Versión ${version} · ${momento.toISOString()}`;
 }
+
+/**
+ * Versión de las condiciones de Suscriptores Harper (Ale, 03/11/2026). Cada
+ * alta guarda la que aceptó en Suscriptores.Version_condiciones. Al publicar
+ * otras condiciones, se cambia esta fecha en el mismo commit.
+ */
+export const VERSION_CONDICIONES_SUSCRIPTORES = "2026-11-03";

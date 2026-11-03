@@ -44,6 +44,8 @@ cliente no tiene efecto.
 | `Clientes` | Lista de compradores y de mails capturados sin compra |
 | `Config` | Costo de envío, textos y datos legales, sin tocar código |
 | `Descuentos` | Tramos de descuento por cantidad. Cambiar un valor acá cambia la web |
+| `Suscriptores` | Un mail por fila (Suscriptores Harper): alta, consentimiento, origen, cupón de bienvenida (`Disponible`/`Usado` y en qué pedido) y baja |
+| `Saldos` | El saldo a favor de cada suscriptor: `Cashback` (+, se puede usar desde `Disponible_desde`), `Uso` (−) y `Ajuste`. Si un pedido se devuelve, tildar `Anulado` |
 | `Metricas ML` | Visitas, ventas y Product Ads por publicación. Se reescribe todos los días |
 | `Anuncios ML` | Product Ads por grupo de anuncios (los colores de un modelo van juntos). Se reescribe todos los días |
 | `Preguntas ML` | Preguntas de Mercado Libre y qué hizo el agente con cada una |
@@ -351,12 +353,15 @@ Datos fiscales en `Config` (vacíos = no se muestra nada; nunca se suponen):
 | `impuestos_nacionales_<categoría>` | El mismo dato para una categoría con otra alícuota (`anteojos`, `estuches`, `panos`…) | El contador |
 | `condicion_iva` | La condición de FOCUS VISION SRL frente al IVA: `Responsable Inscripto`, `Monotributo` o `Exento`. Decide la clase de cada factura (ver "Datos de facturación") | El contador |
 
-**Cuotas.** `NEXT_PUBLIC_CUOTAS` dice cuántas cuotas sin interés se quieren
-anunciar, pero se anuncian solo si Mercado Pago lo confirma: el servidor
+**Cuotas.** 3 cuotas sin interés para todos y 6 para suscriptores (también es
+el tope de cuotas de la preferencia de Mercado Pago). `NEXT_PUBLIC_CUOTAS` es
+el tope y el interruptor: sin cargar, o con menos de 2, no se anuncia ninguna.
+Cada cantidad se anuncia solo si Mercado Pago lo confirma: el servidor
 consulta `/v1/payment_methods/installments` (Visa y Mastercard, cache de una
 hora) y exige esas cuotas en todos los bancos, sin interés y con CFT 0. Se
 muestran el monto por cuota que calcula Mercado Pago (con centavos), el
-precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
+precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas. En el
+panel de Mercado Pago tienen que estar activadas las 3 y las 6 sin interés.
 
 ## Rutas
 

@@ -21,9 +21,9 @@ import {
 } from "./mails";
 import { obtenerPago as obtenerPagoReal, type PagoMP } from "./mercadopago";
 import { descontarStock } from "./stock";
-import { conMembresia } from "./socios";
-import { numeroDeSocio, registrarSocio } from "./socios-alta";
-import { registrarCanje } from "./socios-cuenta";
+import { precio as formatearPrecio } from "./formato";
+import { beneficiosDeNotas, cashbackDisponibleDesde, type BeneficiosDelPedido } from "./suscriptores";
+import { claveSuscriptor, registrarCashback, registrarCupon, registrarUso } from "./suscriptores-cuenta";
 import { esPedidoConDineroMP, TIPO_DINERO_EN_CUENTA } from "./dinero-mp";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import {
@@ -63,6 +63,8 @@ import {
  *
  *   stock (idempotente por marca en la variante)
  *   → Estado "pagado" (escribirlo dos veces es lo mismo)
+ *   → beneficios del suscriptor (cupón, saldo usado y cashback: cada uno
+ *     idempotente por pedido y tipo, ver lib/suscriptores-cuenta.ts)
  *   → mail al cliente → mail interno (cada uno anotado como paso cumplido)
  *   → cierre (MP_status pasa de la marca al estado real del pago)
  *
@@ -697,51 +699,15 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       }
     }
 
-    // Socios Harper: el alta con su número, antes de los mails, que lo llevan.
-    // Idempotente: la fila se busca por pedido. Un error pasajero corta para
-    // que Mercado Pago reintente; uno permanente (la tabla no está) no frena
-    // la venta: Harper se entera en el aviso y lo carga a mano.
-    let datosConSocio = datos;
-    if (conMembresia(items)) {
-      await verificar("socio");
-      try {
-        const socio = await registrarSocio({ numeroPedido: numero, items, cliente, ahora: new Date(deps.reloj.ahora()) });
-        if (socio) datosConSocio = { ...datos, socio };
-      } catch (error) {
-        if (!esErrorPermanente(error)) throw error;
-        console.error("[webhook] no se pudo dar de alta al socio", numero, error);
-        datosConSocio = {
-          ...datos,
-          alerta: [datos.alerta, "Es una membresía de Socios Harper y no se pudo dar de alta: cargala a mano en la tabla Socios."]
-            .filter(Boolean)
-            .join(" "),
-        };
-      }
-    }
-
-    // El segundo par de un socio que entró con su mail (lib/socios-cuenta.ts):
-    // queda anotado en su fila. Idempotente por pedido; si ya lo había
-    // canjeado en otro pedido no se pisa: Harper lo revisa antes de despachar.
-    const conCanje = items.find((i) => i.canje)?.canje;
-    if (conCanje) {
-      await verificar("canje");
-      const avisar = (texto: string) => {
-        datosConSocio = { ...datosConSocio, alerta: [datosConSocio.alerta, texto].filter(Boolean).join(" ") };
-      };
-      try {
-        const canje = await registrarCanje({ socioId: conCanje.socioId, numeroPedido: numero });
-        datosConSocio = { ...datosConSocio, canje: { numero: conCanje.numero, plan: canje.estado === "sin-socio" ? "Socio" : canje.cuenta.plan } };
-        if (canje.estado === "conflicto") {
-          avisar(`Usó el segundo par del socio ${numeroDeSocio(conCanje.numero)}, que ya figuraba canjeado en el pedido ${canje.cuenta.segundoParPedido || "(sin número)"}: revisalo antes de despacharlo.`);
-        } else if (canje.estado === "sin-socio") {
-          avisar(`Usó el segundo par del socio ${numeroDeSocio(conCanje.numero)}, pero su fila ya no está en Socios.`);
-        }
-      } catch (error) {
-        if (!esErrorPermanente(error)) throw error;
-        console.error("[webhook] no se pudo anotar el canje del socio", numero, error);
-        datosConSocio = { ...datosConSocio, canje: { numero: conCanje.numero, plan: "Socio" } };
-        avisar(`Usó el segundo par del socio ${numeroDeSocio(conCanje.numero)} y no se pudo anotar en Socios: anotalo a mano.`);
-      }
+    // Suscriptores Harper (Ale, 03/11/2026): lo que el checkout dejó en Notas
+    // (lib/suscriptores.ts). El cupón queda Usado, el saldo usado es una fila
+    // Uso y el cashback una fila Cashback que se puede usar a los 30 días.
+    // Antes de los mails, que lo cuentan.
+    let datosFinales = datos;
+    const beneficios = beneficiosDeNotas(pedido.fields.Notas);
+    if (beneficios) {
+      await verificar("suscriptor");
+      datosFinales = await anotarBeneficios(beneficios, numero, datos, deps);
     }
 
     // 3. Mails, cada uno una sola vez por pedido: quedan anotados en la marca.
@@ -750,13 +716,13 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
 
     if (cliente.email && !hecho("mail_cliente")) {
       await verificar("mail_cliente");
-      await mandar(mailConfirmacion(datosConSocio));
+      await mandar(mailConfirmacion(datosFinales));
       reclamo = await anotarPaso<FilaPedido>(pedidoId, reclamo, "mail_cliente");
     }
 
     if (!hecho("mail_interno")) {
       await verificar("mail_interno");
-      await mandar(mailAvisoInterno({ ...datosConSocio, pedidoUrl }));
+      await mandar(mailAvisoInterno({ ...datosFinales, pedidoUrl }));
       reclamo = await anotarPaso<FilaPedido>(pedidoId, reclamo, "mail_interno");
     }
 
@@ -832,6 +798,70 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
     // la ruta contesta 500 y el reintento retoma lo que falte.
     throw new ErrorTrasReclamo(paso, error);
   }
+}
+
+/** Cuánto vive la llave del suscriptor si la instancia muere sin soltarla. */
+const TTL_SUSCRIPTOR_MS = 60_000;
+
+/**
+ * Anota los beneficios de un suscriptor después del pago, con su cerrojo (el
+ * mismo que el pedido en $ 0, lib/suscriptores-sin-pago.ts): dos pagos del
+ * mismo suscriptor no tocan su cupón ni su saldo a la vez. Cada paso es
+ * idempotente, así que un reintento no duplica nada. Lo que no cierra no
+ * frena la venta, ya cobrada: va como alerta en el aviso interno.
+ *  - El cupón ya usado en otro pedido: no se pisa, se avisa.
+ *  - El saldo usado que ya no alcanzaba (dos pedidos a la vez): la fila Uso
+ *    se crea igual (el saldo queda en negativo) y se avisa.
+ * Un error pasajero de Airtable corta para que Mercado Pago reintente; uno
+ * permanente (la tabla no está) se avisa para cargarlo a mano.
+ */
+async function anotarBeneficios(b: BeneficiosDelPedido, numero: string, datos: DatosMail, deps: Dependencias): Promise<DatosMail> {
+  const fecha = new Date(deps.reloj.ahora());
+  const alertas: string[] = [];
+  let cashbackDesde = cashbackDisponibleDesde(fecha);
+
+  const clave = claveSuscriptor(b.suscriptorId);
+  const llave = deps.cerrojo
+    ? await tomarConEspera(deps.cerrojo, clave, TTL_SUSCRIPTOR_MS, { esperaMaxMs: deps.esperaOcupadoMs, reloj: deps.reloj })
+    : null;
+  if (deps.cerrojo && !llave) throw new Error(`el cerrojo del suscriptor ${b.suscriptorId} sigue tomado: se reintenta`);
+
+  try {
+    const movimiento = { suscriptorId: b.suscriptorId, email: b.email, numeroPedido: numero, fecha };
+    if (b.cupon > 0) {
+      const cupon = await registrarCupon({ suscriptorId: b.suscriptorId, numeroPedido: numero });
+      if (cupon.estado === "conflicto") {
+        alertas.push(
+          `Usó el cupón de bienvenida de ${b.email}, que ya figuraba usado${cupon.cuenta.cuponPedido ? ` en el pedido ${cupon.cuenta.cuponPedido}` : ""}: revisalo antes de despacharlo.`
+        );
+      } else if (cupon.estado === "sin-suscriptor") {
+        alertas.push(`Usó el cupón de bienvenida de ${b.email}, pero su fila ya no está en Suscriptores.`);
+      }
+    }
+    if (b.saldoUsado > 0) {
+      const uso = await registrarUso({ ...movimiento, monto: b.saldoUsado });
+      if (!uso.alcanzaba) {
+        alertas.push(
+          `Usó ${formatearPrecio(b.saldoUsado)} de saldo y ya no le alcanzaba (otro pedido lo usó antes): su saldo quedó en negativo en Saldos. Revisalo.`
+        );
+      }
+    }
+    if (b.cashback > 0) cashbackDesde = (await registrarCashback({ ...movimiento, monto: b.cashback })).disponibleDesde;
+  } catch (error) {
+    if (!esErrorPermanente(error)) throw error;
+    console.error("[webhook] no se pudieron anotar los beneficios del suscriptor", numero, error);
+    alertas.push(
+      `No se pudieron anotar en Airtable los beneficios del suscriptor ${b.email} (${describir(error)}): cargalos a mano en Suscriptores y Saldos.`
+    );
+  } finally {
+    if (deps.cerrojo && llave) await soltarSinFallar(deps.cerrojo, clave, llave);
+  }
+
+  return {
+    ...datos,
+    suscriptor: { email: b.email, cupon: b.cupon, saldoUsado: b.saldoUsado, cashback: b.cashback, cashbackDesde: b.cashback > 0 ? cashbackDesde : null },
+    alerta: [datos.alerta, ...alertas].filter(Boolean).join(" ") || null,
+  };
 }
 
 /** El cliente del pedido. Si lo borraron a mano (404), la venta sigue con lo que dice el pago. */

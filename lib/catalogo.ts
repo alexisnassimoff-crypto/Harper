@@ -7,7 +7,7 @@ import {
 } from "./airtable";
 import { aNumero } from "./formato";
 import { videoReproducible } from "./galeria";
-import { categoriaDesdeTexto, esMembresia } from "./categorias";
+import { categoriaDesdeTexto } from "./categorias";
 import type { Categoria, Envase, Medidas, Producto, Variante } from "./tipos";
 
 /** Cada cuántos segundos se refresca el catálogo cacheado. */
@@ -312,11 +312,7 @@ async function leerSlugs(): Promise<string[]> {
 
   return productos
     // Las mismas reglas que el catálogo: sin categoría conocida no hay ficha.
-    // La membresía tampoco: tiene su página, /socios.
-    .filter((p) => {
-      const categoria = categoriaDesdeTexto(p.fields.Categoria);
-      return categoria !== null && !esMembresia(categoria);
-    })
+    .filter((p) => categoriaDesdeTexto(p.fields.Categoria) !== null)
     .map((p) => p.fields.Slug?.trim())
     .filter((s): s is string => Boolean(s));
 }

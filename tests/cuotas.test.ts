@@ -1,13 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cuotasActivas, evaluarCuotas } from "../lib/cuotas";
+import { cuotasActivas, cuotasAnunciables, evaluarCuotas, topeDeCuotas } from "../lib/cuotas";
+import { cuotasMaximas } from "../lib/suscriptores";
 
-test("sin variable no se anuncian cuotas", () => {
+test("sin variable no se anuncian cuotas, ni a los suscriptores", () => {
   delete process.env.NEXT_PUBLIC_CUOTAS;
   assert.equal(cuotasActivas(), null);
+  assert.equal(cuotasActivas(true), null);
 });
 
-test("solo se aceptan enteros de 2 o más", () => {
+test("el tope solo acepta enteros de 2 o más", () => {
   for (const [valor, esperado] of [
     ["3", 3],
     ["6", 6],
@@ -19,8 +21,27 @@ test("solo se aceptan enteros de 2 o más", () => {
     ["3.5", 3],
   ] as const) {
     process.env.NEXT_PUBLIC_CUOTAS = valor;
-    assert.equal(cuotasActivas(), esperado, `con "${valor}"`);
+    assert.equal(topeDeCuotas(), esperado, `con "${valor}"`);
   }
+  delete process.env.NEXT_PUBLIC_CUOTAS;
+});
+
+test("3 cuotas para todos y 6 para suscriptores, nunca más que el tope (Ale, 03/11/2026)", () => {
+  // El tope de la preferencia de Mercado Pago, por comprador.
+  assert.deepEqual([cuotasMaximas(false), cuotasMaximas(true)], [3, 6]);
+
+  process.env.NEXT_PUBLIC_CUOTAS = "6";
+  assert.deepEqual([cuotasActivas(), cuotasActivas(false), cuotasActivas(true)], [3, 3, 6]);
+  process.env.NEXT_PUBLIC_CUOTAS = "12";
+  assert.deepEqual([cuotasActivas(), cuotasActivas(true)], [3, 6]);
+  // Con el tope en 3, el suscriptor también ve 3; con 2, los dos ven 2.
+  process.env.NEXT_PUBLIC_CUOTAS = "3";
+  assert.deepEqual([cuotasActivas(), cuotasActivas(true)], [3, 3]);
+  process.env.NEXT_PUBLIC_CUOTAS = "2";
+  assert.deepEqual([cuotasActivas(), cuotasActivas(true)], [2, 2]);
+  // Una cantidad pedida a mano también respeta el tope, y menos de 2 no se anuncia.
+  process.env.NEXT_PUBLIC_CUOTAS = "6";
+  assert.deepEqual([cuotasAnunciables(12), cuotasAnunciables(1), cuotasAnunciables()], [6, null, 3]);
   delete process.env.NEXT_PUBLIC_CUOTAS;
 });
 
@@ -99,4 +120,71 @@ test("si esas cuotas no se ofrecen, o una marca no tiene opciones, no se anuncia
   assert.equal(evaluarCuotas([respuesta({}), []], 6, 89900), null);
   assert.equal(evaluarCuotas([respuesta({}), { error: "bad_request" }], 6, 89900), null);
   assert.equal(evaluarCuotas([], 6, 89900), null);
+});
+
+test("cada comprador, con su cantidad verificada aparte: 3 para todos y 6 para el suscriptor (Mercado Pago de prueba)", async () => {
+  const { verificarCuotas } = await import("../lib/cuotas-servidor");
+  const costo = (n: number, tasa: number) => ({
+    installments: n,
+    installment_rate: tasa,
+    labels: [tasa === 0 ? "CFT_0,00%|TEA_0,00%" : "CFT_19,87%|TEA_16,02%"],
+    installment_amount: Math.round((89900 / n) * 100) / 100,
+    total_amount: tasa === 0 ? 89900 : 101137,
+  });
+  let seisConInteres = false;
+  const pedidos: string[] = [];
+  const fetchReal = globalThis.fetch;
+  globalThis.fetch = (async (url: string | URL) => {
+    pedidos.push(String(url));
+    const opciones = [{ payment_type_id: "credit_card", issuer: { id: "1", name: "Banco" }, payer_costs: [costo(1, 0), costo(3, 0), costo(6, seisConInteres ? 12.5 : 0)] }];
+    return new Response(JSON.stringify(opciones), { status: 200 });
+  }) as typeof fetch;
+  process.env.MP_ACCESS_TOKEN = "TEST-prueba";
+  process.env.NEXT_PUBLIC_CUOTAS = "6";
+  try {
+    assert.equal((await verificarCuotas(89900))?.cuotas, 3);
+    assert.equal((await verificarCuotas(89900, cuotasMaximas(true)))?.cuotas, 6);
+    // Si el banco cobra interés en 6, el suscriptor no ve las 6; las 3 de todos siguen.
+    seisConInteres = true;
+    assert.equal(await verificarCuotas(89900, 6), null);
+    assert.equal((await verificarCuotas(89900, 3))?.cuotas, 3);
+    // Sin el interruptor, nadie ve cuotas y ni se le pregunta a Mercado Pago.
+    delete process.env.NEXT_PUBLIC_CUOTAS;
+    const antes = pedidos.length;
+    assert.equal(await verificarCuotas(89900, 6), null);
+    assert.equal(pedidos.length, antes);
+  } finally {
+    globalThis.fetch = fetchReal;
+    delete process.env.MP_ACCESS_TOKEN;
+    delete process.env.NEXT_PUBLIC_CUOTAS;
+  }
+});
+
+test("la preferencia de Mercado Pago: tope de 3 cuotas para todos, 6 para un suscriptor y 1 con dinero en cuenta", async () => {
+  const { crearPreferencia } = await import("../lib/mercadopago");
+  const cuerpos: { payment_methods: { installments: number } }[] = [];
+  const fetchReal = globalThis.fetch;
+  globalThis.fetch = (async (_url: string | URL, init?: RequestInit) => {
+    cuerpos.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ id: "pref", init_point: "https://mp/pagar" }), { status: 201 });
+  }) as typeof fetch;
+  process.env.MP_ACCESS_TOKEN = "TEST-prueba";
+  const base = {
+    numeroPedido: "HARPER-1",
+    pedidoId: "recPEDIDO",
+    items: [{ productoId: "p", productoSlug: "citrino", nombre: "CITRINO", categoria: "Anteojos" as const, varianteId: "v", sku: "C", color: "Negro", foto: null, precioLista: 89900, precioUnitario: 79900, descuento: 0, cupon: 10000, cantidad: 1, subtotal: 79900, stockDisponible: 3 }],
+    envio: 0,
+    total: 79900,
+    cliente: { email: "a@b.c", nombre: "A", telefono: "1", dni: "", direccion: "x", ciudad: "x", provincia: "x", cp: "1", aceptaPromos: false },
+    sitio: "http://localhost:3000",
+  };
+  try {
+    await crearPreferencia(base);
+    await crearPreferencia({ ...base, cuotasMaximas: cuotasMaximas(true) });
+    await crearPreferencia({ ...base, cuotasMaximas: cuotasMaximas(true), soloDineroEnCuenta: true });
+    assert.deepEqual(cuerpos.map((c) => c.payment_methods.installments), [3, 6, 1]);
+  } finally {
+    globalThis.fetch = fetchReal;
+    delete process.env.MP_ACCESS_TOKEN;
+  }
 });

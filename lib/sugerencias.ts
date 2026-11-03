@@ -1,4 +1,3 @@
-import { esMembresia } from "./categorias";
 import { getProductos } from "./catalogo";
 import { getTramos, ofertaDeEscala, ofertaPorCantidad, type Tramo } from "./descuentos";
 import type { Categoria, ItemResuelto, Producto } from "./tipos";
@@ -128,10 +127,7 @@ export function elegirSugerencias(
     );
   }
 
-  // La membresía no se sugiere como «otro modelo»: tiene su lugar propio.
-  const disponibles = productos.filter(
-    (p) => !productosEnCarrito.has(p.id) && !p.agotado && !esMembresia(p.categoria)
-  );
+  const disponibles = productos.filter((p) => !productosEnCarrito.has(p.id) && !p.agotado);
 
   const elegidas: Sugerencia[] = [];
   const yaElegidos = new Set<string>();
