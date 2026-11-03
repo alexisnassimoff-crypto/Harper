@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import GrillaProductos from "@/components/GrillaProductos";
 import { getProductos } from "@/lib/catalogo";
 
@@ -22,6 +23,8 @@ export const metadata: Metadata = {
 
 export default async function Panos() {
   const productos = await getProductos("Paños");
+  // Desde el 03/11/2026 los estuches y los paños se venden solo en Mercado Libre.
+  if (productos.length === 0) notFound();
 
   return (
     <section className="contenedor seccion seccion--pagina">

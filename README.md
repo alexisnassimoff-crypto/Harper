@@ -44,6 +44,12 @@ cliente no tiene efecto.
 | `Clientes` | Lista de compradores y de mails capturados sin compra |
 | `Config` | Costo de envío, textos y datos legales, sin tocar código |
 | `Descuentos` | Tramos de descuento por cantidad. Cambiar un valor acá cambia la web |
+| `Metricas ML` | Visitas, ventas y Product Ads por publicación. Se reescribe todos los días |
+| `Anuncios ML` | Product Ads por grupo de anuncios (los colores de un modelo van juntos). Se reescribe todos los días |
+| `Preguntas ML` | Preguntas de Mercado Libre y qué hizo el agente con cada una |
+| `Costos ML` | Costo sin IVA y packaging de cada publicación, para la ganancia real |
+| `Envios a Full` | Cada envío a Full con el costo de la colecta |
+| `Datos del negocio` | Reglas generales (facturación, envíos, garantía…) que el agente usa para responder, además de la ficha |
 
 ## Puesta en marcha
 
@@ -157,6 +163,138 @@ Copia las fotos de cada fila enlazada a su variante. Después corré
 El importador **nunca asigna una foto a un producto por su cuenta**: sin el
 enlace manual del paso 2 no toca nada.
 
+## Métricas y preguntas de Mercado Libre
+
+Dos cosas que usan la misma conexión con la cuenta vendedora:
+
+- **Metricas ML**: todos los días a las 10:30 (hora de Argentina, después de
+  que Mercado Libre actualiza Product Ads) se reescribe una fila por
+  publicación con visitas, unidades vendidas, facturado, comisión, conversión
+  y Product Ads (impresiones, clics, costo, ventas, ACOS), de los últimos 30
+  días y de los 30 anteriores. Claude la lee desde Airtable para analizar con
+  números reales.
+- **Anuncios ML**: Product Ads agrupa los anuncios por publicación o junta
+  todos los colores de un modelo en un grupo. Esta tabla tiene una fila por
+  grupo, con su campaña y sus publicaciones. En Metricas ML cada publicación
+  tiene sus propias métricas de anuncios (se piden publicación por
+  publicación dentro de cada grupo) y dice a qué grupo pertenece.
+- Una sola actualización a la vez: si el link se abre mientras corre otra
+  (por ejemplo, al recargar la página), contesta 409 y no duplica filas.
+- **Preguntas ML**: cada pregunta nueva llega al instante. Un agente con
+  Claude lee la ficha de la publicación y decide:
+  - si la respuesta sale entera de la ficha (stock, colores, medidas, envío
+    gratis), **la publica sola**;
+  - si no, **manda un borrador al mail de pedidos** con un botón "Revisar y
+    publicar". Se publica lo que diga la columna Respuesta en ese momento: se
+    puede corregir en Airtable antes de tocar el botón.
+
+  Además de la ficha, el agente lee la tabla **Datos del negocio**: reglas
+  generales que cargás vos (por ejemplo, "Hacemos factura A"). Un dato nuevo
+  se usa desde la pregunta siguiente, sin tocar código.
+
+  El código revisa toda respuesta antes de publicarla: nunca sale una con
+  mail, teléfono, link, redes o partes sin completar, aunque el agente la haya
+  aprobado. Cada pregunta queda en la tabla con lo que se hizo y por qué.
+
+**Avisos por mail** (al mail de pedidos de Config), después de la
+actualización diaria:
+
+- **Envío a Full**: un solo envío para todas las publicaciones de Full, así
+  se paga una sola colecta. El mail sale cuando la primera publicación llega
+  a su punto de reposición (días de reposición + seguridad), con cuánto mandar
+  de cada una para cubrir reposición + ciclo + seguridad. El ciclo sale de lo
+  que cuestan la colecta y el almacenamiento. Si no se conoce la tarifa de
+  almacenamiento, no se pasa de los días sin cargo. Los parámetros están en
+  Config (`full_costo_colecta`, `full_dias_sin_cargo`,
+  `full_almacenamiento_unidad_mes`, `full_dias_reposicion`,
+  `full_dias_seguridad`). También lista el **stock lento**: el que supera lo
+  que el plan mandaría y termina pagando almacenamiento (candidato a
+  promoción o a no reponer).
+- **Resumen semanal**, los lunes: ventas de la semana contra la anterior,
+  acumulado del mes (y el mes anterior completo la primera semana), y la
+  **ganancia real** en pesos y en %: ventas sin IVA menos cargos de ML (ya
+  incluyen costo fijo y cuotas), cupones, envíos a cargo del vendedor
+  (`/shipments/{id}/costs`), publicidad, IIBB e impuesto al cheque,
+  mercadería y packaging (tabla **Costos ML**) y colectas (tabla **Envios a
+  Full**). No incluye Ganancias, gastos fijos ni devoluciones posteriores.
+  Las publicaciones sin costo cargado quedan afuera y se avisa.
+
+**Stock por ubicación.** El tipo de logística de una publicación
+(`shipping.logistic_type`) dice cómo está configurado el envío, no dónde está
+la mercadería: una publicación «de Full» puede tener el stock en el depósito
+propio. Por eso la actualización diaria lee `/user-products/{id}/stock` y
+guarda en Metricas ML `Stock_full` (depósitos de ML) y `Stock_deposito`. El
+plan de Full usa solo `Stock_full`; si no se pudo leer, usa el stock total y
+lo avisa.
+
+Para verlos o mandarlos a mano:
+`/api/ml/avisos?token=<SYNC_TOKEN>&tipo=envio` o `&tipo=semanal`, con `&ver=1`
+para ver el mail, `&enviar=1` para mandarlo y `&forzar=1` para mandarlo aunque
+ya se haya mandado.
+
+**Promociones.** `/api/ml/promociones?token=<SYNC_TOKEN>&ver=1` lee de la
+Central de promociones (`/seller-promotions/items/{id}?app_version=v2`) las
+promociones de cada publicación activa: activas, programadas e invitaciones
+de ML, con el % de descuento, las fechas, el aporte de ML y un aviso si el
+precio con descuento cruza un escalón de costos ($15.000, $24.000, $33.000).
+Cada lectura, y la actualización diaria, se guardan en la tabla
+**Promociones ML** (una fila por publicación y promoción, con la respuesta
+cruda de ML). Las que dejan de aparecer quedan como «ya no está».
+
+**Competencia.** `/api/ml/competencia?token=<SYNC_TOKEN>&ver=1` muestra lo
+que Mercado Libre deja leer de la competencia:
+
+- **Referencias de precios** (`/suggestions/...`): cada publicación propia
+  contra las parecidas. Muestra el precio de referencia de ML, el más bajo, la
+  diferencia en % y con qué publicaciones compara.
+- **Competitividad de la publicidad** (métricas de campaña de Product Ads,
+  últimos 7 días): cuántas veces salió el anuncio y cuántas lo ganó otro
+  vendedor por ranking o se perdió por presupuesto.
+- Con `&terceros=1` prueba leer a los competidores de la tabla
+  **Competencia** y las búsquedas clave (clave `competencia_busquedas` de
+  Config). Al 1/11/2026 Mercado Libre rechaza las dos cosas con 403
+  («access_denied», «caller is not allowed to access this user product»), y
+  por eso no se pide por defecto. La página termina con qué dejó leer y qué
+  contestó cuando no dejó.
+
+Resultado del 1/11/2026: ninguna publicación de Harper tiene referencia de
+precio (404 «has no items with price suggestion»). La competitividad de
+campaña contestó 400 con las métricas en minúsculas; ahora van en mayúsculas,
+como las demás de Product Ads, y si igual no las acepta juntas se piden de a
+una.
+
+**Puesta en marcha (una vez)**
+
+1. En la aplicación de [developers.mercadolibre.com.ar](https://developers.mercadolibre.com.ar)
+   (Mis aplicaciones → Harper Web → Editar):
+   - Permisos: además de lectura y `offline_access`, habilitar **escritura**
+     (para publicar respuestas), y **Publicidad** si aparece (para Product
+     Ads).
+   - **URL de notificaciones**: `https://harperar.vercel.app/api/ml/notificaciones`
+   - Tópicos: tildar **Questions**.
+2. Volver a autorizar la cuenta, porque los permisos nuevos no se suman a los
+   tokens viejos: abrir `https://harperar.vercel.app/api/ml/conectar?token=<SYNC_TOKEN>`.
+3. En Vercel, cargar `ANTHROPIC_API_KEY` y `CRON_SECRET` (el mismo valor que
+   `SYNC_TOKEN`) y redeployar. Sin `CRON_SECRET`, Vercel llama al cron diario
+   sin clave y la ruta lo rechaza: no se actualizan las métricas ni salen los
+   avisos. Cada corrida queda anotada en Config: `ml_metricas_ultima_corrida`
+   (cómo terminó) y `ml_cron_rechazado` (si Vercel llamó y se rechazó).
+4. Probar las métricas a mano:
+   `https://harperar.vercel.app/api/ml/metricas?token=<SYNC_TOKEN>`. La
+   respuesta dice cuántas publicaciones y órdenes leyó y, si Product Ads no
+   trajo datos, por qué.
+
+**Para tener en cuenta**
+
+- Mercado Libre exige contestar cada notificación en menos de 500 ms o
+  desactiva el tópico: la ruta contesta primero y procesa después.
+- Con Redis (Upstash) configurado, la renovación del token de Mercado Libre
+  va bajo cerrojo: la portada, el agente y el cron piden token por su cuenta
+  y Mercado Libre acepta cada refresh token una sola vez.
+- La comisión sale de `sale_fee` de cada orden multiplicado por la cantidad.
+  Conviene compararla una vez con una venta real en Mercado Libre.
+- Visitas que no se pudieron leer quedan vacías, no en cero.
+
 ## Cargar un producto
 
 1. En `Productos`, crear el registro: nombre, slug (minúscula y sin espacios),
@@ -233,6 +371,12 @@ precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
 | `POST /api/sync-media` | Espeja fotos y videos a Blob |
 | `POST /api/pedidos/notificar-envio` | Manda el mail con el tracking |
 | `GET /api/importar-ml` | Trae las publicaciones de Mercado Libre |
+| `GET /api/ml/metricas` | Actualiza la tabla Metricas ML (cron diario) |
+| `POST /api/ml/notificaciones` | Recibe las notificaciones de Mercado Libre y procesa las preguntas |
+| `GET/POST /api/ml/preguntas/aprobar` | Muestra y publica un borrador aprobado desde el mail |
+| `GET /api/ml/avisos` | Ver o mandar a mano la alerta de stock y el resumen semanal |
+| `GET /api/ml/promociones` | Promociones activas, programadas e invitaciones de ML de cada publicación |
+| `GET /api/ml/competencia` | Precios y posición en búsquedas de los competidores de la tabla Competencia |
 
 ## Desarrollo local
 

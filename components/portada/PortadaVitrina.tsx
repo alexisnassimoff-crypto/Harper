@@ -125,8 +125,11 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   // El primer pack de más de un par: el de la promoción (3 con la escala, 2 sin ella).
   const pack2 = packs.find((p) => p.cantidad > 1);
   const cuota1 = pack1 ? cuotasDe(pack1.total) : undefined;
-  const cuota2 = pack2 ? cuotasDe(pack2.total) : undefined;
-  const nombrePromo = pack2 ? (tramoDe(pack2.cantidad) ? nombreDelTramo(tramoDe(pack2.cantidad)!) : `${mayuscula(enLetras(pack2.cantidad))} pares`) : null;
+  // Sin promoción por cantidad (Ale, 03/11/2026: sin «llevá 3, pagá 2») no se
+  // empuja a llevar más de uno: ni el bloque de packs ni la promo en la bajada o la barra.
+  const hayPromo = escala.length > 0 || packs.some((p) => p.porcentaje > 0);
+  const cuota2 = pack2 && hayPromo ? cuotasDe(pack2.total) : undefined;
+  const nombrePromo = pack2 && hayPromo ? (tramoDe(pack2.cantidad) ? nombreDelTramo(tramoDe(pack2.cantidad)!) : `${mayuscula(enLetras(pack2.cantidad))} pares`) : null;
   const incluye = modelos[0]?.incluye ?? [];
   const marcas = cuota1 ?? cuota2;
   const letraChica = marcas ? `Cuotas sin interés con ${NOMBRE_MARCAS} · CFTEA ${marcas.cftea}` : null;
@@ -397,7 +400,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
             <PlanesSocio planes={planes} colores={coloresPack} />
           </div>
         </section>
-      ) : precio && filas.length > 0 ? (
+      ) : precio && filas.length > 0 && hayPromo ? (
         <DeADos
           filas={filas}
           colores={coloresPack}
