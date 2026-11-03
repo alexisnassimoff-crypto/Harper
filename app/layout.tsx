@@ -16,7 +16,7 @@ import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import { anunciosDelHeader } from "@/lib/anuncios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
-import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
+import { cuotasDeTodosYSuscriptores } from "@/lib/cuotas-servidor";
 
 // La tipografía (Ale, 03/11/2026): solo dos en toda la web. Raleway para todo
 // lo que va sin serif (texto, precios, botones, etiquetas) y Safira March para
@@ -76,11 +76,11 @@ export default async function RootLayout({
   // las previstas (sol, Clip-On, receta) aparecen solas cuando tengan.
   const categorias = categoriasConProductos(productos).map((c) => ({ nombre: c.nombre, slug: c.slug }));
   // La barra de arriba anuncia las cuotas solo si Mercado Pago las confirma
-  // para el anteojo más barato; si tarda, sale sin ellas.
-  const cuotas = await conEspera(
-    verificarCuotasPara(productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio)),
-    2_000,
-    null
+  // para el anteojo más barato; si tarda, sale sin ellas. Las de todos (3) y
+  // las de suscriptor (6), cada una confirmada aparte.
+  const cuotas = await cuotasDeTodosYSuscriptores(
+    productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio),
+    2_000
   );
 
   // Identidad del negocio para Google: es de donde sale el panel de marca en
@@ -142,7 +142,13 @@ export default async function RootLayout({
             Saltar al contenido
           </a>
           <Header
-            anuncios={anunciosDelHeader({ banner: config.bannerTexto, cuotas, escala: escalaDe(tramos, "Anteojos") })}
+            anuncios={anunciosDelHeader({
+              banner: config.bannerTexto,
+              cuotas: cuotas.todos,
+              cuotasSuscriptor: cuotas.suscriptores,
+              escala: escalaDe(tramos, "Anteojos"),
+              suscriptores: true,
+            })}
             categorias={categorias}
           />
           <main id="contenido" tabIndex={-1}>

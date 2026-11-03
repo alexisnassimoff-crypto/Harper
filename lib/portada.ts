@@ -1,3 +1,6 @@
+import { precio as formatearPrecio } from "./formato";
+import { CASHBACK_PORCENTAJE, CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK } from "./suscriptores";
+
 /**
  * Textos de la portada y de los metadatos del sitio.
  *
@@ -83,6 +86,10 @@ export function preguntasDePortada(datos: {
   /** La escala de anteojos, "llevá 3 y pagá 2, o llevá 5 y pagá 3"; null si no hay. */
   escala?: string | null;
   porcentajeDineroMP: number;
+  /** Las cuotas de suscriptor confirmadas por Mercado Pago, si son más que las de todos; null no las nombra. */
+  cuotasSuscriptor?: { cuotas: number; cftea: string } | null;
+  /** Suscriptores Harper (Ale, 03/11/2026): la pregunta y el envío gratis siempre. */
+  suscriptores?: boolean;
 }): Pregunta[] {
   const preguntas: Pregunta[] = [];
 
@@ -110,8 +117,12 @@ export function preguntasDePortada(datos: {
     respuesta: [
       "Con Mercado Pago: tarjeta, débito o dinero en tu cuenta.",
       datos.cuotas
-        ? `En anteojos tenés ${datos.cuotas.cuotas} cuotas sin interés con ${datos.nombreMarcas} (CFTEA ${datos.cuotas.cftea}); el valor de cada cuota está junto al precio.`
-        : null,
+        ? `En anteojos tenés ${datos.cuotas.cuotas} cuotas sin interés con ${datos.nombreMarcas} (CFTEA ${datos.cuotas.cftea})${
+            datos.cuotasSuscriptor ? `, y ${datos.cuotasSuscriptor.cuotas} si sos suscriptor` : ""
+          }; el valor de cada cuota está junto al precio.`
+        : datos.cuotasSuscriptor
+          ? `Si sos suscriptor, en anteojos tenés ${datos.cuotasSuscriptor.cuotas} cuotas sin interés con ${datos.nombreMarcas} (CFTEA ${datos.cuotasSuscriptor.cftea}).`
+          : null,
       `Si en el checkout elegís «Dinero en Mercado Pago» y pagás con el saldo de tu cuenta, tenés ${datos.porcentajeDineroMP}% OFF extra.`,
     ]
       .filter(Boolean)
@@ -128,8 +139,11 @@ export function preguntasDePortada(datos: {
         : datos.envioGratisDesde > 0
           ? `Es gratis en compras desde ${datos.envioGratisTexto}. Si no, el costo aparece en el checkout antes de pagar.`
           : "El costo aparece en el checkout antes de pagar.",
+      datos.suscriptores ? "Si sos suscriptor, es gratis siempre." : null,
       "Despachamos de lunes a viernes.",
-    ].join(" "),
+    ]
+      .filter(Boolean)
+      .join(" "),
   });
 
   preguntas.push({
@@ -151,6 +165,20 @@ export function preguntasDePortada(datos: {
     preguntas.push({
       pregunta: "¿Hay descuento por llevar más de un par?",
       respuesta: `Sí: ${datos.escala}. Podés mezclar modelos y colores, y se aplica solo en el carrito. El ${datos.porcentajeDineroMP}% extra por pagar con dinero en Mercado Pago también se suma.`,
+    });
+  }
+
+  if (datos.suscriptores) {
+    const beneficios = enumerar([
+      `${formatearPrecio(CUPON_BIENVENIDA)} de descuento en tu primera compra`,
+      `el ${CASHBACK_PORCENTAJE}% de lo que pagás en productos de vuelta como saldo (lo usás a los ${DIAS_PARA_USAR_CASHBACK} días y no vence)`,
+      "envío gratis siempre",
+      ...(datos.cuotasSuscriptor ? [`${datos.cuotasSuscriptor.cuotas} cuotas sin interés (CFTEA ${datos.cuotasSuscriptor.cftea})`] : []),
+    ]);
+    preguntas.push({
+      pregunta: "¿Qué es Suscriptores Harper?",
+      respuesta: `Es gratis: te suscribís con tu mail y tenés ${beneficios}. Te das de baja cuando quieras.`,
+      enlace: { href: "/suscriptores", texto: "Suscribirme" },
     });
   }
 

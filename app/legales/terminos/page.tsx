@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { getConfig } from "@/lib/config";
 import Link from "next/link";
 import { versionTerminosLegible } from "@/lib/legales";
+import { precio as formatearPrecio } from "@/lib/formato";
+import { CASHBACK_PORCENTAJE, CUOTAS_SUSCRIPTORES, CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK } from "@/lib/suscriptores";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -44,8 +46,8 @@ export default async function Terminos() {
         Si se elige pagar con Dinero en Mercado Pago, es decir, exclusivamente
         con el saldo de la cuenta de Mercado Pago, se aplica un 10% de descuento
         adicional sobre el precio de los productos. Ese 10% se calcula sobre el
-        importe con el cupón o la promoción que corresponda ya aplicados, y no
-        se aplica al costo de envío ni a la membresía Socios Harper.
+        importe con la promoción, el cupón y el saldo de suscriptor que
+        correspondan ya aplicados, y no se aplica al costo de envío.
       </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Envíos</h2>
@@ -71,55 +73,23 @@ export default async function Terminos() {
         daños derivados del uso indebido, golpes, caídas o desgaste natural.
       </p>
 
-      <h2 id="socios" style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>
-        Socios Harper
+      <h2 id="suscriptores" style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>
+        Suscriptores Harper
       </h2>
       <p>
-        El detalle de la membresía está en las{" "}
-        <Link href="/legales/socios" style={{ textDecoration: "underline" }}>
-          Condiciones de Socios Harper
+        Suscriptores Harper es un programa gratuito de beneficios para quien se
+        suscribe con su mail y acepta recibir nuestros correos. El detalle está
+        en las{" "}
+        <Link href="/legales/suscriptores" style={{ textDecoration: "underline" }}>
+          Condiciones de Suscriptores Harper
         </Link>
-        , que forman parte de estos términos. En resumen:
-      </p>
-      <p>
-        Socios Harper es una membresía de doce (12) meses que se paga una sola
-        vez. Rige desde el día en que Mercado Pago acredita el pago y no se
-        renueva automáticamente. Es personal e intransferible. Incluye:
-      </p>
-      <ul>
-        <li>
-          Dos pares de anteojos. El primero se elige al contratar la membresía y
-          se envía con ese pedido. El segundo se pide por WhatsApp o por correo,
-          con el número de socio, en cualquier momento de los doce meses. Puede
-          ser de cualquier línea disponible; si su precio es mayor que el de un
-          anteojo fotocromático, se paga la diferencia.
-        </li>
-        <li>Envío sin cargo en los pedidos del socio durante la vigencia.</li>
-        <li>
-          Una reposición durante la vigencia: un par igual al recibido, por
-          rotura o pérdida, sujeta a stock. Si no hubiera stock, se ofrece un
-          modelo equivalente.
-        </li>
-        <li>
-          Precio congelado: los pares adicionales que el socio compre durante la
-          vigencia se cobran al precio de lista del día del alta.
-        </li>
-        <li>Acceso anticipado de 72 horas a los lanzamientos de productos nuevos.</li>
-        <li>
-          En el plan Socio con aumento, además, los cristales oftálmicos
-          orgánicos con filtro de luz azul de los dos pares, según la receta que
-          envíe el socio. Los cristales los prepara un laboratorio, en general
-          en 24 horas; ese plazo se suma al del envío y se confirma al recibir
-          la receta.
-        </li>
-      </ul>
-      <p>
-        Los beneficios que no se usen durante la vigencia vencen y no se cambian
-        por dinero. Los lugares son limitados y numerados: cuando se completan,
-        la inscripción se cierra. El derecho de arrepentimiento de diez (10)
-        días corridos se aplica a la membresía como a cualquier compra: si se
-        ejerce, se reintegra lo pagado y se devuelve el par recibido, sin uso y
-        en su empaque.
+        , que forman parte de estos términos. En resumen: un cupón de
+        bienvenida de {formatearPrecio(CUPON_BIENVENIDA)} en la primera compra,
+        el {CASHBACK_PORCENTAJE}% de lo pagado en productos como saldo a favor
+        (se puede usar desde los {DIAS_PARA_USAR_CASHBACK} días del pago y no
+        vence), envío sin cargo en todas las compras y hasta{" "}
+        {CUOTAS_SUSCRIPTORES} cuotas sin interés cuando Mercado Pago las ofrece.
+        La baja se pide en cualquier momento, sin costo.
       </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Contacto</h2>

@@ -23,14 +23,33 @@ function normalizar(texto: string) {
 
 /**
  * La clave de una cotización: lo que cambia el precio (los cuatro números del
- * CP, la provincia, la localidad y el partido), el carrito y el cupón. La calle y el
- * número viajan en la consulta, pero corregirlos no vuelve a cotizar: el
- * servidor tampoco los firma en el comprobante.
+ * CP, la provincia, la localidad y el partido), el carrito, el cupón y los
+ * beneficios del suscriptor. La calle y el número viajan en la consulta, pero
+ * corregirlos no vuelve a cotizar: el servidor tampoco los firma en el
+ * comprobante.
  */
-function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown) {
+function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown, beneficios: Beneficios) {
   const cp = (destino.cp.match(/\d{4}/) ?? [""])[0];
-  return JSON.stringify([cp, normalizar(destino.provincia), normalizar(destino.ciudad), normalizar(destino.partido ?? ""), items, cupon ?? null]);
+  return JSON.stringify([
+    cp,
+    normalizar(destino.provincia),
+    normalizar(destino.ciudad),
+    normalizar(destino.partido ?? ""),
+    items,
+    cupon ?? null,
+    beneficios.usarSaldo,
+    beneficios.usarCupon,
+    beneficios.sesion,
+  ]);
 }
+
+/**
+ * Lo que pidió el suscriptor (Ale, 03/11/2026): usar su saldo y su cupón, que
+ * cambian el total y con él las cuotas. `sesion` cambia cuando entra o sale:
+ * la cookie cambió y con ella el envío (gratis para suscriptores).
+ */
+export type Beneficios = { usarSaldo: boolean; usarCupon: boolean; sesion: number };
+const SIN_BENEFICIOS: Beneficios = { usarSaldo: false, usarCupon: true, sesion: 0 };
 
 /**
  * Cotiza el envío con Envia para la dirección que está cargando el
@@ -47,13 +66,13 @@ function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown) {
  * frena por un total distinto: así el comprador ve enseguida lo que el
  * servidor va a cobrar, sin volver a preguntar.
  */
-export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown, consultar = true) {
+export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown, consultar = true, beneficios: Beneficios = SIN_BENEFICIOS) {
   const { items } = useCarrito();
   const [estado, setEstado] = useState<{ clave: string; cotizacion: Cotizacion | null } | null>(null);
   const [cargando, setCargando] = useState(false);
   const [vuelta, setVuelta] = useState(0);
 
-  const clave = destino && items.length > 0 ? claveDe(destino, items, cupon) : null;
+  const clave = destino && items.length > 0 ? claveDe(destino, items, cupon, beneficios) : null;
 
   useEffect(() => {
     if (!clave || !destino || !consultar) {
@@ -69,7 +88,7 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown,
       fetch("/api/envio/cotizar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destino, items, cupon }),
+        body: JSON.stringify({ destino, items, cupon, usarSaldo: beneficios.usarSaldo, usarCupon: beneficios.usarCupon }),
         signal: controlador.signal,
       })
         .then(async (r) => {

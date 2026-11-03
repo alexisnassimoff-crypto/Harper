@@ -35,6 +35,8 @@ export type DatosPortada = {
   cuota: string | null;
   /** "Cuotas sin interés con Visa y Mastercard · CFTEA 0,00 %"; null sin cuotas. */
   letraChica: string | null;
+  /** «Suscribite: $ 10.000 de bienvenida», que baja a la sección de Suscriptores Harper. */
+  suscribite: string | null;
 };
 
 const minuscula = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice(1);
@@ -117,6 +119,11 @@ export default function PortadaColor({ colores, inicial, datos }: { colores: Col
             <a href="#los-modelos" className="boton portada-color__boton">
               {datos.boton}
             </a>
+            {datos.suscribite ? (
+              <a href="#suscriptores" className="portada-color__suscribite">
+                {datos.suscribite}
+              </a>
+            ) : null}
           </div>
           {datos.letraChica ? <p className="portada-color__letra">{datos.letraChica}</p> : null}
         </div>

@@ -373,6 +373,8 @@ panel de Mercado Pago tienen que estar activadas las 3 y las 6 sin interés.
 | `GET /api/envio/sucursales` | Sucursales donde retirar, por provincia |
 | `POST /api/checkout` | Crea el pedido y la preferencia de Mercado Pago |
 | `POST /api/mercadopago/webhook` | Confirma el pago, descuenta stock y manda mails |
+| `POST /api/suscriptores/codigo` · `confirmar` · `salir` · `baja` | Suscriptores Harper: el código por mail, el alta o la entrada (cookie de sesión), salir y la baja |
+| `GET /api/suscriptores/sesion` | Quién es el suscriptor de este navegador, para las páginas con cache |
 | `POST /api/sync-media` | Espeja fotos y videos a Blob |
 | `POST /api/pedidos/notificar-envio` | Manda el mail con el tracking |
 | `GET /api/importar-ml` | Trae las publicaciones de Mercado Libre |
@@ -633,6 +635,20 @@ Google exige mostrar su logo junto a las sugerencias cuando no hay un mapa: es e
 paquete oficial de atribución, sin modificar). Los datos de la dirección se guardan en
 el pedido como siempre (Direccion, Ciudad, Provincia, CP); no se guarda nada más de
 Google.
+
+## Suscriptores Harper
+
+La suscripción gratis con el mail (Ale, 03/11/2026; las reglas están en
+`lib/suscriptores.ts`). Se suscribe o entra con el código de 6 números en la
+portada (sección «Suscriptores Harper»), en `/suscriptores`, en la ficha y en
+el checkout (con el mail que ya escribió). La casilla de los mails arranca sin
+marcar y enlaza a `/legales/suscriptores`. Con la sesión, el carrito y el
+checkout aplican solos el cupón y el envío gratis; el saldo se usa salvo que
+destilde «Usar mi saldo a favor». `/suscriptores/mi-cuenta` muestra el saldo,
+lo que está en camino (con la fecha desde la que se usa), el cupón y los
+movimientos, y deja salir o darse de baja. Los mails llevan a
+`/suscriptores/baja?t=…`, que pide confirmar con un botón. `/socios` y
+`/legales/socios` redirigen a las páginas nuevas.
 
 ## Comprador que vuelve
 

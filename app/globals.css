@@ -5004,276 +5004,472 @@ p {
   }
 }
 
-/* ---------- Socios Harper (lib/socios.ts) ---------- */
+/* ---------- Suscriptores Harper (lib/suscriptores.ts) ----------
+   Ale, 03/11/2026: la suscripción gratis con el mail, en lugar de la
+   membresía paga. La banda verde de la portada y de /suscriptores, el
+   formulario (en una tarjeta clara), mi cuenta, la caja de la ficha y la del
+   checkout. Raleway en todo, Safira March solo en los títulos. */
 
-/* Cada plan en columna: lo que incluye se lee entero y el botón va abajo, a lo ancho. */
-.planes-socio .de-a-dos__fila {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.9rem;
-}
-.planes-socio .de-a-dos__boton {
-  width: 100%;
-}
-.planes-socio__periodo {
-  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
-  font-size: 0.75rem;
-  opacity: 0.7;
-  white-space: nowrap;
-}
-.planes-socio__detalle {
-  display: grid;
-  gap: 0.2rem;
-  margin: 0.45rem 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  opacity: 0.85;
-}
-.planes-socio__detalle li::before {
-  content: "— ";
-}
-.socios-en-portada .de-a-dos__letra a,
-.socio-ficha__enlace {
-  color: #fff;
-  font-size: 0.8125rem;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-.socios-portada {
-  display: grid;
-  gap: 1.5rem;
-  padding-block: 2.5rem 1.5rem;
-}
-.socios-portada__texto {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.socios-portada__texto .socios-portada__entrar {
-  margin-top: 0.25rem;
-}
-.socios-portada__tarjeta {
-  position: relative;
-  width: 100%;
-  max-width: 28rem;
-  aspect-ratio: 1 / 1;
-}
-.socios-planes {
-  padding-block: 2.5rem;
-}
-.socios-pasos__lista {
-  display: grid;
-  gap: 0.6rem;
-  margin: 1rem 0 0;
-  padding-left: 1.25rem;
-  line-height: 1.5;
-}
-.socios-condiciones ul {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0.75rem 0;
-  padding-left: 1.25rem;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  color: var(--texto-suave);
-}
-.socio-ficha {
-  display: grid;
-  gap: 0.5rem;
-  padding: 1.1rem 1.15rem;
-  border-radius: var(--radio);
+.suscriptores-portada {
   background: var(--verde);
   color: #fff;
+  padding-block: 3.5rem;
+  scroll-margin-top: 5.5rem;
 }
-.socio-ficha .etiqueta-mono {
+.suscriptores-portada .etiqueta-mono {
   color: rgb(255 255 255 / 0.7);
 }
-.socio-ficha__titulo {
+.suscriptores-portada__grilla {
+  display: grid;
+  gap: 2rem;
+}
+.suscriptores-portada__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-width: 0;
+}
+.suscriptores-portada__titulo {
+  font-family: var(--fuente-titulos), Georgia, serif;
+  font-weight: 300;
+  font-size: clamp(2rem, 7.5vw, 3.25rem);
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.suscriptores-portada__bajada {
+  max-width: 32rem;
+  color: rgb(255 255 255 / 0.82);
+}
+.suscriptores-portada__form {
+  align-self: start;
+  padding: 1.5rem 1.25rem;
+  border-radius: 2px;
+  background: var(--hueso-calido);
+  color: var(--tinta);
+  box-shadow: var(--sombra-alta);
+}
+
+/* Los cuatro beneficios: el título grande y la regla, simple, debajo. */
+.beneficios-suscriptor {
+  display: grid;
+  gap: 0;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid rgb(255 255 255 / 0.2);
+}
+.beneficios-suscriptor__item {
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+  padding-block: 0.95rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.2);
+}
+.beneficios-suscriptor__titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 400;
   font-size: 1.375rem;
   line-height: 1.15;
+  font-variant-numeric: lining-nums;
 }
-.socio-ficha__texto {
+.beneficios-suscriptor__detalle {
   font-size: 0.875rem;
   line-height: 1.5;
-  opacity: 0.9;
-}
-.socio-ficha__botones {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-}
-.socio-ficha__botones .boton {
-  background: #fff;
-  border-color: #fff;
-  color: var(--verde);
-}
-.socio-ficha__botones .boton--contorno {
-  background: transparent;
-  border-color: rgb(255 255 255 / 0.6);
-  color: #fff;
-}
-@media (min-width: 48rem) {
-  .socios-portada {
-    grid-template-columns: 1.1fr 0.9fr;
-    align-items: center;
-    padding-block: 4rem 2rem;
-  }
+  color: rgb(255 255 255 / 0.78);
 }
 
-/* Qué incluye cada plan: el beneficio con su detalle y lo que trae cada plan. */
-.socios-tabla {
-  width: 100%;
-  margin-top: 1.25rem;
-  border-collapse: collapse;
+/* El formulario: mail, nombre, la casilla y el código. */
+.suscripcion {
+  display: grid;
+  gap: 0.9rem;
+}
+.suscripcion__acepta {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
   font-size: 0.875rem;
-}
-.socios-tabla th,
-.socios-tabla td {
-  padding: 0.9rem 0.4rem;
-  border-bottom: 1px solid var(--borde);
-  vertical-align: top;
-  text-align: left;
-}
-.socios-tabla thead th {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  vertical-align: bottom;
-}
-.socios-tabla thead small {
-  display: block;
-  margin-top: 0.2rem;
-  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-}
-.socios-tabla td {
-  width: 24%;
-  font-weight: 500;
-  color: var(--verde);
-}
-.socios-tabla tbody th {
-  font-weight: 400;
-  padding-right: 0.9rem;
-}
-.socios-tabla__titulo {
-  display: block;
-  font-weight: 600;
-}
-.socios-tabla__detalle {
-  display: block;
-  margin-top: 0.2rem;
-  font-size: 0.8125rem;
   line-height: 1.45;
+}
+.suscripcion__acepta input {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.1rem;
+  accent-color: var(--verde);
+}
+.suscripcion__acepta a,
+.suscripcion__enlace {
+  color: var(--verde);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.suscripcion__enlace {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.suscripcion__enlace:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.suscripcion__nota {
+  font-size: 0.8125rem;
+  line-height: 1.5;
   color: var(--texto-suave);
 }
-.socios-condiciones__enlace {
-  font-weight: 500;
+.suscripcion__error {
+  color: var(--alerta);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.suscripcion__cambio {
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+}
+.suscripcion__listo {
+  font-family: var(--fuente-titulos), Georgia, serif;
+  font-weight: 400;
+  font-size: 1.5rem;
+  line-height: 1.15;
+  color: var(--verde);
+}
+.suscripcion__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem 1.5rem;
+  margin-top: 0.25rem;
+}
+
+/* /suscriptores: cómo funciona. */
+.suscriptores-pasos__lista {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 40rem;
+  margin: 1.25rem 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.55;
+}
+.suscriptores-pasos__pie {
+  margin-top: 1.75rem;
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+}
+.suscriptores-pasos__pie a {
+  color: var(--texto);
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
 
-/* ---------- Área del socio (/socios/mi-cuenta) ---------- */
-
-.cuenta-socio {
-  max-width: 44rem;
+/* Mi cuenta: el saldo, lo que está en camino, el cupón y los movimientos. */
+.cuenta-suscriptor {
+  max-width: 48rem;
 }
-.cuenta-socio__bajada {
-  margin-top: 0.75rem;
+.cuenta-suscriptor__bajada {
+  margin-top: 0.5rem;
+  overflow-wrap: anywhere;
 }
-.cuenta-socio__form {
-  display: grid;
-  gap: 1rem;
+.cuenta-suscriptor__entrar {
   max-width: 24rem;
   margin-top: 2rem;
 }
-.cuenta-socio__form .enlace-accion {
-  justify-self: start;
-}
-.campo__error {
-  color: var(--alerta);
-  font-size: 0.8125rem;
-}
-.cuenta-socio__pie {
+.cuenta-suscriptor__pie {
   margin-top: 2.5rem;
   font-size: 0.875rem;
   color: var(--texto-suave);
 }
-.cuenta-socio__pie a {
+.cuenta-suscriptor__pie a {
+  color: var(--texto);
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
-.cuenta-socio__beneficios {
-  list-style: none;
-  margin: 2rem 0 0;
-  padding: 0;
+.cuenta-suscriptor__numeros {
   display: grid;
-  gap: 0;
+  gap: 0.75rem;
+  margin: 2rem 0 0;
+}
+.cuenta-suscriptor__numero {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid var(--borde);
+  border-radius: 2px;
+}
+.cuenta-suscriptor__numero--principal {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: #fff;
+}
+.cuenta-suscriptor__numero dt {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.cuenta-suscriptor__numero--principal dt,
+.cuenta-suscriptor__numero--principal .cuenta-suscriptor__detalle {
+  color: rgb(255 255 255 / 0.75);
+}
+.cuenta-suscriptor__numero dd {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  margin: 0;
+}
+.cuenta-suscriptor__monto {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.cuenta-suscriptor__numero[data-estado="usado"] .cuenta-suscriptor__monto {
+  color: var(--texto-suave);
+}
+.cuenta-suscriptor__detalle {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+.cuenta-suscriptor__fechas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--verde);
+}
+.cuenta-suscriptor__comprar {
+  margin-top: 1.5rem;
+}
+.cuenta-suscriptor__movimientos {
+  margin-top: 2.5rem;
+}
+.cuenta-suscriptor__movimientos ul {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
   border-top: 1px solid var(--borde);
 }
-.cuenta-socio__beneficio {
-  padding: 1.25rem 0;
-  border-bottom: 1px solid var(--borde);
+.cuenta-suscriptor__movimiento {
   display: grid;
-  gap: 0.5rem;
-  justify-items: start;
-}
-.cuenta-socio__beneficio h2 {
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0;
-}
-.cuenta-socio__beneficio p {
-  color: var(--texto-suave);
-  font-size: 0.9375rem;
-  line-height: 1.55;
-}
-.cuenta-socio__beneficio--principal {
-  padding: 1.5rem;
-  margin: 1rem 0;
-  background: var(--fondo-alt);
-  border: 0;
-}
-.cuenta-socio__beneficio--principal .boton {
-  margin-top: 0.5rem;
-}
-.cuenta-socio__beneficio[data-estado="usado"] h2::after {
-  content: " · usado";
-  font-weight: 400;
-  color: var(--texto-suave);
-}
-.cuenta-socio__salir {
-  margin-top: 2rem;
-}
-.socios-portada__entrar {
-  margin-top: 1.25rem;
+  grid-template-columns: 5.75rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding-block: 0.8rem;
+  border-bottom: 1px solid var(--borde);
   font-size: 0.875rem;
 }
-.socios-portada__entrar a {
+.cuenta-suscriptor__fecha {
+  color: var(--texto-suave);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.cuenta-suscriptor__concepto small {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+.cuenta-suscriptor__importe {
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.cuenta-suscriptor__importe[data-signo="mas"] {
+  color: var(--verde);
+}
+.cuenta-suscriptor__salir {
+  display: block;
+  margin: 2rem 0 0;
+}
+.cuenta-suscriptor__baja {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  max-width: 36rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--borde);
+}
+.cuenta-suscriptor__baja h2 {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.cuenta-suscriptor__baja p {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--texto-suave);
+}
+.cuenta-suscriptor__confirmar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+@media (min-width: 40rem) {
+  .cuenta-suscriptor__numeros {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* La baja desde el enlace de un mail. */
+.baja-suscriptor {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+  max-width: 36rem;
+}
+.baja-suscriptor__texto {
+  color: var(--texto-suave);
+  line-height: 1.55;
+}
+.baja-suscriptor__listo {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+}
+
+/* La ficha: una caja chica con los beneficios y el formulario a un toque. */
+.suscriptor-ficha {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--borde);
+  border-radius: 2px;
+  background: var(--hueso-calido);
+}
+.suscriptor-ficha .etiqueta-mono {
+  color: var(--verde);
+}
+.suscriptor-ficha__titulo {
+  font-family: var(--fuente-titulos), Georgia, serif;
+  font-weight: 400;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  scroll-margin-top: 6rem;
+}
+.suscriptor-ficha__puntos {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.suscriptor-ficha__puntos li::before {
+  content: "— ";
+  color: var(--verde);
+}
+.suscriptor-ficha__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin-top: 0.2rem;
+}
+.suscriptor-ficha--suscripto {
+  padding-block: 0.85rem;
+}
+.suscriptor-ficha__texto {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--verde);
+}
+.cuotas-suscriptor {
+  font-size: 0.8125rem;
+  color: var(--verde);
+}
+.cuotas-suscriptor a {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
-.checkout__socio {
+
+/* El checkout: la invitación con el mail de arriba, o con qué mail compra y su saldo. */
+.checkout__suscriptor {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo-alt);
+}
+.checkout__suscriptor .etiqueta-mono {
+  color: var(--verde);
+}
+.checkout__suscriptor-titulo {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.checkout__suscriptor-nota {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+.checkout__suscriptor-texto {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.checkout__suscriptor-listo {
+  font-weight: 600;
+  color: var(--verde);
+}
+.checkout__suscriptor .suscripcion__enlace {
+  font-size: 0.8125rem;
+}
+.checkout__saldo {
+  margin-top: 0;
+  color: var(--texto);
+  font-size: 0.875rem;
+}
+.checkout__cashback {
   margin: 0 0 1rem;
   padding: 0.75rem 0.9rem;
   background: var(--fondo-alt);
   font-size: 0.8125rem;
   line-height: 1.5;
+  color: var(--verde);
+}
+
+@media (min-width: 48rem) {
+  .suscriptores-portada {
+    padding-block: 5rem;
+  }
+  .suscriptores-portada__grilla {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 4.5rem;
+    align-items: start;
+  }
+  .suscriptores-portada__form {
+    position: sticky;
+    top: 7rem;
+    padding: 2rem 1.75rem;
+  }
+  .beneficios-suscriptor {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2rem;
+  }
+  .beneficios-suscriptor__titulo {
+    font-size: 1.625rem;
+  }
 }
 
 /* ==========================================================================
    La portada replanteada (Ale, 30/10/2026: «el home no me gusta, ni el
    diseño ni cómo está enfocado»). Arriba, un solo par sobre su color; abajo,
    los modelos una sola vez, un mismo par de la mañana a la noche, qué trae
-   cada par, socios, lo que viene, preguntas y el cierre. Safira March en los
+   cada par, suscriptores, lo que viene, preguntas y el cierre. Safira March en los
    títulos; los precios y todo lo demás, en Raleway.
    ========================================================================== */
 
@@ -5403,7 +5599,7 @@ p {
   align-items: stretch;
   gap: 0.85rem;
 }
-.portada-color__socios {
+.portada-color__suscribite {
   font-size: 0.875rem;
   text-decoration: underline;
   text-underline-offset: 0.22em;
@@ -5730,7 +5926,7 @@ p {
   gap: 1rem;
   margin-top: 1.5rem;
 }
-.lo-que-viene__socios {
+.lo-que-viene__suscribite {
   font-size: 0.9375rem;
   color: var(--verde);
   text-decoration: underline;

@@ -84,6 +84,10 @@ export default function Footer({
           <Link href="/legales/devoluciones#garantia" className="pie__enlace">
             Garantía
           </Link>
+          {/* Suscriptores Harper (Ale, 03/11/2026): su saldo y su cupón. */}
+          <Link href="/suscriptores/mi-cuenta" className="pie__enlace">
+            Soy suscriptor
+          </Link>
         </nav>
 
         <nav className="pie__columna" aria-label="Legales">

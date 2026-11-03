@@ -27,9 +27,6 @@ export type ColorDeADos = {
 
 export type EstucheDeADos = { slug: string; varianteId: string; sku: string; nombre: string; precio: number; precioTexto: string };
 
-/** Lo que entra al carrito junto con los pares. */
-export type ExtraDeLaHoja = { productoSlug: string; varianteId: string; sku: string; nombre: string; precio: number };
-
 export type HojaPackControl = {
   /** Abre la hoja para `cantidad` pares, con los que ya vienen elegidos (variante → cantidad). */
   abrir: (cantidad: number, elegidos?: Record<string, number>) => void;
@@ -41,7 +38,6 @@ export default function HojaPack({
   estuche = null,
   totales,
   titulo = "Armá tu pack",
-  extras = [],
   textoComprar,
 }: {
   ref?: Ref<HojaPackControl>;
@@ -50,8 +46,6 @@ export default function HojaPack({
   /** El total de cada pack, para el botón ("$ 179.800"); sin él, el botón no lo dice. */
   totales: Record<number, string>;
   titulo?: string;
-  /** Lo que se suma al carrito junto con los pares elegidos. */
-  extras?: ExtraDeLaHoja[];
   /** El texto del botón de compra, si no es «Comprar N pares». */
   textoComprar?: string;
 }) {
@@ -96,10 +90,6 @@ export default function HojaPack({
   function comprar() {
     if (cuenta !== pack || yendo) return;
     setYendo(true);
-    for (const e of extras) {
-      agregar({ productoSlug: e.productoSlug, varianteId: e.varianteId, cantidad: 1 });
-      trackAgregarAlCarrito({ sku: e.sku, nombre: e.nombre, precio: e.precio });
-    }
     for (const c of colores) {
       const cantidad = elegidos[c.id] ?? 0;
       if (cantidad <= 0) continue;

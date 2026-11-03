@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { desglosar } from "@/lib/resumen";
+import { TEXTOS } from "@/lib/textos";
 import OfertaCantidad from "@/components/producto/OfertaCantidad";
 import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
@@ -115,13 +116,16 @@ export default function VistaCarrito() {
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
             <span>
-              {datos.cupon?.estado === "aplicado"
-                ? `Cupón ${datos.cupon.codigo}`
-                : datos.suscriptor && (datos.suscriptor.cupon > 0 || datos.suscriptor.saldoUsado > 0)
-                  ? "Tus beneficios de suscriptor"
-                  : "Descuento"}
+              {datos.cupon?.estado === "aplicado" ? `Cupón ${datos.cupon.codigo}` : "Descuento"}
             </span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
+          </div>
+        ) : null}
+        {/* El cupón de bienvenida del suscriptor, en su renglón (el saldo se elige en el checkout). */}
+        {resumen.cupon > 0 ? (
+          <div className="fila" style={{ color: "var(--verde)" }}>
+            <span>{TEXTOS.suscriptores.checkoutCaja.cupon}</span>
+            <span>−{formatearPrecio(resumen.cupon)}</span>
           </div>
         ) : null}
         {/* El envío se cotiza en el checkout con la dirección (Envia): acá no
@@ -143,9 +147,9 @@ export default function VistaCarrito() {
           />
         ))}
 
-        {envio.nota ? (
+        {envio.nota || datos.suscriptor ? (
           <p className="apagado" style={{ fontSize: "0.8125rem" }}>
-            {envio.nota}
+            {datos.suscriptor ? TEXTOS.suscriptores.envioGratis : envio.nota}
           </p>
         ) : null}
 

@@ -24,6 +24,9 @@
 
 import { cuotasMaximas } from "./suscriptores";
 
+/** «0,00 %» con un espacio duro: el «%» no queda solo en el renglón de abajo. */
+export const cfteaSinCortar = (cftea: string) => cftea.replace(/ /g, "\u00a0");
+
 /** Las marcas con las que se verifica. Son las que nombra el anuncio. */
 export const MARCAS_VERIFICADAS = ["visa", "master"] as const;
 export const NOMBRE_MARCAS = "Visa y Mastercard";

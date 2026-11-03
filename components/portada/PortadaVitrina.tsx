@@ -21,8 +21,11 @@ import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { armarPack, cantidadesDePack, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
+import { CUOTAS_SUSCRIPTORES, CUPON_BIENVENIDA as CUPON_SUSCRIPTOR } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
+import BeneficiosSuscriptor from "@/components/suscriptores/BeneficiosSuscriptor";
+import CajaSuscripcion from "@/components/suscriptores/CajaSuscripcion";
 import { rutaDeVariante } from "@/lib/variantes";
 import { enLetras, FORMAS, fotosDeVitrina, precioUnico, tinteDe, tinteDeColor } from "@/lib/vitrina";
 
@@ -30,7 +33,9 @@ import { enLetras, FORMAS, fotosDeVitrina, precioUnico, tinteDe, tinteDeColor } 
  * La portada vitrina (pedido de Ale, 30/10/2026): marca primero y compra
  * rápida. Los modelos sobre color, que se suman sin salir de la portada; la
  * cuenta de llevarse dos; lo que trae cada par; las opiniones; las cuentas
- * claras y un día con el mismo par. Lo de siempre se respeta: los montos
+ * claras, un día con el mismo par y Suscriptores Harper (Ale, 03/11/2026: la
+ * suscripción gratis con el mail, con el formulario ahí mismo). Lo de
+ * siempre se respeta: los montos
  * salen de Airtable y de Mercado Pago (cuotas verificadas para cada total),
  * nada que no esté confirmado se afirma y no se nombra a Mercado Libre.
  */
@@ -89,9 +94,11 @@ export default async function PortadaVitrina({ productos, config }: { productos:
 
   // Las cuotas de cada monto que se anuncia, confirmadas una por una con Mercado Pago.
   const montos = [...new Set([...packs.map((p) => p.total), ...(todos ? [todos.total] : [])])];
-  const [verificadas, mercadoLibre] = await Promise.all([
+  // Y las de suscriptor (6) para un par, aparte: se nombran solo si Mercado Pago las confirma.
+  const [verificadas, mercadoLibre, cuotasSuscriptor] = await Promise.all([
     conEspera(Promise.all(montos.map(async (m) => [m, await verificarCuotas(m)] as const)), ESPERA_CUOTAS_MS, []),
     conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, ultimoDeMercadoLibre()),
+    precio ? conEspera(verificarCuotas(precio, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
   ]);
   const cuotasDe = (monto: number) => verificadas.find(([m]) => m === monto)?.[1] ?? undefined;
   const opiniones = mercadoLibre?.opiniones ?? null;
@@ -189,6 +196,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
 
   const portadaAsiLlega = vitrina[0] ? modelos[0].variantes[vitrina[0].inicial]?.fotoPortada : null;
   const cuotasAnteojos = cuota1 ?? null;
+  // Las de suscriptor, solo si son más que las de todos (con el tope en 3 serían las mismas).
+  const cuotasDeSuscriptor = cuotasSuscriptor && (!cuotasAnteojos || cuotasSuscriptor.cuotas > cuotasAnteojos.cuotas) ? cuotasSuscriptor : null;
   // Con cuántos pares el envío es gratis a todo el país (null si con 5 todavía no).
   const paresPaisGratis =
     precio !== null
@@ -248,6 +257,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           precio: precio ? formatearPrecio(precio) : null,
           cuota: textoCuota(cuota1),
           letraChica,
+          suscribite: TEXTOS.suscriptores.enlacePortada(formatearPrecio(CUPON_SUSCRIPTOR)),
         }}
       />
 
@@ -377,6 +387,24 @@ export default async function PortadaVitrina({ productos, config }: { productos:
 
       <Opiniones opiniones={opiniones} reputacion={reputacion} />
 
+      {/* Suscriptores Harper (Ale, 03/11/2026): donde estaban los socios, con
+          el formulario ahí mismo. */}
+      <section id="suscriptores" className="suscriptores-portada" aria-labelledby="suscriptores-portada-titulo">
+        <div className="contenedor suscriptores-portada__grilla">
+          <div className="suscriptores-portada__texto">
+            <p className="etiqueta-mono">{TEXTOS.suscriptores.etiqueta} · Es gratis</p>
+            <h2 id="suscriptores-portada-titulo" className="suscriptores-portada__titulo">
+              {TEXTOS.suscriptores.titulo}
+            </h2>
+            <p className="suscriptores-portada__bajada">{TEXTOS.suscriptores.bajada}</p>
+            <BeneficiosSuscriptor cuotas={cuotasDeSuscriptor} cuotasTodos={cuotasAnteojos?.cuotas ?? null} />
+          </div>
+          <div className="suscriptores-portada__form">
+            <CajaSuscripcion origen="Portada" />
+          </div>
+        </div>
+      </section>
+
       {precio && filas.length > 0 && hayPromo ? (
         <DeADos
           filas={filas}
@@ -442,6 +470,9 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                 ))}
               </ul>
               <div className="lo-que-viene__acciones">
+                <a href="#suscriptores" className="lo-que-viene__suscribite">
+                  {TEXTOS.viene.suscribite}
+                </a>
                 {config.instagram ? (
                   <a href={config.instagram} target="_blank" rel="noopener noreferrer" className="boton boton--contorno lo-que-viene__boton">
                     {TEXTOS.viene.boton}
@@ -472,6 +503,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
           escala: fraseDeLaEscala(tramos, categoria),
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
+          cuotasSuscriptor: cuotasDeSuscriptor,
+          suscriptores: true,
         })}
       />
 

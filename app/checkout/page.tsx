@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import FormularioCheckout from "@/components/checkout/FormularioCheckout";
+import { getProductos } from "@/lib/catalogo";
+import { esCategoriaDeAnteojos } from "@/lib/categorias";
 import { getConfig } from "@/lib/config";
+import { cuotasDeTodosYSuscriptores } from "@/lib/cuotas-servidor";
 import { direccionesDisponibles } from "@/lib/direcciones-servidor";
 import { leerMedioPago } from "@/lib/dinero-mp";
 import { puedeCotizar } from "@/lib/envia";
@@ -20,7 +23,14 @@ export default async function PaginaCheckout({
   const conDineroMP = leerMedioPago(medio) === "dineroMP";
   // Sin Envia (o sin origen o transportistas en Config), el checkout no
   // intenta cotizar y se ve como siempre, con la tarifa plana.
-  const cotizaEnvio = puedeCotizar(await getConfig());
+  const [config, productos] = await Promise.all([getConfig(), getProductos()]);
+  const cotizaEnvio = puedeCotizar(config);
+  // Las 6 cuotas de suscriptor, para nombrarlas en la invitación a
+  // suscribirse solo si Mercado Pago las confirma (Ale, 03/11/2026).
+  const { suscriptores: cuotasSuscriptor } = await cuotasDeTodosYSuscriptores(
+    productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio),
+    2_000
+  );
 
   // InitiateCheckout lo dispara el formulario, cuando el carrito ya está
   // resuelto (con valor e ítems) y solo si de verdad hay algo para comprar y
@@ -48,6 +58,7 @@ export default async function PaginaCheckout({
         buscador={direccionesDisponibles()}
         cotizaEnvio={cotizaEnvio}
         medioInicial={conDineroMP ? "dineroMP" : "mercadopago"}
+        cuotasSuscriptor={cuotasSuscriptor}
       />
     </section>
   );

@@ -67,6 +67,8 @@ export const TEXTOS = {
     bajada: (lineas: string, modelos: number, colores: number) =>
       `Se vienen anteojos ${lineas}: ${modelos} modelos nuevos en ${colores} colores.`,
     boton: "Enterate primero en Instagram",
+    /** Los suscriptores reciben los lanzamientos por mail. */
+    suscribite: "Suscribite y te avisamos por mail",
   },
   unDia: {
     etiqueta: "Un día cualquiera",
@@ -143,5 +145,133 @@ export const TEXTOS = {
     /** El checkout rechazó el cupón (ya hay una compra confirmada con ese mail o DNI). */
     cuponRechazado: "El cupón de bienvenida es para la primera compra, y ya hay una compra con este mail o DNI.",
     saldoCambio: "Tu saldo cambió mientras comprabas. Revisá el total antes de confirmar.",
+
+    /**
+     * Los mismos cuatro beneficios con un título corto, para la web (la
+     * portada, /suscriptores y la ficha). Las reglas son las de
+     * lib/suscriptores.ts, dichas simple.
+     */
+    tarjetas: {
+      cupon: (monto: string) => ({ titulo: `${monto} de bienvenida`, detalle: "De descuento en tu primera compra. Una sola vez por persona." }),
+      cashback: (porcentaje: number, dias: number) => ({
+        titulo: `${porcentaje}% de vuelta`,
+        detalle: `De lo que pagás en productos, como saldo a favor. Lo usás desde los ${dias} días del pago, no vence y puede pagar la compra entera.`,
+      }),
+      envio: { titulo: "Envío gratis siempre", detalle: "En todas tus compras, a todo el país y sin mínimo." },
+      /** «6 cuotas sin interés» · «Con Visa y Mastercard · CFTEA 0,00 %. Sin suscribirte, 3.» */
+      cuotas: (cuotas: number, marcas: string, cftea: string, todos: number | null) => ({
+        titulo: `${cuotas} cuotas sin interés`,
+        detalle: `Con ${marcas} · CFTEA ${cftea}.${todos ? ` Sin suscribirte,\u00a0${todos}.` : ""}`,
+      }),
+    },
+    /** La sección de la portada y la página /suscriptores. */
+    titulo: "Suscribite gratis y ahorrá en cada compra.",
+    bajada: "Solo con tu mail. No cuesta nada y te das de baja cuando quieras.",
+    /** El enlace de la portada, debajo del botón de comprar. */
+    enlacePortada: (monto: string) => `Suscribite: ${monto} de bienvenida`,
+    /** La barra de anuncios. */
+    anuncio: (monto: string) => `Suscribite gratis: ${monto} de bienvenida y envío gratis siempre`,
+    /** La cuota de suscriptor junto a la de todos (barra, ficha): «6 si sos suscriptor». */
+    cuotasSuscriptor: (cuotas: number) => `${cuotas} si sos suscriptor`,
+    condiciones: "Ver las condiciones",
+    /** El formulario de suscripción (components/suscriptores/FormularioSuscripcion.tsx). */
+    form: {
+      email: "Tu mail",
+      nombre: "Tu nombre (opcional)",
+      acepto: "Acepto recibir mails de Harper.",
+      faltaAcepto: "Para suscribirte, marcá que aceptás recibir nuestros mails.",
+      suscribirme: "Suscribirme",
+      pedirCodigo: "Mandame el código",
+      notaCodigo: "Te mandamos un código de 6 números para confirmar que el mail es tuyo.",
+      codigoEnviado: (email: string) => `Te mandamos un código a ${email}. Escribilo acá: vence en 10 minutos.`,
+      codigo: "Código",
+      confirmar: "Confirmar",
+      otroMail: "Usar otro mail",
+      /** Quiso entrar con un mail que no está suscripto (o se dio de baja). */
+      noSuscripto: "Ese mail no está suscripto. Para suscribirte, aceptá recibir nuestros mails y confirmá.",
+      yaSos: "¿Ya sos suscriptor?",
+      entrar: "Entrá con tu mail",
+      quieroSuscribirme: "Todavía no: quiero suscribirme",
+      listo: {
+        nueva: "¡Listo! Ya sos suscriptor.",
+        reactivada: "¡Volviste! Ya sos suscriptor otra vez.",
+        ya: "Ya sos suscriptor: entraste con tu mail.",
+      },
+      /** «Tu cupón de $ 10.000 se aplica solo en el carrito.» */
+      listoCupon: (monto: string) => `Tu cupón de ${monto} y el envío gratis se aplican solos en el carrito.`,
+      listoSinCupon: "Tus beneficios se aplican solos en el carrito.",
+    },
+    elegir: "Elegir mis anteojos",
+    verCuenta: "Ver mi cuenta",
+    /** «Mi cuenta» (/suscriptores/mi-cuenta). */
+    cuenta: {
+      titulo: "Mi cuenta",
+      hola: (nombre: string) => `Hola, ${nombre}.`,
+      entrarTitulo: "Entrá a tu cuenta",
+      entrarBajada: "Escribí el mail con el que te suscribiste y te mandamos un código.",
+      noSuscripto: "¿Todavía no sos suscriptor?",
+      verBeneficios: "Mirá los beneficios",
+      disponible: "Saldo disponible",
+      disponibleDetalle: "Se descuenta solo en el checkout. No vence.",
+      enCamino: "En camino",
+      /** «$ 7.191 desde el 23/11/2026». */
+      enCaminoDesde: (monto: string, fecha: string) => `${monto} desde el ${fecha}`,
+      /** Con un solo cashback en camino. */
+      enCaminoFecha: (fecha: string) => `Lo podés usar desde el ${fecha}.`,
+      enCaminoDetalle: (dias: number) => `Es el cashback de tus compras: se usa a los ${dias} días del pago.`,
+      sinEnCamino: "Nada por ahora.",
+      cupon: "Cupón de bienvenida",
+      cuponDisponible: (monto: string) => `${monto} de descuento en tu primera compra. Se aplica solo en el carrito.`,
+      cuponUsado: (pedido: string) => (pedido ? `Ya lo usaste, en el pedido ${pedido}.` : "Ya lo usaste."),
+      movimientos: "Movimientos",
+      sinMovimientos: "Todavía no hay movimientos. Con tu primera compra empieza a volver el 10%.",
+      movimiento: {
+        Cashback: (pedido: string) => (pedido ? `Cashback del pedido ${pedido}` : "Cashback"),
+        Uso: (pedido: string) => (pedido ? `Usado en el pedido ${pedido}` : "Saldo usado"),
+        Ajuste: "Ajuste de Harper",
+      },
+      /** Junto a un cashback que todavía no se puede usar. */
+      desde: (fecha: string) => `desde el ${fecha}`,
+      salir: "Salir",
+      bajaTitulo: "Mails y baja",
+      bajaTexto:
+        "Si te das de baja, dejás de recibir nuestros mails y de tener los beneficios. Tu saldo queda guardado: si volvés a suscribirte con este mail, lo recuperás.",
+      baja: "Darme de baja",
+      bajaConfirmar: "Sí, darme de baja",
+      cancelar: "No, seguir suscripto",
+    },
+    /** La página del enlace de baja de los mails (/suscriptores/baja). */
+    baja: {
+      titulo: "Darte de baja",
+      texto: "Vas a dejar de recibir nuestros mails y de tener los beneficios de suscriptor. Tu saldo queda guardado por si volvés.",
+      boton: "Darme de baja",
+      listo: "Listo, te diste de baja.",
+      listoDetalle: "No vas a recibir más mails de Harper. Si cambiás de idea, te podés volver a suscribir con el mismo mail.",
+      invalido: "El enlace no es válido. Escribinos y te damos de baja.",
+      sinEnlace: "Para darte de baja, usá el enlace de cualquiera de nuestros mails o entrá a tu cuenta.",
+    },
+    /** La caja de la ficha. */
+    ficha: {
+      titulo: (monto: string) => `Suscribite gratis: ${monto} menos en tu primera compra.`,
+      suscripto: "Sos suscriptor: tus beneficios se aplican solos en el carrito.",
+      /** «Tenés $ 2.181 de saldo para usar.» */
+      saldo: (monto: string) => `Tenés ${monto} de saldo para usar.`,
+      suscribirme: "Suscribirme gratis",
+    },
+    /** El checkout. */
+    checkoutCaja: {
+      /** «Suscribite con este mail y ahorrá $ 10.000 en esta compra, con envío sin cargo y 6 cuotas sin interés.» */
+      invitacion: (monto: string, cuotas: number | null) =>
+        `Suscribite con este mail y ahorrá ${monto} en esta compra, con envío sin cargo${cuotas ? ` y ${cuotas} cuotas sin interés` : ""}.`,
+      nota: "Es gratis. El cupón es para tu primera compra en Harper.",
+      escribiMail: "Escribí tu mail arriba y te mandamos el código.",
+      suscribirme: "Suscribirme con este mail",
+      usarSaldo: (monto: string) => `Usar mi saldo a favor (${monto})`,
+      /** «Con esta compra te vuelven $ 7.990 de saldo, para usar desde los 30 días del pago.» */
+      cashback: (monto: string, dias: number) => `Con esta compra te vuelven ${monto} de saldo, para usar desde los ${dias} días del pago.`,
+      cupon: "Cupón de bienvenida",
+      saldo: "Pagado con tu saldo",
+      salir: "¿No sos vos? Salir",
+    },
   },
 };

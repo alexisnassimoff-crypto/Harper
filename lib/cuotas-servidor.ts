@@ -1,6 +1,6 @@
 import { cuotasAnunciables, evaluarCuotas, MARCAS_VERIFICADAS, resumirCuotasMP, type CuotasVerificadas } from "./cuotas";
 import { consultarCuotas, mercadoPagoConfigurado } from "./mercadopago";
-import { CUOTAS_TODOS } from "./suscriptores";
+import { CUOTAS_SUSCRIPTORES, CUOTAS_TODOS } from "./suscriptores";
 
 /**
  * La consulta a Mercado Pago, solo en el servidor (usa el token de MP). La
@@ -31,6 +31,25 @@ export async function verificarCuotasPara(precios: number[], pedidas: number = C
   const validos = precios.filter((p) => p > 0);
   if (validos.length === 0) return null;
   return verificarCuotas(Math.min(...validos), pedidas);
+}
+
+/**
+ * Para anunciar las dos cantidades juntas (la barra, la portada, la ficha,
+ * /suscriptores): las de cualquier comprador y las de suscriptor, cada una
+ * confirmada aparte con Mercado Pago para el mismo precio (Ale, 03/11/2026).
+ * Las de suscriptor van solo si son más que las de todos: con el tope de
+ * `NEXT_PUBLIC_CUOTAS` en 3, serían las mismas. Si Mercado Pago tarda más de
+ * `ms`, sin cuotas.
+ */
+export async function cuotasDeTodosYSuscriptores(
+  precios: number[],
+  ms: number
+): Promise<{ todos: CuotasVerificadas | null; suscriptores: CuotasVerificadas | null }> {
+  const [todos, suscriptores] = await Promise.all([
+    conEspera(verificarCuotasPara(precios, CUOTAS_TODOS), ms, null),
+    conEspera(verificarCuotasPara(precios, CUOTAS_SUSCRIPTORES), ms, null),
+  ]);
+  return { todos, suscriptores: suscriptores && (!todos || suscriptores.cuotas > todos.cuotas) ? suscriptores : null };
 }
 
 /**
