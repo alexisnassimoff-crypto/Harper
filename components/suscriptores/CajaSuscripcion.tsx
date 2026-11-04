@@ -18,7 +18,7 @@ export default function CajaSuscripcion({ origen, conNombre = true }: { origen: 
   // Recién suscripto acá: el formulario muestra su propio «¡Listo!».
   const [aca, setAca] = useState(false);
 
-  if (suscriptor && !aca) {
+  if (suscriptor && suscriptor.activo !== false && !aca) {
     return (
       <div className="suscripcion suscripcion--listo">
         <p className="suscripcion__listo">{TEXTOS.suscriptores.ficha.suscripto}</p>

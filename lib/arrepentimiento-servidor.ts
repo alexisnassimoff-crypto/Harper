@@ -147,14 +147,17 @@ export async function registrarArrepentimiento(
 type FilaPedidoArrepentimiento = { Numero?: string; Notas?: string; Cliente?: string[] };
 
 /**
- * El cashback de un pedido que se arrepiente (Ale, 03/11/2026: el cashback se
- * puede usar pasado el plazo de devolución). Si el pedido es de un suscriptor
- * y el cashback todavía no se puede usar, queda Anulado en Saldos. Solo si
- * quien escribe usa el mail del suscriptor o el del pedido: el formulario no
- * pide más que un mail, y nadie tiene que poder anularle el saldo a otro con
- * un número de pedido. Si no coincide, o si el cashback ya se puede usar, no
- * se toca nada y el aviso a Harper lo dice. Devuelve esa nota, o null si el
- * pedido no tiene cashback.
+ * El cashback y el saldo de un pedido que se arrepiente (Ale, 03/11/2026: el
+ * cashback es de las compras que se quedan). Si el pedido es de un
+ * suscriptor, su cashback queda Anulado en Saldos, aunque ya se pueda usar (el
+ * plazo para arrepentirse corre desde que le llega el pedido, y el cashback se
+ * libera a los 30 días del pago). Solo si quien escribe usa el mail del
+ * suscriptor o el del pedido: el formulario no pide más que un mail, y nadie
+ * tiene que poder anularle el saldo a otro con un número de pedido. Si no
+ * coincide, no se toca nada y el aviso a Harper lo dice. Si usó saldo en ese
+ * pedido, el aviso le recuerda a Harper devolvérselo cuando se concrete
+ * (las condiciones lo prometen). Devuelve esa nota, o null si el pedido no
+ * tiene cashback ni saldo usado.
  */
 export async function anularCashbackDelPedido(solicitud: SolicitudArrepentimiento, codigo: string, ahora: Date): Promise<string | null> {
   const numero = pedidoParaMostrar(solicitud.pedido);
@@ -167,7 +170,7 @@ export async function anularCashbackDelPedido(solicitud: SolicitudArrepentimient
   });
   const pedido = pedidos[0];
   const beneficios = pedido ? beneficiosDeNotas(pedido.fields.Notas) : null;
-  if (!pedido || !beneficios || beneficios.cashback <= 0) return null;
+  if (!pedido || !beneficios || (beneficios.cashback <= 0 && beneficios.saldoUsado <= 0 && beneficios.cupon <= 0)) return null;
 
   const email = solicitud.email.trim().toLowerCase();
   let esSuyo = email === beneficios.email.toLowerCase();
@@ -176,20 +179,49 @@ export async function anularCashbackDelPedido(solicitud: SolicitudArrepentimient
     const cliente = await getRecord<{ Email?: string }>(TABLAS.clientes, clienteId).catch(() => null);
     esSuyo = (cliente?.fields.Email ?? "").trim().toLowerCase() === email;
   }
+  // El saldo que usó en ese pedido vuelve cuando se concreta la devolución: lo hace Harper.
+  // El cupón de bienvenida: arrepentirse no le puede costar nada, así que se lo
+  // devuelve Harper (las condiciones ya no dicen que no se repone).
+  const notaSaldo =
+    [
+      beneficios.saldoUsado > 0
+        ? `Usó ${formatearPrecio(beneficios.saldoUsado)} de saldo en el pedido ${numero}: cuando se concrete la devolución, marcá Anulado el Uso de ese pedido en Saldos para devolvérselo.`
+        : null,
+      beneficios.cupon > 0
+        ? `Usó el cupón de bienvenida en el pedido ${numero}: si el arrepentimiento sigue, devolvéselo: en Suscriptores, Cupon en Disponible (y vaciá Cupon_pedido); en Clientes, borrá Primera_compra de ese mail si no tiene otra compra.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || null;
+
   if (!esSuyo) {
-    return `El pedido ${numero} tiene cashback de suscriptor, pero el mail de la solicitud no es el del pedido: no se tocó. Si corresponde, marcá Anulado en Saldos.`;
+    return [
+      `El pedido ${numero} es de un suscriptor, pero el mail de la solicitud no es el del pedido: no se tocó. Si corresponde, marcá Anulado el cashback en Saldos.`,
+      notaSaldo,
+    ]
+      .filter(Boolean)
+      .join(" ");
   }
 
-  const r = await anularCashbackPendiente(numero, `Anulado por el arrepentimiento ${codigo} (${ahora.toISOString().slice(0, 10)}).`, ahora);
-  switch (r.estado) {
-    case "anulado":
-      console.info(`[arrepentimiento] ${codigo}: cashback del pedido ${numero} anulado`);
-      return `El cashback de ${formatearPrecio(r.monto)} del pedido ${numero} quedó Anulado en Saldos. Si el arrepentimiento no sigue, destildá Anulado.`;
-    case "disponible":
-      return `El cashback de ${formatearPrecio(r.monto)} del pedido ${numero} ya se puede usar: no se tocó. Si corresponde, marcá Anulado en Saldos.`;
-    case "ya-anulado":
-      return `El cashback del pedido ${numero} ya estaba Anulado en Saldos.`;
-    case "sin-cashback":
-      return null;
-  }
+  const nota = await (async () => {
+    if (beneficios.cashback <= 0) return null;
+    const r = await anularCashbackPendiente(numero, `Anulado por el arrepentimiento ${codigo} (${ahora.toISOString().slice(0, 10)}).`, ahora, {
+      aunqueDisponible: true,
+    });
+    switch (r.estado) {
+      case "anulado":
+        console.info(`[arrepentimiento] ${codigo}: cashback del pedido ${numero} anulado`);
+        return `El cashback de ${formatearPrecio(r.monto)} del pedido ${numero} quedó Anulado en Saldos. Si el arrepentimiento no sigue, destildá Anulado.`;
+      case "anulado-disponible":
+        console.info(`[arrepentimiento] ${codigo}: cashback ya disponible del pedido ${numero} anulado`);
+        return `El cashback de ${formatearPrecio(r.monto)} del pedido ${numero} ya se podía usar y quedó Anulado en Saldos: si ya lo había usado, su saldo queda en negativo hasta el próximo cashback. Si el arrepentimiento no sigue, destildá Anulado.`;
+      case "disponible":
+        return `El cashback de ${formatearPrecio(r.monto)} del pedido ${numero} ya se puede usar: no se tocó. Si corresponde, marcá Anulado en Saldos.`;
+      case "ya-anulado":
+        return `El cashback del pedido ${numero} ya estaba Anulado en Saldos.`;
+      case "sin-cashback":
+        return null;
+    }
+  })();
+  return [nota, notaSaldo].filter(Boolean).join(" ") || null;
 }

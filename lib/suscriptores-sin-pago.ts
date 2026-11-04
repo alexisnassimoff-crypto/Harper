@@ -12,6 +12,7 @@ import {
   estaActivo,
   movimientosDe,
   registrarCupon,
+  reservasDe,
   registrarUso,
   suscriptorPorId,
   tieneCupon,
@@ -32,9 +33,12 @@ import { TEXTOS } from "./textos";
  *     no los tocan a la vez.
  *  2. La fila y el saldo leídos de nuevo: si ya no alcanza (o el cupón ya no
  *     está), no sigue y el comprador revisa el total.
- *  3. El pedido, ya pagado (no hay nada que cobrar).
- *  4. El cupón y después el saldo anotados. Si algo de eso falla, se deshace
- *     lo anotado y el pedido se anula: el comprador puede volver a intentar.
+ *  3. El pedido, en «pendiente»: si el proceso se corta acá, o si después no
+ *     se puede anular, queda un pedido pendiente que nadie despacha, nunca
+ *     uno «pagado» sin el saldo descontado.
+ *  4. El cupón y después el saldo anotados, y recién entonces el pedido pasa
+ *     a «pagado». Si algo de eso falla, se deshace lo anotado y el pedido se
+ *     anula: el comprador puede volver a intentar.
  *  5. Stock, compra del cliente y mails. Si algo de esto falla, el pedido ya
  *     está hecho: Harper se entera en el aviso y lo completa a mano.
  */
@@ -49,30 +53,42 @@ export async function confirmarPedidoSinPago(d: {
   /** Lo que el carrito usó, en pesos: tiene que seguir estando. */
   cupon: number;
   saldoUsado: number;
-  /** Crea la fila del pedido, ya pagada. */
+  /** Crea la fila del pedido, en «pendiente». */
   crearPedido: () => Promise<{ id: string }>;
+  /** Lo pasa a «pagado», con el cupón y el saldo ya anotados. */
+  marcarPagado: (pedidoId: string) => Promise<void>;
   /** Anula el pedido si el cupón o el saldo no se pudieron anotar. */
   anularPedido: (pedidoId: string) => Promise<void>;
   clienteId: string;
   datosMail: Omit<DatosMail, "suscriptor">;
   cerrojo?: Cerrojo | null;
+  /** Quien llama ya tiene el cerrojo del suscriptor (el checkout): no se vuelve a tomar. */
+  cerrojoTomado?: boolean;
   ahora?: () => Date;
 }): Promise<ResultadoSinPago> {
   const cerrojo = d.cerrojo === undefined ? cerrojoDesdeEntorno() : d.cerrojo;
   const ahora = d.ahora ?? (() => new Date());
   const clave = claveSuscriptor(d.suscriptor.id);
   const nonce = randomUUID();
+  const tomarlo = Boolean(cerrojo) && !d.cerrojoTomado;
 
-  if (cerrojo && !(await cerrojo.tomar(clave, nonce, TTL_SIN_PAGO_MS))) {
+  if (tomarlo && cerrojo && !(await cerrojo.tomar(clave, nonce, TTL_SIN_PAGO_MS))) {
     return { ok: false, status: 409, error: "Ya estamos confirmando tu pedido. Esperá un momento y revisá tu mail." };
   }
 
   try {
-    const [fresco, movimientos] = await Promise.all([suscriptorPorId(d.suscriptor.id), movimientosDe(d.suscriptor.id)]);
-    if (!fresco || !estaActivo(fresco) || fresco.email !== d.suscriptor.email.toLowerCase()) {
+    const [fresco, movimientos, reservas] = await Promise.all([
+      suscriptorPorId(d.suscriptor.id),
+      movimientosDe(d.suscriptor.id),
+      reservasDe(d.suscriptor.id, ahora()),
+    ]);
+    // Dado de baja también puede: paga con el saldo que ya ganó (sin cupón, que el carrito no le da).
+    if (!fresco || fresco.email !== d.suscriptor.email.toLowerCase()) {
       return { ok: false, status: 409, error: "Tu suscripción cambió. Entrá de nuevo con tu mail y revisá tu carrito." };
     }
-    if (saldoDe(movimientos, ahora()).disponible < d.saldoUsado || (d.cupon > 0 && !tieneCupon(fresco))) {
+    // Sin lo que apartan sus otros pedidos sin pagar (un link de Mercado Pago abierto con el mismo saldo).
+    const disponible = saldoDe(movimientos, ahora()).disponible - reservas.saldo;
+    if (disponible < d.saldoUsado || (d.cupon > 0 && (!tieneCupon(fresco) || !estaActivo(fresco) || reservas.cupon))) {
       return { ok: false, status: 409, error: TEXTOS.suscriptores.saldoCambio };
     }
 
@@ -90,6 +106,7 @@ export async function confirmarPedidoSinPago(d: {
         cuponAnotado = true;
       }
       if (d.saldoUsado > 0) await registrarUso({ ...datosMovimiento, monto: d.saldoUsado });
+      await d.marcarPagado(pedido.id);
     } catch (error) {
       // Lo que se haya anotado se deshace: el pedido no existió.
       if (cuponAnotado) await devolverCupon({ suscriptorId: fresco.id, numeroPedido: d.numero }).catch(() => {});
@@ -131,7 +148,7 @@ export async function confirmarPedidoSinPago(d: {
     console.info(`[suscriptores] el pedido ${d.numero} se pagó entero con saldo`);
     return { ok: true };
   } finally {
-    if (cerrojo) await cerrojo.soltar(clave, nonce).catch(() => {});
+    if (tomarlo && cerrojo) await cerrojo.soltar(clave, nonce).catch(() => {});
   }
 }
 

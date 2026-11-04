@@ -29,7 +29,7 @@ export function EntrarACuenta() {
  * de recibir mails y pierde los beneficios (app/api/suscriptores/baja, con la
  * sesión). Ninguna de las dos borra el saldo.
  */
-export function AccionesCuenta() {
+export function AccionesCuenta({ activo = true, email = "" }: { activo?: boolean; email?: string }) {
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState<"salir" | "baja" | null>(null);
@@ -67,6 +67,27 @@ export function AccionesCuenta() {
           Volver
         </button>
       </section>
+    );
+  }
+
+  // Se dio de baja: tiene su saldo y la opción de volver a suscribirse.
+  if (!activo) {
+    return (
+      <>
+        <section className="cuenta-suscriptor__baja" aria-labelledby="cuenta-volver-titulo">
+          <h2 id="cuenta-volver-titulo">{T.volver}</h2>
+          <FormularioSuscripcion
+            origen="Suscriptores"
+            email={email}
+            conCambioDeModo={false}
+            textoBoton={T.volver}
+            alListo={() => router.refresh()}
+          />
+        </section>
+        <button type="button" className="enlace-accion cuenta-suscriptor__salir" onClick={salir} disabled={ocupado !== null}>
+          {ocupado === "salir" ? "Saliendo…" : T.salir}
+        </button>
+      </>
     );
   }
 

@@ -275,8 +275,10 @@ export async function resolverCarrito(
   // de dinero en Mercado Pago: así el saldo que usa es el mismo pague como
   // pague, y ese 10% corre sobre lo que queda.
   const suscriptor = opciones.suscriptor ?? null;
+  // Dado de baja: solo el saldo que ya ganó, sin beneficios nuevos.
+  const activo = Boolean(suscriptor) && suscriptor?.activo !== false;
   const beneficios = aplicarBeneficios(items, {
-    cupon: suscriptor?.cuponDisponible && opciones.usarCupon !== false ? CUPON_BIENVENIDA : 0,
+    cupon: activo && suscriptor?.cuponDisponible && opciones.usarCupon !== false ? CUPON_BIENVENIDA : 0,
     saldo: suscriptor && opciones.usarSaldo ? suscriptor.saldoDisponible : 0,
   });
   items = beneficios.items;
@@ -297,7 +299,7 @@ export async function resolverCarrito(
     paquete,
     destino: opciones.destino,
     eleccion: opciones.eleccion,
-    suscriptor: Boolean(suscriptor),
+    suscriptor: activo,
   });
   const dineroMP = items.length > 0 ? aplicarDineroMP(items) : null;
 
@@ -323,14 +325,16 @@ export async function resolverCarrito(
       ? {
           email: suscriptor.email,
           cupon: beneficios.cupon,
-          cuponDisponible: suscriptor.cuponDisponible,
+          cuponDisponible: activo && suscriptor.cuponDisponible,
           saldoUsado: beneficios.saldo,
           saldoDisponible: suscriptor.saldoDisponible,
+          saldoReservado: suscriptor.saldoReservado ?? 0,
           // El cashback es sobre lo que paga en productos: sin el envío y
-          // después del cupón y del saldo.
-          cashbackPrevisto: cashbackDe(subtotal),
-          cashbackDineroMP: dineroMP ? cashbackDe(dineroMP.subtotal) : null,
-          cuotas: cuotasMaximas(true),
+          // después del cupón y del saldo. Dado de baja, no le vuelve nada.
+          cashbackPrevisto: activo ? cashbackDe(subtotal) : 0,
+          cashbackDineroMP: activo && dineroMP ? cashbackDe(dineroMP.subtotal) : null,
+          cuotas: cuotasMaximas(activo),
+          activo,
         }
       : null,
   };

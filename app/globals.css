@@ -5174,6 +5174,13 @@ p {
 .cuenta-suscriptor {
   max-width: 48rem;
 }
+.cuenta-suscriptor__aviso {
+  margin: 1rem 0 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--linea, rgb(22 21 15 / 0.15));
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
 .cuenta-suscriptor__bajada {
   margin-top: 0.5rem;
   overflow-wrap: anywhere;

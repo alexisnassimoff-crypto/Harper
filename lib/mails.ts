@@ -314,8 +314,30 @@ function lineaSuscriptorInterna(d: Pick<DatosMail, "suscriptor">): string | null
     .join(" · ");
 }
 
-/** Lo que Harper tiene que hacer si el pedido de un suscriptor se devuelve. */
-const AVISO_DEVOLUCION_SALDO = "Si se devuelve, marcá Anulado en Saldos (el cashback de este pedido).";
+/** Lo que Harper tiene que hacer si el pedido de un suscriptor se devuelve: anular el cashback y devolver el saldo usado. */
+function avisoDevolucionSaldo(b: NonNullable<DatosMail["suscriptor"]>): string | null {
+  const que = [
+    b.cashback > 0 ? "el Cashback de este pedido (lo que le vuelve)" : null,
+    b.saldoUsado > 0 ? "el Uso de este pedido (así recupera el saldo que usó)" : null,
+  ].filter(Boolean);
+  return que.length ? `Si se devuelve, marcá Anulado en Saldos ${que.join(" y ")}.` : null;
+}
+
+/** Un aviso corto para Harper, sin datos del comprador: qué pasó y qué hacer. */
+export function mailAlertaInterna(d: { config: ConfigTienda; asunto: string; lineas: string[]; enlace?: string | null }): Envio {
+  const html = envoltorio(
+    `<h1 style="margin:0 0 16px;font-size:20px;font-weight:400;">${escaparHtml(d.asunto)}</h1>
+${d.lineas.map((l) => `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;">${escaparHtml(l)}</p>`).join("\n")}
+${d.enlace ? `<p style="margin:16px 0 0;font-size:14px;"><a href="${escaparHtml(d.enlace)}" style="color:#004226;">Ver el pedido en Airtable</a></p>` : ""}`,
+    d.config
+  );
+  return {
+    para: d.config.emailPedidos,
+    asunto: d.asunto,
+    html,
+    texto: [d.asunto, "", ...d.lineas, ...(d.enlace ? ["", d.enlace] : [])].join("\n"),
+  };
+}
 
 /** 1 — Confirmación de compra para el cliente. */
 export function mailConfirmacion(d: DatosMail): Envio {
@@ -405,7 +427,7 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
       d.conDineroMP ? " · dinero en Mercado Pago" : ""
     }</p>
 ${d.alerta ? `<p style="margin:0 0 24px;padding:12px 14px;border:1px solid #a1281b;color:#a1281b;font-size:14px;line-height:1.6;">${escaparHtml(d.alerta)}</p>` : ""}
-${lineaSuscriptorInterna(d) ? `<p style="margin:0 0 24px;padding:12px 14px;background:#004226;color:#ffffff;font-size:14px;line-height:1.6;">${escaparHtml(lineaSuscriptorInterna(d)!)}${d.suscriptor && d.suscriptor.cashback > 0 ? `<br>${escaparHtml(AVISO_DEVOLUCION_SALDO)}` : ""}</p>` : ""}
+${lineaSuscriptorInterna(d) ? `<p style="margin:0 0 24px;padding:12px 14px;background:#004226;color:#ffffff;font-size:14px;line-height:1.6;">${escaparHtml(lineaSuscriptorInterna(d)!)}${d.suscriptor && avisoDevolucionSaldo(d.suscriptor) ? `<br>${escaparHtml(avisoDevolucionSaldo(d.suscriptor)!)}` : ""}</p>` : ""}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   ${filasDeItems(d.items, d.sitio)}
@@ -442,7 +464,7 @@ ${
   );
 
   const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " (dinero en Mercado Pago)" : ""}
-${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}${lineaSuscriptorInterna(d) ? `\n${lineaSuscriptorInterna(d)}${d.suscriptor && d.suscriptor.cashback > 0 ? `\n${AVISO_DEVOLUCION_SALDO}` : ""}\n` : ""}
+${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}${lineaSuscriptorInterna(d) ? `\n${lineaSuscriptorInterna(d)}${d.suscriptor && avisoDevolucionSaldo(d.suscriptor) ? `\n${avisoDevolucionSaldo(d.suscriptor)}` : ""}\n` : ""}
 ${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join("\n")}
 ${d.cupon ? `Cupón ${d.cupon}\n` : ""}
 ${d.cliente.nombre}

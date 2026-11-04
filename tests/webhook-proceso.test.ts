@@ -1173,3 +1173,28 @@ test("un pedido sin suscriptor no toca Suscriptores ni Saldos", async () => {
   await como("A", () => procesarNotificacion("111", deps));
   assert.equal((await listRecords(TABLAS.saldos)).length, antes);
 });
+
+test("Suscriptores: un reembolso o contracargo del pago anula el cashback del pedido una sola vez y avisa a Harper", async () => {
+  const suscriptorId = await suscriptorConSaldo();
+  const { pedidoId } = await pedidoDeSuscriptor(suscriptorId);
+  // A ve el pago aprobado; B y C, el mismo pago ya devuelto (Mercado Pago avisa otra vez).
+  const devuelto = pago(pedidoId, { transaction_amount: 74900, status: "refunded" });
+  const { deps, mails } = armarDeps({ "111@A": pago(pedidoId, { transaction_amount: 74900 }), "111@B": devuelto, "111@C": devuelto });
+  await como("A", () => procesarNotificacion("111", deps));
+  const antes = mails.length;
+
+  const r = await como("B", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.duplicado, true, "el pedido no cambia de estado");
+  assert.deepEqual(
+    (await saldosDe(suscriptorId)).find((m) => m[0] === "Cashback"),
+    ["Cashback", 7490, "HARPER-T1", "2025-11-19", true]
+  );
+  const aviso = mails.slice(antes).map((m) => m.mail);
+  assert.equal(aviso.length, 1);
+  assert.match(aviso[0].asunto, /^REVISAR HARPER-T1 — reembolso en Mercado Pago: cashback anulado$/);
+  assert.match(aviso[0].texto, /Usó \$\s5\.000 de saldo en este pedido/);
+
+  // Otro aviso del mismo reembolso: no vuelve a avisar.
+  await como("C", () => procesarNotificacion("111", deps));
+  assert.equal(mails.length, antes + 1);
+});

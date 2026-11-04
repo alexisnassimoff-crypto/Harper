@@ -4,8 +4,10 @@ import { cerrojoDesdeEntorno, soltarSinFallar, type Cerrojo } from "./cerrojo";
 import { yaCompro } from "./clientes";
 import { VERSION_CONDICIONES_SUSCRIPTORES } from "./legales";
 import {
+  beneficiosDeNotas,
   cashbackDisponibleDesde,
   fechaArgentina,
+  MINUTOS_RESERVA,
   saldoDe,
   type MovimientoSaldo,
   type OrigenSuscripcion,
@@ -120,8 +122,9 @@ export async function suscriptorPorId(id: string): Promise<CuentaSuscriptor | nu
 
 /**
  * El suscriptor de la sesión (el valor de la cookie): la firma tiene que ser
- * nuestra, la fila tiene que existir con el mismo mail y sin baja. Si no,
- * null: compra como cualquiera.
+ * nuestra y la fila tiene que existir con el mismo mail. Si no, null: compra
+ * como cualquiera. Una fila dada de baja también vale: no tiene beneficios
+ * nuevos, pero puede usar el saldo que ya ganó (estaActivo lo distingue).
  */
 export async function suscriptorDeLaSesion(valor: string | null | undefined, ahora = new Date()): Promise<CuentaSuscriptor | null> {
   const clave = claveDeSesionSuscriptor();
@@ -129,7 +132,7 @@ export async function suscriptorDeLaSesion(valor: string | null | undefined, aho
   const sesion = leerSesionSuscriptor(clave, valor, ahora.getTime());
   if (!sesion) return null;
   const cuenta = await suscriptorPorId(sesion.suscriptorId);
-  if (!cuenta || cuenta.email !== sesion.email.toLowerCase() || !estaActivo(cuenta)) return null;
+  if (!cuenta || cuenta.email !== sesion.email.toLowerCase()) return null;
   return cuenta;
 }
 
@@ -149,21 +152,66 @@ export async function suscriptorDeLaPeticion(request: Request): Promise<CuentaSu
   }
 }
 
+/** Los estados de Mercado Pago de un pago que todavía se puede aprobar (en revisión). */
+const PAGO_EN_REVISION = new Set(["pending", "in_process", "authorized", "in_mediation"]);
+
+export type Reservas = {
+  /** Pesos de saldo que apartan sus pedidos sin pagar. */
+  saldo: number;
+  /** Si uno de ellos aparta el cupón de bienvenida. */
+  cupon: boolean;
+  /** Los números de esos pedidos. */
+  pedidos: string[];
+};
+
+/**
+ * Lo que apartan los pedidos sin pagar del suscriptor: los «pendiente» de los
+ * últimos MINUTOS_RESERVA (más un margen), mientras su link de pago todavía
+ * cobra, y los que tienen un pago en revisión, sin importar cuándo se hicieron
+ * (se pueden aprobar después). Así el mismo saldo o el mismo cupón no se
+ * cobran en dos pedidos (Ale, 03/11/2026: el saldo se descuenta al pagar).
+ */
+export async function reservasDe(suscriptorId: string, ahora = new Date()): Promise<Reservas> {
+  const filas = await listRecords<{ Numero?: string; Notas?: string; Fecha?: string; MP_status?: string }>(TABLAS.pedidos, {
+    filterByFormula: `AND({Estado} = 'pendiente', FIND('(${escaparFormula(suscriptorId)})', {Notas}))`,
+    revalidate: 0,
+  });
+  const desde = ahora.getTime() - (MINUTOS_RESERVA + 15) * 60_000;
+  const reservas: Reservas = { saldo: 0, cupon: false, pedidos: [] };
+  for (const fila of filas) {
+    const beneficios = beneficiosDeNotas(fila.fields.Notas);
+    if (!beneficios || beneficios.suscriptorId !== suscriptorId) continue;
+    const reciente = Date.parse(fila.fields.Fecha ?? fila.createdTime) >= desde;
+    if (!reciente && !PAGO_EN_REVISION.has((fila.fields.MP_status ?? "").trim())) continue;
+    if (beneficios.saldoUsado <= 0 && beneficios.cupon <= 0) continue;
+    reservas.saldo += beneficios.saldoUsado;
+    reservas.cupon ||= beneficios.cupon > 0;
+    reservas.pedidos.push((fila.fields.Numero ?? fila.id).trim());
+  }
+  return reservas;
+}
+
 /**
  * Lo que el carrito necesita: el cupón (solo si ese mail todavía no tiene una
  * compra confirmada, como el viejo HARPER10; el checkout lo vuelve a mirar con
- * el mail y el DNI que escribe) y el saldo que ya se puede usar.
+ * el mail y el DNI que escribe) y el saldo que ya se puede usar, sin lo que
+ * aparten sus pedidos sin pagar (reservasDe).
  */
 export async function suscriptorParaElCarrito(cuenta: CuentaSuscriptor, ahora = new Date()): Promise<SuscriptorDelCarrito> {
-  const [movimientos, compro] = await Promise.all([
+  const [movimientos, compro, reservas] = await Promise.all([
     movimientosDe(cuenta.id),
     tieneCupon(cuenta) ? yaCompro(cuenta.email, "") : Promise.resolve(false),
+    reservasDe(cuenta.id, ahora),
   ]);
+  const saldo = saldoDe(movimientos, ahora).disponible;
+  const activo = estaActivo(cuenta);
   return {
     id: cuenta.id,
     email: cuenta.email,
-    cuponDisponible: tieneCupon(cuenta) && !compro,
-    saldoDisponible: saldoDe(movimientos, ahora).disponible,
+    cuponDisponible: activo && tieneCupon(cuenta) && !compro && !reservas.cupon,
+    saldoDisponible: Math.max(0, saldo - reservas.saldo),
+    saldoReservado: Math.min(saldo, reservas.saldo),
+    activo,
   };
 }
 
@@ -175,7 +223,7 @@ export async function suscriptorDelCarritoDeLaPeticion(request: Request): Promis
     return await suscriptorParaElCarrito(cuenta);
   } catch (error) {
     console.error("[suscriptores] no se pudo leer el saldo:", error instanceof Error ? error.message : error);
-    return { id: cuenta.id, email: cuenta.email, cuponDisponible: false, saldoDisponible: 0 };
+    return { id: cuenta.id, email: cuenta.email, cuponDisponible: false, saldoDisponible: 0, saldoReservado: 0, activo: estaActivo(cuenta) };
   }
 }
 
@@ -265,18 +313,37 @@ export class ErrorAltaEnCurso extends Error {
 /**
  * La baja: deja de recibir mails y de tener beneficios. Idempotente (dos
  * clics en el enlace son una baja). El saldo queda en Saldos: si vuelve a
- * suscribirse con el mismo mail, lo recupera. Con `email`, solo si la fila
- * sigue teniendo ese mail (el enlace de un mail viejo no da de baja a otro).
+ * suscribirse con el mismo mail, lo recupera. Con `esDelMail` (el enlace de
+ * baja), solo si la fila sigue teniendo ese mail (el enlace de un mail viejo
+ * no da de baja a otro).
  */
-export async function darDeBaja(datos: { suscriptorId: string; email?: string; ahora?: Date }): Promise<"baja" | "ya" | "sin-suscriptor"> {
+export async function darDeBaja(datos: {
+  suscriptorId: string;
+  esDelMail?: (email: string) => boolean;
+  ahora?: Date;
+}): Promise<"baja" | "ya" | "sin-suscriptor"> {
   const cuenta = await suscriptorPorId(datos.suscriptorId);
-  if (!cuenta || (datos.email !== undefined && cuenta.email !== datos.email.trim().toLowerCase())) return "sin-suscriptor";
+  if (!cuenta || (datos.esDelMail && !datos.esDelMail(cuenta.email))) return "sin-suscriptor";
   if (!estaActivo(cuenta)) return "ya";
   await updateRecord<FilaSuscriptor>(TABLAS.suscriptores, cuenta.id, {
     Baja: (datos.ahora ?? new Date()).toISOString(),
     Acepta_mails: false,
   });
+  // Tampoco las promociones que haya aceptado en un checkout: «no vas a recibir más mails de Harper».
+  await sinPromosDelCliente(cuenta.email).catch((error) =>
+    console.error("[suscriptores] no se pudo sacar Acepta_promos del cliente:", error instanceof Error ? error.message : error)
+  );
   return "baja";
+}
+
+async function sinPromosDelCliente(email: string) {
+  const clientes = await listRecords<{ Acepta_promos?: boolean }>(TABLAS.clientes, {
+    filterByFormula: `LOWER({Email}) = '${escaparFormula(email)}'`,
+    revalidate: 0,
+  });
+  for (const c of clientes) {
+    if (c.fields.Acepta_promos) await updateRecord(TABLAS.clientes, c.id, { Acepta_promos: false });
+  }
 }
 
 export type ResultadoCupon =
@@ -402,35 +469,58 @@ export async function anularMovimiento(id: string, motivo: string): Promise<void
 }
 
 export type ResultadoAnulacion =
-  | { estado: "anulado" | "ya-anulado" | "disponible"; monto: number; disponibleDesde: string | null }
+  | { estado: "anulado" | "anulado-disponible" | "ya-anulado" | "disponible"; monto: number; disponibleDesde: string | null }
   | { estado: "sin-cashback" };
 
 /**
- * Si el pedido tiene un cashback que todavía no se puede usar, lo anula (el
- * arrepentimiento o la devolución, Ale, 03/11/2026). Si ya se puede usar, no
- * lo toca: lo decide Harper.
+ * Anula el cashback de un pedido que se arrepiente, se devuelve o se
+ * reembolsa (Ale, 03/11/2026: el cashback es de las compras que se quedan).
+ * Si todavía no se puede usar, se anula siempre. Si ya se puede usar (el
+ * plazo de devolución corre desde que le llega, y el cashback se libera a los
+ * 30 días del pago), se anula solo con `aunqueDisponible` ("anulado-disponible"):
+ * si ya lo había usado, su saldo queda en negativo hasta el próximo cashback.
+ * Sin `aunqueDisponible` no lo toca ("disponible") y lo decide Harper.
  */
-export async function anularCashbackPendiente(numeroPedido: string, motivo: string, ahora = new Date()): Promise<ResultadoAnulacion> {
+export async function anularCashbackPendiente(
+  numeroPedido: string,
+  motivo: string,
+  ahora = new Date(),
+  opciones: { aunqueDisponible?: boolean } = {}
+): Promise<ResultadoAnulacion> {
   const fila = await movimientoDelPedido(numeroPedido, "Cashback");
   if (!fila) return { estado: "sin-cashback" };
   const m = movimientoDe(fila);
   if (m.anulado) return { estado: "ya-anulado", monto: m.monto, disponibleDesde: m.disponibleDesde };
-  if (!m.disponibleDesde || m.disponibleDesde <= fechaArgentina(ahora)) {
+  const disponible = !m.disponibleDesde || m.disponibleDesde <= fechaArgentina(ahora);
+  if (disponible && !opciones.aunqueDisponible) {
     return { estado: "disponible", monto: m.monto, disponibleDesde: m.disponibleDesde };
   }
   await anularMovimiento(fila.id, motivo);
-  return { estado: "anulado", monto: m.monto, disponibleDesde: m.disponibleDesde };
+  return { estado: disponible ? "anulado-disponible" : "anulado", monto: m.monto, disponibleDesde: m.disponibleDesde };
+}
+
+/**
+ * Si el cupón de bienvenida le sirve de verdad: lo tiene sin usar, sigue
+ * suscripto y su mail todavía no compró (quien compró antes de suscribirse no
+ * lo puede usar: el carrito no se lo aplica, así que tampoco se le promete).
+ */
+export async function cuponVigente(cuenta: CuentaSuscriptor): Promise<boolean> {
+  return tieneCupon(cuenta) && estaActivo(cuenta) && !(await yaCompro(cuenta.email, ""));
 }
 
 /** Lo que muestra «mi cuenta»: el saldo, lo que está en camino, el cupón y el historial. */
 export async function resumenDeLaCuenta(cuenta: CuentaSuscriptor, ahora = new Date()) {
-  const movimientos = await movimientosDe(cuenta.id);
+  const [movimientos, vigente] = await Promise.all([movimientosDe(cuenta.id), cuponVigente(cuenta)]);
   const saldo = saldoDe(movimientos, ahora);
   return {
     email: cuenta.email,
     nombre: cuenta.nombre,
-    /** "Disponible": lo tiene para su primera compra; "Usado": en `cuponPedido`. */
-    cupon: tieneCupon(cuenta) ? ("Disponible" as const) : ("Usado" as const),
+    /** Falso si se dio de baja: sin beneficios nuevos, con el saldo que ya ganó. */
+    activo: estaActivo(cuenta),
+    /** "Disponible": le sirve para su primera compra; "Usado": lo usó (en `cuponPedido`) o ya había comprado. */
+    cupon: vigente ? ("Disponible" as const) : ("Usado" as const),
+    /** No lo usó, pero su mail ya había comprado antes: el cupón es para la primera compra. */
+    cuponYaCompro: !vigente && tieneCupon(cuenta) && estaActivo(cuenta),
     cuponPedido: cuenta.cuponPedido,
     saldoDisponible: saldo.disponible,
     saldoEnCamino: saldo.enCamino,

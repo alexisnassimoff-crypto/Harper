@@ -46,14 +46,32 @@ export const CUOTAS_SUSCRIPTORES = 6;
  */
 export const CUOTAS_SON_BENEFICIO = CUOTAS_SUSCRIPTORES > CUOTAS_TODOS;
 
+/**
+ * Minutos que vive el link de pago de un pedido que usa saldo o el cupón, y
+ * que esos pesos y ese cupón quedan apartados para él: mientras tanto otro
+ * pedido del mismo suscriptor no los puede volver a usar (dos pestañas, o
+ * volver al checkout sin pagar el primero). Pasado ese tiempo el link ya no
+ * cobra y se liberan solos.
+ */
+export const MINUTOS_RESERVA = 30;
+
 /** Lo que el carrito sabe del suscriptor reconocido por su sesión (lib/suscriptores-cuenta.ts). */
 export type SuscriptorDelCarrito = {
   id: string;
   email: string;
-  /** Tiene el cupón sin usar y ese mail todavía no compró. */
+  /** Tiene el cupón sin usar, ese mail todavía no compró y no lo aparta otro pedido sin pagar. */
   cuponDisponible: boolean;
-  /** Saldo a favor que ya se puede usar, en pesos. */
+  /** Saldo a favor que ya se puede usar, en pesos, sin lo que apartan sus pedidos sin pagar. */
   saldoDisponible: number;
+  /** Lo que apartan sus pedidos sin pagar de los últimos minutos. */
+  saldoReservado?: number;
+  /**
+   * Falso si se dio de baja: no recibe mails ni beneficios nuevos (cupón,
+   * envío gratis, cashback), pero el saldo que ya ganó lo sigue pudiendo usar
+   * (darse de baja de los mails no puede costarle nada: Ley 25.326, art. 27).
+   * Sin el dato, activo.
+   */
+  activo?: boolean;
 };
 
 /**
@@ -71,6 +89,10 @@ export type ResumenSuscriptor = {
   saldoUsado: number;
   /** El saldo que ya se puede usar, antes de este carrito. */
   saldoDisponible: number;
+  /** Saldo apartado por otro pedido suyo sin pagar (se libera a los MINUTOS_RESERVA). */
+  saldoReservado: number;
+  /** Falso si se dio de baja: solo usa el saldo que ya tenía (sin cupón, envío gratis ni cashback). */
+  activo: boolean;
   /** Lo que le vuelve como saldo si paga con Mercado Pago como está. */
   cashbackPrevisto: number;
   /** Lo mismo pagando con dinero en Mercado Pago (10% menos en productos). Null sin esa opción. */

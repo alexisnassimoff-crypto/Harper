@@ -30,18 +30,38 @@ async function buscarPorEmail(email: string) {
 }
 
 /**
+ * El buzón real de un mail, para que «ana+2@gmail.com» o «a.na@gmail.com» no
+ * cuenten como otra persona para el cupón de bienvenida: sin lo que va
+ * después de un «+», y en Gmail también sin puntos (Gmail los ignora).
+ */
+export function emailCanonico(email: string): string {
+  const limpio = email.trim().toLowerCase();
+  const arroba = limpio.lastIndexOf("@");
+  if (arroba <= 0) return limpio;
+  let usuario = limpio.slice(0, arroba).replace(/\+.*$/, "");
+  let dominio = limpio.slice(arroba + 1);
+  if (dominio === "googlemail.com") dominio = "gmail.com";
+  if (dominio === "gmail.com") usuario = usuario.replace(/\./g, "");
+  return usuario ? `${usuario}@${dominio}` : limpio;
+}
+
+/**
  * Si ya hay una compra confirmada con este email o este DNI: lo que decide si
  * el cupón de bienvenida corresponde. `Primera_compra` se escribe solo cuando
  * Mercado Pago aprueba un pago (marcarCompra), así que un pedido pendiente o
- * un pago rechazado no cuentan.
+ * un pago rechazado no cuentan. Con el mail se mira también su buzón real
+ * (emailCanonico): «ana+2@gmail.com» cuenta como «ana@gmail.com».
  */
 export async function yaCompro(email: string, dni: string): Promise<boolean> {
   const dniLimpio = dni.replace(/\D/g, "");
+  const mails = [...new Set([email.trim().toLowerCase(), emailCanonico(email)])];
   const consultas = [
-    listRecords<FilaCliente>(TABLAS.clientes, {
-      filterByFormula: `LOWER({Email}) = '${escaparFormula(email.trim().toLowerCase())}'`,
-      revalidate: 0,
-    }),
+    ...mails.map((m) =>
+      listRecords<FilaCliente>(TABLAS.clientes, {
+        filterByFormula: `LOWER({Email}) = '${escaparFormula(m)}'`,
+        revalidate: 0,
+      })
+    ),
     dniLimpio.length >= 7
       ? listRecords<FilaCliente>(TABLAS.clientes, { filterByFormula: `{DNI} = '${escaparFormula(dniLimpio)}'`, revalidate: 0 })
       : Promise.resolve([]),
@@ -50,25 +70,34 @@ export async function yaCompro(email: string, dni: string): Promise<boolean> {
   return encontrados.some((c) => Boolean(c.fields.Primera_compra));
 }
 
-/** Crea o actualiza el cliente con los datos completos del checkout. */
-export async function guardarCliente(datos: DatosCliente): Promise<string> {
+/**
+ * Crea o actualiza el cliente con los datos completos del checkout. Se llama
+ * antes del pago: si el cliente ya compró, su DNI queda el de esa compra (un
+ * checkout sin pagar con otro DNI no lo pisa, porque con ese DNI se decide si
+ * el cupón de bienvenida corresponde). El DNI nuevo queda igual en el pedido.
+ */
+export async function guardarCliente(datos: DatosCliente): Promise<{ id: string; dniAnterior: string | null }> {
   const existente = await buscarPorEmail(datos.email);
+  const dniGuardado = existente?.fields.Primera_compra ? (existente.fields.DNI ?? "").trim() : "";
+  const conservarDni = Boolean(dniGuardado);
+  // El DNI con el que figura, si es otro que el de este checkout: va a las notas del pedido.
+  const dniAnterior = conservarDni && dniGuardado.replace(/\D/g, "") !== datos.dni.replace(/\D/g, "") ? dniGuardado : null;
 
   const campos: Partial<FilaCliente> = {
     Email: datos.email,
     Nombre: datos.nombre,
     Telefono: datos.telefono,
-    DNI: datos.dni,
+    ...(conservarDni ? {} : { DNI: datos.dni }),
     Acepta_promos: datos.aceptaPromos,
   };
 
   if (existente) {
     await updateRecord<FilaCliente>(TABLAS.clientes, existente.id, campos);
-    return existente.id;
+    return { id: existente.id, dniAnterior };
   }
 
   const creado = await createRecord<FilaCliente>(TABLAS.clientes, campos);
-  return creado.id;
+  return { id: creado.id, dniAnterior: null };
 }
 
 /**

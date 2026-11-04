@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     }
 
     const resultado = delEnlace
-      ? await darDeBaja({ suscriptorId: delEnlace.suscriptorId, email: delEnlace.email })
+      ? await darDeBaja({ suscriptorId: delEnlace.suscriptorId, esDelMail: delEnlace.esDelMail })
       : await darDeBaja({ suscriptorId: deLaSesion!.id });
     if (resultado === "baja") console.info("[suscriptores] una baja");
 

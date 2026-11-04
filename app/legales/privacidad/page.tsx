@@ -51,7 +51,7 @@ export default async function Privacidad() {
         saldo y mandarte novedades, lanzamientos y promociones de Harper. Lo
         hacemos solo porque lo aceptaste al suscribirte, con una casilla que
         está sin marcar hasta que la marcás vos. Te podés dar de baja cuando
-        quieras con el enlace que va al pie de cada mail, desde{" "}
+        quieras con el enlace de nuestros mails de bienvenida y de novedades, desde{" "}
         <Link href="/suscriptores/mi-cuenta" style={{ textDecoration: "underline" }}>
           mi cuenta
         </Link>{" "}

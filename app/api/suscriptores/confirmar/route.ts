@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!codigoCorrecto(clave, cuerpo?.desafio, email, cuerpo?.codigo)) {
+  if (!codigoCorrecto(clave, cuerpo?.desafio, email, cuerpo?.codigo, Date.now(), "suscriptor")) {
     return NextResponse.json({ error: INCORRECTO }, { status: 400, headers: sinCache });
   }
 
@@ -90,15 +90,21 @@ export async function POST(request: Request) {
 
   try {
     // Suscribirse (o volver después de una baja) necesita el consentimiento
-    // explícito para los mails; entrar ya suscripto, no.
+    // explícito para los mails; entrar ya suscripto, no. Quien se dio de baja
+    // y entra sin volver a aceptar los mails, entra igual (estado "baja"): sin
+    // beneficios nuevos, pero con el saldo que ya ganó (darse de baja no le
+    // puede costar ese saldo, Ley 25.326, art. 27).
     const existente = await suscriptorPorEmail(email);
-    if (!(existente && estaActivo(existente)) && cuerpo?.aceptaMails !== true) {
+    if (!existente && cuerpo?.aceptaMails !== true) {
       return NextResponse.json(
         { error: "Para suscribirte, aceptá recibir nuestros mails.", faltaAceptarMails: true },
         { status: 400, headers: sinCache }
       );
     }
-    const { cuenta, estado } = await darDeAlta({ email, nombre, origen });
+    const { cuenta, estado } =
+      existente && !estaActivo(existente) && cuerpo?.aceptaMails !== true
+        ? { cuenta: existente, estado: "baja" as const }
+        : await darDeAlta({ email, nombre, origen });
 
     const ahora = Date.now();
     const valor = crearSesionSuscriptor(claveSesion, { suscriptorId: cuenta.id, email: cuenta.email }, ahora);
@@ -113,6 +119,7 @@ export async function POST(request: Request) {
           cupon: resumen.cupon,
           saldoDisponible: resumen.saldoDisponible,
           saldoEnCamino: resumen.saldoEnCamino,
+          activo: resumen.activo,
         },
       },
       { headers: sinCache }
@@ -132,7 +139,8 @@ export async function POST(request: Request) {
             mailBienvenidaSuscriptor({
               email: cuenta.email,
               nombre: cuenta.nombre,
-              cuponDisponible: tieneCupon(cuenta),
+              // Solo si de verdad se lo aplica el carrito (no compró antes de suscribirse).
+              cuponDisponible: resumen.cupon === "Disponible",
               cuotas,
               sitio,
               enlaceBaja: enlaceDeBaja(sitio, { suscriptorId: cuenta.id, email: cuenta.email }),

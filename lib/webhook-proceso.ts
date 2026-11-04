@@ -13,6 +13,7 @@ import { cuponDeNotas } from "./cupones";
 import { facturacionDeFila, lineasDeNotas } from "./facturacion";
 import {
   enviarMail as enviarMailReal,
+  mailAlertaInterna,
   mailAvisoInterno,
   mailConfirmacion,
   mailPagoRechazado,
@@ -23,7 +24,7 @@ import { obtenerPago as obtenerPagoReal, type PagoMP } from "./mercadopago";
 import { descontarStock } from "./stock";
 import { precio as formatearPrecio } from "./formato";
 import { beneficiosDeNotas, cashbackDisponibleDesde, type BeneficiosDelPedido } from "./suscriptores";
-import { claveSuscriptor, registrarCashback, registrarCupon, registrarUso } from "./suscriptores-cuenta";
+import { anularCashbackPendiente, claveSuscriptor, registrarCashback, registrarCupon, registrarUso } from "./suscriptores-cuenta";
 import { esPedidoConDineroMP, TIPO_DINERO_EN_CUENTA } from "./dinero-mp";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import {
@@ -418,6 +419,45 @@ async function rechazarSinCerrojo(pago: PagoMP, pedidoId: string, deps: Dependen
   };
 }
 
+/** Un pago que Mercado Pago devolvió: reembolso desde el panel o contracargo de la tarjeta. */
+const ESTADOS_REEMBOLSO = new Set(["refunded", "charged_back"]);
+
+/**
+ * El cashback de un pedido cuyo pago se devolvió queda Anulado en Saldos,
+ * aunque ya se pueda usar (el cashback es de las compras que se quedan), y
+ * Harper se entera. Idempotente: un reintento lo encuentra ya anulado y no
+ * vuelve a avisar.
+ */
+async function anularCashbackPorReembolso(pedido: AirtableRecord<FilaPedido>, pago: PagoMP, deps: Dependencias) {
+  const beneficios = beneficiosDeNotas(pedido.fields.Notas);
+  if (!beneficios || beneficios.cashback <= 0) return;
+  const numero = pedido.fields.Numero ?? pedido.id;
+  const que = pago.status === "charged_back" ? "contracargo" : "reembolso";
+  const ahora = new Date(deps.reloj.ahora());
+  const r = await anularCashbackPendiente(numero, `Anulado: ${que} del pago ${pago.id} en Mercado Pago (${ahora.toISOString().slice(0, 10)}).`, ahora, {
+    aunqueDisponible: true,
+  });
+  if (r.estado !== "anulado" && r.estado !== "anulado-disponible") return;
+  console.info(`[webhook] ${que} del pago ${pago.id}: cashback del pedido ${numero} anulado`);
+  const config = await getConfig();
+  await deps.enviarMail(
+    mailAlertaInterna({
+      config,
+      asunto: `REVISAR ${numero} — ${que} en Mercado Pago: cashback anulado`,
+      lineas: [
+        `Mercado Pago avisó un ${que} del pago ${pago.id}. El cashback de ${formatearPrecio(r.monto)} de ${beneficios.email} quedó Anulado en Saldos${
+          r.estado === "anulado-disponible" ? " (ya se podía usar: si lo usó, su saldo queda en negativo hasta el próximo cashback)" : ""
+        }.`,
+        ...(beneficios.saldoUsado > 0
+          ? [`Usó ${formatearPrecio(beneficios.saldoUsado)} de saldo en este pedido: si corresponde devolvérselo, marcá Anulado el Uso del pedido en Saldos.`]
+          : []),
+        "Si el pedido ya salió, coordiná la devolución del producto.",
+      ],
+      enlace: `https://airtable.com/${process.env.AIRTABLE_BASE_ID}/${TABLAS.pedidos}/${pedido.id}`,
+    })
+  );
+}
+
 async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependencias): Promise<Resultado> {
   const pagoId = String(pago.id);
 
@@ -435,6 +475,13 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
   }
 
   if (accion === "duplicado") {
+    // Mercado Pago avisa que este mismo pago se devolvió (reembolso desde el
+    // panel o contracargo de la tarjeta): el cashback de ese pedido se anula.
+    if (ESTADOS_REEMBOLSO.has(pago.status) && pedido.fields.MP_payment_id === pagoId) {
+      await anularCashbackPorReembolso(pedido, pago, deps).catch((error) =>
+        console.error(`[webhook] no se pudo anular el cashback del pago devuelto ${pagoId}`, error)
+      );
+    }
     return ok({ duplicado: true });
   }
 

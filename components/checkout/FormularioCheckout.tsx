@@ -96,6 +96,8 @@ type RespuestaCheckout = {
   cuponRechazado?: string;
   /** El cupón de bienvenida del suscriptor no corresponde: ya hay una compra con ese mail o DNI. */
   cuponBienvenidaRechazado?: boolean;
+  /** La sesión de suscriptor no es la misma con la que vio el total. */
+  suscriptorCambio?: boolean;
 };
 
 const VACIO: DatosCliente = {
@@ -713,6 +715,8 @@ export default function FormularioCheckout({
           // El suscriptor: si usa su saldo y si sigue pidiendo el cupón. Los montos, del servidor.
           usarSaldo,
           usarCupon,
+          // Con qué sesión de suscriptor vio ese total (o sin ninguna).
+          suscriptorVisto: carrito?.suscriptor?.email ?? null,
         }),
       });
 
@@ -756,6 +760,15 @@ export default function FormularioCheckout({
       if (respuesta.status === 409 && cuerpo.cuponBienvenidaRechazado) {
         setUsarCupon(false);
         setFallo(`${cuerpo.error ?? TEXTOS.suscriptores.cuponRechazado} Revisá el total antes de pagar.`);
+        setEnviando(false);
+        return;
+      }
+
+      // La sesión de suscriptor cambió: se vuelve a pedir el carrito (con o sin
+      // beneficios) y ve el total nuevo antes de pagar.
+      if (respuesta.status === 409 && cuerpo.suscriptorCambio) {
+        recargar();
+        setFallo(cuerpo.error ?? TEXTOS.suscriptores.sesionCambio);
         setEnviando(false);
         return;
       }

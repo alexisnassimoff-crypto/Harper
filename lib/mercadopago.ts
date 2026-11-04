@@ -99,6 +99,12 @@ export async function crearPreferencia(opciones: {
   sitio: string;
   soloDineroEnCuenta?: boolean;
   cuotasMaximas?: number;
+  /**
+   * Minutos que vive el link de pago, si no son las HORAS_DE_VIDA de siempre:
+   * un pedido que usa saldo o el cupón aparta esos beneficios mientras su
+   * link cobra (lib/suscriptores.ts, MINUTOS_RESERVA).
+   */
+  venceEnMinutos?: number;
 }): Promise<Preferencia> {
   // En pesos enteros: un renglón que no se divide justo por la cantidad (el 10%
   // de dinero en Mercado Pago sobre dos pares, o tres pares iguales con «llevá
@@ -188,7 +194,7 @@ export async function crearPreferencia(opciones: {
     // `expiration_date_from` clavado en "ahora" corre el riesgo de que Mercado
     // Pago lo lea como "todavía no válida" si los relojes no coinciden.
     expires: true,
-    expiration_date_to: fechaMP(new Date(ahora.getTime() + HORAS_DE_VIDA * 3600_000)),
+    expiration_date_to: fechaMP(new Date(ahora.getTime() + (opciones.venceEnMinutos ?? HORAS_DE_VIDA * 60) * 60_000)),
     notification_url: `${opciones.sitio}/api/mercadopago/webhook`,
     statement_descriptor: "HARPER",
     metadata: { numero_pedido: opciones.numeroPedido },

@@ -95,6 +95,9 @@ export default function MetaPixel() {
   useEffect(() => {
     // Se vuelve a leer la elección: el estado puede haber quedado viejo.
     if (!PIXEL_ID || !permitido || !aceptaPublicidad()) return;
+    // La página de baja lleva en la dirección el enlace firmado del mail: no se
+    // le cuenta a Meta (el Pixel manda la dirección completa).
+    if (pathname?.startsWith("/suscriptores/baja")) return;
     cargarPixel();
     window.fbq?.("track", "PageView");
   }, [pathname, permitido]);

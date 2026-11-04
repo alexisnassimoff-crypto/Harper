@@ -12,8 +12,16 @@ const { form: T } = TEXTOS.suscriptores;
 
 /** Lo que contesta /api/suscriptores/confirmar cuando sale bien. */
 export type SuscripcionConfirmada = {
-  estado: "nueva" | "reactivada" | "ya";
-  suscriptor: { email: string; nombre: string; cupon: "Disponible" | "Usado"; saldoDisponible: number; saldoEnCamino: number };
+  estado: "nueva" | "reactivada" | "ya" | "baja";
+  suscriptor: {
+    email: string;
+    nombre: string;
+    cupon: "Disponible" | "Usado";
+    saldoDisponible: number;
+    saldoEnCamino: number;
+    /** Falso si entró alguien que se dio de baja: solo su saldo, sin beneficios nuevos. */
+    activo?: boolean;
+  };
 };
 
 type Modo = "suscribir" | "entrar";
@@ -196,9 +204,11 @@ export default function FormularioSuscripcion({
     return (
       <div className="suscripcion suscripcion--listo" role="status">
         <p className="suscripcion__listo">{T.listo[listo.estado]}</p>
-        <p className="suscripcion__nota">
-          {listo.suscriptor.cupon === "Disponible" ? T.listoCupon(formatearPrecio(CUPON_BIENVENIDA)) : T.listoSinCupon}
-        </p>
+        {listo.estado === "baja" ? null : (
+          <p className="suscripcion__nota">
+            {listo.suscriptor.cupon === "Disponible" ? T.listoCupon(formatearPrecio(CUPON_BIENVENIDA)) : T.listoSinCupon}
+          </p>
+        )}
         <div className="suscripcion__acciones">
           <Link href="/#los-modelos" className="boton">
             {TEXTOS.suscriptores.elegir}

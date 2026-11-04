@@ -16,6 +16,8 @@ export type SuscriptorEnSesion = {
   nombre: string;
   cupon: "Disponible" | "Usado";
   saldoDisponible: number;
+  /** Falso si se dio de baja: tiene sesión para usar su saldo, pero no beneficios nuevos. */
+  activo?: boolean;
 };
 
 type Estado = { cargando: boolean; suscriptor: SuscriptorEnSesion | null };

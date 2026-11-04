@@ -139,12 +139,23 @@ export const TEXTOS = {
     envioGratis: "Por ser suscriptor, el envío es gratis a todo el país.",
     /** En el checkout, con la sesión abierta. */
     checkout: (email: string) => `Comprás como suscriptor con ${email}.`,
+    /** Entró alguien que se dio de baja: solo su saldo. */
+    checkoutBaja: (email: string) => `Entraste con ${email}. Te diste de baja, así que no tenés beneficios nuevos, pero podés usar tu saldo.`,
     /** El pedido que se paga entero con saldo: no pasa por Mercado Pago. */
     sinPago: "No tenés que pagar nada: lo cubre tu saldo.",
     confirmar: "Confirmar pedido",
     /** El checkout rechazó el cupón (ya hay una compra confirmada con ese mail o DNI). */
     cuponRechazado: "El cupón de bienvenida es para la primera compra, y ya hay una compra con este mail o DNI.",
     saldoCambio: "Tu saldo cambió mientras comprabas. Revisá el total antes de confirmar.",
+    /** El cupón de bienvenida se usa comprando con el mail con el que se suscribió. */
+    cuponOtroMail: (email: string) => `El cupón de bienvenida es para comprar con el mail con el que te suscribiste (${email}).`,
+    /** Otro pago del mismo suscriptor se está creando en este momento (otra pestaña). */
+    otroPagoEnCurso: "Ya estamos preparando otro pago tuyo. Esperá unos segundos y probá de nuevo.",
+    /** El saldo que aparta un pedido sin pagar. */
+    saldoReservado: (monto: string, minutos: number) =>
+      `Tenés ${monto} apartados en un pedido que todavía no pagaste: si no lo pagás, vuelven a tu saldo en ${minutos} minutos.`,
+    /** La sesión de suscriptor cambió entre que vio el total y apretó pagar. */
+    sesionCambio: "Tu sesión de suscriptor cambió mientras comprabas. Revisá el total y tus beneficios antes de pagar.",
 
     /**
      * Los mismos cuatro beneficios con un título corto, para la web (la
@@ -180,7 +191,7 @@ export const TEXTOS = {
     form: {
       email: "Tu mail",
       nombre: "Tu nombre (opcional)",
-      acepto: "Acepto recibir mails de Harper.",
+      acepto: "Acepto las condiciones de Suscriptores Harper y recibir sus mails con novedades, lanzamientos y promociones.",
       faltaAcepto: "Para suscribirte, marcá que aceptás recibir nuestros mails.",
       suscribirme: "Suscribirme gratis",
       pedirCodigo: "Mandame el código",
@@ -198,6 +209,7 @@ export const TEXTOS = {
         nueva: "¡Listo! Desbloqueaste tus beneficios.",
         reactivada: "¡Volviste! Tus beneficios están desbloqueados otra vez.",
         ya: "Ya sos suscriptor: entraste con tu mail.",
+        baja: "Entraste con tu mail. Como te diste de baja, no tenés beneficios nuevos, pero el saldo que ganaste lo podés seguir usando.",
       },
       /** «Tu cupón de $ 10.000 se aplica solo en el carrito.» */
       listoCupon: (monto: string) => `Tu cupón de ${monto} y el envío gratis se aplican solos en el carrito.`,
@@ -225,6 +237,7 @@ export const TEXTOS = {
       cupon: "Cupón de bienvenida",
       cuponDisponible: (monto: string) => `${monto} de descuento en tu primera compra. Se aplica solo en el carrito.`,
       cuponUsado: (pedido: string) => (pedido ? `Ya lo usaste, en el pedido ${pedido}.` : "Ya lo usaste."),
+      cuponYaCompro: "Es para la primera compra en harper.ar, y con este mail ya compraste.",
       movimientos: "Movimientos",
       sinMovimientos: "Todavía no hay movimientos. Con tu primera compra empieza a volver el 10%.",
       movimiento: {
@@ -237,7 +250,10 @@ export const TEXTOS = {
       salir: "Salir",
       bajaTitulo: "Mails y baja",
       bajaTexto:
-        "Si te das de baja, dejás de recibir nuestros mails y de tener los beneficios. Tu saldo queda guardado: si volvés a suscribirte con este mail, lo recuperás.",
+        "Si te das de baja, dejás de recibir nuestros mails y de sumar beneficios nuevos (cupón, envío gratis y cashback). El saldo que ya ganaste no se pierde: lo seguís pudiendo usar entrando con este mail.",
+      /** Mi cuenta de alguien que se dio de baja. */
+      deBaja: "Te diste de baja: no recibís nuestros mails ni beneficios nuevos. El saldo que ya ganaste lo podés seguir usando en tus compras.",
+      volver: "Volver a suscribirme",
       baja: "Darme de baja",
       bajaConfirmar: "Sí, darme de baja",
       cancelar: "No, seguir suscripto",
@@ -245,12 +261,12 @@ export const TEXTOS = {
     /** La página del enlace de baja de los mails (/suscriptores/baja). */
     baja: {
       titulo: "Darte de baja",
-      texto: "Vas a dejar de recibir nuestros mails y de tener los beneficios de suscriptor. Tu saldo queda guardado por si volvés.",
+      texto: "Vas a dejar de recibir nuestros mails y de sumar beneficios nuevos. El saldo que ya ganaste no se pierde: lo seguís pudiendo usar entrando con tu mail.",
       boton: "Darme de baja",
       listo: "Listo, te diste de baja.",
       listoDetalle: "No vas a recibir más mails de Harper. Si cambiás de idea, te podés volver a suscribir con el mismo mail.",
       invalido: "El enlace no es válido. Escribinos y te damos de baja.",
-      sinEnlace: "Para darte de baja, usá el enlace de cualquiera de nuestros mails o entrá a tu cuenta.",
+      sinEnlace: "Para darte de baja, usá el enlace de nuestros mails de bienvenida y de novedades, o entrá a tu cuenta.",
     },
     /** La caja de la ficha. */
     ficha: {
@@ -264,7 +280,9 @@ export const TEXTOS = {
     checkoutCaja: {
       /** «Suscribite gratis con este mail y desbloqueá $ 10.000 de descuento en esta compra, envío sin cargo y 6 cuotas sin interés.» */
       invitacion: (monto: string, cuotas: number | null) =>
-        `Suscribite gratis con este mail y desbloqueá ${monto} de descuento en esta compra, envío sin cargo${cuotas ? ` y ${cuotas} cuotas sin interés` : ""}.`,
+        cuotas
+          ? `Suscribite gratis con este mail y desbloqueá ${monto} de descuento en esta compra, envío sin cargo y ${cuotas} cuotas sin interés.`
+          : `Suscribite gratis con este mail y desbloqueá ${monto} de descuento en esta compra y envío sin cargo.`,
       nota: "Es gratis. El cupón es para tu primera compra en Harper.",
       escribiMail: "Escribí tu mail arriba y te mandamos el código.",
       suscribirme: "Suscribirme con este mail",

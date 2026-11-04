@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { saldoDe } from "@/lib/suscriptores";
-import { movimientosDe, suscriptorDeLaPeticion, tieneCupon } from "@/lib/suscriptores-cuenta";
+import { cuponVigente, estaActivo, movimientosDe, suscriptorDeLaPeticion } from "@/lib/suscriptores-cuenta";
 
 export const dynamic = "force-dynamic";
 
@@ -21,16 +21,20 @@ const sinCache = { "Cache-Control": "private, no-store" };
 export async function GET(request: Request) {
   const cuenta = await suscriptorDeLaPeticion(request);
   if (!cuenta) return NextResponse.json({ suscriptor: null }, { headers: sinCache });
-  const saldoDisponible = await movimientosDe(cuenta.id)
-    .then((m) => saldoDe(m, new Date()).disponible)
-    .catch(() => 0);
+  const [saldoDisponible, vigente] = await Promise.all([
+    movimientosDe(cuenta.id)
+      .then((m) => saldoDe(m, new Date()).disponible)
+      .catch(() => 0),
+    cuponVigente(cuenta).catch(() => false),
+  ]);
   return NextResponse.json(
     {
       suscriptor: {
         email: cuenta.email,
         nombre: cuenta.nombre,
-        cupon: tieneCupon(cuenta) ? "Disponible" : "Usado",
+        cupon: vigente ? "Disponible" : "Usado",
         saldoDisponible,
+        activo: estaActivo(cuenta),
       },
     },
     { headers: sinCache }

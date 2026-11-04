@@ -72,6 +72,11 @@ export default async function MiCuenta() {
         {nombre ? T.hola(nombre) : T.titulo}
       </h1>
       <p className="apagado cuenta-suscriptor__bajada">{resumen.email}</p>
+      {resumen.activo ? null : (
+        <p className="cuenta-suscriptor__aviso" role="status">
+          {T.deBaja}
+        </p>
+      )}
 
       <dl className="cuenta-suscriptor__numeros">
         <div className="cuenta-suscriptor__numero cuenta-suscriptor__numero--principal">
@@ -99,15 +104,23 @@ export default async function MiCuenta() {
             <span className="cuenta-suscriptor__detalle">{T.enCaminoDetalle(DIAS_PARA_USAR_CASHBACK)}</span>
           </dd>
         </div>
-        <div className="cuenta-suscriptor__numero" data-estado={resumen.cupon === "Disponible" ? "disponible" : "usado"}>
-          <dt>{T.cupon}</dt>
-          <dd>
-            <span className="cuenta-suscriptor__monto">{resumen.cupon === "Disponible" ? formatearPrecio(CUPON_BIENVENIDA) : "Usado"}</span>
-            <span className="cuenta-suscriptor__detalle">
-              {resumen.cupon === "Disponible" ? T.cuponDisponible(formatearPrecio(CUPON_BIENVENIDA)) : T.cuponUsado(resumen.cuponPedido)}
-            </span>
-          </dd>
-        </div>
+        {resumen.activo ? (
+          <div className="cuenta-suscriptor__numero" data-estado={resumen.cupon === "Disponible" ? "disponible" : "usado"}>
+            <dt>{T.cupon}</dt>
+            <dd>
+              <span className="cuenta-suscriptor__monto">
+                {resumen.cupon === "Disponible" ? formatearPrecio(CUPON_BIENVENIDA) : resumen.cuponYaCompro ? "No aplica" : "Usado"}
+              </span>
+              <span className="cuenta-suscriptor__detalle">
+                {resumen.cupon === "Disponible"
+                  ? T.cuponDisponible(formatearPrecio(CUPON_BIENVENIDA))
+                  : resumen.cuponYaCompro
+                    ? T.cuponYaCompro
+                    : T.cuponUsado(resumen.cuponPedido)}
+              </span>
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       <Link href="/#los-modelos" className="boton cuenta-suscriptor__comprar">
@@ -140,7 +153,7 @@ export default async function MiCuenta() {
         )}
       </section>
 
-      <AccionesCuenta />
+      <AccionesCuenta activo={resumen.activo} email={resumen.email} />
     </section>
   );
 }

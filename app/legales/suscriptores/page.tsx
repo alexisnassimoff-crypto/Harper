@@ -83,7 +83,8 @@ export default async function CondicionesSuscriptores() {
         <li>
           <strong>{CASHBACK_PORCENTAJE}% de vuelta como saldo.</strong> De lo que pagás en productos (sin el envío, y después del cupón y del
           saldo que uses) te devolvemos el {CASHBACK_PORCENTAJE}% como saldo a favor para tus próximas compras en harper.ar. Se anota cuando se
-          acredita el pago y lo podés usar desde los {DIAS_PARA_USAR_CASHBACK} días del pago, cuando termina el plazo para devolver la compra.
+          acredita el pago y lo podés usar desde los {DIAS_PARA_USAR_CASHBACK} días del pago. Si después te arrepentís o devolvés esa compra, se
+          anula (punto 6).
           El saldo no vence, puede cubrir una compra entera y en el checkout elegís si lo usás. No se cambia por dinero ni se transfiere a otra
           persona.
         </li>
@@ -111,18 +112,20 @@ export default async function CondicionesSuscriptores() {
       <h2 style={h2}>6. Si cancelás o devolvés una compra</h2>
       <p>
         Si ejercés el derecho de arrepentimiento ({DIAS_ARREPENTIMIENTO} días) o devolvés una compra, el cashback de esa compra se anula, aunque
-        ya figure en tu cuenta. Por eso el cashback se puede usar recién a los {DIAS_PARA_USAR_CASHBACK} días del pago. El cupón de bienvenida
-        ya usado no se repone. Lo que hayas pagado con saldo en esa compra vuelve a tu saldo.
+        ya figure en tu cuenta o ya se pueda usar; si ya lo usaste, ese monto se descuenta de tu saldo (puede quedar en negativo hasta tu
+        próximo cashback). Lo que hayas pagado con saldo en esa compra vuelve a tu saldo cuando
+        se concreta la devolución.
       </p>
 
       <h2 style={h2}>7. Baja</h2>
       <p>
-        Te podés dar de baja cuando quieras, sin costo: con el enlace que va al pie de cada mail o desde{" "}
+        Te podés dar de baja cuando quieras, sin costo: con el enlace de nuestros mails de bienvenida y de novedades, o desde{" "}
         <Link href="/suscriptores/mi-cuenta" style={subrayado}>
           mi cuenta
         </Link>
-        . Desde ese momento dejás de recibir nuestros mails y de tener los beneficios. Tu saldo queda guardado: si volvés a suscribirte con el
-        mismo mail, lo recuperás.
+        . Desde ese momento dejás de recibir nuestros mails y de sumar beneficios nuevos (el cupón si no lo usaste, el envío gratis y el
+        cashback de las compras que hagas después). El saldo que ya ganaste no se pierde: lo seguís pudiendo usar entrando con tu mail. Si
+        volvés a suscribirte con el mismo mail, recuperás los beneficios.
       </p>
 
       <h2 style={h2}>8. Tus datos</h2>

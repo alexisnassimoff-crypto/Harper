@@ -5,7 +5,7 @@ import FormularioSuscripcion from "@/components/suscriptores/FormularioSuscripci
 import { refrescarSuscriptor } from "@/components/suscriptores/useSuscriptor";
 import { cfteaSinCortar, NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { precio as formatearPrecio } from "@/lib/formato";
-import { CUPON_BIENVENIDA, type ResumenSuscriptor } from "@/lib/suscriptores";
+import { CUPON_BIENVENIDA, MINUTOS_RESERVA, type ResumenSuscriptor } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import { emailValido } from "@/lib/validacion";
 
@@ -69,7 +69,7 @@ export default function SuscriptorEnCheckout({
           </p>
         ) : null}
         <p className="checkout__suscriptor-texto">
-          {T.checkout(suscriptor.email)}{" "}
+          {suscriptor.activo === false ? T.checkoutBaja(suscriptor.email) : T.checkout(suscriptor.email)}{" "}
           <button type="button" className="suscripcion__enlace" onClick={salir} disabled={saliendo || bloqueado}>
             {T.checkoutCaja.salir}
           </button>
@@ -85,6 +85,9 @@ export default function SuscriptorEnCheckout({
             />
             <span>{T.checkoutCaja.usarSaldo(formatearPrecio(suscriptor.saldoDisponible))}</span>
           </label>
+        ) : null}
+        {suscriptor.saldoReservado > 0 ? (
+          <p className="checkout__suscriptor-texto apagado">{T.saldoReservado(formatearPrecio(suscriptor.saldoReservado), MINUTOS_RESERVA)}</p>
         ) : null}
       </section>
     );

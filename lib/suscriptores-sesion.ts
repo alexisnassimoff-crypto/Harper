@@ -88,20 +88,34 @@ export function opcionesDeCookie(hasta: number, ahora = Date.now()) {
  * El enlace para darse de baja desde un mail (Ale, 03/11/2026: sin tener que
  * entrar). Firmado con otra etiqueta que la sesión y sin vencimiento: el
  * enlace de un mail viejo tiene que seguir sirviendo. Solo da de baja; no
- * abre ninguna sesión ni muestra datos.
+ * abre ninguna sesión ni muestra datos. No lleva el mail: va en la dirección
+ * de la página, que queda en los registros y que el Pixel de Meta podría
+ * leer. Lleva una huella firmada del mail, que solo sirve para comprobar que
+ * la fila sigue teniendo ese mail (el enlace de un mail viejo no da de baja a
+ * otro).
  */
 function claveDeBaja(): Buffer | null {
   const secreto = process.env.MP_WEBHOOK_SECRET?.trim();
-  return secreto ? createHmac("sha256", secreto).update("harper:baja-suscriptor:v1").digest() : null;
+  return secreto ? createHmac("sha256", secreto).update("harper:baja-suscriptor:v2").digest() : null;
+}
+
+function huellaDelMail(clave: Buffer, email: string): string {
+  return firma(clave, `mail|${email.trim().toLowerCase()}`).slice(0, 22);
 }
 
 export function crearTokenDeBaja(datos: { suscriptorId: string; email: string }, clave: Buffer | null = claveDeBaja()): string | null {
   if (!clave) return null;
-  const cuerpo = Buffer.from(JSON.stringify({ s: datos.suscriptorId, e: datos.email.trim().toLowerCase() })).toString("base64url");
+  const cuerpo = Buffer.from(JSON.stringify({ s: datos.suscriptorId, h: huellaDelMail(clave, datos.email) })).toString("base64url");
   return `${cuerpo}.${firma(clave, cuerpo)}`;
 }
 
-export function leerTokenDeBaja(valor: unknown, clave: Buffer | null = claveDeBaja()): { suscriptorId: string; email: string } | null {
+export type TokenDeBaja = {
+  suscriptorId: string;
+  /** Si ese mail es el del enlace (se compara la huella, el mail no viaja). */
+  esDelMail: (email: string) => boolean;
+};
+
+export function leerTokenDeBaja(valor: unknown, clave: Buffer | null = claveDeBaja()): TokenDeBaja | null {
   if (!clave || typeof valor !== "string" || valor.length > 600) return null;
   const [cuerpo, firmado, sobra] = valor.split(".");
   if (!cuerpo || !firmado || sobra !== undefined) return null;
@@ -109,9 +123,17 @@ export function leerTokenDeBaja(valor: unknown, clave: Buffer | null = claveDeBa
   const recibida = Buffer.from(firmado);
   if (esperada.length !== recibida.length || !timingSafeEqual(esperada, recibida)) return null;
   try {
-    const datos = JSON.parse(Buffer.from(cuerpo, "base64url").toString("utf8")) as { s?: unknown; e?: unknown };
-    if (typeof datos.s !== "string" || !/^rec[A-Za-z0-9]{14}$/.test(datos.s) || typeof datos.e !== "string") return null;
-    return { suscriptorId: datos.s, email: datos.e };
+    const datos = JSON.parse(Buffer.from(cuerpo, "base64url").toString("utf8")) as { s?: unknown; h?: unknown };
+    if (typeof datos.s !== "string" || !/^rec[A-Za-z0-9]{14}$/.test(datos.s) || typeof datos.h !== "string") return null;
+    const huella = datos.h;
+    return {
+      suscriptorId: datos.s,
+      esDelMail: (email) => {
+        const a = Buffer.from(huellaDelMail(clave, email));
+        const b = Buffer.from(huella);
+        return a.length === b.length && timingSafeEqual(a, b);
+      },
+    };
   } catch {
     return null;
   }

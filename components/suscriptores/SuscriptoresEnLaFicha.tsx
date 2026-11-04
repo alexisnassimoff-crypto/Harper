@@ -23,7 +23,7 @@ export default function SuscriptoresEnLaFicha({ cuotas }: { cuotas: CuotasVerifi
   const [abierta, setAbierta] = useState(false);
   const [aca, setAca] = useState(false);
 
-  if (suscriptor && !aca) {
+  if (suscriptor && suscriptor.activo !== false && !aca) {
     return (
       <aside className="suscriptor-ficha suscriptor-ficha--suscripto" aria-label={T.etiqueta}>
         <p className="suscriptor-ficha__texto">
