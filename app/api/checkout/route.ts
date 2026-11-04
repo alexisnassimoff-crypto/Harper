@@ -158,14 +158,19 @@ export async function POST(request: Request) {
     // apartan sus pedidos sin pagar) hasta que este pedido queda creado y
     // aparta lo suyo. Dos pestañas a la vez no usan el mismo saldo ni el
     // mismo cupón; la segunda ve el saldo que queda y revisa el total.
+    // Si Redis no contesta, la venta sigue sin el cerrojo (como antes): las
+    // reservas igual se ven, y un doble uso lo avisa el webhook.
     const cerrojo = cuenta ? cerrojoDesdeEntorno() : null;
     if (cuenta && cerrojo) {
       const clave = claveSuscriptor(cuenta.id);
-      const nonce = await tomarConEspera(cerrojo, clave, 60_000, { esperaMaxMs: 8_000, reloj: RELOJ_REAL });
-      if (!nonce) {
+      const nonce = await tomarConEspera(cerrojo, clave, 60_000, { esperaMaxMs: 8_000, reloj: RELOJ_REAL }).catch((error) => {
+        console.error("[checkout] Redis no contestó; el pago del suscriptor sigue sin cerrojo:", error instanceof Error ? error.message : error);
+        return undefined;
+      });
+      if (nonce === null) {
         return NextResponse.json({ error: TEXTOS.suscriptores.otroPagoEnCurso }, { status: 409 });
       }
-      cerrojoTomado = { soltar: () => soltarSinFallar(cerrojo, clave, nonce) };
+      if (nonce) cerrojoTomado = { soltar: () => soltarSinFallar(cerrojo, clave, nonce) };
     }
     const suscriptor = cuenta ? await suscriptorParaElCarrito(cuenta) : null;
 
