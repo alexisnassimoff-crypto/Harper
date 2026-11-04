@@ -33,6 +33,9 @@ test("ficha: los números de la patilla, solo con los tres", () => {
 });
 
 test("ficha: el talle sale del ancho del frente y sin él no se inventa", () => {
+  // Es una orientación, y la ficha lo dice: nunca una garantía de ajuste.
+  assert.match(TEXTOS.ficha.talle.orientativo, /orientación, no una garantía de ajuste/);
+  assert.equal(TEXTOS.ficha.talle.etiqueta, "Talle orientativo");
   assert.equal(talleDe(null), null);
   assert.equal(talleDe({ ...vacias, calibreMm: 52 }), null, "el calibre solo no alcanza");
   assert.equal(talleDe({ ...vacias, frenteMm: 128 }), "Chico");
@@ -54,7 +57,7 @@ test("ficha: envío, devolución, cambios, garantía y pago, cada uno con su enl
   );
   assert.match(c[0].texto, /Envío gratis en AMBA desde \$\s?60\.000/);
   assert.equal(c[0].href, "/legales/terminos#envios");
-  assert.equal(c[1].texto, "10 días para devolverlo sin costo");
+  assert.equal(c[1].texto, "10 días corridos para devolverlo sin costo");
   assert.equal(c[1].href, "/legales/devoluciones");
   assert.equal(c[2].texto, "Cambios de color o modelo hasta 30 días");
   assert.equal(c[3].texto, "6 meses de garantía por defectos de fabricación");

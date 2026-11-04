@@ -92,7 +92,7 @@ export function condicionesDeCompra(
       clave: "devolucion",
       texto: mismoPlazo
         ? `Cambios y devoluciones hasta ${plazos.diasCambio} días`
-        : `${plazos.diasArrepentimiento} días para devolverlo sin costo`,
+        : `${plazos.diasArrepentimiento} días corridos para devolverlo sin costo`,
       detalle: "Desde que lo recibís",
       href: "/legales/devoluciones",
       enlace: "Ver la política de devoluciones",

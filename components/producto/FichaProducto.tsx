@@ -347,7 +347,7 @@ export default function FichaProducto({
           <p className="ficha-producto__talle">
             {talle ? (
               <>
-                <span className="label">Talle</span> {talle}
+                <span className="label">{TEXTOS.ficha.talle.etiqueta}</span> {talle}
                 <span aria-hidden="true"> · </span>
               </>
             ) : null}
@@ -423,7 +423,7 @@ export default function FichaProducto({
         {/* Lo largo, en secciones que se abren de a una (como Etnia Barcelona en el celular). */}
         <div className="ficha-acordeones">
           {conTalle ? (
-            <Acordeon id="medidas" titulo={TEXTOS.ficha.talle.titulo} extra={talle}>
+            <Acordeon id="medidas" titulo={TEXTOS.ficha.talle.titulo} extra={talle ? `${talle} (orientativo)` : null}>
               <MedidasYTalle medidas={producto.medidas} modelo={producto.nombre} whatsapp={whatsapp} />
             </Acordeon>
           ) : null}

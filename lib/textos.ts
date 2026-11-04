@@ -96,10 +96,11 @@ export const TEXTOS = {
       guia: [
         "Buscá unos anteojos que te queden cómodos y mirá la parte de adentro de la patilla: vas a ver tres números, por ejemplo 52□18-140.",
         "El primero es el calibre (el ancho de cada cristal), el segundo es el puente (la parte que apoya en la nariz) y el tercero es el largo de la patilla, en milímetros.",
-        "Si el calibre y el puente de este modelo están a 2 o 3 mm de los tuyos, te va a quedar parecido. La patilla influye menos.",
+        "Si el calibre y el puente de este modelo están a 2 o 3 mm de los tuyos, lo más probable es que te quede parecido. La patilla influye menos.",
       ],
       tallesTitulo: "Talles, por el ancho total del frente",
-      orientativo: "Es una guía: la forma de la cara también cuenta.",
+      orientativo: "Los talles son una orientación, no una garantía de ajuste: la forma de la cara y cómo te gusta llevarlos también cuentan.",
+      etiqueta: "Talle orientativo",
       consultar: "¿Dudas con el talle? Escribinos",
     },
     cristales: {
