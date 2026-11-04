@@ -187,8 +187,8 @@ test("los mails: el código, y la bienvenida con las cuotas solo si Mercado Pago
 
   const base = { email: "ana@ejemplo.com", nombre: "Ana Pérez", sitio: "https://harper.ar", enlaceBaja: "https://harper.ar/suscriptores/baja?t=abc", config };
   const sinCuotas = mailBienvenidaSuscriptor({ ...base, cuponDisponible: true, cuotas: null });
-  assert.equal(sinCuotas.asunto, "Ya sos suscriptor de Harper");
-  assert.match(sinCuotas.texto, /^Hola, Ana\. Ya sos suscriptor de Harper\./);
+  assert.equal(sinCuotas.asunto, "Desbloqueaste tus beneficios de Harper");
+  assert.match(sinCuotas.texto, /^Hola, Ana\. Desbloqueaste tus beneficios de Harper\./);
   assert.match(sinCuotas.texto, /\$\s10\.000 de descuento en tu primera compra\./);
   assert.match(sinCuotas.texto, /Te devolvemos el 10% de lo que pagás en productos como saldo para tus próximas compras\. Lo podés usar a los 30 días y no vence\./);
   assert.match(sinCuotas.texto, /Envío gratis siempre/);

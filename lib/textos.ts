@@ -165,12 +165,14 @@ export const TEXTOS = {
       }),
     },
     /** La sección de la portada y la página /suscriptores. */
-    titulo: "Suscribite gratis y ahorrá en cada compra.",
-    bajada: "Solo con tu mail. No cuesta nada y te das de baja cuando quieras.",
+    // Como «One free account. Endless member rewards.» de On (Ale, 04/11/2026):
+    // una suscripción gratis que desbloquea beneficios.
+    titulo: "Suscribite gratis y desbloqueá tus beneficios.",
+    bajada: "Solo necesitás tu mail. Los beneficios se desbloquean apenas te suscribís, y te das de baja cuando quieras.",
     /** El enlace de la portada, debajo del botón de comprar. */
-    enlacePortada: (monto: string) => `Suscribite: ${monto} de bienvenida`,
+    enlacePortada: (monto: string) => `Suscribite gratis y desbloqueá ${monto} de bienvenida`,
     /** La barra de anuncios. */
-    anuncio: (monto: string) => `Suscribite gratis: ${monto} de bienvenida y envío gratis siempre`,
+    anuncio: (monto: string) => `Suscribite gratis y desbloqueá ${monto} de bienvenida y envío gratis siempre`,
     /** La cuota de suscriptor junto a la de todos (barra, ficha): «6 si sos suscriptor». */
     cuotasSuscriptor: (cuotas: number) => `${cuotas} si sos suscriptor`,
     condiciones: "Ver las condiciones",
@@ -180,7 +182,7 @@ export const TEXTOS = {
       nombre: "Tu nombre (opcional)",
       acepto: "Acepto recibir mails de Harper.",
       faltaAcepto: "Para suscribirte, marcá que aceptás recibir nuestros mails.",
-      suscribirme: "Suscribirme",
+      suscribirme: "Suscribirme gratis",
       pedirCodigo: "Mandame el código",
       notaCodigo: "Te mandamos un código de 6 números para confirmar que el mail es tuyo.",
       codigoEnviado: (email: string) => `Te mandamos un código a ${email}. Escribilo acá: vence en 10 minutos.`,
@@ -193,8 +195,8 @@ export const TEXTOS = {
       entrar: "Entrá con tu mail",
       quieroSuscribirme: "Todavía no: quiero suscribirme",
       listo: {
-        nueva: "¡Listo! Ya sos suscriptor.",
-        reactivada: "¡Volviste! Ya sos suscriptor otra vez.",
+        nueva: "¡Listo! Desbloqueaste tus beneficios.",
+        reactivada: "¡Volviste! Tus beneficios están desbloqueados otra vez.",
         ya: "Ya sos suscriptor: entraste con tu mail.",
       },
       /** «Tu cupón de $ 10.000 se aplica solo en el carrito.» */
@@ -210,7 +212,7 @@ export const TEXTOS = {
       entrarTitulo: "Entrá a tu cuenta",
       entrarBajada: "Escribí el mail con el que te suscribiste y te mandamos un código.",
       noSuscripto: "¿Todavía no sos suscriptor?",
-      verBeneficios: "Mirá los beneficios",
+      verBeneficios: "Desbloqueá tus beneficios",
       disponible: "Saldo disponible",
       disponibleDetalle: "Se descuenta solo en el checkout. No vence.",
       enCamino: "En camino",
@@ -252,7 +254,7 @@ export const TEXTOS = {
     },
     /** La caja de la ficha. */
     ficha: {
-      titulo: (monto: string) => `Suscribite gratis: ${monto} menos en tu primera compra.`,
+      titulo: (monto: string) => `Suscribite gratis y desbloqueá ${monto} de bienvenida.`,
       suscripto: "Sos suscriptor: tus beneficios se aplican solos en el carrito.",
       /** «Tenés $ 2.181 de saldo para usar.» */
       saldo: (monto: string) => `Tenés ${monto} de saldo para usar.`,
@@ -260,9 +262,9 @@ export const TEXTOS = {
     },
     /** El checkout. */
     checkoutCaja: {
-      /** «Suscribite con este mail y ahorrá $ 10.000 en esta compra, con envío sin cargo y 6 cuotas sin interés.» */
+      /** «Suscribite gratis con este mail y desbloqueá $ 10.000 de descuento en esta compra, envío sin cargo y 6 cuotas sin interés.» */
       invitacion: (monto: string, cuotas: number | null) =>
-        `Suscribite con este mail y ahorrá ${monto} en esta compra, con envío sin cargo${cuotas ? ` y ${cuotas} cuotas sin interés` : ""}.`,
+        `Suscribite gratis con este mail y desbloqueá ${monto} de descuento en esta compra, envío sin cargo${cuotas ? ` y ${cuotas} cuotas sin interés` : ""}.`,
       nota: "Es gratis. El cupón es para tu primera compra en Harper.",
       escribiMail: "Escribí tu mail arriba y te mandamos el código.",
       suscribirme: "Suscribirme con este mail",

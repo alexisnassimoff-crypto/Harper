@@ -94,7 +94,7 @@ test("Suscriptores Harper en la barra: la invitación y las 6 cuotas solo si Mer
   const seis = { cuotas: 6, montoCuota: 14983.33, cftea: "0,00 %" };
   assert.deepEqual(anunciosDelHeader({ banner: "Envío gratis", cuotas: tres, cuotasSuscriptor: seis, suscriptores: true }), [
     "Envío gratis",
-    `Suscribite gratis: ${precio(10000)} de bienvenida y envío gratis siempre`,
+    `Suscribite gratis y desbloqueá ${precio(10000)} de bienvenida y envío gratis siempre`,
     "3 cuotas sin interés en anteojos con Visa y Mastercard · 6 si sos suscriptor · CFTEA 0,00 %",
     "10% OFF extra pagando con dinero en Mercado Pago",
   ]);

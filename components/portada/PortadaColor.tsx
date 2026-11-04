@@ -35,7 +35,7 @@ export type DatosPortada = {
   cuota: string | null;
   /** "Cuotas sin interés con Visa y Mastercard · CFTEA 0,00 %"; null sin cuotas. */
   letraChica: string | null;
-  /** «Suscribite: $ 10.000 de bienvenida», que baja a la sección de Suscriptores Harper. */
+  /** «Suscribite gratis y desbloqueá $ 10.000 de bienvenida», que baja a la sección de Suscriptores Harper. */
   suscribite: string | null;
 };
 

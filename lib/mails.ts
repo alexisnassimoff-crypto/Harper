@@ -569,7 +569,7 @@ export function mailBienvenidaSuscriptor(d: {
 }): Envio {
   const beneficios = beneficiosDeSuscriptor(d);
   const cuenta = `${d.sitio}/suscriptores/mi-cuenta`;
-  const saludo = d.nombre ? `Hola, ${d.nombre.split(" ")[0]}. Ya sos suscriptor de Harper.` : "Ya sos suscriptor de Harper.";
+  const saludo = d.nombre ? `Hola, ${d.nombre.split(" ")[0]}. Desbloqueaste tus beneficios de Harper.` : "Desbloqueaste tus beneficios de Harper.";
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">${escaparHtml(saludo)}</h1>
 <p style="margin:0 0 20px;font-size:14px;color:#78756c;line-height:1.6;">Esto es lo que tenés:</p>
@@ -592,7 +592,7 @@ export function mailBienvenidaSuscriptor(d: {
 
   return {
     para: d.email,
-    asunto: "Ya sos suscriptor de Harper",
+    asunto: "Desbloqueaste tus beneficios de Harper",
     html,
     texto: `${saludo}
 
