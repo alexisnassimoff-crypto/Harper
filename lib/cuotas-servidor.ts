@@ -1,14 +1,20 @@
-import { cuotasActivas, evaluarCuotas, MARCAS_VERIFICADAS, resumirCuotasMP, type CuotasVerificadas } from "./cuotas";
+import { cuotasAnunciables, evaluarCuotas, MARCAS_VERIFICADAS, resumirCuotasMP, type CuotasVerificadas } from "./cuotas";
 import { consultarCuotas, mercadoPagoConfigurado } from "./mercadopago";
+import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, CUOTAS_TODOS } from "./suscriptores";
 
 /**
  * La consulta a Mercado Pago, solo en el servidor (usa el token de MP). La
  * decisión y los tipos están en lib/cuotas.ts, que también usa el navegador.
  */
 
-/** Las cuotas sin interés confirmadas por Mercado Pago para un precio, o null. */
-export async function verificarCuotas(monto: number): Promise<CuotasVerificadas | null> {
-  const cuotas = cuotasActivas();
+/**
+ * Las cuotas sin interés confirmadas por Mercado Pago para un precio, o null.
+ * `cuotas` es la cantidad que se quiere anunciar: 3 para todos (por
+ * defecto), 6 para un suscriptor (lib/suscriptores.ts). Nunca más que el
+ * tope de `NEXT_PUBLIC_CUOTAS`.
+ */
+export async function verificarCuotas(monto: number, pedidas: number = CUOTAS_TODOS): Promise<CuotasVerificadas | null> {
+  const cuotas = cuotasAnunciables(pedidas);
   if (!cuotas || !mercadoPagoConfigurado() || !(monto > 0)) return null;
 
   try {
@@ -21,10 +27,30 @@ export async function verificarCuotas(monto: number): Promise<CuotasVerificadas 
 }
 
 /** Para los listados: se verifica con el precio más bajo de los productos mostrados. */
-export async function verificarCuotasPara(precios: number[]): Promise<CuotasVerificadas | null> {
+export async function verificarCuotasPara(precios: number[], pedidas: number = CUOTAS_TODOS): Promise<CuotasVerificadas | null> {
   const validos = precios.filter((p) => p > 0);
   if (validos.length === 0) return null;
-  return verificarCuotas(Math.min(...validos));
+  return verificarCuotas(Math.min(...validos), pedidas);
+}
+
+/**
+ * Para anunciar las dos cantidades juntas (la barra, la portada, la ficha,
+ * /suscriptores): las de cualquier comprador y las de suscriptor, cada una
+ * confirmada aparte con Mercado Pago para el mismo precio (Ale, 03/11/2026).
+ * Las de suscriptor van solo si son más que las de todos: con el tope de
+ * `NEXT_PUBLIC_CUOTAS` en 3, serían las mismas, y mientras las cuotas no sean
+ * un beneficio de suscriptor (lib/suscriptores.ts) ni se consultan. Si
+ * Mercado Pago tarda más de `ms`, sin cuotas.
+ */
+export async function cuotasDeTodosYSuscriptores(
+  precios: number[],
+  ms: number
+): Promise<{ todos: CuotasVerificadas | null; suscriptores: CuotasVerificadas | null }> {
+  const [todos, suscriptores] = await Promise.all([
+    conEspera(verificarCuotasPara(precios, CUOTAS_TODOS), ms, null),
+    CUOTAS_SON_BENEFICIO ? conEspera(verificarCuotasPara(precios, CUOTAS_SUSCRIPTORES), ms, null) : Promise.resolve(null),
+  ]);
+  return { todos, suscriptores: suscriptores && (!todos || suscriptores.cuotas > todos.cuotas) ? suscriptores : null };
 }
 
 /**
@@ -32,8 +58,8 @@ export async function verificarCuotasPara(precios: number[]): Promise<CuotasVeri
  * Mercado Pago para un precio, y qué contestó por marca (resumido, sin
  * credenciales). Nunca tira error.
  */
-export async function diagnosticarCuotas(monto: number) {
-  const cuotas = cuotasActivas();
+export async function diagnosticarCuotas(monto: number, pedidas: number = CUOTAS_TODOS) {
+  const cuotas = cuotasAnunciables(pedidas);
   if (!cuotas) return { anunciadas: null };
   if (!mercadoPagoConfigurado()) return { anunciadas: cuotas, mercadoPago: false };
   const marcas = await Promise.all(

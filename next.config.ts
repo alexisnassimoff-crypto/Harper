@@ -29,6 +29,16 @@ const nextConfig: NextConfig = {
     "/estuches/opengraph-image": ["./public/productos/**/*.jpg", "./app/_og/fuentes/*.ttf"],
     "/panos/opengraph-image": ["./public/productos/**/*.jpg", "./app/_og/fuentes/*.ttf"],
   },
+
+  // Socios Harper (la membresía paga) se reemplazó por Suscriptores Harper
+  // (Ale, 03/11/2026): los enlaces viejos llevan a las páginas nuevas.
+  async redirects() {
+    return [
+      { source: "/socios", destination: "/suscriptores", permanent: true },
+      { source: "/socios/mi-cuenta", destination: "/suscriptores/mi-cuenta", permanent: true },
+      { source: "/legales/socios", destination: "/legales/suscriptores", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

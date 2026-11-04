@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Instrument_Serif, Raleway } from "next/font/google";
+import { Raleway } from "next/font/google";
+import localFont from "next/font/local";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
@@ -16,29 +17,28 @@ import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import { anunciosDelHeader } from "@/lib/anuncios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
-import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
+import { cuotasDeTodosYSuscriptores } from "@/lib/cuotas-servidor";
 
-const raleway = Raleway({
+// La tipografía (Ale, 03/11/2026): solo dos en toda la web. Raleway para todo
+// lo que va sin serif (texto, precios, botones, etiquetas) y una con serif para
+// los títulos. Esa iba a ser Safira March, pero su licencia gratis no permite
+// usarla en una tienda; Ale (04/11/2026): «otra lo más parecida posible y que
+// sea gratis». Es Melodrama, de Fontshare: gratis también para uso comercial y
+// alojada en harper.ar. El archivo no está en el repo (la licencia no deja
+// repartirlo): lo baja scripts/bajar-fuentes.mjs antes de compilar.
+const texto = Raleway({
   subsets: ["latin"],
   display: "swap",
-  variable: "--fuente-raleway",
+  variable: "--fuente-texto",
 });
-
-// La serif de los títulos de la portada (conversa con el logo) y la mono de
-// las etiquetas y la numeración. Solo los pesos que se usan.
-const serif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
+const melodrama = localFont({
+  src: "./fuentes/melodrama.woff2",
+  weight: "300 700",
+  style: "normal",
   display: "swap",
-  variable: "--fuente-serif",
-});
-
-const mono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  display: "swap",
-  variable: "--fuente-mono",
+  variable: "--fuente-titulos",
+  fallback: ["Georgia", "serif"],
+  adjustFontFallback: "Times New Roman",
 });
 
 const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";
@@ -89,11 +89,11 @@ export default async function RootLayout({
   // las previstas (sol, Clip-On, receta) aparecen solas cuando tengan.
   const categorias = categoriasConProductos(productos).map((c) => ({ nombre: c.nombre, slug: c.slug }));
   // La barra de arriba anuncia las cuotas solo si Mercado Pago las confirma
-  // para el anteojo más barato; si tarda, sale sin ellas.
-  const cuotas = await conEspera(
-    verificarCuotasPara(productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio)),
-    2_000,
-    null
+  // para el anteojo más barato; si tarda, sale sin ellas. Las de todos (3) y
+  // las de suscriptor (6), cada una confirmada aparte.
+  const cuotas = await cuotasDeTodosYSuscriptores(
+    productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio),
+    2_000
   );
 
   // Identidad del negocio para Google: es de donde sale el panel de marca en
@@ -135,7 +135,7 @@ export default async function RootLayout({
   ];
 
   return (
-    <html lang="es" className={`${raleway.variable} ${serif.variable} ${mono.variable}`}>
+    <html lang="es" className={`${texto.variable} ${melodrama.variable}`}>
       <head>
         <script
           type="application/ld+json"
@@ -155,7 +155,13 @@ export default async function RootLayout({
             Saltar al contenido
           </a>
           <Header
-            anuncios={anunciosDelHeader({ banner: config.bannerTexto, cuotas, escala: escalaDe(tramos, "Anteojos") })}
+            anuncios={anunciosDelHeader({
+              banner: config.bannerTexto,
+              cuotas: cuotas.todos,
+              cuotasSuscriptor: cuotas.suscriptores,
+              escala: escalaDe(tramos, "Anteojos"),
+              suscriptores: true,
+            })}
             categorias={categorias}
           />
           <main id="contenido" tabIndex={-1}>

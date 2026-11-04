@@ -26,6 +26,11 @@ test("el código se verifica con el desafío: mismo mail, mismo código y sin ve
   assert.equal(codigoCorrecto(CLAVE, desafio, "otra@ejemplo.com", "123456", AHORA + 1000), false, "otro mail");
   assert.equal(codigoCorrecto(CLAVE, desafio, "ana@ejemplo.com", "123456", AHORA + VIGENCIA_CODIGO_MS), false, "vencido");
   assert.equal(codigoCorrecto(Buffer.from("otra-clave"), desafio, "ana@ejemplo.com", "123456", AHORA + 1000), false, "otra clave");
+  // El código de suscribirse no sirve para ver los datos de un cliente, ni al revés.
+  const deSuscriptor = crearDesafio(CLAVE, "ana@ejemplo.com", "123456", AHORA, "suscriptor");
+  assert.equal(codigoCorrecto(CLAVE, deSuscriptor, "ana@ejemplo.com", "123456", AHORA + 1000, "suscriptor"), true);
+  assert.equal(codigoCorrecto(CLAVE, deSuscriptor, "ana@ejemplo.com", "123456", AHORA + 1000), false, "suscriptor → cliente");
+  assert.equal(codigoCorrecto(CLAVE, desafio, "ana@ejemplo.com", "123456", AHORA + 1000, "suscriptor"), false, "cliente → suscriptor");
   const [, firma] = desafio.split(".");
   assert.equal(codigoCorrecto(CLAVE, `${AHORA + 99 * VIGENCIA_CODIGO_MS}.${firma}`, "ana@ejemplo.com", "123456", AHORA + 1000), false, "estirar el vencimiento rompe la firma");
   for (const raro of [null, 42, "", "sin-punto", "1.2.3", "abc.def"]) {

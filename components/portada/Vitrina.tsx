@@ -2,17 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
-import Estrellas, { formatearPuntaje } from "./Estrellas";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { TEXTOS } from "@/lib/textos";
 
 /**
- * La vitrina de la portada: arriba, los modelos en mosaicos de color con el
- * interruptor «Al sol | Adentro»; abajo, una ficha grande por modelo para
- * elegir el color y sumarlo sin salir de la portada. El interruptor es uno
+ * La vitrina de la portada (la única vez que aparecen los modelos): una
+ * tarjeta por modelo, sobre el color del armazón elegido, para tocar un color
+ * y sumarlo sin salir de la portada. El interruptor «Al sol | Adentro» es uno
  * solo para toda la vitrina: muestra que son fotocromáticos sin explicarlo.
  *
  * Todo lo que es plata (precio, cuotas, el total de llevarse todos) viene
@@ -30,6 +29,8 @@ export type ColorVitrina = {
   alSol: string | null;
   /** La ficha del modelo en este color. */
   enlace: string;
+  /** El fondo de este color (lib/vitrina.ts, tinteDeColor). */
+  tinte: string;
 };
 
 export type ModeloVitrina = {
@@ -45,26 +46,21 @@ export type ModeloVitrina = {
 };
 
 export type DatosVitrina = {
-  etiqueta: string;
-  /** El nombre de la línea de la vitrina ("Fotocromáticos"), arriba de los mosaicos. */
+  /** El nombre de la línea de la vitrina ("Fotocromáticos"). */
   linea: string;
-  titulo: string;
-  bajada: string;
   /** "$ 89.900", o null si los modelos no cuestan lo mismo. */
   precio: string | null;
   /** "6 cuotas sin interés de $ 14.983", verificada para ese precio; null si no. */
   cuota: string | null;
-  calificacion: { promedio: number; total: number } | null;
-  /** "Cuotas sin interés con Visa y Mastercard · CFTEA 0,00 %"; null sin cuotas. */
-  letraChica: string | null;
   /** El atajo para llevarse uno de cada uno; null con un solo modelo. */
   todos: { texto: string } | null;
+  /** "También: estuches y paños", con sus enlaces. */
+  complementos: { nombre: string; slug: string }[];
 };
 
 type Estado = "sol" | "adentro";
 
-/** `children` va entre la portada y las fichas: las líneas de Harper. */
-export default function Vitrina({ modelos, datos, children }: { modelos: ModeloVitrina[]; datos: DatosVitrina; children?: ReactNode }) {
+export default function Vitrina({ modelos, datos }: { modelos: ModeloVitrina[]; datos: DatosVitrina }) {
   const { items, agregar, abrirPanel } = useCarrito();
   // Cuántos de cada color hay en el carrito: el número va arriba del color, como en la ficha.
   const enCarrito = new Map<string, number>();
@@ -134,78 +130,18 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
 
   return (
     <>
-      {/* ---------- La portada: los modelos sobre color ---------- */}
-      <section id="vitrina-portada" className="vitrina-portada" aria-labelledby="vitrina-titulo">
-        <div className="contenedor vitrina-portada__grilla">
-          <div className="vitrina-portada__texto">
-            <p className="etiqueta-mono">{datos.etiqueta}</p>
-            <h1 id="vitrina-titulo" className="vitrina-portada__titulo">
-              {datos.titulo}
-            </h1>
-            <p className="vitrina-portada__bajada">{datos.bajada}</p>
-          </div>
-
-          <div className="vitrina-portada__vitrina">
-            {hayAlSol ? (
-              <div className="vitrina-portada__control">
-                {interruptor("vitrina-portada__interruptor")}
-                <p className="vitrina-portada__nota">{TEXTOS.portada.nota}</p>
-              </div>
-            ) : null}
-            <ul className="mosaicos" aria-label="Los modelos">
-              {modelos.map((m, i) => {
-                const color = m.colores[elegidos[m.slug] ?? m.inicial];
-                if (!color) return null;
-                return (
-                  <li key={m.id}>
-                    <a href={`#modelo-${m.slug}`} className="mosaico" style={{ background: m.tinte }}>
-                      <span className="mosaico__foto">
-                        <Image
-                          src={fotoDe(color)}
-                          alt={`${m.nombre} ${color.color}`}
-                          fill
-                          sizes="(max-width: 768px) 46vw, 29vw"
-                          priority={i < 4}
-                          className="foto-multiplicada"
-                        />
-                      </span>
-                      <span className="mosaico__nombre">{m.nombre}</span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          <div className="vitrina-portada__acciones">
-            <a href="#los-modelos" className="boton vitrina-portada__boton">
-              {TEXTOS.portada.boton}
-            </a>
-            {datos.calificacion ? (
-              <a href="#opiniones" className="vitrina-portada__opiniones">
-                <Estrellas puntaje={datos.calificacion.promedio} />
-                <span>
-                  {formatearPuntaje(datos.calificacion.promedio)} · {datos.calificacion.total.toLocaleString("es-AR")}{" "}
-                  {datos.calificacion.total === 1 ? "opinión" : "opiniones"} de clientes Harper
-                </span>
-              </a>
-            ) : null}
-            {datos.letraChica ? <p className="vitrina-portada__letra">{datos.letraChica}</p> : null}
-          </div>
-        </div>
-      </section>
-
-      {children}
-
       {/* ---------- Los modelos, uno por uno ---------- */}
       <section id="los-modelos" className="contenedor seccion vitrina-modelos" aria-labelledby="los-modelos-titulo">
         <div className="vitrina-modelos__cabecera">
           {/* Sin contar modelos: la colección crece (Ale, 30/10/2026). */}
-          <p className="etiqueta-mono">{datos.linea} · ya disponibles</p>
+          <p className="etiqueta-mono">{datos.linea} · Ya disponibles</p>
           <h2 id="los-modelos-titulo" className="titulo-serif">
             {datos.precio ? TEXTOS.modelos.titulo : TEXTOS.modelos.tituloSinPrecio}
           </h2>
-          <p className="apagado">{hayAlSol ? TEXTOS.modelos.bajadaConSol : TEXTOS.modelos.bajada}</p>
+          <p className="apagado">
+            {datos.precio ? `${TEXTOS.modelos.mismoPrecio} ` : null}
+            {hayAlSol ? TEXTOS.modelos.bajadaConSol : TEXTOS.modelos.bajada}
+          </p>
           {interruptor("vitrina-modelos__interruptor")}
         </div>
 
@@ -219,14 +155,14 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
                 <Link
                   href={color.enlace}
                   className="pieza__foto"
-                  style={{ background: m.tinte }}
+                  style={{ background: color.tinte || m.tinte }}
                   aria-label={`Ver ${m.nombre} ${color.color}`}
                 >
                   <Image
                     src={fotoDe(color)}
                     alt={`${m.nombre} ${color.color}${estado === "sol" && color.alSol ? ", al sol" : ""}`}
                     fill
-                    sizes="(max-width: 768px) 100vw, 46vw"
+                    sizes="(max-width: 768px) 50vw, 24vw"
                     className="foto-multiplicada"
                   />
                 </Link>
@@ -268,12 +204,12 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
 
                   <p className="pieza__precio">
                     <span>{formatearPrecio(m.precio)}</span>
-                    {datos.cuota ? <small> · {datos.cuota}</small> : null}
+                    {datos.cuota ? <small>{datos.cuota}</small> : null}
                   </p>
 
                   <button
                     type="button"
-                    className="boton boton--contorno boton--bloque pieza__sumar"
+                    className="boton boton--bloque pieza__sumar"
                     onClick={() => sumarEste(m)}
                     disabled={color.agotada}
                   >
@@ -295,6 +231,19 @@ export default function Vitrina({ modelos, datos, children }: { modelos: ModeloV
               {datos.todos.texto}
             </button>
           </div>
+        ) : null}
+
+        {datos.complementos.length > 0 ? (
+          <p className="vitrina-complementos">
+            También:{" "}
+            {datos.complementos.map((c, i) => (
+              <span key={c.slug}>
+                {i > 0 ? " y " : ""}
+                <Link href={`/${c.slug}`}>{c.nombre.toLowerCase()}</Link>
+              </span>
+            ))}
+            .
+          </p>
         ) : null}
 
         <p className="solo-lectores" role="status">

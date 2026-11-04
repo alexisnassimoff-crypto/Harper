@@ -34,3 +34,22 @@ test("el dinero en Mercado Pago no toca el envío", () => {
   assert.equal(d.envio, 10100);
   assert.equal(d.total, 8010 - 801 + 10100);
 });
+
+test("suscriptor: el cupón y el saldo en su renglón, y la cuenta cierra", () => {
+  // $ 89.900 − $ 10.000 (cupón) − $ 20.000 (saldo) = $ 59.900; − $ 5.990 (dinero en Mercado Pago) = $ 53.910.
+  const d = desglosar({ subtotal: 59900, ahorro: 0, ahorroDineroMP: 5990, envio: 0, suscriptor: { cupon: 10000, saldoUsado: 20000 } });
+  assert.equal(d.lista, 89900);
+  assert.equal(d.cupon, 10000);
+  assert.equal(d.saldo, 20000);
+  assert.equal(d.total, 53910);
+  assert.equal(d.lista - d.descuento - d.cupon - d.saldo - d.dineroMP + d.envio, d.total);
+  // El saldo es plata del comprador: no se cuenta como ahorro.
+  assert.equal(d.ahorroTotal, 15990);
+});
+
+test("sin suscriptor, nada cambia", () => {
+  const d = desglosar({ subtotal: 89900, ahorro: 0, envio: 0, suscriptor: null });
+  assert.equal(d.lista, 89900);
+  assert.equal(d.cupon, 0);
+  assert.equal(d.saldo, 0);
+});

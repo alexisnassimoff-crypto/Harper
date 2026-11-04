@@ -38,23 +38,47 @@ export function codigoNuevo(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
-function firma(clave: Buffer, email: string, codigo: string, vence: number) {
-  return createHmac("sha256", clave).update(`${email}|${codigo}|${vence}`).digest("base64url");
+/**
+ * Para qué es el código: el de reconocer a quien compró (app/api/clientes/) y
+ * el de suscribirse (app/api/suscriptores/) firman distinto, así un código
+ * pedido para una cosa no sirve para la otra (cada una cuenta sus intentos
+ * aparte: con el mismo desafío servido en las dos, se duplicaban).
+ */
+export type PropositoCodigo = "cliente" | "suscriptor";
+
+function firma(clave: Buffer, email: string, codigo: string, vence: number, proposito: PropositoCodigo) {
+  const base = `${email}|${codigo}|${vence}`;
+  return createHmac("sha256", clave)
+    .update(proposito === "cliente" ? base : `${proposito}|${base}`)
+    .digest("base64url");
 }
 
 /** El desafío que viaja al navegador: el vencimiento y la firma del código, nunca el código. */
-export function crearDesafio(clave: Buffer, email: string, codigo: string, ahora = Date.now()): string {
+export function crearDesafio(
+  clave: Buffer,
+  email: string,
+  codigo: string,
+  ahora = Date.now(),
+  proposito: PropositoCodigo = "cliente"
+): string {
   const vence = ahora + VIGENCIA_CODIGO_MS;
-  return `${vence}.${firma(clave, email, codigo, vence)}`;
+  return `${vence}.${firma(clave, email, codigo, vence, proposito)}`;
 }
 
-/** Si el código que escribió la persona es el del desafío, para ese mail y sin vencer. */
-export function codigoCorrecto(clave: Buffer, desafio: unknown, email: string, codigo: unknown, ahora = Date.now()): boolean {
+/** Si el código que escribió la persona es el del desafío, para ese mail, ese propósito y sin vencer. */
+export function codigoCorrecto(
+  clave: Buffer,
+  desafio: unknown,
+  email: string,
+  codigo: unknown,
+  ahora = Date.now(),
+  proposito: PropositoCodigo = "cliente"
+): boolean {
   if (typeof desafio !== "string" || typeof codigo !== "string" || !/^\d{6}$/.test(codigo.trim())) return false;
   const [venceTexto, firmado, sobra] = desafio.split(".");
   const vence = Number(venceTexto);
   if (!firmado || sobra !== undefined || !Number.isFinite(vence) || vence <= ahora) return false;
-  const esperada = Buffer.from(firma(clave, email, codigo.trim(), vence));
+  const esperada = Buffer.from(firma(clave, email, codigo.trim(), vence, proposito));
   const recibida = Buffer.from(firmado);
   return esperada.length === recibida.length && timingSafeEqual(esperada, recibida);
 }

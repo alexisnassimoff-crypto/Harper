@@ -44,6 +44,8 @@ cliente no tiene efecto.
 | `Clientes` | Lista de compradores y de mails capturados sin compra |
 | `Config` | Costo de envío, textos y datos legales, sin tocar código |
 | `Descuentos` | Tramos de descuento por cantidad. Cambiar un valor acá cambia la web |
+| `Suscriptores` | Un mail por fila (Suscriptores Harper): alta, consentimiento, origen, cupón de bienvenida (`Disponible`/`Usado` y en qué pedido) y baja |
+| `Saldos` | El saldo a favor de cada suscriptor: `Cashback` (+, se puede usar desde `Disponible_desde`), `Uso` (−) y `Ajuste`. Si un pedido se devuelve, tildar `Anulado` |
 | `Metricas ML` | Visitas, ventas y Product Ads por publicación. Se reescribe todos los días |
 | `Anuncios ML` | Product Ads por grupo de anuncios (los colores de un modelo van juntos). Se reescribe todos los días |
 | `Preguntas ML` | Preguntas de Mercado Libre y qué hizo el agente con cada una |
@@ -351,12 +353,27 @@ Datos fiscales en `Config` (vacíos = no se muestra nada; nunca se suponen):
 | `impuestos_nacionales_<categoría>` | El mismo dato para una categoría con otra alícuota (`anteojos`, `estuches`, `panos`…) | El contador |
 | `condicion_iva` | La condición de FOCUS VISION SRL frente al IVA: `Responsable Inscripto`, `Monotributo` o `Exento`. Decide la clase de cada factura (ver "Datos de facturación") | El contador |
 
-**Cuotas.** `NEXT_PUBLIC_CUOTAS` dice cuántas cuotas sin interés se quieren
-anunciar, pero se anuncian solo si Mercado Pago lo confirma: el servidor
+**Cuotas.** Por ahora 6 cuotas sin interés para todos, también suscriptores
+(Ale, 04/11/2026). La preferencia de Mercado Pago deja elegir hasta 12, como
+siempre (las que tienen interés las muestra Mercado Pago con su costo). Para
+volver a separar 3 para todos y 6 para suscriptores alcanza con bajar
+`CUOTAS_TODOS` en `lib/suscriptores.ts`: la web vuelve a anunciar las de
+suscriptor y a limitar las cuotas de cada pago. `NEXT_PUBLIC_CUOTAS` es
+el tope y el interruptor: sin cargar, o con menos de 2, no se anuncia ninguna.
+Cada cantidad se anuncia solo si Mercado Pago lo confirma: el servidor
 consulta `/v1/payment_methods/installments` (Visa y Mastercard, cache de una
 hora) y exige esas cuotas en todos los bancos, sin interés y con CFT 0. Se
 muestran el monto por cuota que calcula Mercado Pago (con centavos), el
-precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
+precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas. En el
+panel de Mercado Pago tienen que estar activadas las 3 y las 6 sin interés.
+
+**Tipografía.** Solo dos: Raleway (next/font/google) en todo lo que va sin
+serif y Melodrama (Fontshare, ITF Free Font License) en los títulos. La
+licencia de Melodrama permite usarla gratis en la tienda y alojarla en
+harper.ar, pero no repartirla en un repositorio público ni modificar el
+archivo: por eso no está en el repo. `npm run build` y `npm run dev` corren
+primero `scripts/bajar-fuentes.mjs`, que la baja de Fontshare a `app/fuentes/`
+(ignorada por git); si no se puede bajar, la compilación se corta.
 
 ## Rutas
 
@@ -368,6 +385,8 @@ precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas.
 | `GET /api/envio/sucursales` | Sucursales donde retirar, por provincia |
 | `POST /api/checkout` | Crea el pedido y la preferencia de Mercado Pago |
 | `POST /api/mercadopago/webhook` | Confirma el pago, descuenta stock y manda mails |
+| `POST /api/suscriptores/codigo` · `confirmar` · `salir` · `baja` | Suscriptores Harper: el código por mail, el alta o la entrada (cookie de sesión), salir y la baja |
+| `GET /api/suscriptores/sesion` | Quién es el suscriptor de este navegador, para las páginas con cache |
 | `POST /api/sync-media` | Espeja fotos y videos a Blob |
 | `POST /api/pedidos/notificar-envio` | Manda el mail con el tracking |
 | `GET /api/importar-ml` | Trae las publicaciones de Mercado Libre |
@@ -628,6 +647,20 @@ Google exige mostrar su logo junto a las sugerencias cuando no hay un mapa: es e
 paquete oficial de atribución, sin modificar). Los datos de la dirección se guardan en
 el pedido como siempre (Direccion, Ciudad, Provincia, CP); no se guarda nada más de
 Google.
+
+## Suscriptores Harper
+
+La suscripción gratis con el mail (Ale, 03/11/2026; las reglas están en
+`lib/suscriptores.ts`). Se suscribe o entra con el código de 6 números en la
+portada (sección «Suscriptores Harper»), en `/suscriptores`, en la ficha y en
+el checkout (con el mail que ya escribió). La casilla de los mails arranca sin
+marcar y enlaza a `/legales/suscriptores`. Con la sesión, el carrito y el
+checkout aplican solos el cupón y el envío gratis; el saldo se usa salvo que
+destilde «Usar mi saldo a favor». `/suscriptores/mi-cuenta` muestra el saldo,
+lo que está en camino (con la fecha desde la que se usa), el cupón y los
+movimientos, y deja salir o darse de baja. Los mails llevan a
+`/suscriptores/baja?t=…`, que pide confirmar con un botón. `/socios` y
+`/legales/socios` redirigen a las páginas nuevas.
 
 ## Comprador que vuelve
 

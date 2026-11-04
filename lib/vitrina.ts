@@ -26,6 +26,28 @@ export function tinteDe(slug: string, indice: number): string {
   return TINTES[slug] ?? TINTES_DE_RESERVA[indice % TINTES_DE_RESERVA.length];
 }
 
+/** El fondo del negro cuando el tinte del modelo ya lo usa otro de sus colores. */
+const TINTE_NEUTRO = "#e8e6e1";
+
+/**
+ * El fondo de cada color (la portada y las tarjetas lo cambian al tocar un
+ * color): cada color, uno que acompaña al armazón, y el negro, el tinte del
+ * modelo. Si ese tinte ya es el de otro color del modelo (el carey del
+ * Citrino, el gris del Amatista, el ámbar del Cuarzo), el negro va sobre uno
+ * neutro. Así dos colores del mismo modelo no comparten fondo.
+ */
+export function tinteDeColor(slug: string, color: string, indice: number): string {
+  const c = color.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const carey = "#f2e4bc";
+  const ambar = slug === "cuarzo" ? "#efdcd3" : "#eedfca";
+  const gris = slug === "amatista" ? "#e4deec" : "#e2e6ec";
+  if (c.startsWith("carey")) return carey;
+  if (c.startsWith("ambar")) return ambar;
+  if (c.startsWith("gris")) return gris;
+  const propio = tinteDe(slug, indice);
+  return [carey, ambar, gris].includes(propio) ? TINTE_NEUTRO : propio;
+}
+
 /**
  * La forma de cada modelo, en una línea, para la vitrina. Se ve en las fotos;
  * no afirma materiales ni nada que no esté confirmado. Un modelo nuevo va sin

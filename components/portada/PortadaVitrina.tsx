@@ -4,7 +4,7 @@ import BarraTusPares from "./BarraTusPares";
 import DeADos, { type ColorDeADos, type FilaDeADos } from "./DeADos";
 import Opiniones from "./Opiniones";
 import { PreguntasFrecuentes } from "./SeccionesPortada";
-import UnDia, { type MomentoDelDia } from "./UnDia";
+import PortadaColor, { type ColorPortada } from "./PortadaColor";
 import Vitrina, { type ModeloVitrina } from "./Vitrina";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
@@ -21,16 +21,21 @@ import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { armarPack, cantidadesDePack, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
+import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, CUPON_BIENVENIDA as CUPON_SUSCRIPTOR } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
+import BeneficiosSuscriptor from "@/components/suscriptores/BeneficiosSuscriptor";
+import CajaSuscripcion from "@/components/suscriptores/CajaSuscripcion";
 import { rutaDeVariante } from "@/lib/variantes";
-import { enLetras, FORMAS, fotosDeVitrina, precioUnico, tinteDe } from "@/lib/vitrina";
+import { enLetras, FORMAS, fotosDeVitrina, precioUnico, tinteDe, tinteDeColor } from "@/lib/vitrina";
 
 /**
  * La portada vitrina (pedido de Ale, 30/10/2026): marca primero y compra
  * rápida. Los modelos sobre color, que se suman sin salir de la portada; la
  * cuenta de llevarse dos; lo que trae cada par; las opiniones; las cuentas
- * claras y un día con el mismo par. Lo de siempre se respeta: los montos
+ * claras, un día con el mismo par y Suscriptores Harper (Ale, 03/11/2026: la
+ * suscripción gratis con el mail, con el formulario ahí mismo). Lo de
+ * siempre se respeta: los montos
  * salen de Airtable y de Mercado Pago (cuotas verificadas para cada total),
  * nada que no esté confirmado se afirma y no se nombra a Mercado Libre.
  */
@@ -43,7 +48,6 @@ const ORDEN_DE_COLORES = ["carey", "gris", "ambar", "negro"];
 
 const plano = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const mayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
-const minuscula = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice(1);
 /** ["a", "b", "c"] → "a, b y c". */
 const enumerar = (partes: string[]) => (partes.length <= 1 ? partes.join("") : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`);
 
@@ -90,9 +94,12 @@ export default async function PortadaVitrina({ productos, config }: { productos:
 
   // Las cuotas de cada monto que se anuncia, confirmadas una por una con Mercado Pago.
   const montos = [...new Set([...packs.map((p) => p.total), ...(todos ? [todos.total] : [])])];
-  const [verificadas, mercadoLibre] = await Promise.all([
+  // Y las de suscriptor para un par, aparte: se nombran solo si son un beneficio
+  // (lib/suscriptores.ts) y Mercado Pago las confirma.
+  const [verificadas, mercadoLibre, cuotasSuscriptor] = await Promise.all([
     conEspera(Promise.all(montos.map(async (m) => [m, await verificarCuotas(m)] as const)), ESPERA_CUOTAS_MS, []),
     conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, ultimoDeMercadoLibre()),
+    precio && CUOTAS_SON_BENEFICIO ? conEspera(verificarCuotas(precio, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
   ]);
   const cuotasDe = (monto: number) => verificadas.find(([m]) => m === monto)?.[1] ?? undefined;
   const opiniones = mercadoLibre?.opiniones ?? null;
@@ -115,6 +122,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       agotada: v.agotada,
       ...fotosDeVitrina(v, m.fotoPrincipal ?? ""),
       enlace: rutaDeVariante(m, j),
+      tinte: tinteDeColor(m.slug, v.color, i),
     })),
   }));
 
@@ -138,22 +146,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const envioDe = (monto: number) =>
     gratisPais(monto) ? "Envío gratis a todo el país" : gratisAmba(monto) ? "Envío gratis en AMBA" : null;
 
-  // Qué son y cuánto salen, sin contar modelos ni colores: la colección crece (Ale, 30/10/2026).
   const tramo2 = pack2 ? tramoDe(pack2.cantidad) : null;
-  const bajada =
-    config.portadaSubtitulo ||
-    [
-      (confirmados ? TEXTOS.portada.bajada : TEXTOS.portada.bajadaSinConfirmar)(precio ? formatearPrecio(precio) : null),
-      precio && pack2 && cuota2
-        ? tramo2?.paga
-          ? TEXTOS.portada.promo(tramo2.desdeUnidades, tramo2.paga, formatearPrecio(pack2.total), cuota2.cuotas, precioConCentavos(cuota2.montoCuota))
-          : nombrePromo
-            ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}.`
-            : null
-        : null,
-    ]
-      .filter(Boolean)
-      .join(" ");
 
   const filas: FilaDeADos[] = packs.map((p) => {
     const cuota = textoCuota(cuotasDe(p.total));
@@ -202,64 +195,10 @@ export default async function PortadaVitrina({ productos, config }: { productos:
     .filter((m, i, lista) => m && lista.indexOf(m) === i)
     .map((m) => ({ src: m.colores[m.inicial].adentro, alt: `${m.nombre} ${m.colores[m.inicial].color}` }));
 
-  // Un día cualquiera: cada momento con el modelo y el color que le quedan, si tienen stock.
-  const momento = (
-    slug: string,
-    color: string,
-    alSol: boolean,
-    datos: Pick<MomentoDelDia, "hora" | "lugar" | "texto" | "tinte">,
-  ): MomentoDelDia | null => {
-    const m = vitrina.find((v) => v.slug === slug);
-    if (!m) return null;
-    const c = m.colores.find((x) => !x.agotada && plano(x.color).startsWith(color)) ?? m.colores.find((x) => !x.agotada);
-    if (!c) return null;
-    return {
-      ...datos,
-      foto: alSol && c.alSol ? c.alSol : c.adentro,
-      alt: `${m.nombre} ${c.color}${alSol && c.alSol ? ", al sol" : ""}`,
-      par: {
-        slug: m.slug,
-        varianteId: c.id,
-        sku: c.sku,
-        nombre: m.nombre,
-        color: c.color,
-        precio: m.precio,
-        precioTexto: formatearPrecio(m.precio),
-      },
-    };
-  };
-  const momentos = confirmados
-    ? [
-        momento("citrino", "carey", true, {
-          hora: "10:15",
-          lugar: "Café",
-          texto: TEXTOS.unDia.cafe,
-          tinte: "#efe6d6",
-        }),
-        momento("obsidiana", "negro", false, {
-          hora: "16:00",
-          lugar: "Oficina",
-          texto: TEXTOS.unDia.oficina,
-          tinte: "#d6e6ea",
-        }),
-        momento("cuarzo", "negro", false, {
-          hora: "19:30",
-          lugar: "Fútbol 5",
-          texto: TEXTOS.unDia.futbol,
-          tinte: "#f0d9a8",
-        }),
-        momento("amatista", "gris", true, {
-          hora: "Domingo",
-          lugar: "Brunch",
-          texto: TEXTOS.unDia.brunch,
-          tinte: "#dce5dd",
-        }),
-      ].filter((m): m is MomentoDelDia => m !== null)
-    : [];
-
   const portadaAsiLlega = vitrina[0] ? modelos[0].variantes[vitrina[0].inicial]?.fotoPortada : null;
   const cuotasAnteojos = cuota1 ?? null;
-  const ambaConUnPar = precio !== null && gratisAmba(precio);
+  // Las de suscriptor, solo si son más que las de todos (con el tope en 3 serían las mismas).
+  const cuotasDeSuscriptor = cuotasSuscriptor && (!cuotasAnteojos || cuotasSuscriptor.cuotas > cuotasAnteojos.cuotas) ? cuotasSuscriptor : null;
   // Con cuántos pares el envío es gratis a todo el país (null si con 5 todavía no).
   const paresPaisGratis =
     precio !== null
@@ -270,19 +209,65 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   // Los cristales con aumento los vende Harper: se consultan por WhatsApp (Ale, 30/10/2026).
   const consultaAumento = enlaceWhatsApp(config.whatsapp, mensajeGraduadosModelo(""));
 
+  // La portada: un solo par grande, que abre en carey (el color más vistoso) si hay.
+  const coloresPortada: ColorPortada[] = vitrina.flatMap((m) =>
+    m.colores.map((c) => ({
+      id: c.id,
+      modeloSlug: m.slug,
+      modeloNombre: m.nombre,
+      color: c.color,
+      colorHex: c.colorHex,
+      foto: c.alSol ?? c.adentro,
+      alSol: c.alSol !== null,
+      tinte: c.tinte,
+      agotada: c.agotada,
+    }))
+  );
+  const inicialPortada = Math.max(
+    0,
+    [
+      (c: ColorPortada) => !c.agotada && c.alSol && plano(c.color).startsWith("carey"),
+      (c: ColorPortada) => !c.agotada && c.alSol,
+      (c: ColorPortada) => !c.agotada,
+    ]
+      .map((elegible) => coloresPortada.findIndex(elegible))
+      .find((i) => i >= 0) ?? 0,
+  );
+
+  // Un mismo par, adentro y al sol: el primero que tenga las dos fotos.
+  const parDelDia = vitrina
+    .flatMap((m) => m.colores.filter((c) => c.alSol && !c.agotada).map((c) => ({ m, c })))
+    .at(0);
+  const momentosDelDia = [
+    { hora: "10:15", lugar: "Café", texto: TEXTOS.unDia.cafe },
+    { hora: "16:00", lugar: "Oficina", texto: TEXTOS.unDia.oficina },
+    { hora: "19:30", lugar: "Fútbol 5", texto: TEXTOS.unDia.futbol },
+    { hora: "Domingo", lugar: "Brunch", texto: TEXTOS.unDia.brunch },
+  ];
+
   return (
     <>
+      <PortadaColor
+        colores={coloresPortada}
+        inicial={inicialPortada}
+        datos={{
+          etiqueta: confirmados ? TEXTOS.portada.etiqueta : lineaVitrina.nombre,
+          titulo: config.portadaTitulo || TEXTOS.portada.titulo,
+          bajada: config.portadaSubtitulo || TEXTOS.portada.bajadaMarca,
+          boton: TEXTOS.portada.boton,
+          precio: precio ? formatearPrecio(precio) : null,
+          cuota: textoCuota(cuota1),
+          letraChica,
+          suscribite: TEXTOS.suscriptores.enlacePortada(formatearPrecio(CUPON_SUSCRIPTOR)),
+        }}
+      />
+
       <Vitrina
         modelos={vitrina}
         datos={{
-          etiqueta: lineas.length > 1 ? lineas.map((l) => l.corto).join(" · ") : "Anteojos Harper",
           linea: lineaVitrina.nombre,
-          titulo: config.portadaTitulo || TEXTOS.portada.titulo,
-          bajada,
           precio: precio ? formatearPrecio(precio) : null,
           cuota: textoCuota(cuota1),
-          calificacion: opiniones ? { promedio: opiniones.promedio, total: opiniones.total } : null,
-          letraChica,
           todos: todos
             ? {
                 texto: `${TEXTOS.modelos.todosBoton} · ${formatearPrecio(todos.total)}${
@@ -290,36 +275,53 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                 }`,
               }
             : null,
+          complementos: complementos.map((c) => ({ nombre: c.nombre, slug: c.slug })),
         }}
-      >
-        {lineas.length > 1 ? (
-          <section className="lineas" aria-labelledby="lineas-titulo">
-            <div className="contenedor">
-              <p className="etiqueta-mono">Las líneas</p>
-              <h2 id="lineas-titulo" className="titulo-serif">
-                {TEXTOS.lineas.titulo}
+      />
+
+      {confirmados && parDelDia?.c.alSol ? (
+        <section className="un-par" aria-labelledby="un-par-titulo">
+          <div className="contenedor">
+            <div className="un-par__cabecera">
+              <p className="etiqueta-mono">{TEXTOS.unDia.etiqueta}</p>
+              <h2 id="un-par-titulo" className="titulo-serif">
+                {TEXTOS.unDia.titulo}
               </h2>
+              <p className="un-par__bajada">{TEXTOS.asiLlega.texto}</p>
             </div>
-            <ul className="lineas__carril">
-              {lineas.map((l) => (
-                <li key={l.clave}>
-                  <a
-                    href={
-                      l.estado === "proximamente" ? `#viene-${l.clave}` : l.clave === lineaVitrina.clave ? "#los-modelos" : (l.ruta ?? "#")
-                    }
-                    className="linea"
-                    data-estado={l.estado}
-                  >
-                    <span className="linea__estado">{l.estado === "disponible" ? "Ya disponibles" : "Próximamente"}</span>
-                    <span className="linea__nombre">{l.nombre}</span>
-                    <span className="linea__promesa">{l.promesa}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-      </Vitrina>
+            <div className="un-par__grilla">
+              <div className="un-par__fotos">
+                <figure className="un-par__foto" style={{ background: "#ecebe6" }}>
+                  <Image src={parDelDia.c.adentro} alt={`${parDelDia.m.nombre} ${parDelDia.c.color}, adentro`} fill sizes="(max-width: 768px) 50vw, 30vw" className="foto-multiplicada" />
+                  <figcaption>
+                    <strong>Adentro</strong> {mayuscula(TEXTOS.asiLlega.adentro.replace(/^Adentro, /, ""))}
+                  </figcaption>
+                </figure>
+                <figure className="un-par__foto" style={{ background: parDelDia.c.tinte }}>
+                  <Image src={parDelDia.c.alSol} alt={`${parDelDia.m.nombre} ${parDelDia.c.color}, al sol`} fill sizes="(max-width: 768px) 50vw, 30vw" className="foto-multiplicada" />
+                  <figcaption>
+                    <strong>Al sol</strong> {mayuscula(TEXTOS.asiLlega.alSol.replace(/^Al sol, /, ""))}
+                  </figcaption>
+                </figure>
+              </div>
+              <div>
+                <ol className="un-par__momentos">
+                  {momentosDelDia.map((m) => (
+                    <li key={m.hora}>
+                      <span className="un-par__hora">
+                        {m.hora}
+                        <span className="un-par__lugar">{m.lugar}</span>
+                      </span>
+                      <span className="un-par__momento">{m.texto}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="un-par__nota">Protección UV400 contra los rayos UVA y UVB. El tono final depende de la luz.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {confirmados && portadaAsiLlega ? (
         <section className="asi-llega" aria-labelledby="asi-llega-titulo">
@@ -329,22 +331,22 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                 src={portadaAsiLlega}
                 alt={`${vitrina[0].nombre} al sol y adentro, con su estuche y su paño`}
                 fill
-                sizes="(max-width: 768px) 100vw, 55vw"
+                sizes="(max-width: 768px) 100vw, 50vw"
               />
             </div>
             <div className="asi-llega__texto">
-              <p className="etiqueta-mono">{TEXTOS.asiLlega.etiqueta}</p>
               <h2 id="asi-llega-titulo" className="titulo-serif">
-                {TEXTOS.asiLlega.titulo}
+                {TEXTOS.asiLlega.etiqueta}
               </h2>
-              <p className="apagado">{TEXTOS.asiLlega.texto}</p>
-              <ol className="lista-numerada">
-                <li>{TEXTOS.asiLlega.alSol}</li>
-                <li>{TEXTOS.asiLlega.adentro}</li>
-                {incluye.length > 0 ? <li>{TEXTOS.asiLlega.incluye(enumerar(incluye.map(minuscula)))}</li> : null}
-              </ol>
+              {incluye.length > 0 ? (
+                <ul className="asi-llega__incluye">
+                  {incluye.map((i) => (
+                    <li key={i}>{i}</li>
+                  ))}
+                </ul>
+              ) : null}
               <p className="asi-llega__tira">
-                UV400: UVA y UVB · ¿Usás aumento? Te ponemos los cristales oftálmicos.{" "}
+                {TEXTOS.asiLlega.aumento}{" "}
                 {consultaAumento ? (
                   <a href={consultaAumento} target="_blank" rel="noopener noreferrer">
                     Consultanos por WhatsApp.
@@ -353,13 +355,56 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               </p>
               {precio ? (
                 <p className="asi-llega__cierre">
-                  {TEXTOS.asiLlega.cierre(formatearPrecio(precio))}
+                  {TEXTOS.asiLlega.todoEso} <span className="cifra">{formatearPrecio(precio)}</span>.
+                  <span className="asi-llega__preparate">{TEXTOS.asiLlega.preparate}</span>
                 </p>
               ) : null}
             </div>
           </div>
+          <dl className="contenedor cuentas__lista">
+            {cuotasAnteojos ? (
+              <div>
+                <dt>{cuotasAnteojos.cuotas}</dt>
+                <dd>
+                  cuotas sin interés en anteojos con {NOMBRE_MARCAS}. CFTEA {cuotasAnteojos.cftea}.
+                </dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>{PORCENTAJE_DINERO_MP}%</dt>
+              <dd>OFF extra pagando con dinero en tu cuenta de Mercado Pago.</dd>
+            </div>
+            <div>
+              <dt>{DIAS_CAMBIO}</dt>
+              <dd>días para cambiarlo o devolverlo, sin uso y en su empaque.</dd>
+            </div>
+            <div>
+              <dt>{MESES_GARANTIA}</dt>
+              <dd>meses de garantía por defectos de fabricación.</dd>
+            </div>
+          </dl>
         </section>
       ) : null}
+
+      <Opiniones opiniones={opiniones} reputacion={reputacion} />
+
+      {/* Suscriptores Harper (Ale, 03/11/2026): donde estaban los socios, con
+          el formulario ahí mismo. */}
+      <section id="suscriptores" className="suscriptores-portada" aria-labelledby="suscriptores-portada-titulo">
+        <div className="contenedor suscriptores-portada__grilla">
+          <div className="suscriptores-portada__texto">
+            <p className="etiqueta-mono">{TEXTOS.suscriptores.etiqueta} · Es gratis</p>
+            <h2 id="suscriptores-portada-titulo" className="suscriptores-portada__titulo">
+              {TEXTOS.suscriptores.titulo}
+            </h2>
+            <p className="suscriptores-portada__bajada">{TEXTOS.suscriptores.bajada}</p>
+            <BeneficiosSuscriptor cuotas={cuotasDeSuscriptor} cuotasTodos={cuotasAnteojos?.cuotas ?? null} />
+          </div>
+          <div className="suscriptores-portada__form">
+            <CajaSuscripcion origen="Portada" />
+          </div>
+        </div>
+      </section>
 
       {precio && filas.length > 0 && hayPromo ? (
         <DeADos
@@ -398,94 +443,47 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       ) : null}
 
       {proximas.length > 0 ? (
-        <section id="lo-que-viene" className="contenedor seccion lo-que-viene" aria-labelledby="lo-que-viene-titulo">
-          <p className="etiqueta-mono">Próximamente</p>
-          <h2 id="lo-que-viene-titulo" className="titulo-serif">
-            {TEXTOS.viene.titulo}
-          </h2>
-          {/* Una sola vez cuánto llega: lo que dice cada línea ya está en la tira de arriba. */}
-          <p className="apagado">
-            {TEXTOS.viene.bajada(
-              enumerar(proximas.map((l) => l.nombre.toLowerCase())),
-              proximas.reduce((n, l) => n + l.modelos, 0),
-              proximas.reduce((n, l) => n + l.colores, 0),
-            )}
-          </p>
-          {proximas.map((l) => (
-            <div key={l.clave} id={`viene-${l.clave}`} className="viene">
-              <div className="viene__cabecera">
-                <h3 className="viene__titulo">{l.nombre}</h3>
-              </div>
-              <ul className="viene__modelos">
-                {l.enCamino.map((m) => (
-                  <li key={m.nombre}>
-                    <span className="viene__nombre">{m.nombre}</span>
-                    <span className="viene__colores" aria-label={`${m.colores.length || m.cantidadDeColores} colores`}>
-                      {m.colores.map((c, i) => (
-                        <i key={i} style={{ background: c }} />
-                      ))}
-                      {m.colores.length === 0 && m.cantidadDeColores ? <small>{m.cantidadDeColores} colores</small> : null}
+        <section id="lo-que-viene" className="lo-que-viene" aria-labelledby="lo-que-viene-titulo">
+          <div className="contenedor lo-que-viene__grilla">
+            <div>
+              <p className="etiqueta-mono">Próximamente</p>
+              <h2 id="lo-que-viene-titulo" className="titulo-serif">
+                {TEXTOS.viene.titulo}
+              </h2>
+              <p className="lo-que-viene__bajada">
+                {TEXTOS.viene.bajada(
+                  enumerar(proximas.map((l) => l.nombre.toLowerCase())),
+                  proximas.reduce((n, l) => n + l.modelos, 0),
+                  proximas.reduce((n, l) => n + l.colores, 0),
+                )}
+              </p>
+            </div>
+            <div>
+              <ul className="lo-que-viene__lineas">
+                {proximas.map((l) => (
+                  <li key={l.clave} id={`viene-${l.clave}`}>
+                    <span className="lo-que-viene__nombre">{l.nombre}</span>
+                    <span className="lo-que-viene__promesa">{l.promesa}</span>
+                    <span className="lo-que-viene__cuantos">
+                      {l.modelos} {l.modelos === 1 ? "modelo" : "modelos"}
                     </span>
                   </li>
                 ))}
               </ul>
+              <div className="lo-que-viene__acciones">
+                <a href="#suscriptores" className="lo-que-viene__suscribite">
+                  {TEXTOS.viene.suscribite}
+                </a>
+                {config.instagram ? (
+                  <a href={config.instagram} target="_blank" rel="noopener noreferrer" className="boton boton--contorno lo-que-viene__boton">
+                    {TEXTOS.viene.boton}
+                  </a>
+                ) : null}
+              </div>
             </div>
-          ))}
-          {config.instagram ? (
-            <a href={config.instagram} target="_blank" rel="noopener noreferrer" className="boton boton--contorno lo-que-viene__boton">
-              {TEXTOS.viene.boton}
-            </a>
-          ) : null}
+          </div>
         </section>
       ) : null}
-
-      <Opiniones opiniones={opiniones} reputacion={reputacion} />
-
-      <section className="contenedor seccion cuentas" aria-labelledby="cuentas-titulo">
-        <h2 id="cuentas-titulo" className="titulo-serif">
-          Las cuentas, claras.
-        </h2>
-        <dl className="cuentas__lista">
-          {cuotasAnteojos ? (
-            <div>
-              <dt>{cuotasAnteojos.cuotas}</dt>
-              <dd>
-                cuotas sin interés en anteojos con {NOMBRE_MARCAS}. CFTEA {cuotasAnteojos.cftea}.
-              </dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>{PORCENTAJE_DINERO_MP} %</dt>
-            <dd>OFF extra pagando con dinero en tu cuenta de Mercado Pago.</dd>
-          </div>
-          {ambaConUnPar ? (
-            <div>
-              <dt>24 h</dt>
-              <dd>hábiles y te llega, en AMBA. Envío gratis con cualquier par.</dd>
-            </div>
-          ) : null}
-          {paisConDos ? (
-            <div>
-              <dt>{paresPaisGratis}</dt>
-              <dd>pares y el envío es gratis a todo el país.</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>{DIAS_CAMBIO}</dt>
-            <dd>días para cambiarlo o devolverlo, sin uso y en su empaque.</dd>
-          </div>
-          <div>
-            <dt>{MESES_GARANTIA}</dt>
-            <dd>meses de garantía por defectos de fabricación.</dd>
-          </div>
-        </dl>
-        {HAY_CUPONES ? (
-          <p className="cuentas__cupon">
-            ¿Primera compra? <strong>{CUPON_BIENVENIDA.codigo}</strong>: {CUPON_BIENVENIDA.porcentaje} % OFF. No se suma a la promo por
-            cantidad: se aplica la que más te conviene.
-          </p>
-        ) : null}
-      </section>
 
       <PreguntasFrecuentes
         preguntas={preguntasDePortada({
@@ -506,25 +504,16 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
           escala: fraseDeLaEscala(tramos, categoria),
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
+          cuotasSuscriptor: cuotasDeSuscriptor,
+          suscriptores: true,
         })}
       />
 
-      <UnDia momentos={momentos} />
-
       <section className="cierre" aria-labelledby="cierre-titulo">
         <div className="contenedor cierre__cuerpo">
-          <ul className="cierre__anteojos" aria-hidden="true">
-            {vitrina.map((m) => {
-              const c = m.colores[m.inicial];
-              return (
-                <li key={m.id}>
-                  <Image src={c.alSol ?? c.adentro} alt="" fill sizes="22vw" className="foto-multiplicada" />
-                </li>
-              );
-            })}
-          </ul>
-          <h2 id="cierre-titulo" className="titulo-serif">
-            {TEXTOS.cierre.titulo}
+          <h2 id="cierre-titulo" className="cierre__titulo">
+            {TEXTOS.nosotros.frase[0]}
+            <span>{TEXTOS.nosotros.frase[1]}</span>
           </h2>
           {precio ? (
             <p>
@@ -539,18 +528,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           <a href="#los-modelos" className="boton cierre__boton">
             {TEXTOS.cierre.boton}
           </a>
-          {complementos.length > 0 ? (
-            <p className="cierre__complementos">
-              También:{" "}
-              {complementos.map((c, i) => (
-                <span key={c.slug}>
-                  {i > 0 ? " y " : ""}
-                  <Link href={`/${c.slug}`}>{c.nombre.toLowerCase()}</Link>
-                </span>
-              ))}
-              .
-            </p>
-          ) : null}
           <p className="cierre__complementos">
             <Link href="/quienes-somos">Quiénes somos</Link>
           </p>
@@ -562,9 +539,11 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           despuesDe="vitrina-portada"
           precioPar={precio}
           invitacion={
-            cuota2 && nombrePromo
-              ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)}`
-              : `Cada par, ${formatearPrecio(precio)}`
+            cuota2 && tramo2 && nombrePromo
+              ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)} · CFTEA ${cuota2.cftea}`
+              : cuota1
+                ? `${formatearPrecio(precio)} · ${cuota1.cuotas} cuotas sin interés de ${precioConCentavos(cuota1.montoCuota)} · CFTEA ${cuota1.cftea}`
+                : `Cada par, ${formatearPrecio(precio)}`
           }
         />
       ) : null}

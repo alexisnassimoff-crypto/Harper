@@ -40,6 +40,10 @@ export default async function Gracias({
   const rechazado = estado ? RECHAZADOS.has(estado) : false;
   const confirmado = estado ? ESTADOS_CONFIRMADOS.has(estado) : false;
 
+  // Pagado entero con el saldo de un suscriptor (lib/suscriptores-sin-pago.ts):
+  // sin importe, no va al píxel como venta.
+  const conSaldo = confirmado && pedido !== null && pedido.total === 0;
+
   const titulo = rechazado
     ? "El pago no se acreditó"
     : confirmado
@@ -61,7 +65,7 @@ export default async function Gracias({
     {/* Purchase solo con el pago confirmado en Airtable. Mismo event_id que
         manda el webhook por la Conversions API, y una sola vez por pedido en
         este navegador: recargar no es otra compra. */}
-    {confirmado && pedido ? (
+    {confirmado && pedido && !conSaldo ? (
       <EventoPixel
         evento="Purchase"
         data={datosDeCompra({ items: pedido.items, valor: pedido.subtotal })}
@@ -103,7 +107,9 @@ export default async function Gracias({
       ) : (
         <>
           <p className="apagado">
-            {confirmado
+            {conSaldo
+              ? "Lo pagaste con tu saldo. Te mandamos la confirmación por mail y ya preparamos el envío."
+              : confirmado
               ? "Te mandamos la confirmación por mail con el detalle y ya preparamos el envío."
               : "Estamos esperando que Mercado Pago nos confirme el pago. Apenas se acredite te llega el mail con el detalle y preparamos el envío."}
           </p>

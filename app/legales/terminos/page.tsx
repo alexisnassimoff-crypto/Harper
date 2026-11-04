@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { getConfig } from "@/lib/config";
+import Link from "next/link";
 import { versionTerminosLegible } from "@/lib/legales";
+import { precio as formatearPrecio } from "@/lib/formato";
+import { CASHBACK_PORCENTAJE, CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK } from "@/lib/suscriptores";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -43,8 +46,8 @@ export default async function Terminos() {
         Si se elige pagar con Dinero en Mercado Pago, es decir, exclusivamente
         con el saldo de la cuenta de Mercado Pago, se aplica un 10% de descuento
         adicional sobre el precio de los productos. Ese 10% se calcula sobre el
-        importe con el cupón o la promoción que corresponda ya aplicados, y no
-        se aplica al costo de envío.
+        importe con la promoción, el cupón y el saldo de suscriptor que
+        correspondan ya aplicados, y no se aplica al costo de envío.
       </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Envíos</h2>
@@ -68,6 +71,27 @@ export default async function Terminos() {
         Los productos cuentan con la garantía legal prevista en la Ley 24.240 de
         Defensa del Consumidor por defectos de fabricación. La garantía no cubre
         daños derivados del uso indebido, golpes, caídas o desgaste natural.
+      </p>
+
+      <h2 id="suscriptores" style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>
+        Suscriptores Harper
+      </h2>
+      <p>
+        Suscriptores Harper es un programa gratuito de beneficios para quien se
+        suscribe con su mail y acepta recibir nuestros correos. El detalle está
+        en las{" "}
+        <Link href="/legales/suscriptores" style={{ textDecoration: "underline" }}>
+          Condiciones de Suscriptores Harper
+        </Link>
+        , que forman parte de estos términos. En resumen: un cupón de
+        bienvenida de {formatearPrecio(CUPON_BIENVENIDA)} en la primera compra,
+        el {CASHBACK_PORCENTAJE}% de lo pagado en productos como saldo a favor
+        (se puede usar desde los {DIAS_PARA_USAR_CASHBACK} días del pago y no
+        vence)
+        {CUOTAS_SON_BENEFICIO
+          ? `, envío sin cargo en todas las compras y hasta ${CUOTAS_SUSCRIPTORES} cuotas sin interés cuando Mercado Pago las ofrece.`
+          : " y envío sin cargo en todas las compras."}{" "}
+        La baja se pide en cualquier momento, sin costo.
       </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Contacto</h2>

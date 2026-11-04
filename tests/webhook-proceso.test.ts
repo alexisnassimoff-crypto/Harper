@@ -9,7 +9,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 process.env.HARPER_FIXTURES = "1";
 delete process.env.VERCEL;
 
-import { createRecord, getRecord, TABLAS, updateRecord } from "../lib/airtable";
+import { createRecord, getRecord, listRecords, TABLAS, updateRecord } from "../lib/airtable";
 import { clavePedido, ErrorCerrojo, TTL_PEDIDO_MS, type Cerrojo } from "../lib/cerrojo";
 import { cerrojoEnMemoria, reiniciarRedis } from "../lib/fixtures/redis";
 import { interceptar, reiniciar, RespuestaFixture } from "../lib/fixtures/servidor";
@@ -17,6 +17,8 @@ import type { PagoMP } from "../lib/mercadopago";
 import { leerMarcas } from "../lib/stock";
 import type { ItemResuelto } from "../lib/tipos";
 import { MEDIO_DINERO_MP } from "../lib/dinero-mp";
+import { notasDeBeneficios } from "../lib/suscriptores";
+import { claveSuscriptor } from "../lib/suscriptores-cuenta";
 import { esMarcaDeReclamo, VIGENCIA_RECLAMO_MS } from "../lib/webhook-decision";
 import { dependenciasReales, procesarNotificacion, type Dependencias, type FilaPedido } from "../lib/webhook-proceso";
 
@@ -1046,4 +1048,153 @@ test("el gancho de venta confirmada recibe el pedido y, si falla, no toca la ven
   assert.equal((ventas[0] as { numero: string }).numero, "HARPER-T1");
   assert.equal((ventas[0] as { clienteId?: string }).clienteId, clienteId);
   await verificarVentaUnica(pedidoId, mails);
+});
+
+// ---- Suscriptores Harper (Ale, 03/11/2026) ----
+
+type FilaSuscriptorPrueba = { Email?: string; Cupon?: string; Cupon_pedido?: string };
+type FilaSaldoPrueba = { Tipo?: string; Monto?: number; Pedido?: string; Disponible_desde?: string; Suscriptor_id?: string; Anulado?: boolean };
+
+/** Un suscriptor con el cupón disponible y $ 20.000 de saldo para usar. */
+async function suscriptorConSaldo(campos: Partial<FilaSuscriptorPrueba> = {}) {
+  const fila = await createRecord<FilaSuscriptorPrueba>(TABLAS.suscriptores, { Email: "prueba@harper.ar", Cupon: "Disponible", ...campos });
+  await createRecord(TABLAS.saldos, { Suscriptor_id: fila.id, Email: "prueba@harper.ar", Tipo: "Ajuste", Monto: 20000, Movimiento: "Ajuste" });
+  return fila.id;
+}
+
+/** Un par de $ 89.900 con el cupón ($ 10.000) y $ 5.000 de saldo: se pagan $ 74.900 y vuelven $ 7.490. */
+async function pedidoDeSuscriptor(suscriptorId: string, numero = "HARPER-T1") {
+  const par: ItemResuelto = { ...item(AMATISTA_NEGRO, "AMATISTA-NEGRO"), cupon: 10000, saldo: 5000, subtotal: 74900, precioUnitario: 74900 };
+  const notas = notasDeBeneficios({ suscriptorId, email: "prueba@harper.ar", cupon: 10000, saldoUsado: 5000, cashback: 7490 }).join("\n");
+  return crearPedido({ Numero: numero, Items: JSON.stringify([par]), Subtotal: 74900, Total: 74900, Notas: notas });
+}
+
+async function saldosDe(suscriptorId: string) {
+  return (await listRecords<FilaSaldoPrueba>(TABLAS.saldos))
+    .map((f) => f.fields)
+    .filter((f) => f.Suscriptor_id === suscriptorId && f.Tipo !== "Ajuste")
+    .map((f) => [f.Tipo, f.Monto, f.Pedido, f.Disponible_desde ?? null, f.Anulado === true]);
+}
+
+test("Suscriptores: el pago aprobado anota el cupón, el saldo usado y el cashback una sola vez, y los mails lo cuentan", async () => {
+  const suscriptorId = await suscriptorConSaldo();
+  const { pedidoId } = await pedidoDeSuscriptor(suscriptorId);
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId, { transaction_amount: 74900 }) });
+
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "pagado");
+
+  const fila = await getRecord<FilaSuscriptorPrueba>(TABLAS.suscriptores, suscriptorId);
+  assert.deepEqual([fila.fields.Cupon, fila.fields.Cupon_pedido], ["Usado", "HARPER-T1"]);
+  // AHORA es el 20/10/2025 a las 19:40 en Buenos Aires: el cashback se usa desde el 19/11.
+  assert.deepEqual(await saldosDe(suscriptorId), [
+    ["Uso", -5000, "HARPER-T1", null, false],
+    ["Cashback", 7490, "HARPER-T1", "2025-11-19", false],
+  ]);
+
+  const cliente = mails.find((m) => m.mail.para === "prueba@harper.ar")!.mail;
+  assert.match(cliente.texto, /Usaste tu cupón de bienvenida: −\$\s10\.000/);
+  assert.match(cliente.texto, /Pagaste \$\s5\.000 con tu saldo/);
+  assert.match(cliente.texto, /Te vuelven \$\s7\.490 de saldo: los podés usar desde el 19\/11\/2025/);
+  assert.match(cliente.html, /Suscriptores Harper/);
+  const interno = mails.find((m) => m.mail.para !== "prueba@harper.ar")!.mail;
+  assert.match(interno.asunto, /^Venta HARPER-T1 — .* · suscriptor$/);
+  assert.match(interno.texto, /Suscriptor: prueba@harper\.ar · cupón de bienvenida −\$\s10\.000 · saldo usado −\$\s5\.000 · cashback a acreditar \$\s7\.490/);
+  assert.match(interno.texto, /Si se devuelve, marcá Anulado en Saldos/);
+
+  // Mercado Pago avisa otra vez: nada se duplica.
+  await como("B", () => procesarNotificacion("111", deps));
+  assert.equal((await saldosDe(suscriptorId)).length, 2);
+  assert.equal(mails.length, 2);
+});
+
+test("Suscriptores: una caída antes de los mails no duplica nada al retomar (cada paso es idempotente por pedido y tipo)", async () => {
+  const suscriptorId = await suscriptorConSaldo();
+  const { pedidoId } = await pedidoDeSuscriptor(suscriptorId);
+  const { deps, reloj, mails } = armarDeps({ "111": pago(pedidoId, { transaction_amount: 74900 }) });
+
+  const caido: Dependencias = { ...deps, enviarMail: async () => false };
+  await assert.rejects(como("A", () => procesarNotificacion("111", caido)), (e: Error) => e.name === "ErrorTrasReclamo");
+  assert.equal((await saldosDe(suscriptorId)).length, 2);
+
+  reloj.avanzar(VIGENCIA_RECLAMO_MS);
+  const r = await como("B", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "pagado");
+  assert.equal((await saldosDe(suscriptorId)).length, 2);
+  // El cupón era de este mismo pedido: no es un conflicto.
+  const interno = mails.find((m) => m.mail.para !== "prueba@harper.ar")!.mail;
+  assert.doesNotMatch(interno.asunto, /^REVISAR/);
+});
+
+test("Suscriptores: el cupón ya usado en otro pedido no se pisa y el saldo que ya no alcanzaba se anota igual, con alerta", async () => {
+  const suscriptorId = await suscriptorConSaldo({ Cupon: "Usado", Cupon_pedido: "HARPER-OTRO" });
+  // Otro pedido ya se llevó $ 18.000 de los $ 20.000.
+  await createRecord(TABLAS.saldos, { Suscriptor_id: suscriptorId, Tipo: "Uso", Monto: -18000, Pedido: "HARPER-OTRO", Movimiento: "HARPER-OTRO · Uso" });
+  const { pedidoId } = await pedidoDeSuscriptor(suscriptorId);
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId, { transaction_amount: 74900 }) });
+
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "pagado", "la venta ya está cobrada: sigue");
+
+  const fila = await getRecord<FilaSuscriptorPrueba>(TABLAS.suscriptores, suscriptorId);
+  assert.equal(fila.fields.Cupon_pedido, "HARPER-OTRO");
+  const saldos = await saldosDe(suscriptorId);
+  assert.ok(saldos.some(([tipo, monto, pedido]) => tipo === "Uso" && monto === -5000 && pedido === "HARPER-T1"));
+
+  const interno = mails.find((m) => m.mail.para !== "prueba@harper.ar")!.mail;
+  assert.match(interno.asunto, /^REVISAR /);
+  assert.match(interno.texto, /ya figuraba usado en el pedido HARPER-OTRO/);
+  assert.match(interno.texto, /ya no le alcanzaba/);
+});
+
+test("Suscriptores CON CERROJO: si otro proceso tiene tomado al suscriptor, se reintenta sin anotar nada a medias", async () => {
+  const suscriptorId = await suscriptorConSaldo();
+  const { pedidoId } = await pedidoDeSuscriptor(suscriptorId);
+  const { deps, reloj, mails } = armarDeps({ "111": pago(pedidoId, { transaction_amount: 74900 }) }, { esperaOcupadoMs: 1_000 });
+  const cerrojo = cerrojoEnMemoria(reloj);
+  await cerrojo.tomar(claveSuscriptor(suscriptorId), "otro", 5_000);
+  const d: Dependencias = { ...deps, cerrojo };
+
+  await assert.rejects(como("A", () => procesarNotificacion("111", d)), (e: Error) => e.name === "ErrorTrasReclamo" && /cerrojo del suscriptor/.test(e.message));
+  assert.equal((await saldosDe(suscriptorId)).length, 0);
+  assert.equal(mails.length, 0);
+
+  // La llave vence sola; el reintento completa.
+  reloj.avanzar(Math.max(VIGENCIA_RECLAMO_MS, 5_000));
+  const r = await como("B", () => procesarNotificacion("111", d));
+  assert.equal(r.cuerpo.estado, "pagado");
+  assert.equal((await saldosDe(suscriptorId)).length, 2);
+});
+
+test("un pedido sin suscriptor no toca Suscriptores ni Saldos", async () => {
+  const { pedidoId } = await crearPedido();
+  const { deps } = armarDeps({ "111": pago(pedidoId) });
+  const antes = (await listRecords(TABLAS.saldos)).length;
+  await como("A", () => procesarNotificacion("111", deps));
+  assert.equal((await listRecords(TABLAS.saldos)).length, antes);
+});
+
+test("Suscriptores: un reembolso o contracargo del pago anula el cashback del pedido una sola vez y avisa a Harper", async () => {
+  const suscriptorId = await suscriptorConSaldo();
+  const { pedidoId } = await pedidoDeSuscriptor(suscriptorId);
+  // A ve el pago aprobado; B y C, el mismo pago ya devuelto (Mercado Pago avisa otra vez).
+  const devuelto = pago(pedidoId, { transaction_amount: 74900, status: "refunded" });
+  const { deps, mails } = armarDeps({ "111@A": pago(pedidoId, { transaction_amount: 74900 }), "111@B": devuelto, "111@C": devuelto });
+  await como("A", () => procesarNotificacion("111", deps));
+  const antes = mails.length;
+
+  const r = await como("B", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.duplicado, true, "el pedido no cambia de estado");
+  assert.deepEqual(
+    (await saldosDe(suscriptorId)).find((m) => m[0] === "Cashback"),
+    ["Cashback", 7490, "HARPER-T1", "2025-11-19", true]
+  );
+  const aviso = mails.slice(antes).map((m) => m.mail);
+  assert.equal(aviso.length, 1);
+  assert.match(aviso[0].asunto, /^REVISAR HARPER-T1 — reembolso en Mercado Pago: cashback anulado$/);
+  assert.match(aviso[0].texto, /Usó \$\s5\.000 de saldo en este pedido/);
+
+  // Otro aviso del mismo reembolso: no vuelve a avisar.
+  await como("C", () => procesarNotificacion("111", deps));
+  assert.equal(mails.length, antes + 1);
 });

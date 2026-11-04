@@ -48,7 +48,7 @@ type FilaDescuento = {
  */
 export async function getTramos(): Promise<Tramo[]> {
   try {
-    return await leerTramos(REVALIDATE);
+    return tramosVigentes(await leerTramos(REVALIDATE));
   } catch (error) {
     console.error("[descuentos] no se pudieron leer los tramos:", error);
     return [];
@@ -62,9 +62,21 @@ export async function getTramos(): Promise<Tramo[]> {
  * $170.810 en el carrito y Mercado Pago le cobraría $179.800. Si Airtable no
  * responde, esto explota, el checkout contesta "problema momentáneo" y el
  * comprador reintenta en un minuto con el precio que vio.
+ *
+ * Vienen tal cual están en Airtable: el que cobra los pasa por
+ * `tramosVigentes` (lib/pedidos.ts).
  */
 export async function getTramosParaCobrar(): Promise<Tramo[]> {
   return leerTramos(0);
+}
+
+/**
+ * Los tramos que corren de verdad: en cada categoría con escala («llevá N,
+ * pagá M»), manda la escala. El 3x2 / 5x3 se apagó en Airtable el 03/11/2026
+ * (Ale): lo que decide es la tabla Descuentos.
+ */
+export function tramosVigentes(tramos: Tramo[]): Tramo[] {
+  return conEscala(tramos).sort((a, b) => a.desdeUnidades - b.desdeUnidades);
 }
 
 async function leerTramos(revalidate: number): Promise<Tramo[]> {
@@ -92,7 +104,7 @@ async function leerTramos(revalidate: number): Promise<Tramo[]> {
       return [{ categoria, desdeUnidades, porcentaje }];
     });
 
-  return conEscala(tramos).sort((a, b) => a.desdeUnidades - b.desdeUnidades);
+  return tramos;
 }
 
 /**

@@ -13,6 +13,7 @@ import { cuponDeNotas } from "./cupones";
 import { facturacionDeFila, lineasDeNotas } from "./facturacion";
 import {
   enviarMail as enviarMailReal,
+  mailAlertaInterna,
   mailAvisoInterno,
   mailConfirmacion,
   mailPagoRechazado,
@@ -21,6 +22,9 @@ import {
 } from "./mails";
 import { obtenerPago as obtenerPagoReal, type PagoMP } from "./mercadopago";
 import { descontarStock } from "./stock";
+import { precio as formatearPrecio } from "./formato";
+import { beneficiosDeNotas, cashbackDisponibleDesde, type BeneficiosDelPedido } from "./suscriptores";
+import { anularCashbackPendiente, claveSuscriptor, registrarCashback, registrarCupon, registrarUso } from "./suscriptores-cuenta";
 import { esPedidoConDineroMP, TIPO_DINERO_EN_CUENTA } from "./dinero-mp";
 import type { DatosCliente, ItemResuelto } from "./tipos";
 import {
@@ -60,6 +64,8 @@ import {
  *
  *   stock (idempotente por marca en la variante)
  *   → Estado "pagado" (escribirlo dos veces es lo mismo)
+ *   → beneficios del suscriptor (cupón, saldo usado y cashback: cada uno
+ *     idempotente por pedido y tipo, ver lib/suscriptores-cuenta.ts)
  *   → mail al cliente → mail interno (cada uno anotado como paso cumplido)
  *   → cierre (MP_status pasa de la marca al estado real del pago)
  *
@@ -413,6 +419,45 @@ async function rechazarSinCerrojo(pago: PagoMP, pedidoId: string, deps: Dependen
   };
 }
 
+/** Un pago que Mercado Pago devolvió: reembolso desde el panel o contracargo de la tarjeta. */
+const ESTADOS_REEMBOLSO = new Set(["refunded", "charged_back"]);
+
+/**
+ * El cashback de un pedido cuyo pago se devolvió queda Anulado en Saldos,
+ * aunque ya se pueda usar (el cashback es de las compras que se quedan), y
+ * Harper se entera. Idempotente: un reintento lo encuentra ya anulado y no
+ * vuelve a avisar.
+ */
+async function anularCashbackPorReembolso(pedido: AirtableRecord<FilaPedido>, pago: PagoMP, deps: Dependencias) {
+  const beneficios = beneficiosDeNotas(pedido.fields.Notas);
+  if (!beneficios || beneficios.cashback <= 0) return;
+  const numero = pedido.fields.Numero ?? pedido.id;
+  const que = pago.status === "charged_back" ? "contracargo" : "reembolso";
+  const ahora = new Date(deps.reloj.ahora());
+  const r = await anularCashbackPendiente(numero, `Anulado: ${que} del pago ${pago.id} en Mercado Pago (${ahora.toISOString().slice(0, 10)}).`, ahora, {
+    aunqueDisponible: true,
+  });
+  if (r.estado !== "anulado" && r.estado !== "anulado-disponible") return;
+  console.info(`[webhook] ${que} del pago ${pago.id}: cashback del pedido ${numero} anulado`);
+  const config = await getConfig();
+  await deps.enviarMail(
+    mailAlertaInterna({
+      config,
+      asunto: `REVISAR ${numero} — ${que} en Mercado Pago: cashback anulado`,
+      lineas: [
+        `Mercado Pago avisó un ${que} del pago ${pago.id}. El cashback de ${formatearPrecio(r.monto)} de ${beneficios.email} quedó Anulado en Saldos${
+          r.estado === "anulado-disponible" ? " (ya se podía usar: si lo usó, su saldo queda en negativo hasta el próximo cashback)" : ""
+        }.`,
+        ...(beneficios.saldoUsado > 0
+          ? [`Usó ${formatearPrecio(beneficios.saldoUsado)} de saldo en este pedido: si corresponde devolvérselo, marcá Anulado el Uso del pedido en Saldos.`]
+          : []),
+        "Si el pedido ya salió, coordiná la devolución del producto.",
+      ],
+      enlace: `https://airtable.com/${process.env.AIRTABLE_BASE_ID}/${TABLAS.pedidos}/${pedido.id}`,
+    })
+  );
+}
+
 async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependencias): Promise<Resultado> {
   const pagoId = String(pago.id);
 
@@ -430,6 +475,13 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
   }
 
   if (accion === "duplicado") {
+    // Mercado Pago avisa que este mismo pago se devolvió (reembolso desde el
+    // panel o contracargo de la tarjeta): el cashback de ese pedido se anula.
+    if (ESTADOS_REEMBOLSO.has(pago.status) && pedido.fields.MP_payment_id === pagoId) {
+      await anularCashbackPorReembolso(pedido, pago, deps).catch((error) =>
+        console.error(`[webhook] no se pudo anular el cashback del pago devuelto ${pagoId}`, error)
+      );
+    }
     return ok({ duplicado: true });
   }
 
@@ -694,19 +746,30 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       }
     }
 
+    // Suscriptores Harper (Ale, 03/11/2026): lo que el checkout dejó en Notas
+    // (lib/suscriptores.ts). El cupón queda Usado, el saldo usado es una fila
+    // Uso y el cashback una fila Cashback que se puede usar a los 30 días.
+    // Antes de los mails, que lo cuentan.
+    let datosFinales = datos;
+    const beneficios = beneficiosDeNotas(pedido.fields.Notas);
+    if (beneficios) {
+      await verificar("suscriptor");
+      datosFinales = await anotarBeneficios(beneficios, numero, datos, deps);
+    }
+
     // 3. Mails, cada uno una sola vez por pedido: quedan anotados en la marca.
     // ("mails" es el nombre que usaba una versión anterior para los dos.)
     const hecho = (nombre: string) => reclamo.pasos.includes(nombre) || reclamo.pasos.includes("mails");
 
     if (cliente.email && !hecho("mail_cliente")) {
       await verificar("mail_cliente");
-      await mandar(mailConfirmacion(datos));
+      await mandar(mailConfirmacion(datosFinales));
       reclamo = await anotarPaso<FilaPedido>(pedidoId, reclamo, "mail_cliente");
     }
 
     if (!hecho("mail_interno")) {
       await verificar("mail_interno");
-      await mandar(mailAvisoInterno({ ...datos, pedidoUrl }));
+      await mandar(mailAvisoInterno({ ...datosFinales, pedidoUrl }));
       reclamo = await anotarPaso<FilaPedido>(pedidoId, reclamo, "mail_interno");
     }
 
@@ -782,6 +845,70 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
     // la ruta contesta 500 y el reintento retoma lo que falte.
     throw new ErrorTrasReclamo(paso, error);
   }
+}
+
+/** Cuánto vive la llave del suscriptor si la instancia muere sin soltarla. */
+const TTL_SUSCRIPTOR_MS = 60_000;
+
+/**
+ * Anota los beneficios de un suscriptor después del pago, con su cerrojo (el
+ * mismo que el pedido en $ 0, lib/suscriptores-sin-pago.ts): dos pagos del
+ * mismo suscriptor no tocan su cupón ni su saldo a la vez. Cada paso es
+ * idempotente, así que un reintento no duplica nada. Lo que no cierra no
+ * frena la venta, ya cobrada: va como alerta en el aviso interno.
+ *  - El cupón ya usado en otro pedido: no se pisa, se avisa.
+ *  - El saldo usado que ya no alcanzaba (dos pedidos a la vez): la fila Uso
+ *    se crea igual (el saldo queda en negativo) y se avisa.
+ * Un error pasajero de Airtable corta para que Mercado Pago reintente; uno
+ * permanente (la tabla no está) se avisa para cargarlo a mano.
+ */
+async function anotarBeneficios(b: BeneficiosDelPedido, numero: string, datos: DatosMail, deps: Dependencias): Promise<DatosMail> {
+  const fecha = new Date(deps.reloj.ahora());
+  const alertas: string[] = [];
+  let cashbackDesde = cashbackDisponibleDesde(fecha);
+
+  const clave = claveSuscriptor(b.suscriptorId);
+  const llave = deps.cerrojo
+    ? await tomarConEspera(deps.cerrojo, clave, TTL_SUSCRIPTOR_MS, { esperaMaxMs: deps.esperaOcupadoMs, reloj: deps.reloj })
+    : null;
+  if (deps.cerrojo && !llave) throw new Error(`el cerrojo del suscriptor ${b.suscriptorId} sigue tomado: se reintenta`);
+
+  try {
+    const movimiento = { suscriptorId: b.suscriptorId, email: b.email, numeroPedido: numero, fecha };
+    if (b.cupon > 0) {
+      const cupon = await registrarCupon({ suscriptorId: b.suscriptorId, numeroPedido: numero });
+      if (cupon.estado === "conflicto") {
+        alertas.push(
+          `Usó el cupón de bienvenida de ${b.email}, que ya figuraba usado${cupon.cuenta.cuponPedido ? ` en el pedido ${cupon.cuenta.cuponPedido}` : ""}: revisalo antes de despacharlo.`
+        );
+      } else if (cupon.estado === "sin-suscriptor") {
+        alertas.push(`Usó el cupón de bienvenida de ${b.email}, pero su fila ya no está en Suscriptores.`);
+      }
+    }
+    if (b.saldoUsado > 0) {
+      const uso = await registrarUso({ ...movimiento, monto: b.saldoUsado });
+      if (!uso.alcanzaba) {
+        alertas.push(
+          `Usó ${formatearPrecio(b.saldoUsado)} de saldo y ya no le alcanzaba (otro pedido lo usó antes): su saldo quedó en negativo en Saldos. Revisalo.`
+        );
+      }
+    }
+    if (b.cashback > 0) cashbackDesde = (await registrarCashback({ ...movimiento, monto: b.cashback })).disponibleDesde;
+  } catch (error) {
+    if (!esErrorPermanente(error)) throw error;
+    console.error("[webhook] no se pudieron anotar los beneficios del suscriptor", numero, error);
+    alertas.push(
+      `No se pudieron anotar en Airtable los beneficios del suscriptor ${b.email} (${describir(error)}): cargalos a mano en Suscriptores y Saldos.`
+    );
+  } finally {
+    if (deps.cerrojo && llave) await soltarSinFallar(deps.cerrojo, clave, llave);
+  }
+
+  return {
+    ...datos,
+    suscriptor: { email: b.email, cupon: b.cupon, saldoUsado: b.saldoUsado, cashback: b.cashback, cashbackDesde: b.cashback > 0 ? cashbackDesde : null },
+    alerta: [datos.alerta, ...alertas].filter(Boolean).join(" ") || null,
+  };
 }
 
 /** El cliente del pedido. Si lo borraron a mano (404), la venta sigue con lo que dice el pago. */

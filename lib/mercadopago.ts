@@ -4,6 +4,13 @@ import { esUrlPublica } from "./sitio";
 import { TIPOS_EXCLUIDOS_DINERO_MP, unidadesParaCobrar } from "./dinero-mp";
 
 /**
+ * El tope de cuotas de la preferencia cuando no se limita por comprador: como
+ * siempre, hasta 12. Mercado Pago muestra cada cantidad con su costo; la web
+ * anuncia solo las sin interés que confirma (lib/cuotas-servidor.ts).
+ */
+export const CUOTAS_PREFERENCIA = 12;
+
+/**
  * La API real. `MP_API_URL` la reemplaza SOLO fuera de Vercel: es para la
  * prueba de punta a punta local contra un Mercado Pago de mentira. En
  * cualquier deploy se ignora aunque esté cargada.
@@ -81,6 +88,10 @@ function fechaMP(fecha: Date) {
  * Con `soloDineroEnCuenta` (el pago con dinero en Mercado Pago), Mercado Pago ofrece
  * únicamente el dinero de la cuenta del comprador: sin tarjetas, sin efectivo
  * y sin cuotas sin tarjeta.
+ *
+ * `cuotasMaximas` es el tope de cuotas de este comprador, solo si las cuotas
+ * son un beneficio de suscriptor (lib/suscriptores.ts, CUOTAS_SON_BENEFICIO).
+ * Sin él, CUOTAS_PREFERENCIA, como siempre.
  */
 export async function crearPreferencia(opciones: {
   numeroPedido: string;
@@ -94,16 +105,26 @@ export async function crearPreferencia(opciones: {
   cliente: DatosCliente;
   sitio: string;
   soloDineroEnCuenta?: boolean;
+  cuotasMaximas?: number;
+  /**
+   * Minutos que vive el link de pago, si no son las HORAS_DE_VIDA de siempre:
+   * un pedido que usa saldo o el cupón aparta esos beneficios mientras su
+   * link cobra (lib/suscriptores.ts, MINUTOS_RESERVA).
+   */
+  venceEnMinutos?: number;
 }): Promise<Preferencia> {
   // En pesos enteros: un renglón que no se divide justo por la cantidad (el 10%
   // de dinero en Mercado Pago sobre dos pares, o tres pares iguales con «llevá
   // 3, pagá 2») va partido en dos. Los demás quedan como siempre, un renglón
   // por producto con su precio unitario.
+  // Un renglón pagado entero con el cupón o el saldo de un suscriptor va en
+  // $ 0: Mercado Pago no acepta renglones sin precio, así que no se le manda
+  // (el pedido sí lo lleva, para el stock).
   const items = opciones.items.flatMap((i) =>
     (i.descuentoDineroMP || !Number.isInteger(i.precioUnitario)
       ? unidadesParaCobrar(i)
       : [{ precio: i.precioUnitario, cantidad: i.cantidad }]
-    ).map((u) => ({
+    ).filter((u) => u.precio > 0).map((u) => ({
       id: i.sku,
       title: `${i.nombre} — ${i.color}`,
       quantity: u.cantidad,
@@ -174,13 +195,13 @@ export async function crearPreferencia(opciones: {
     binary_mode: true,
     payment_methods: opciones.soloDineroEnCuenta
       ? { excluded_payment_types: TIPOS_EXCLUIDOS_DINERO_MP.map((id) => ({ id })), installments: 1 }
-      : { excluded_payment_types: [{ id: "ticket" }, { id: "atm" }], installments: 12 },
+      : { excluded_payment_types: [{ id: "ticket" }, { id: "atm" }], installments: opciones.cuotasMaximas ?? CUOTAS_PREFERENCIA },
     // Sin esto la preferencia vive para siempre y un link viejo sigue cobrando
     // un precio que ya cambió. Se manda solo la fecha de fin: un
     // `expiration_date_from` clavado en "ahora" corre el riesgo de que Mercado
     // Pago lo lea como "todavía no válida" si los relojes no coinciden.
     expires: true,
-    expiration_date_to: fechaMP(new Date(ahora.getTime() + HORAS_DE_VIDA * 3600_000)),
+    expiration_date_to: fechaMP(new Date(ahora.getTime() + (opciones.venceEnMinutos ?? HORAS_DE_VIDA * 60) * 60_000)),
     notification_url: `${opciones.sitio}/api/mercadopago/webhook`,
     statement_descriptor: "HARPER",
     metadata: { numero_pedido: opciones.numeroPedido },

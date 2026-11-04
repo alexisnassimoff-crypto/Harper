@@ -9,3 +9,7 @@ build/
 next-env.d.ts
 .DS_Store
 .pruebas/
+/.pruebas-alt
+# Melodrama (ITF Free Font License): no se puede repartir en un repo público;
+# la baja scripts/bajar-fuentes.mjs al compilar.
+/app/fuentes/

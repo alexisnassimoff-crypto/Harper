@@ -3,6 +3,8 @@ import { limpiarItems, resolverCarrito } from "@/lib/pedidos";
 import { sugerirParaCarrito } from "@/lib/sugerencias";
 import { buscarCupon } from "@/lib/cupones";
 import { verificarCuotas } from "@/lib/cuotas-servidor";
+import { cuotasMaximas } from "@/lib/suscriptores";
+import { suscriptorDelCarritoDeLaPeticion } from "@/lib/suscriptores-cuenta";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
-  const { items, cupon, cuotas } = (cuerpo ?? {}) as { items?: unknown; cupon?: unknown; cuotas?: unknown };
+  const { items, cupon, cuotas, usarSaldo, usarCupon } = (cuerpo ?? {}) as {
+    items?: unknown;
+    cupon?: unknown;
+    cuotas?: unknown;
+    usarSaldo?: unknown;
+    usarCupon?: unknown;
+  };
 
   if (!Array.isArray(items)) {
     return NextResponse.json({ error: "Falta items" }, { status: 400 });
@@ -40,7 +48,17 @@ export async function POST(request: Request) {
 
   // El cupón se resuelve acá, en el servidor; si es de primera compra, eso lo
   // comprueba el checkout, que es donde se sabe quién compra.
-  const resuelto = await resolverCarrito(limpiarItems(items), { cupon });
+  // El suscriptor que entró con su mail (su cookie): su cupón de bienvenida,
+  // envío gratis y, si lo pide, su saldo. Los montos los pone el servidor.
+  const suscriptor = await suscriptorDelCarritoDeLaPeticion(request);
+  const resuelto = await resolverCarrito(limpiarItems(items), {
+    cupon,
+    suscriptor,
+    usarSaldo: usarSaldo === true,
+    usarCupon: usarCupon !== false,
+  });
+  // 3 cuotas sin interés para todos, 6 para un suscriptor: cada cantidad se verifica aparte.
+  const cuotasPedidas = cuotasMaximas(Boolean(suscriptor));
 
   // Las sugerencias no pueden romper el carrito: si fallan, se muestra igual.
   const cuponAplicado = resuelto.cupon?.estado === "aplicado" ? (buscarCupon(resuelto.cupon.codigo)?.porcentaje ?? 0) : 0;
@@ -49,15 +67,15 @@ export async function POST(request: Request) {
   // monto, igual que en las fichas. Sin respuesta de Mercado Pago, no hay.
   // También para el total sin el envío, que es lo que muestra el checkout
   // mientras no sabe la dirección (el envío depende de la zona).
-  const pideCuotas = cuotas === true && resuelto.items.length > 0;
+  const pideCuotas = cuotas === true && resuelto.items.length > 0 && resuelto.total > 0;
   const [sugerencias, cuotasVerificadas, cuotasSinEnvio] = await Promise.all([
     sugerirParaCarrito(resuelto.items, cuponAplicado).catch((error) => {
       console.error("[carrito] no se pudieron armar las sugerencias:", error);
       return [];
     }),
-    pideCuotas ? conLimite(verificarCuotas(resuelto.total), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
+    pideCuotas ? conLimite(verificarCuotas(resuelto.total, cuotasPedidas), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
     pideCuotas && resuelto.envio > 0
-      ? conLimite(verificarCuotas(resuelto.subtotal), ESPERA_CUOTAS_MS, null)
+      ? conLimite(verificarCuotas(resuelto.subtotal, cuotasPedidas), ESPERA_CUOTAS_MS, null)
       : Promise.resolve(null),
   ]);
 
@@ -84,6 +102,7 @@ export async function POST(request: Request) {
         }
       : null,
     sugerencias,
+    suscriptor: resuelto.suscriptor,
     cuotas: cuotasVerificadas ? { ...cuotasVerificadas, monto: resuelto.total } : null,
     cuotasSinEnvio: cuotasSinEnvio ? { ...cuotasSinEnvio, monto: resuelto.subtotal } : null,
   });

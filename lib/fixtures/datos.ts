@@ -1,5 +1,7 @@
 import { TABLAS } from "../airtable";
+import { VERSION_CONDICIONES_SUSCRIPTORES } from "../legales";
 import { TABLA_IMPORTACION_ML } from "../ml-resenas";
+import { fechaArgentina, sumarDias } from "../suscriptores";
 
 /**
  * Catálogo de prueba: una copia del contenido real de Airtable al 22/10/2026.
@@ -24,6 +26,13 @@ export type RegistroFixture = {
 };
 
 const CREADO = "2026-08-23T21:35:20.000Z";
+
+// Como en Airtable desde el 30/10/2026: sin «llevá 3, pagá 2» ni tramos de
+// anteojos (tampoco el mayorista: «esto es para clientes minoristas»; el 3x2
+// se apagó del todo el 03/11/2026). Estuches y paños siguen con los suyos.
+// Con HARPER_FIXTURES_ESCALA=1, la tienda de antes (con la escala y los
+// porcentajes de anteojos cargados debajo), para probarla.
+const CON_ESCALA = process.env.HARPER_FIXTURES_ESCALA === "1";
 
 /** Dos renglones: la ficha y la portada los muestran como dos párrafos. */
 const DESCRIPCION_ANTEOJOS =
@@ -328,12 +337,10 @@ function escalon(categoria: string, lleva: number, paga: number): RegistroFixtur
   };
 }
 
-// Los tramos por porcentaje de anteojos siguen cargados (como en Airtable
-// hasta publicar): con la escala, la web no los aplica.
 export const DESCUENTOS: RegistroFixture[] = [
-  ...["Anteojos", "Estuches", "Paños"].flatMap((c) => [descuento(c, 2, 5), descuento(c, 4, 10), descuento(c, 8, 15), descuento(c, 15, 20)]),
-  escalon("Anteojos", 3, 2),
-  escalon("Anteojos", 5, 3),
+  ...(CON_ESCALA ? [descuento("Anteojos", 2, 5), descuento("Anteojos", 4, 10), descuento("Anteojos", 8, 15), descuento("Anteojos", 15, 20)] : []),
+  ...["Estuches", "Paños"].flatMap((c) => [descuento(c, 2, 5), descuento(c, 4, 10), descuento(c, 8, 15), descuento(c, 15, 20)]),
+  ...(CON_ESCALA ? [escalon("Anteojos", 3, 2), escalon("Anteojos", 5, 3)] : []),
 ];
 
 /**
@@ -361,6 +368,78 @@ export const PEDIDOS: RegistroFixture[] = [
   },
 ];
 
+/**
+ * Suscriptores Harper (Ale, 03/11/2026), para probar la cuenta, el carrito y
+ * el checkout sin tocar la base real (lib/suscriptores-cuenta.ts):
+ *  - Ana: ya compró (cupón usado), con saldo para usar, cashback en camino y
+ *    uno anulado. Le alcanza para pagar un par entero con saldo.
+ *  - Beto: recién suscripto, con el cupón de bienvenida y sin saldo.
+ *  - Carla: se dio de baja; su sesión no vale y no tiene beneficios.
+ * Las fechas se arman con el día de hoy, para que «en camino» siga siéndolo.
+ */
+export const SUSCRIPTOR_ANA = "recSUSCANA0000001";
+export const SUSCRIPTOR_BETO = "recSUSCBETO000002";
+export const SUSCRIPTOR_CARLA = "recSUSCCARLA00003";
+
+function suscriptor(id: string, campos: Record<string, unknown>): RegistroFixture {
+  return {
+    id,
+    createdTime: CREADO,
+    fields: { Acepta_mails: true, Version_condiciones: VERSION_CONDICIONES_SUSCRIPTORES, ...campos },
+  };
+}
+
+export function suscriptoresIniciales(): RegistroFixture[] {
+  return [
+    suscriptor(SUSCRIPTOR_ANA, {
+      Email: "ana@ejemplo.com",
+      Nombre: "Ana Pérez",
+      Alta: "2026-09-10T15:00:00.000Z",
+      Origen: "Portada",
+      Cupon: "Usado",
+      Cupon_pedido: "HARPER-PRUEBA",
+    }),
+    suscriptor(SUSCRIPTOR_BETO, {
+      Email: "beto@ejemplo.com",
+      Nombre: "Beto Gómez",
+      Alta: "2026-11-01T18:30:00.000Z",
+      Origen: "Checkout",
+      Cupon: "Disponible",
+    }),
+    suscriptor(SUSCRIPTOR_CARLA, {
+      Email: "carla@ejemplo.com",
+      Nombre: "Carla Ruiz",
+      Alta: "2026-10-01T12:00:00.000Z",
+      Origen: "Ficha",
+      Cupon: "Disponible",
+      Acepta_mails: false,
+      Baja: "2026-10-20T12:00:00.000Z",
+    }),
+  ];
+}
+
+export function saldosIniciales(hoy: string = fechaArgentina(new Date())): RegistroFixture[] {
+  const movimiento = (id: string, campos: Record<string, unknown>): RegistroFixture => ({
+    id,
+    createdTime: CREADO,
+    fields: {
+      Movimiento: `${campos.Pedido ?? "Ajuste"} · ${campos.Tipo}`,
+      Email: "ana@ejemplo.com",
+      Suscriptor_id: SUSCRIPTOR_ANA,
+      ...campos,
+    },
+  });
+  return [
+    // Disponible: 17.081 − 5.000 + 80.000 = $ 92.081. En camino: $ 7.191.
+    movimiento("recSALDOANA000001", { Tipo: "Cashback", Monto: 17081, Pedido: "HARPER-PRUEBA", Fecha: "2026-09-12T15:00:00.000Z", Disponible_desde: "2026-10-12" }),
+    movimiento("recSALDOANA000002", { Tipo: "Uso", Monto: -5000, Pedido: "HARPER-PRUEBA2", Fecha: "2026-10-15T15:00:00.000Z" }),
+    movimiento("recSALDOANA000003", { Tipo: "Ajuste", Monto: 80000, Fecha: "2026-10-16T15:00:00.000Z", Notas: "Saldo de prueba para pagar un par entero con saldo." }),
+    movimiento("recSALDOANA000004", { Tipo: "Cashback", Monto: 7191, Pedido: "HARPER-PRUEBA3", Fecha: `${sumarDias(hoy, -10)}T15:00:00.000Z`, Disponible_desde: sumarDias(hoy, 20) }),
+    // Se devolvió: no cuenta.
+    movimiento("recSALDOANA000005", { Tipo: "Cashback", Monto: 8990, Pedido: "HARPER-PRUEBA4", Fecha: `${sumarDias(hoy, -5)}T15:00:00.000Z`, Disponible_desde: sumarDias(hoy, 25), Anulado: true }),
+  ];
+}
+
 /** Las tablas tal como las espera `lib/airtable.ts`, por su ID. */
 export function tablasIniciales(): Map<string, RegistroFixture[]> {
   return new Map<string, RegistroFixture[]>([
@@ -371,6 +450,8 @@ export function tablasIniciales(): Map<string, RegistroFixture[]> {
     [TABLAS.pedidos, estructurar(PEDIDOS)],
     [TABLAS.clientes, []],
     [TABLAS.arrepentimientos, []],
+    [TABLAS.suscriptores, suscriptoresIniciales()],
+    [TABLAS.saldos, saldosIniciales()],
     [TABLA_IMPORTACION_ML, estructurar(IMPORTACION_ML)],
   ]);
 }

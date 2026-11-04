@@ -9,6 +9,7 @@
  *   LOWER({Email}) = 'ale@…'
  *   {Clave} = 'costo_envio'
  *   OR(…), NOT(…)
+ *   AND({Estado} = 'pendiente', FIND('(rec…)', {Notas}))
  *
  * Si aparece algo que no entiende, tira error: preferible a devolver todos los
  * registros y que una prueba pase por casualidad.
@@ -218,6 +219,11 @@ class Analizador {
       case "UPPER": {
         const [valor] = this.argumentos();
         return String(valor ?? "").toUpperCase();
+      }
+      case "FIND": {
+        // Como en Airtable: la posición (desde 1) o 0 si no está.
+        const [buscado, donde] = this.argumentos();
+        return String(donde ?? "").indexOf(String(buscado ?? "")) + 1;
       }
       default:
         throw new Error(`Función no soportada en el modo de prueba: ${nombre}`);

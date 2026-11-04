@@ -23,6 +23,10 @@ export default function LineaCarrito({
 }) {
   const { cambiarCantidad, quitar } = useCarrito();
   const lado = compacta ? "4.25rem" : "5.5rem";
+  // El cupón de bienvenida y el saldo de un suscriptor van en el resumen, cada
+  // uno en su renglón: acá el precio con sus promociones.
+  const subtotal = item.subtotal + (item.cupon ?? 0) + (item.saldo ?? 0);
+  const tachado = item.descuento > 0;
 
   return (
     <li style={{ display: "flex", gap: compacta ? "0.875rem" : "1rem", alignItems: "flex-start" }}>
@@ -93,12 +97,12 @@ export default function LineaCarrito({
       </div>
 
       <div style={{ textAlign: "right", fontSize: "0.9375rem" }}>
-        {item.descuento > 0 ? (
+        {tachado ? (
           <div className="apagado" style={{ fontSize: "0.8125rem", textDecoration: "line-through" }}>
             {formatearPrecio(item.precioLista * item.cantidad)}
           </div>
         ) : null}
-        <span>{formatearPrecio(item.subtotal)}</span>
+        <span>{formatearPrecio(subtotal)}</span>
         {item.descuento > 0 ? (
           <div style={{ fontSize: "0.75rem", color: "var(--verde)" }}>−{textoPorcentaje(item.descuento)}%</div>
         ) : null}

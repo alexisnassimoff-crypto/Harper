@@ -25,6 +25,21 @@ import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
 import { leerMedioPago, MEDIO_DINERO_MP, NOTA_DINERO_MP } from "@/lib/dinero-mp";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
+import {
+  cashbackDe,
+  constanciaDelCuponDeBienvenida,
+  cuotasMaximas,
+  CUOTAS_SON_BENEFICIO,
+  MINUTOS_RESERVA,
+  notasDeBeneficios,
+  type BeneficiosDelPedido,
+} from "@/lib/suscriptores";
+import { claveSuscriptor, suscriptorDeLaSesion, suscriptorParaElCarrito } from "@/lib/suscriptores-cuenta";
+import { cerrojoDesdeEntorno, soltarSinFallar, tomarConEspera } from "@/lib/cerrojo";
+import { RELOJ_REAL } from "@/lib/webhook-lock";
+import { COOKIE_SUSCRIPTOR, leerCookie } from "@/lib/suscriptores-sesion";
+import { confirmarPedidoSinPago } from "@/lib/suscriptores-sin-pago";
+import { TEXTOS } from "@/lib/textos";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +78,17 @@ export async function POST(request: Request) {
     facturacion?: unknown;
     cupon?: unknown;
     medioPago?: unknown;
+    /** El suscriptor pidió pagar con su saldo. */
+    usarSaldo?: unknown;
+    /** Falso: sigue sin el cupón de bienvenida después de que se lo rechazamos. */
+    usarCupon?: unknown;
+    /**
+     * El mail del suscriptor con el que se armó el total que vio, o null si lo
+     * vio sin sesión. Si la sesión cambió desde entonces (cerró la sesión en
+     * otra pestaña, se dio de baja, venció), el total puede coincidir igual y
+     * el pedido saldría sin sus beneficios: se frena como un total distinto.
+     */
+    suscriptorVisto?: unknown;
   };
 
   try {
@@ -114,14 +140,46 @@ export async function POST(request: Request) {
   // quedaba afuera y un ítem con forma rara terminaba en un 500 con HTML,
   // que el formulario le mostraba al cliente como "Unexpected token '<'".
   let pedidoId: string | null = null;
+  // El cerrojo del suscriptor, si se tomó: se suelta al final pase lo que pase.
+  let cerrojoTomado: { soltar: () => Promise<void> } | null = null;
 
   // Del navegador viene QUÉ eligió (y el comprobante firmado de esa
   // cotización), nunca CUÁNTO sale: el precio lo decide el servidor.
   const eleccion = leerEleccionEnvio(cuerpo.envio);
 
   try {
+    // El suscriptor que entró con su mail (Ale, 03/11/2026): su cupón, su
+    // saldo, el envío gratis y las 6 cuotas. La fila y el saldo se leen
+    // frescos y sin red de contención, como el catálogo: si Airtable falla,
+    // no se cobra (lib/suscriptores-cuenta.ts).
+    const sesion = leerCookie(request.headers.get("cookie"), COOKIE_SUSCRIPTOR);
+    const cuenta = sesion ? await suscriptorDeLaSesion(sesion) : null;
+
+    // Un pago por vez por suscriptor: desde que se lee su saldo (sin lo que
+    // apartan sus pedidos sin pagar) hasta que este pedido queda creado y
+    // aparta lo suyo. Dos pestañas a la vez no usan el mismo saldo ni el
+    // mismo cupón; la segunda ve el saldo que queda y revisa el total.
+    // Si Redis no contesta, la venta sigue sin el cerrojo (como antes): las
+    // reservas igual se ven, y un doble uso lo avisa el webhook.
+    const cerrojo = cuenta ? cerrojoDesdeEntorno() : null;
+    if (cuenta && cerrojo) {
+      const clave = claveSuscriptor(cuenta.id);
+      const nonce = await tomarConEspera(cerrojo, clave, 60_000, { esperaMaxMs: 8_000, reloj: RELOJ_REAL }).catch((error) => {
+        console.error("[checkout] Redis no contestó; el pago del suscriptor sigue sin cerrojo:", error instanceof Error ? error.message : error);
+        return undefined;
+      });
+      if (nonce === null) {
+        return NextResponse.json({ error: TEXTOS.suscriptores.otroPagoEnCurso }, { status: 409 });
+      }
+      if (nonce) cerrojoTomado = { soltar: () => soltarSinFallar(cerrojo, clave, nonce) };
+    }
+    const suscriptor = cuenta ? await suscriptorParaElCarrito(cuenta) : null;
+
     // Para cobrar se lee el catálogo sin cache y sin red de contención.
     const carrito = await resolverCarrito(items, {
+      suscriptor,
+      usarSaldo: cuerpo.usarSaldo === true,
+      usarCupon: cuerpo.usarCupon !== false,
       paraCobrar: true,
       destino: {
         cp: cliente.cp,
@@ -174,6 +232,36 @@ export async function POST(request: Request) {
       );
     }
 
+    // La sesión de suscriptor tiene que ser la misma con la que vio el total.
+    if ("suscriptorVisto" in cuerpo) {
+      const visto = typeof cuerpo.suscriptorVisto === "string" ? cuerpo.suscriptorVisto.trim().toLowerCase() : null;
+      if (visto !== (suscriptor?.email ?? null)) {
+        return NextResponse.json({ error: TEXTOS.suscriptores.sesionCambio, suscriptorCambio: true }, { status: 409 });
+      }
+    }
+
+    // El cupón de bienvenida del suscriptor, también solo en la primera compra
+    // (como el viejo HARPER10): ni su mail ni este DNI con una compra
+    // confirmada. Y solo comprando con el mail con el que se suscribió: si no,
+    // con el cupón de una suscripción cualquiera se podría averiguar si otro
+    // mail ya compró en Harper. Si no corresponde, no se cobra nada distinto
+    // de lo que vio: se le avisa y el checkout vuelve a pedir el carrito con
+    // `usarCupon: false`.
+    if (carrito.suscriptor && suscriptor && carrito.suscriptor.cupon > 0) {
+      if (cliente.email.trim().toLowerCase() !== suscriptor.email) {
+        return NextResponse.json(
+          { error: TEXTOS.suscriptores.cuponOtroMail(suscriptor.email), cuponBienvenidaRechazado: true },
+          { status: 409 }
+        );
+      }
+      if (await yaCompro(suscriptor.email, cliente.dni)) {
+        return NextResponse.json(
+          { error: TEXTOS.suscriptores.cuponRechazado, cuponBienvenidaRechazado: true },
+          { status: 409 }
+        );
+      }
+    }
+
     // Con dinero en Mercado Pago se cobra el 10% adicional sobre los productos, que el
     // servidor calculó junto con el resto (lib/dinero-mp.ts).
     const dineroMP = conDineroMP ? carrito.dineroMP : null;
@@ -217,7 +305,10 @@ export async function POST(request: Request) {
 
     const ahora = new Date();
     const numero = numeroDePedido(ahora);
-    const clienteId = await guardarCliente(cliente);
+    const { id: clienteId, dniAnterior } = await guardarCliente(cliente);
+    // El cliente ya compró con otro DNI: el suyo queda el de esa compra (con
+    // ese se decide el cupón de bienvenida) y el de este pedido, en las notas.
+    const notaDni = dniAnterior ? `DNI de este pedido: ${cliente.dni} (el cliente figura con ${dniAnterior}, el de su primera compra).` : null;
 
     // De qué anuncio vino: solo las claves conocidas, recortadas.
     const origen = normalizarOrigen(cuerpo.origen);
@@ -250,9 +341,79 @@ export async function POST(request: Request) {
       Terminos_aceptados: registroAceptacion(ahora),
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     };
-    const cupon = carrito.cupon?.estado === "aplicado" ? constanciaDelCupon(carrito.cupon, formatearPrecio) : null;
+    // Lo que el suscriptor usó y lo que le vuelve, para el pedido (Notas y
+    // Cupon) y para el webhook, que lo anota después del pago. El cashback es
+    // sobre lo que paga en productos, con el medio de pago que eligió.
+    const beneficios: BeneficiosDelPedido | null =
+      suscriptor && carrito.suscriptor
+        ? {
+            suscriptorId: suscriptor.id,
+            email: suscriptor.email,
+            cupon: carrito.suscriptor.cupon,
+            saldoUsado: carrito.suscriptor.saldoUsado,
+            // Dado de baja no suma cashback: solo usa el saldo que ya tenía.
+            cashback: carrito.suscriptor.activo ? cashbackDe(cobro.subtotal) : 0,
+          }
+        : null;
+    const cupon =
+      [
+        carrito.cupon?.estado === "aplicado" ? constanciaDelCupon(carrito.cupon, formatearPrecio) : null,
+        beneficios && beneficios.cupon > 0 ? constanciaDelCuponDeBienvenida(beneficios.cupon) : null,
+      ]
+        .filter(Boolean)
+        .join(" + ") || null;
+    const notasSuscriptor = [beneficios ? notasDeBeneficios(beneficios).join("\n") : null, notaDni].filter(Boolean).join("\n") || null;
     const envio = { campos: camposDeEnvio(carrito.envioDelPedido, cliente), nota: notaDeEnvio(carrito.envioDelPedido) };
-    const pedido = await crearPedido(campos, envio, factura, cupon, Boolean(dineroMP));
+
+    // Todo pagado con el saldo del suscriptor, con su envío gratis: no hay
+    // nada que cobrar, así que no pasa por Mercado Pago
+    // (lib/suscriptores-sin-pago.ts).
+    if (cobro.total === 0) {
+      if (!suscriptor || !beneficios || beneficios.saldoUsado <= 0) {
+        return NextResponse.json({ error: "No hay nada que cobrar en tu carrito." }, { status: 400 });
+      }
+      const ce = envio.campos as Record<string, unknown>;
+      const resultado = await confirmarPedidoSinPago({
+        suscriptor,
+        // El checkout ya tiene el cerrojo del suscriptor.
+        cerrojoTomado: Boolean(cerrojoTomado),
+        numero,
+        cupon: beneficios.cupon,
+        saldoUsado: beneficios.saldoUsado,
+        clienteId,
+        // Nace pendiente y pasa a pagado recién con el cupón y el saldo anotados.
+        crearPedido: () =>
+          crearPedido({ ...campos, MP_status: "pagando con saldo, sin Mercado Pago" }, envio, factura, cupon, false, notasSuscriptor),
+        marcarPagado: async (id) => {
+          await updateRecord<FilaPedido>(TABLAS.pedidos, id, { Estado: "pagado", MP_status: "pagado con saldo, sin Mercado Pago" });
+        },
+        anularPedido,
+        datosMail: {
+          numero,
+          items: cobro.items,
+          subtotal: cobro.subtotal,
+          envio: carrito.envio,
+          total: 0,
+          cliente,
+          config: carrito.config,
+          sitio: urlDelSitio(request),
+          facturacion: factura,
+          envioDetalle: ce.Envio_transportista
+            ? {
+                transportista: String(ce.Envio_transportista),
+                servicio: String(ce.Envio_servicio_codigo ?? ""),
+                plazo: String(ce.Envio_plazo ?? ""),
+                costoReal: typeof ce.Envio_costo_real === "number" ? ce.Envio_costo_real : null,
+                bonificado: ce.Envio_bonificado === true,
+              }
+            : null,
+        },
+      });
+      if (!resultado.ok) return NextResponse.json({ error: resultado.error }, { status: resultado.status });
+      return NextResponse.json({ numero, initPoint: `/gracias?pedido=${encodeURIComponent(numero)}` });
+    }
+
+    const pedido = await crearPedido(campos, envio, factura, cupon, Boolean(dineroMP), notasSuscriptor);
 
     pedidoId = pedido.id;
 
@@ -268,6 +429,12 @@ export async function POST(request: Request) {
       sitio: urlDelSitio(request),
       // Con "Dinero en Mercado Pago", Mercado Pago ofrece solo el saldo de la cuenta.
       soloDineroEnCuenta: Boolean(dineroMP),
+      // El tope por comprador solo si las cuotas son un beneficio de suscriptor
+      // (lib/suscriptores.ts). Hoy no lo son (6 sin interés para todos): la
+      // preferencia queda como siempre, hasta 12.
+      ...(CUOTAS_SON_BENEFICIO ? { cuotasMaximas: cuotasMaximas(Boolean(suscriptor?.activo !== false && suscriptor)) } : {}),
+      // Si usa saldo o el cupón, los aparta mientras su link cobra: un link corto.
+      ...(beneficios && (beneficios.saldoUsado > 0 || beneficios.cupon > 0) ? { venceEnMinutos: MINUTOS_RESERVA } : {}),
     });
 
     await updateRecord<FilaPedido>(TABLAS.pedidos, pedido.id, {
@@ -292,6 +459,8 @@ export async function POST(request: Request) {
       { error: "No pudimos iniciar el pago. Probá de nuevo en un momento." },
       { status: codigo }
     );
+  } finally {
+    if (cerrojoTomado) await cerrojoTomado.soltar();
   }
 }
 
@@ -311,6 +480,8 @@ export async function POST(request: Request) {
  * el rechazo nombra uno, se saca solo ese y se reintenta. Si faltó alguno,
  * el envío también va al final de Notas, después de la facturación, que el
  * aviso interno lee del principio.
+ * Las líneas del suscriptor (lib/suscriptores.ts) van en Notas en todos los
+ * intentos, después de la facturación: el webhook las lee de ahí.
  * Si el rechazo era por otra cosa, el último intento falla igual que antes.
  */
 async function crearPedido(
@@ -318,7 +489,8 @@ async function crearPedido(
   envio: { campos: FilaPedido; nota: string },
   factura: FacturacionPedido,
   cupon: string | null,
-  conDineroMP: boolean
+  conDineroMP: boolean,
+  notasSuscriptor: string | null = null
 ) {
   const facturacion = camposDeFacturacion(factura);
   const conCupon = cupon ? { Cupon: cupon } : {};
@@ -347,7 +519,7 @@ async function crearPedido(
   }
   let rechazosEnvio = 0;
   const armar = ({ fila, notas }: Intento): FilaPedido => {
-    const texto = [...notas, envioIncompleto ? envio.nota : null].filter(Boolean).join("\n\n");
+    const texto = [...notas, notasSuscriptor, envioIncompleto ? envio.nota : null].filter(Boolean).join("\n\n");
     return { ...fila, ...camposEnvio, ...(texto ? { Notas: texto } : {}) };
   };
   // El campo del envío que nombra el rechazo de Airtable ("Unknown field

@@ -10,9 +10,7 @@ type Params = { params: Promise<{ slug: string; color: string }> };
 export async function generateStaticParams() {
   try {
     const productos = await getProductos();
-    return productos.flatMap((p) =>
-      p.variantes.map((v) => ({ slug: p.slug, color: v.sku.toLowerCase() }))
-    );
+    return productos.flatMap((p) => p.variantes.map((v) => ({ slug: p.slug, color: v.sku.toLowerCase() })));
   } catch {
     return [];
   }

@@ -37,12 +37,17 @@ export default function HojaPack({
   colores,
   estuche = null,
   totales,
+  titulo = "Armá tu pack",
+  textoComprar,
 }: {
   ref?: Ref<HojaPackControl>;
   colores: ColorDeADos[];
   estuche?: EstucheDeADos | null;
   /** El total de cada pack, para el botón ("$ 179.800"); sin él, el botón no lo dice. */
   totales: Record<number, string>;
+  titulo?: string;
+  /** El texto del botón de compra, si no es «Comprar N pares». */
+  textoComprar?: string;
 }) {
   const router = useRouter();
   const { agregar } = useCarrito();
@@ -103,14 +108,20 @@ export default function HojaPack({
     <dialog ref={hoja} className="hoja-pack" aria-labelledby="hoja-pack-titulo" onClose={() => setYendo(false)}>
       <div className="hoja-pack__cabecera">
         <h2 id="hoja-pack-titulo" className="hoja-pack__titulo">
-          Armá tu pack
+          {titulo}
         </h2>
         <button type="button" className="hoja-pack__cerrar" aria-label="Cerrar" onClick={() => hoja.current?.close()}>
           ×
         </button>
       </div>
       <p className="hoja-pack__contador" role="status">
-        {cuenta === pack ? `Listo: ${pack} pares.` : `Elegí ${pack} pares · ${cuenta} de ${pack}`}
+        {pack === 1
+          ? cuenta === 1
+            ? "Listo: ya elegiste tu par."
+            : "Elegí un par."
+          : cuenta === pack
+            ? `Listo: ${pack} pares.`
+            : `Elegí ${pack} pares · ${cuenta} de ${pack}`}
       </p>
 
       <ul className="hoja-pack__colores">
@@ -164,7 +175,9 @@ export default function HojaPack({
         ) : null}
 
         <button type="button" className="boton boton--bloque hoja-pack__comprar" onClick={comprar} disabled={cuenta !== pack || yendo}>
-          {yendo ? "Un momento…" : `Comprar ${pack} pares${totales[pack] && !conEstuche ? ` · ${totales[pack]}` : ""}`}
+          {yendo
+            ? "Un momento…"
+            : (textoComprar ?? `Comprar ${pack} ${pack === 1 ? "par" : "pares"}${totales[pack] && !conEstuche ? ` · ${totales[pack]}` : ""}`)}
         </button>
       </div>
     </dialog>

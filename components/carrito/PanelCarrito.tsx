@@ -10,6 +10,7 @@ import { buscarCupon } from "@/lib/cupones";
 import { envioEnElCarrito } from "@/lib/envio-gratis";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { desglosar } from "@/lib/resumen";
+import { TEXTOS } from "@/lib/textos";
 import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 import LineaCarrito from "./LineaCarrito";
@@ -225,6 +226,13 @@ function Resumen({
           <span>−{formatearPrecio(resumen.descuento)}</span>
         </div>
       ) : null}
+      {/* El cupón de bienvenida del suscriptor, en su renglón (el saldo se elige en el checkout). */}
+      {resumen.cupon > 0 ? (
+        <div className="fila" style={{ color: "var(--verde)" }}>
+          <span>{TEXTOS.suscriptores.checkoutCaja.cupon}</span>
+          <span>−{formatearPrecio(resumen.cupon)}</span>
+        </div>
+      ) : null}
       <Fila etiqueta="Envío a domicilio" valor={envio.valor} />
 
       {[...porCategoria.entries()].map(([categoria, info]) => (
@@ -240,9 +248,9 @@ function Resumen({
         />
       ))}
 
-      {envio.nota ? (
+      {envio.nota || datos.suscriptor ? (
         <p className="apagado" style={{ fontSize: "0.8125rem" }}>
-          {envio.nota}
+          {datos.suscriptor ? TEXTOS.suscriptores.envioGratis : envio.nota}
         </p>
       ) : null}
 

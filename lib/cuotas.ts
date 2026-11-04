@@ -14,7 +14,18 @@
  * Lo que se muestra cumple la Res. SIyC 4/2025 (art. 2 inc. d): precio de
  * contado, cantidad y monto de cada cuota (el que calcula Mercado Pago, con
  * centavos) y el costo financiero total efectivo anual.
+ *
+ * Desde Suscriptores Harper (Ale, 03/11/2026) la cantidad depende de quién
+ * compra: 3 cuotas para todos y 6 para suscriptores (lib/suscriptores.ts),
+ * que es también el tope de la preferencia de Mercado Pago. Cada cantidad se
+ * verifica por separado. `NEXT_PUBLIC_CUOTAS` queda como tope y como
+ * interruptor: sin cargar (o con menos de 2) no se anuncia ninguna.
  */
+
+import { cuotasMaximas } from "./suscriptores";
+
+/** «0,00 %» con un espacio duro: el «%» no queda solo en el renglón de abajo. */
+export const cfteaSinCortar = (cftea: string) => cftea.replace(/ /g, "\u00a0");
 
 /** Las marcas con las que se verifica. Son las que nombra el anuncio. */
 export const MARCAS_VERIFICADAS = ["visa", "master"] as const;
@@ -28,14 +39,30 @@ export type CuotasVerificadas = {
   cftea: string;
 };
 
-/** Cantidad de cuotas que se quieren anunciar, o `null` si no corresponde. */
-export function cuotasActivas(): number | null {
+/** El tope de `NEXT_PUBLIC_CUOTAS`, o `null` si los anuncios de cuotas están apagados. */
+export function topeDeCuotas(): number | null {
   // La referencia tiene que ser literal para que Next la incruste en el bundle.
   const crudo = process.env.NEXT_PUBLIC_CUOTAS ?? "";
   const n = Number.parseInt(crudo, 10);
 
   if (!Number.isInteger(n) || n < 2) return null;
   return n;
+}
+
+/**
+ * Cuántas cuotas se pueden anunciar si se piden `cuotas` (por defecto, las de
+ * cualquier comprador): nunca más que el tope. `null` si no corresponde.
+ */
+export function cuotasAnunciables(cuotas: number = cuotasMaximas(false)): number | null {
+  const tope = topeDeCuotas();
+  if (!tope) return null;
+  const n = Math.min(Math.floor(cuotas), tope);
+  return n >= 2 ? n : null;
+}
+
+/** Las cuotas que se le anuncian a este comprador: 3, o 6 si es suscriptor. `null` si no corresponde. */
+export function cuotasActivas(esSuscriptor = false): number | null {
+  return cuotasAnunciables(cuotasMaximas(esSuscriptor));
 }
 
 type CostoMP = {

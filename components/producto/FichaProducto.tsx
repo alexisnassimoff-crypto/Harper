@@ -25,6 +25,8 @@ import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import Estrellas, { formatearPuntaje } from "@/components/portada/Estrellas";
+import SuscriptoresEnLaFicha from "@/components/suscriptores/SuscriptoresEnLaFicha";
+import Cifras from "@/components/Cifras";
 
 export default function FichaProducto({
   producto,
@@ -32,6 +34,7 @@ export default function FichaProducto({
   varianteInicial,
   confianza = [],
   cuotas = null,
+  cuotasSuscriptor = null,
   precioSinImpuestos = null,
   whatsapp = null,
   calificacion = null,
@@ -44,6 +47,11 @@ export default function FichaProducto({
   confianza?: Confianza[];
   /** Cuotas sin interés confirmadas por Mercado Pago para este precio, o null. */
   cuotas?: CuotasVerificadas | null;
+  /**
+   * Las de suscriptor para este precio (6), confirmadas aparte con Mercado
+   * Pago; solo si son más que las de todos (Ale, 03/11/2026). Null no las nombra.
+   */
+  cuotasSuscriptor?: CuotasVerificadas | null;
   /** El neto para la leyenda de la Res. SIyC 4/2025; null si no hay dato. */
   precioSinImpuestos?: number | null;
   /** WhatsApp de la tienda, para la consulta por cristales graduados. */
@@ -267,8 +275,8 @@ export default function FichaProducto({
             </a>
           ) : null}
           <span className="label">{producto.categoria}</span>
-          <h1 style={{ fontSize: "clamp(2rem, 5vw, 2.75rem)" }}>
-            {producto.nombre}
+          <h1 className="ficha-producto__nombre">
+            <Cifras>{producto.nombre}</Cifras>
           </h1>
 
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem" }}>
@@ -294,6 +302,16 @@ export default function FichaProducto({
           {cuotaTexto ? (
             <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--verde)" }}>
               {cuotaTexto}
+            </span>
+          ) : null}
+          {/* 3 cuotas para todos y 6 para suscriptores, cada una con su monto
+              (las condiciones de abajo valen para las dos: el CFTEA es el mismo). */}
+          {cuotasSuscriptor ? (
+            <span className="cuotas-suscriptor">
+              {cuotaTexto ? "O " : ""}
+              {cuotasSuscriptor.cuotas} cuotas sin interés de {precioConCentavos(cuotasSuscriptor.montoCuota)}{" "}
+              <a href="#suscriptor-ficha-titulo">si sos suscriptor</a>
+              {cuotaTexto ? "" : ` · CFTEA ${cuotasSuscriptor.cftea} · ${NOMBRE_MARCAS}`}
             </span>
           ) : null}
           {cuotaCondiciones ? <span className="cuotas-condiciones">{cuotaCondiciones}</span> : null}
@@ -352,6 +370,9 @@ export default function FichaProducto({
             </>
           )}
         </div>
+
+        {/* Suscriptores Harper (Ale, 03/11/2026): solo en anteojos, que es lo que vende la web. */}
+        {producto.categoria === "Anteojos" ? <SuscriptoresEnLaFicha cuotas={cuotasSuscriptor} /> : null}
 
         {/* Solo en los modelos cuyo armazón admite cristales graduados
             (confirmados en lib/caracteristicas.ts): una consulta, no una venta. */}

@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.HARPER_FIXTURES = "1";
+// Algunas pruebas son del envío gratis con «llevá 3, pagá 2»: la tabla de descuentos de antes.
+process.env.HARPER_FIXTURES_ESCALA = "1";
 process.env.ENVIA_TOKEN = "token-de-prueba";
 // Los mínimos de producción: gratis en AMBA desde $ 60.000 y en todo el país desde $ 150.000.
 process.env.HARPER_FIXTURES_ENVIO_GRATIS_DESDE = "150000";

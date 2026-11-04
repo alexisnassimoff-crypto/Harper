@@ -6,6 +6,7 @@ import type { Tramo } from "@/lib/descuentos";
 import type { Sugerencia } from "@/lib/sugerencias";
 import type { CuponResuelto } from "@/lib/cupones";
 import type { CuotasVerificadas } from "@/lib/cuotas";
+import type { ResumenSuscriptor } from "@/lib/suscriptores";
 import { useCarrito } from "./CarritoContexto";
 
 export type CarritoResueltoCliente = {
@@ -36,6 +37,12 @@ export type CarritoResueltoCliente = {
   cuotas?: (CuotasVerificadas & { monto: number }) | null;
   /** Solo si se pidieron y hay envío: las mismas, para el total sin el envío. */
   cuotasSinEnvio?: (CuotasVerificadas & { monto: number }) | null;
+  /**
+   * El suscriptor que entró con su mail: el cupón y el saldo aplicados, su
+   * saldo, el cashback que le vuelve y su tope de cuotas (lib/suscriptores.ts).
+   * Null si no hay sesión.
+   */
+  suscriptor?: ResumenSuscriptor | null;
 };
 
 /**
@@ -77,7 +84,17 @@ function resolver(cuerpo: string): Promise<CarritoResueltoCliente> {
  *    nada para comprar: se muestra lo último que se sabía y un botón para
  *    reintentar.
  */
-export function useCarritoResuelto({ cuotas = false }: { cuotas?: boolean } = {}) {
+export function useCarritoResuelto({
+  cuotas = false,
+  usarSaldo,
+  usarCupon,
+}: {
+  cuotas?: boolean;
+  /** El checkout: el suscriptor eligió pagar con su saldo (lib/suscriptores.ts). Sin decir, no se usa. */
+  usarSaldo?: boolean;
+  /** Falso después de que el checkout rechazó el cupón de bienvenida (ya hay una compra con ese mail o DNI). */
+  usarCupon?: boolean;
+} = {}) {
   const { items, listo, quitar, cupon } = useCarrito();
   const [datos, setDatos] = useState<CarritoResueltoCliente | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -110,7 +127,15 @@ export function useCarritoResuelto({ cuotas = false }: { cuotas?: boolean } = {}
     if (tieneDatos.current) setActualizando(true);
     else setCargando(true);
 
-    resolver(JSON.stringify({ items, cupon, ...(cuotas ? { cuotas: true } : {}) }))
+    resolver(
+      JSON.stringify({
+        items,
+        cupon,
+        ...(cuotas ? { cuotas: true } : {}),
+        ...(usarSaldo ? { usarSaldo: true } : {}),
+        ...(usarCupon === false ? { usarCupon: false } : {}),
+      })
+    )
       .then((resuelto) => {
         if (!vigente) return;
         setDatos(resuelto);
@@ -132,7 +157,7 @@ export function useCarritoResuelto({ cuotas = false }: { cuotas?: boolean } = {}
       vigente = false;
     };
     // `quitar` es estable (useCallback) y `items` cambia por contenido.
-  }, [items, listo, quitar, intento, cupon, cuotas]);
+  }, [items, listo, quitar, intento, cupon, cuotas, usarSaldo, usarCupon]);
 
   return { datos, cargando: cargando || !listo, actualizando, error, recargar };
 }

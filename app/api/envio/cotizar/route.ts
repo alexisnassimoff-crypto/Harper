@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { cuotasMaximas } from "@/lib/suscriptores";
+import { suscriptorDelCarritoDeLaPeticion } from "@/lib/suscriptores-cuenta";
 import { claveDeIp, consumirCuota } from "@/lib/cuota";
 import { verificarCuotas } from "@/lib/cuotas-servidor";
 import { cotizacionParaComprador, type CotizacionEnvio } from "@/lib/envio-gratis";
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Origen no permitido" }, { status: 403, headers: sinCache });
   }
 
-  let cuerpo: { items?: unknown; destino?: unknown; cupon?: unknown };
+  let cuerpo: { items?: unknown; destino?: unknown; cupon?: unknown; usarSaldo?: unknown; usarCupon?: unknown };
 
   try {
     cuerpo = await request.json();
@@ -85,7 +87,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const carrito = await resolverCarrito(items, { destino, cupon: cuerpo.cupon });
+    // El suscriptor que entró con su mail: envío gratis, su cupón y su saldo
+    // (lib/suscriptores-cuenta.ts), para cotizar el mismo total que va a pagar.
+    const suscriptor = await suscriptorDelCarritoDeLaPeticion(request);
+    const carrito = await resolverCarrito(items, {
+      destino,
+      cupon: cuerpo.cupon,
+      suscriptor,
+      usarSaldo: cuerpo.usarSaldo === true,
+      usarCupon: cuerpo.usarCupon !== false,
+    });
     const envio = cotizacionParaComprador(carrito, {
       amba: carrito.config.envioGratisAmbaDesde,
       nacional: carrito.config.envioGratisDesde,
@@ -94,7 +105,8 @@ export async function POST(request: Request) {
     // Las cuotas sin interés se anuncian solo para el total exacto: se
     // verifican para el total con este envío (también si es gratis o la
     // tarifa plana), que es lo que se cobra.
-    const verificadas = await conLimite(verificarCuotas(carrito.total), ESPERA_CUOTAS_MS, null);
+    const verificadas =
+      carrito.total > 0 ? await conLimite(verificarCuotas(carrito.total, cuotasMaximas(Boolean(suscriptor))), ESPERA_CUOTAS_MS, null) : null;
     const cuotas: CotizacionEnvio["cuotas"] = verificadas ? { ...verificadas, monto: carrito.total } : null;
 
     return NextResponse.json({ ...envio, cuotas } satisfies CotizacionEnvio, { headers: sinCache });

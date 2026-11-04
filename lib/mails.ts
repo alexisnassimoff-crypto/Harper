@@ -7,6 +7,14 @@ import { caracteristicasDe } from "./caracteristicas";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
 import { pedidoParaMostrar, TEXTO_PROXIMO_PASO, type SolicitudArrepentimiento } from "./arrepentimiento";
 import { lineasDeFacturacion, type FacturacionPedido } from "./facturacion";
+import { NOMBRE_MARCAS, type CuotasVerificadas } from "./cuotas";
+import {
+  CASHBACK_PORCENTAJE,
+  CUPON_BIENVENIDA,
+  DIAS_PARA_USAR_CASHBACK,
+  fechaLegible,
+} from "./suscriptores";
+import { TEXTOS } from "./textos";
 
 // Se puede apuntar a un Resend simulado para las pruebas de punta a punta.
 const API_RESEND = process.env.RESEND_API_URL ?? "https://api.resend.com/emails";
@@ -80,7 +88,7 @@ export async function enviarMailConDetalle(envio: Envio): Promise<{ ok: true } |
 /* ==========================================================================
    Plantillas
    Los clientes de mail no soportan flexbox ni grid: todo va con tablas y CSS
-   inline. Raleway tampoco carga en Gmail ni Outlook, por eso la familia
+   inline. Raleway no carga en Gmail ni Outlook, por eso la familia
    degrada a Helvetica y Arial.
    ========================================================================== */
 
@@ -126,10 +134,15 @@ function envoltorio(contenido: string, config: ConfigTienda) {
 </html>`;
 }
 
-/** "5% de descuento + 10% por dinero en Mercado Pago". Vacío si el ítem va a precio de lista. */
+/**
+ * "5% de descuento + 10% por dinero en Mercado Pago", "Cupón de bienvenida +
+ * con tu saldo". Vacío si el ítem va a precio de lista.
+ */
 function textoDescuento(item: ItemResuelto) {
   return [
     item.descuento > 0 ? `${textoPorcentaje(item.descuento)}% de descuento` : null,
+    item.cupon ? "Cupón de bienvenida" : null,
+    item.saldo ? "con tu saldo" : null,
     item.descuentoDineroMP ? `${item.descuentoDineroMP}% por dinero en Mercado Pago` : null,
   ]
     .filter(Boolean)
@@ -214,6 +227,21 @@ export type DatosMail = {
   } | null;
   /** Algo que Harper tiene que revisar en esta venta, ya escrito. */
   alerta?: string | null;
+  /** Si compró un suscriptor: sus beneficios en este pedido (lib/suscriptores.ts). */
+  suscriptor?: BeneficiosEnElMail | null;
+};
+
+/** Los beneficios de Suscriptores Harper en un pedido, para el comprador y para Harper. */
+export type BeneficiosEnElMail = {
+  email: string;
+  /** Pesos del cupón de bienvenida; 0 si no lo usó. */
+  cupon: number;
+  /** Pesos pagados con saldo. */
+  saldoUsado: number;
+  /** Pesos que le vuelven como saldo. */
+  cashback: number;
+  /** "2026-12-03": desde cuándo puede usar ese cashback. */
+  cashbackDesde: string | null;
 };
 
 /**
@@ -246,15 +274,81 @@ function envioInterno(d: Pick<DatosMail, "envioDetalle" | "envio">): string | nu
   return `Envío: ${e.transportista}${e.servicio ? ` (${e.servicio})` : ""}${costo}${cobrado}${e.plazo ? ` · plazo ${e.plazo}` : ""}`;
 }
 
+/** Los renglones del suscriptor en el mail del comprador: cupón, saldo y cashback. */
+function lineasSuscriptor(d: Pick<DatosMail, "suscriptor">): string[] {
+  const b = d.suscriptor;
+  if (!b) return [];
+  return [
+    b.cupon > 0 ? `Usaste tu cupón de bienvenida: −${formatearPrecio(b.cupon)}.` : null,
+    b.saldoUsado > 0 ? `Pagaste ${formatearPrecio(b.saldoUsado)} con tu saldo.` : null,
+    b.cashback > 0
+      ? `Te vuelven ${formatearPrecio(b.cashback)} de saldo${b.cashbackDesde ? `: los podés usar desde el ${fechaLegible(b.cashbackDesde)}` : ""}.`
+      : null,
+    "Como suscriptor, el envío es gratis.",
+  ].filter((l): l is string => l !== null);
+}
+
+/** El bloque de Suscriptores Harper en el mail del comprador. */
+function bloqueSuscriptor(d: DatosMail): string {
+  const lineas = lineasSuscriptor(d);
+  if (lineas.length === 0) return "";
+  return `
+<div style="margin-top:28px;padding:20px;background:#004226;color:#ffffff;">
+  <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.8;margin-bottom:6px;">${escaparHtml(TEXTOS.suscriptores.etiqueta)}</div>
+  ${lineas.map((l) => `<p style="margin:0 0 6px;font-size:14px;line-height:1.6;">${escaparHtml(l)}</p>`).join("\n  ")}
+  <a href="${escaparHtml(d.sitio)}/suscriptores/mi-cuenta" style="display:inline-block;margin-top:8px;font-size:13px;letter-spacing:0.5px;color:#ffffff;text-decoration:underline;">Ver mi saldo</a>
+</div>`;
+}
+
+/** Para Harper: qué beneficios usó y qué hay que acreditar. */
+function lineaSuscriptorInterna(d: Pick<DatosMail, "suscriptor">): string | null {
+  const b = d.suscriptor;
+  if (!b) return null;
+  return [
+    `Suscriptor: ${b.email}`,
+    b.cupon > 0 ? `cupón de bienvenida −${formatearPrecio(b.cupon)}` : null,
+    b.saldoUsado > 0 ? `saldo usado −${formatearPrecio(b.saldoUsado)}` : null,
+    b.cashback > 0 ? `cashback a acreditar ${formatearPrecio(b.cashback)}${b.cashbackDesde ? ` (se puede usar desde el ${fechaLegible(b.cashbackDesde)})` : ""}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** Lo que Harper tiene que hacer si el pedido de un suscriptor se devuelve: anular el cashback y devolver el saldo usado. */
+function avisoDevolucionSaldo(b: NonNullable<DatosMail["suscriptor"]>): string | null {
+  const que = [
+    b.cashback > 0 ? "el Cashback de este pedido (lo que le vuelve)" : null,
+    b.saldoUsado > 0 ? "el Uso de este pedido (así recupera el saldo que usó)" : null,
+  ].filter(Boolean);
+  return que.length ? `Si se devuelve, marcá Anulado en Saldos ${que.join(" y ")}.` : null;
+}
+
+/** Un aviso corto para Harper, sin datos del comprador: qué pasó y qué hacer. */
+export function mailAlertaInterna(d: { config: ConfigTienda; asunto: string; lineas: string[]; enlace?: string | null }): Envio {
+  const html = envoltorio(
+    `<h1 style="margin:0 0 16px;font-size:20px;font-weight:400;">${escaparHtml(d.asunto)}</h1>
+${d.lineas.map((l) => `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;">${escaparHtml(l)}</p>`).join("\n")}
+${d.enlace ? `<p style="margin:16px 0 0;font-size:14px;"><a href="${escaparHtml(d.enlace)}" style="color:#004226;">Ver el pedido en Airtable</a></p>` : ""}`,
+    d.config
+  );
+  return {
+    para: d.config.emailPedidos,
+    asunto: d.asunto,
+    html,
+    texto: [d.asunto, "", ...d.lineas, ...(d.enlace ? ["", d.enlace] : [])].join("\n"),
+  };
+}
+
 /** 1 — Confirmación de compra para el cliente. */
 export function mailConfirmacion(d: DatosMail): Envio {
   const graduados = enlaceGraduadosDelPedido(d);
+  const sinPago = d.total === 0;
   const direccion = `${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} (CP ${d.cliente.cp})`;
 
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Gracias por tu compra</h1>
 <p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">
-  Recibimos tu pago. Tu pedido <strong style="color:#16150f;">${escaparHtml(d.numero)}</strong>
+  ${sinPago ? "Tu" : "Recibimos tu pago. Tu"} pedido <strong style="color:#16150f;">${escaparHtml(d.numero)}</strong>
   ya está en preparación.
 </p>
 
@@ -263,7 +357,7 @@ export function mailConfirmacion(d: DatosMail): Envio {
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
-
+${bloqueSuscriptor(d)}
 <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e3e0d8;">
   <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#78756c;margin-bottom:6px;">Envío a</div>
   <div style="font-size:14px;line-height:1.6;">
@@ -294,6 +388,8 @@ ${d.items
   .map((i) => {
     const descuento = [
       i.descuento > 0 ? `${textoPorcentaje(i.descuento)}% off` : null,
+      i.cupon ? "cupón de bienvenida" : null,
+      i.saldo ? "con tu saldo" : null,
       i.descuentoDineroMP ? `${i.descuentoDineroMP}% por dinero en Mercado Pago` : null,
     ]
       .filter(Boolean)
@@ -306,7 +402,7 @@ Subtotal: ${formatearPrecio(d.subtotal)}
 Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
 Total: ${formatearPrecio(d.total)}
 
-Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
+${lineasSuscriptor(d).length > 0 ? `${TEXTOS.suscriptores.etiqueta}\n${lineasSuscriptor(d).join("\n")}\nTu saldo: ${d.sitio}/suscriptores/mi-cuenta\n\n` : ""}Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
 ${graduados ? `\n${TEXTO_GRADUADOS_PEDIDO}\nWhatsApp: ${graduados}\n` : ""}
 Consultas: ${d.config.emailContacto}`;
 
@@ -331,6 +427,7 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
       d.conDineroMP ? " · dinero en Mercado Pago" : ""
     }</p>
 ${d.alerta ? `<p style="margin:0 0 24px;padding:12px 14px;border:1px solid #a1281b;color:#a1281b;font-size:14px;line-height:1.6;">${escaparHtml(d.alerta)}</p>` : ""}
+${lineaSuscriptorInterna(d) ? `<p style="margin:0 0 24px;padding:12px 14px;background:#004226;color:#ffffff;font-size:14px;line-height:1.6;">${escaparHtml(lineaSuscriptorInterna(d)!)}${d.suscriptor && avisoDevolucionSaldo(d.suscriptor) ? `<br>${escaparHtml(avisoDevolucionSaldo(d.suscriptor)!)}` : ""}</p>` : ""}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   ${filasDeItems(d.items, d.sitio)}
@@ -367,7 +464,7 @@ ${
   );
 
   const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " (dinero en Mercado Pago)" : ""}
-${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}
+${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}${lineaSuscriptorInterna(d) ? `\n${lineaSuscriptorInterna(d)}${d.suscriptor && avisoDevolucionSaldo(d.suscriptor) ? `\n${avisoDevolucionSaldo(d.suscriptor)}` : ""}\n` : ""}
 ${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join("\n")}
 ${d.cupon ? `Cupón ${d.cupon}\n` : ""}
 ${d.cliente.nombre}
@@ -378,7 +475,7 @@ Airtable: ${d.pedidoUrl}`;
 
   return {
     para: d.config.emailPedidos,
-    asunto: `${d.alerta ? "REVISAR " : ""}Venta ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " · dinero en Mercado Pago" : ""}${aCuit ? " · factura a CUIT" : ""}`,
+    asunto: `${d.alerta ? "REVISAR " : ""}Venta ${d.numero} — ${formatearPrecio(d.total)}${d.suscriptor ? (d.total === 0 ? " · pagada con saldo" : " · suscriptor") : ""}${d.conDineroMP ? " · dinero en Mercado Pago" : ""}${aCuit ? " · factura a CUIT" : ""}`,
     html,
     texto,
     responderA: d.cliente.email,
@@ -437,6 +534,102 @@ export function mailCodigoDeAcceso(d: { email: string; codigo: string; config: C
   };
 }
 
+/**
+ * El código para suscribirse o entrar como suscriptor
+ * (app/api/suscriptores/codigo). Solo el código: ningún dato de la persona.
+ */
+export function mailCodigoSuscriptor(d: { email: string; codigo: string; config: ConfigTienda }): Envio {
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Tu código de Harper</h1>
+<p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">
+  Escribilo en harper.ar para confirmar tu mail. Vence en 10 minutos.
+</p>
+<div style="font-size:28px;letter-spacing:8px;padding:16px;background:#f2f0ec;border:1px solid #e3e0d8;text-align:center;">
+  ${escaparHtml(d.codigo)}
+</div>
+<p style="margin:24px 0 0;font-size:12px;color:#78756c;line-height:1.6;">
+  Si no lo pediste, ignorá este mail: sin el código no pasa nada.
+</p>`,
+    d.config
+  );
+
+  return {
+    para: d.email,
+    asunto: `${d.codigo} es tu código de Harper`,
+    html,
+    texto: `Tu código de Harper: ${d.codigo}\n\nEscribilo en harper.ar para confirmar tu mail. Vence en 10 minutos.\n\nSi no lo pediste, ignorá este mail: sin el código no pasa nada.`,
+    responderA: d.config.emailContacto,
+  };
+}
+
+/** Los beneficios, en el orden y con las palabras de la web (TEXTOS.suscriptores). */
+export function beneficiosDeSuscriptor(d: { cuponDisponible: boolean; cuotas: CuotasVerificadas | null }): string[] {
+  const { beneficios } = TEXTOS.suscriptores;
+  return [
+    d.cuponDisponible ? beneficios.cupon(formatearPrecio(CUPON_BIENVENIDA)) : null,
+    beneficios.cashback(CASHBACK_PORCENTAJE, DIAS_PARA_USAR_CASHBACK),
+    beneficios.envio,
+    // Las cuotas, solo si Mercado Pago las confirmó al mandar el mail.
+    d.cuotas ? beneficios.cuotas(d.cuotas.cuotas, NOMBRE_MARCAS, d.cuotas.cftea) : null,
+  ].filter((l): l is string => l !== null);
+}
+
+/**
+ * La bienvenida de un suscriptor nuevo (Ale, 03/11/2026): los beneficios,
+ * cómo se usan, el enlace a su cuenta y el de la baja.
+ */
+export function mailBienvenidaSuscriptor(d: {
+  email: string;
+  nombre: string;
+  cuponDisponible: boolean;
+  /** Las cuotas de suscriptor verificadas con Mercado Pago; null no las nombra. */
+  cuotas: CuotasVerificadas | null;
+  sitio: string;
+  /** El enlace firmado para darse de baja (lib/suscriptores-sesion.ts). */
+  enlaceBaja: string | null;
+  config: ConfigTienda;
+}): Envio {
+  const beneficios = beneficiosDeSuscriptor(d);
+  const cuenta = `${d.sitio}/suscriptores/mi-cuenta`;
+  const saludo = d.nombre ? `Hola, ${d.nombre.split(" ")[0]}. Desbloqueaste tus beneficios de Harper.` : "Desbloqueaste tus beneficios de Harper.";
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">${escaparHtml(saludo)}</h1>
+<p style="margin:0 0 20px;font-size:14px;color:#78756c;line-height:1.6;">Esto es lo que tenés:</p>
+<ul style="margin:0 0 20px;padding-left:18px;font-size:14px;line-height:1.7;">
+  ${beneficios.map((b) => `<li>${escaparHtml(b)}</li>`).join("\n  ")}
+</ul>
+<p style="margin:0 0 24px;font-size:14px;line-height:1.6;">${escaparHtml(TEXTOS.suscriptores.comoUsarlos)}</p>
+<p style="margin:0 0 24px;">
+  <a href="${escaparHtml(cuenta)}" style="display:inline-block;background:#16150f;color:#faf9f6;text-decoration:none;padding:14px 24px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;">Ver mi cuenta</a>
+</p>${
+      d.enlaceBaja
+        ? `
+<p style="margin:0;font-size:12px;color:#78756c;line-height:1.6;">
+  Si no querés recibir más nuestros mails, <a href="${escaparHtml(d.enlaceBaja)}" style="color:#78756c;">date de baja acá</a>. También perdés los beneficios.
+</p>`
+        : ""
+    }`,
+    d.config
+  );
+
+  return {
+    para: d.email,
+    asunto: "Desbloqueaste tus beneficios de Harper",
+    html,
+    texto: `${saludo}
+
+Esto es lo que tenés:
+${beneficios.map((b) => `- ${b}`).join("\n")}
+
+${TEXTOS.suscriptores.comoUsarlos}
+
+Tu cuenta: ${cuenta}
+${d.enlaceBaja ? `\nPara darte de baja (dejás de recibir mails y perdés los beneficios): ${d.enlaceBaja}\n` : ""}
+Consultas: ${d.config.emailContacto}`,
+    responderA: d.config.emailContacto,
+  };
+}
+
 /** 4 — El pedido salió, con el número de seguimiento. */
 export function mailEnviado(
   d: DatosMail & { tracking: string }
@@ -469,6 +662,8 @@ type DatosArrepentimiento = {
   config: ConfigTienda;
   /** Por qué no se pudo guardar en Airtable, si no se pudo. */
   errorRegistro?: string;
+  /** Qué pasó con el cashback de suscriptor del pedido (lib/arrepentimiento-servidor.ts), si tiene. */
+  notaSaldo?: string | null;
 };
 
 /**
@@ -534,7 +729,9 @@ export function mailArrepentimientoInterno(d: DatosArrepentimiento): Envio {
   Al comprador se le mostró este código en pantalla y se le envía por email. Si ese email falla, te llega otro aviso.
   Contactalo el siguiente día hábil para coordinar el retiro sin cargo y el reintegro. Respondiendo este mail le escribís a él.
 </p>
-<p style="margin:0 0 20px;font-size:14px;line-height:1.6;${d.errorRegistro ? "color:#a1281b;" : "color:#78756c;"}">${escaparHtml(registro)}</p>
+<p style="margin:0 0 20px;font-size:14px;line-height:1.6;${d.errorRegistro ? "color:#a1281b;" : "color:#78756c;"}">${escaparHtml(registro)}</p>${
+      d.notaSaldo ? `\n<p style="margin:0 0 20px;font-size:14px;line-height:1.6;">${escaparHtml(d.notaSaldo)}</p>` : ""
+    }
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;line-height:1.6;">
   ${filas
     .map(
@@ -559,7 +756,7 @@ ${filas.map(([clave, valor]) => `${clave}: ${valor}`).join("\n")}
 Al comprador se le mostró el código en pantalla y se le envía por email. Si ese email falla, te llega otro aviso.
 Contactalo el siguiente día hábil para coordinar el retiro sin cargo y el reintegro.
 
-${registro}`,
+${registro}${d.notaSaldo ? `\n\n${d.notaSaldo}` : ""}`,
     responderA: d.solicitud.email,
   };
 }

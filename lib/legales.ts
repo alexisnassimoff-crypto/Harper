@@ -6,7 +6,7 @@
  * en el checkout y cuándo (Pedidos.Terminos_aceptados). Al publicar otra
  * versión de los Términos, se cambia esta fecha en el mismo commit.
  */
-export const VERSION_TERMINOS = "2026-10-26";
+export const VERSION_TERMINOS = "2026-11-04";
 
 /** "22 de octubre de 2026", para mostrar en la página. */
 export function versionTerminosLegible(version = VERSION_TERMINOS): string {
@@ -22,3 +22,10 @@ export function versionTerminosLegible(version = VERSION_TERMINOS): string {
 export function registroAceptacion(momento: Date, version = VERSION_TERMINOS): string {
   return `Versión ${version} · ${momento.toISOString()}`;
 }
+
+/**
+ * Versión de las condiciones de Suscriptores Harper (Ale, 03/11/2026). Cada
+ * alta guarda la que aceptó en Suscriptores.Version_condiciones. Al publicar
+ * otras condiciones, se cambia esta fecha en el mismo commit.
+ */
+export const VERSION_CONDICIONES_SUSCRIPTORES = "2026-11-04";

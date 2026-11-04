@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 // El carrito se resuelve contra el Airtable de prueba, que tiene la escala
 // «llevá 3, pagá 2 · llevá 5, pagá 3» de anteojos junto a los tramos viejos.
 process.env.HARPER_FIXTURES = "1";
+process.env.HARPER_FIXTURES_ESCALA = "1";
 delete process.env.VERCEL;
 
 import { getProductos } from "../lib/catalogo";

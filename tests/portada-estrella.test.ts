@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { anunciosDelHeader } from "../lib/anuncios";
+import { precio } from "../lib/formato";
 import { CARACTERISTICAS_ANTEOJOS } from "../lib/caracteristicas";
 import { garantiasDePortada, pasosDeCompra, preguntasDePortada } from "../lib/portada";
 import { modoDePortada } from "../lib/vitrina";
@@ -86,6 +87,31 @@ test("la barra de anuncios: el banner de Config primero, las cuotas solo si est�
     "Llevá 3, pagá 2 · Llevá 5, pagá 3 en anteojos",
     "10% OFF extra pagando con dinero en Mercado Pago",
   ]);
+});
+
+test("Suscriptores Harper en la barra: la invitación y las 6 cuotas solo si Mercado Pago las confirmó", () => {
+  const tres = { cuotas: 3, montoCuota: 29966.67, cftea: "0,00 %" };
+  const seis = { cuotas: 6, montoCuota: 14983.33, cftea: "0,00 %" };
+  assert.deepEqual(anunciosDelHeader({ banner: "Envío gratis", cuotas: tres, cuotasSuscriptor: seis, suscriptores: true }), [
+    "Envío gratis",
+    `Suscribite gratis y desbloqueá ${precio(10000)} de bienvenida y envío gratis siempre`,
+    "3 cuotas sin interés en anteojos con Visa y Mastercard · 6 si sos suscriptor · CFTEA 0,00 %",
+    "10% OFF extra pagando con dinero en Mercado Pago",
+  ]);
+  // Sin las de suscriptor confirmadas, solo las de todos.
+  assert.equal(anunciosDelHeader({ banner: "", cuotas: tres, cuotasSuscriptor: null, suscriptores: true })[1], "3 cuotas sin interés en anteojos con Visa y Mastercard · CFTEA 0,00 %");
+  // Sin ninguna confirmada, no se nombran cuotas.
+  assert.ok(!anunciosDelHeader({ banner: "", cuotas: null, suscriptores: true }).some((a) => /cuotas/.test(a)));
+});
+
+test("la pregunta de Suscriptores Harper y el envío gratis siempre, con las cuotas solo si están confirmadas", () => {
+  const preguntas = preguntasDePortada({ ...BASE, suscriptores: true, cuotasSuscriptor: { cuotas: 6, cftea: "0,00 %" } });
+  const que = preguntas.find((p) => p.pregunta === "¿Qué es Suscriptores Harper?");
+  assert.match(que?.respuesta ?? "", /^Es gratis: te suscribís con tu mail y tenés \$\s10\.000 de descuento en tu primera compra, el 10% de lo que pagás en productos de vuelta como saldo \(lo usás a los 30 días y no vence\), envío gratis siempre y 6 cuotas sin interés \(CFTEA 0,00 %\)\./);
+  assert.equal(que?.enlace?.href, "/suscriptores");
+  assert.match(preguntas.find((p) => p.pregunta === "¿Cuánto cuesta el envío?")?.respuesta ?? "", /Si sos suscriptor, es gratis siempre\./);
+  const sinCuotas = preguntasDePortada({ ...BASE, suscriptores: true }).find((p) => p.pregunta === "¿Qué es Suscriptores Harper?");
+  assert.ok(!/cuotas/.test(sinCuotas?.respuesta ?? ""));
 });
 
 test("con envío gratis en AMBA, la portada lo dice junto al de todo el país, y «Comprá seguro»", () => {

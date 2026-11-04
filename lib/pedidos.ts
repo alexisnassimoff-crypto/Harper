@@ -29,10 +29,19 @@ import {
   getTramosParaCobrar,
   porcentajeParaCantidad,
   totalConDescuento,
+  tramosVigentes,
   type Tramo,
 } from "./descuentos";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
+import {
+  aplicarBeneficios,
+  cashbackDe,
+  CUPON_BIENVENIDA,
+  cuotasMaximas,
+  type ResumenSuscriptor,
+  type SuscriptorDelCarrito,
+} from "./suscriptores";
 import type {
   Categoria,
   DestinoEnvio,
@@ -71,6 +80,12 @@ export type CarritoResuelto = {
   envioDelPedido: EnvioDelPedido;
   /** La caja a despachar. `null` si falta peso o medidas, o si no entra en un bulto. */
   paquete: Paquete | null;
+  /**
+   * Los beneficios del suscriptor reconocido por su sesión (lib/suscriptores.ts):
+   * el cupón y el saldo que se aplicaron, el saldo que tiene, el cashback que
+   * le vuelve y su tope de cuotas. Null si no hay suscriptor.
+   */
+  suscriptor: ResumenSuscriptor | null;
   /**
    * Lo que se ahorró: por volumen o con el cupón, el que se haya aplicado
    * (nunca los dos). 0 si no hubo descuento.
@@ -136,17 +151,31 @@ export async function resolverCarrito(
     eleccion?: EleccionEnvio;
     /** El código que escribió o aplicó el comprador (ver lib/cupones.ts). */
     cupon?: unknown;
+    /**
+     * El suscriptor que entró con su mail (lib/suscriptores-cuenta.ts): su
+     * cupón de bienvenida, envío gratis y, si lo pide, su saldo.
+     */
+    suscriptor?: SuscriptorDelCarrito | null;
+    /** El comprador pidió pagar con su saldo (lo único que decide el navegador). */
+    usarSaldo?: boolean;
+    /**
+     * Falso cuando el checkout rechazó el cupón (no es la primera compra con
+     * ese mail o DNI) y el comprador sigue sin él.
+     */
+    usarCupon?: boolean;
   } = {}
 ): Promise<CarritoResuelto> {
   // Para cobrar, las tres lecturas van sin cache y sin red de contención: si
   // alguna falla, explota y el checkout pide reintentar. Antes, con la tabla
   // de descuentos caída, se cobraba el precio de lista sin avisar; con Config
   // caída, un envío de respaldo distinto del que el comprador había visto.
-  const [productos, config, tramos] = await Promise.all([
+  const [productos, config, tramosLeidos] = await Promise.all([
     opciones.paraCobrar ? getProductosParaCobrar() : getProductos(),
     opciones.paraCobrar ? getConfigParaCobrar() : getConfig(),
     opciones.paraCobrar ? getTramosParaCobrar() : getTramos(),
   ]);
+  // Al cobrar, los tramos vienen crudos (ver tramosVigentes).
+  const tramos = opciones.paraCobrar ? tramosVigentes(tramosLeidos) : tramosLeidos;
 
   let items: ItemResuelto[] = [];
   const descartados: CarritoResuelto["descartados"] = [];
@@ -240,6 +269,20 @@ export async function resolverCarrito(
   items = promocion.items;
   if (promocion.cupon?.estado === "aplicado") ahorro = promocion.cupon.ahorro;
 
+  // Suscriptores Harper (Ale, 03/11/2026): primero el cupón de bienvenida
+  // (si lo tiene y hay productos) y después el saldo (si lo pidió), cada uno
+  // repartido entre los renglones (lib/suscriptores.ts). Van antes del 10%
+  // de dinero en Mercado Pago: así el saldo que usa es el mismo pague como
+  // pague, y ese 10% corre sobre lo que queda.
+  const suscriptor = opciones.suscriptor ?? null;
+  // Dado de baja: solo el saldo que ya ganó, sin beneficios nuevos.
+  const activo = Boolean(suscriptor) && suscriptor?.activo !== false;
+  const beneficios = aplicarBeneficios(items, {
+    cupon: activo && suscriptor?.cuponDisponible && opciones.usarCupon !== false ? CUPON_BIENVENIDA : 0,
+    saldo: suscriptor && opciones.usarSaldo ? suscriptor.saldoDisponible : 0,
+  });
+  items = beneficios.items;
+
   const subtotal = items.reduce((total, i) => total + i.subtotal, 0);
   const paquete =
     items.length > 0
@@ -256,7 +299,9 @@ export async function resolverCarrito(
     paquete,
     destino: opciones.destino,
     eleccion: opciones.eleccion,
+    suscriptor: activo,
   });
+  const dineroMP = items.length > 0 ? aplicarDineroMP(items) : null;
 
   return {
     items,
@@ -275,7 +320,23 @@ export async function resolverCarrito(
     tramos,
     cupon: promocion.cupon,
     subtotalSinCupon: subtotalParaEnvio,
-    dineroMP: items.length > 0 ? aplicarDineroMP(items) : null,
+    dineroMP,
+    suscriptor: suscriptor
+      ? {
+          email: suscriptor.email,
+          cupon: beneficios.cupon,
+          cuponDisponible: activo && suscriptor.cuponDisponible,
+          saldoUsado: beneficios.saldo,
+          saldoDisponible: suscriptor.saldoDisponible,
+          saldoReservado: suscriptor.saldoReservado ?? 0,
+          // El cashback es sobre lo que paga en productos: sin el envío y
+          // después del cupón y del saldo. Dado de baja, no le vuelve nada.
+          cashbackPrevisto: activo ? cashbackDe(subtotal) : 0,
+          cashbackDineroMP: activo && dineroMP ? cashbackDe(dineroMP.subtotal) : null,
+          cuotas: cuotasMaximas(activo),
+          activo,
+        }
+      : null,
   };
 }
 
@@ -309,6 +370,8 @@ async function resolverEnvio(datos: {
   paquete: Paquete | null;
   destino?: Partial<DestinoEnvio>;
   eleccion?: EleccionEnvio;
+  /** Un suscriptor reconocido: el envío es gratis en todos sus pedidos. */
+  suscriptor?: boolean;
 }): Promise<{
   envio: number;
   opcionesEnvio: OpcionEnvio[];
@@ -319,7 +382,9 @@ async function resolverEnvio(datos: {
 }> {
   const hayItems = datos.items.length > 0;
   const umbrales = { amba: datos.config.envioGratisAmbaDesde, nacional: datos.config.envioGratisDesde };
-  const gratisEn = (zona: ZonaEnvio | null) => hayItems && esEnvioGratis(datos.subtotal, zona, umbrales);
+  // Si compra un suscriptor, el envío es gratis siempre (lib/suscriptores.ts).
+  const suscriptor = Boolean(datos.suscriptor);
+  const gratisEn = (zona: ZonaEnvio | null) => hayItems && (suscriptor || esEnvioGratis(datos.subtotal, zona, umbrales));
 
   const destino = destinoCompleto(datos.destino);
   const paquete = paqueteParaEnvia(datos.paquete, datos.config.envioPesoMinimoKg);

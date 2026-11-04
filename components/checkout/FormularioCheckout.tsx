@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
-import { NOMBRE_MARCAS } from "@/lib/cuotas";
+import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { esEnvioGratis, textoEnvioGratis } from "@/lib/envio-gratis";
 import {
   CONDICIONES_IVA,
@@ -17,6 +17,7 @@ import {
   type Facturacion,
 } from "@/lib/facturacion";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
+import { TEXTOS } from "@/lib/textos";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, DestinoEnvio, EleccionEnvio } from "@/lib/tipos";
@@ -28,6 +29,8 @@ import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import CodigoDescuento from "./CodigoDescuento";
 import { PROVINCIAS } from "./provincias";
 import ReconocerComprador from "./ReconocerComprador";
+import SuscriptorEnCheckout from "./SuscriptorEnCheckout";
+import { DIAS_PARA_USAR_CASHBACK } from "@/lib/suscriptores";
 import { marcarCuponBienvenidaUsado } from "@/components/carrito/cuponUsado";
 import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import { useCotizacionEnvio, type Cotizacion } from "./useEnvio";
@@ -91,6 +94,10 @@ type RespuestaCheckout = {
   envio?: Cotizacion;
   /** El cupón no corresponde (por ejemplo, no es la primera compra). */
   cuponRechazado?: string;
+  /** El cupón de bienvenida del suscriptor no corresponde: ya hay una compra con ese mail o DNI. */
+  cuponBienvenidaRechazado?: boolean;
+  /** La sesión de suscriptor no es la misma con la que vio el total. */
+  suscriptorCambio?: boolean;
 };
 
 const VACIO: DatosCliente = {
@@ -134,6 +141,7 @@ export default function FormularioCheckout({
   buscador = false,
   cotizaEnvio = false,
   medioInicial = "mercadopago",
+  cuotasSuscriptor = null,
 }: {
   /** Verdadero cuando vuelve de un pago rechazado: no es un checkout nuevo. */
   reintento?: boolean;
@@ -146,15 +154,28 @@ export default function FormularioCheckout({
   cotizaEnvio?: boolean;
   /** Al volver de un pago rechazado con dinero en Mercado Pago, sigue elegida. */
   medioInicial?: MedioPago;
+  /**
+   * Las cuotas de suscriptor confirmadas para los anteojos, para nombrarlas
+   * en la invitación a suscribirse. Las de esta compra se confirman aparte,
+   * con el total exacto, cuando ya es suscriptor.
+   */
+  cuotasSuscriptor?: CuotasVerificadas | null;
 }) {
   const { items, quitar, cupon, quitarCupon } = useCarrito();
+  // Suscriptores Harper (Ale, 03/11/2026): el saldo se usa salvo que lo
+  // desmarque, y el cupón de bienvenida se deja de pedir si el checkout lo
+  // rechaza (ya hay una compra con ese mail o DNI). `sesion` cambia al entrar
+  // o salir: la cookie es otra y el envío se vuelve a cotizar.
+  const [usarSaldo, setUsarSaldo] = useState(true);
+  const [usarCupon, setUsarCupon] = useState(true);
+  const [sesion, setSesion] = useState(0);
   const {
     datos: carrito,
     cargando,
     actualizando,
     error: errorCarrito,
     recargar,
-  } = useCarritoResuelto({ cuotas: true });
+  } = useCarritoResuelto({ cuotas: true, usarSaldo, usarCupon });
 
   const [form, setForm] = useState<DatosCliente>(VACIO);
   // Con los datos completos (de una compra anterior en este navegador, o con
@@ -212,7 +233,7 @@ export default function FormularioCheckout({
     listo: envioListo,
     recotizar,
     adoptar: adoptarEnvio,
-  } = useCotizacionEnvio(destino, cupon, cotizaEnvio);
+  } = useCotizacionEnvio(destino, cupon, cotizaEnvio, { usarSaldo, usarCupon, sesion });
   // Si toca Pagar mientras se calcula el envío de su dirección, se guarda el
   // total que estaba viendo: al llegar la cotización se sigue solo si el
   // total no cambió.
@@ -250,6 +271,7 @@ export default function FormularioCheckout({
     subtotal: carrito?.subtotal ?? 0,
     ahorro: carrito?.ahorro ?? 0,
     envio,
+    suscriptor: carrito?.suscriptor,
   });
   const resumenDineroMP = carrito?.dineroMP
     ? desglosar({
@@ -257,6 +279,7 @@ export default function FormularioCheckout({
         ahorro: carrito.ahorro,
         ahorroDineroMP: carrito.dineroMP.ahorro,
         envio,
+        suscriptor: carrito.suscriptor,
       })
     : null;
   const resumen = medioPago === "dineroMP" && resumenDineroMP ? resumenDineroMP : resumenMercadoPago;
@@ -372,6 +395,13 @@ export default function FormularioCheckout({
   // El email no se guarda mientras se escribe: recién al enviar el pedido.
   // Sin una base legal y el consentimiento que correspondan, quien no
   // terminó la compra no recibe campañas de recuperación ni promociones.
+
+  // Un suscriptor reconocido que todavía no escribió su mail: se completa con
+  // el de su cuenta (lo puede cambiar).
+  const emailSuscriptor = carrito?.suscriptor?.email ?? null;
+  useEffect(() => {
+    if (emailSuscriptor) setForm((f) => (f.email.trim() ? f : { ...f, email: emailSuscriptor }));
+  }, [emailSuscriptor]);
 
   // InitiateCheckout: una vez por visita al checkout, con el carrito ya
   // resuelto (valor e ítems reales). Ni con carrito vacío ni al volver de un
@@ -682,6 +712,11 @@ export default function FormularioCheckout({
           cupon,
           // Solo cómo paga: el 10% por dinero en Mercado Pago también lo calcula el servidor.
           medioPago,
+          // El suscriptor: si usa su saldo y si sigue pidiendo el cupón. Los montos, del servidor.
+          usarSaldo,
+          usarCupon,
+          // Con qué sesión de suscriptor vio ese total (o sin ninguna).
+          suscriptorVisto: carrito?.suscriptor?.email ?? null,
         }),
       });
 
@@ -715,6 +750,25 @@ export default function FormularioCheckout({
         // Ya compró: que la ficha deje de ofrecérselo.
         if (buscarCupon(cuerpo.cuponRechazado)?.soloPrimeraCompra) marcarCuponBienvenidaUsado();
         setFallo(`${cuerpo.error ?? "El cupón no se pudo aplicar."} Revisá el total antes de pagar.`);
+        setEnviando(false);
+        return;
+      }
+
+      // El cupón de bienvenida del suscriptor no corresponde: se deja de pedir
+      // (el carrito y el envío se vuelven a pedir solos sin él) y ve el
+      // total nuevo antes de pagar. Sigue con el envío gratis y las cuotas.
+      if (respuesta.status === 409 && cuerpo.cuponBienvenidaRechazado) {
+        setUsarCupon(false);
+        setFallo(`${cuerpo.error ?? TEXTOS.suscriptores.cuponRechazado} Revisá el total antes de pagar.`);
+        setEnviando(false);
+        return;
+      }
+
+      // La sesión de suscriptor cambió: se vuelve a pedir el carrito (con o sin
+      // beneficios) y ve el total nuevo antes de pagar.
+      if (respuesta.status === 409 && cuerpo.suscriptorCambio) {
+        recargar();
+        setFallo(cuerpo.error ?? TEXTOS.suscriptores.sesionCambio);
         setEnviando(false);
         return;
       }
@@ -785,6 +839,17 @@ export default function FormularioCheckout({
   // desde otro (los dos sobre el subtotal sin el cupón, como el servidor).
   const umbrales = { amba: carrito.envioGratisAmbaDesde ?? 0, nacional: carrito.envioGratisDesde };
   const gratisEnAmba = esEnvioGratis(carrito.subtotalSinCupon ?? carrito.subtotal, "amba", umbrales);
+  // Un suscriptor tiene el envío gratis siempre (lib/suscriptores.ts): no hay mínimo que anunciar.
+  const conSuscriptor = Boolean(carrito.suscriptor);
+  // Lo que le vuelve como saldo, con el medio de pago elegido (el 10% de dinero
+  // en Mercado Pago baja lo que paga en productos, y con eso el cashback).
+  const cashback = carrito.suscriptor
+    ? medioPago === "dineroMP"
+      ? (carrito.suscriptor.cashbackDineroMP ?? carrito.suscriptor.cashbackPrevisto)
+      : carrito.suscriptor.cashbackPrevisto
+    : 0;
+  // Todo pagado con el saldo del suscriptor: no hay nada que pagar y no pasa por Mercado Pago.
+  const sinPago = resumen.total === 0 && conSuscriptor;
 
   // Con envío gratis y cotizado, el precio real tachado: lo paga Harper.
   // Mientras se cotiza la dirección, no se anuncia un precio que va a cambiar.
@@ -810,9 +875,11 @@ export default function FormularioCheckout({
   const notaEnvio = opcionEnvio
     ? (opcionEnvio.plazo ? `${opcionEnvio.plazo}.` : "Envío a domicilio.") +
       (cotizacion && !cotizacion.bonificado && cotizacion.gratisDesde > 0 ? ` Gratis desde ${formatearPrecio(cotizacion.gratisDesde)}.` : "")
-    : // Sin cotizar para una dirección que no se sabe si es AMBA: no se le
-      // anuncia el mínimo de AMBA al lado de un envío que se cobra.
-      textoEnvioGratis(cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales);
+    : conSuscriptor
+      ? TEXTOS.suscriptores.envioGratis
+      : // Sin cotizar para una dirección que no se sabe si es AMBA: no se le
+        // anuncia el mínimo de AMBA al lado de un envío que se cobra.
+        textoEnvioGratis(cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales);
   // El total del botón: mientras falta saber el envío, se aclara que se suma.
   const totalBoton = `${formatearPrecio(resumen.total)}${envioPorConocer && !gratisEnAmba ? " + envío" : ""}`;
   const listaItems = (
@@ -830,7 +897,8 @@ export default function FormularioCheckout({
             </div>
             <div className="apagado">{item.color}</div>
           </div>
-          <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal)}</span>
+          {/* Con sus promociones; el cupón y el saldo del suscriptor van en su renglón. */}
+          <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal + (item.cupon ?? 0) + (item.saldo ?? 0))}</span>
         </li>
       ))}
     </>
@@ -855,6 +923,7 @@ export default function FormularioCheckout({
             <span className="checkout__ver">Ver detalle</span>
           </summary>
           <ul>{listaItems}</ul>
+          <LineasSuscriptor cupon={resumen.cupon} saldo={resumen.saldo} />
           {resumen.dineroMP > 0 ? (
             <div className="fila" style={{ color: "var(--verde)" }}>
               <span>Dinero en Mercado Pago ({carrito.dineroMP?.porcentaje}%)</span>
@@ -934,6 +1003,23 @@ export default function FormularioCheckout({
             />
           )}
         </section>
+
+        {/* Suscriptores Harper: la invitación con el mail de arriba, o con qué
+            mail compra y si usa su saldo. */}
+        <SuscriptorEnCheckout
+          suscriptor={carrito.suscriptor ?? null}
+          email={form.email}
+          nombre={form.nombre}
+          cuotasSuscriptor={cuotasSuscriptor}
+          usarSaldo={usarSaldo}
+          alCambiarSaldo={setUsarSaldo}
+          alCambiarSesion={() => {
+            setUsarCupon(true);
+            setSesion((n) => n + 1);
+            recargar();
+          }}
+          bloqueado={enviando}
+        />
 
         {/* ---------- 2. Entrega ---------- */}
         <section className="checkout__paso" aria-labelledby="paso-entrega">
@@ -1119,7 +1205,9 @@ export default function FormularioCheckout({
           </h2>
           {/* Medio de pago. Cada opción muestra su total, y el resumen y el
               botón cambian al instante. Las dos se pagan en Mercado Pago. */}
-          {resumenDineroMP && carrito.dineroMP ? (
+          {sinPago ? (
+            <p className="apagado">{TEXTOS.suscriptores.sinPago}</p>
+          ) : resumenDineroMP && carrito.dineroMP ? (
             // Mientras se envía, no se cambia: lo que se ve es lo que se cobra.
             <fieldset className="medio-pago" disabled={enviando}>
               <legend className="visualmente-oculto">Medio de pago</legend>
@@ -1261,15 +1349,18 @@ export default function FormularioCheckout({
           </p>
         </div>
 
-        <label className="checkout__promos">
-          <input
-            type="checkbox"
-            name="aceptaPromos"
-            checked={form.aceptaPromos}
-            onChange={(e) => actualizar("aceptaPromos", e.target.checked)}
-          />
-          Quiero recibir novedades y promociones de Harper.
-        </label>
+        {/* Un suscriptor ya aceptó los mails al suscribirse. */}
+        {conSuscriptor ? null : (
+          <label className="checkout__promos">
+            <input
+              type="checkbox"
+              name="aceptaPromos"
+              checked={form.aceptaPromos}
+              onChange={(e) => actualizar("aceptaPromos", e.target.checked)}
+            />
+            Quiero recibir novedades y promociones de Harper.
+          </label>
+        )}
       </div>
 
       <aside
@@ -1296,10 +1387,13 @@ export default function FormularioCheckout({
 
         {resumen.descuento > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>{carrito.cupon?.estado === "aplicado" ? `Cupón ${carrito.cupon.codigo}` : "Descuento"}</span>
+            <span>
+              {carrito.cupon?.estado === "aplicado" ? `Cupón ${carrito.cupon.codigo}` : "Descuento"}
+            </span>
             <span>−{formatearPrecio(resumen.descuento)}</span>
           </div>
         ) : null}
+        <LineasSuscriptor cupon={resumen.cupon} saldo={resumen.saldo} />
 
         {resumen.dineroMP > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
@@ -1331,6 +1425,10 @@ export default function FormularioCheckout({
           <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.ahorroTotal)}!</p>
         ) : null}
 
+        {cashback > 0 ? (
+          <p className="checkout__cashback">{TEXTOS.suscriptores.checkoutCaja.cashback(formatearPrecio(cashback), DIAS_PARA_USAR_CASHBACK)}</p>
+        ) : null}
+
         {fallo ? (
           <p ref={avisoFallo} role="alert" style={{ color: "var(--alerta)", fontSize: "0.8125rem" }}>
             {fallo}
@@ -1345,14 +1443,24 @@ export default function FormularioCheckout({
           disabled={enviando}
           aria-disabled={pagarAlCotizar !== null || undefined}
         >
-          {enviando ? "Redirigiendo…" : pagarAlCotizar !== null ? "Calculando el envío…" : <TextoPagoSeguro total={totalBoton} />}
+          {enviando
+            ? sinPago
+              ? "Confirmando…"
+              : "Redirigiendo…"
+            : pagarAlCotizar !== null
+              ? "Calculando el envío…"
+              : sinPago
+                ? TEXTOS.suscriptores.confirmar
+                : <TextoPagoSeguro total={totalBoton} />}
         </button>
 
-        <p className="apagado checkout__pago-nota">
-          {medioPago === "dineroMP"
-            ? "Pagás en Mercado Pago, solo con el saldo de tu cuenta."
-            : "Pagás en Mercado Pago. Las cuotas y su costo los ves ahí antes de confirmar."}
-        </p>
+        {sinPago ? null : (
+          <p className="apagado checkout__pago-nota">
+            {medioPago === "dineroMP"
+              ? "Pagás en Mercado Pago, solo con el saldo de tu cuenta."
+              : "Pagás en Mercado Pago. Las cuotas y su costo los ves ahí antes de confirmar."}
+          </p>
+        )}
       </aside>
 
       <BarraPagar
@@ -1361,8 +1469,29 @@ export default function FormularioCheckout({
         total={totalBoton}
         ocupado={enviando}
         esperando={pagarAlCotizar !== null ? "Calculando el envío…" : undefined}
+        texto={sinPago ? TEXTOS.suscriptores.confirmar : undefined}
       />
     </form>
+  );
+}
+
+/** El cupón de bienvenida y el saldo del suscriptor, cada uno en su renglón del resumen. */
+function LineasSuscriptor({ cupon, saldo }: { cupon: number; saldo: number }) {
+  return (
+    <>
+      {cupon > 0 ? (
+        <div className="fila" style={{ color: "var(--verde)" }}>
+          <span>{TEXTOS.suscriptores.checkoutCaja.cupon}</span>
+          <span>−{formatearPrecio(cupon)}</span>
+        </div>
+      ) : null}
+      {saldo > 0 ? (
+        <div className="fila" style={{ color: "var(--verde)" }}>
+          <span>{TEXTOS.suscriptores.checkoutCaja.saldo}</span>
+          <span>−{formatearPrecio(saldo)}</span>
+        </div>
+      ) : null}
+    </>
   );
 }
 

@@ -127,9 +127,7 @@ export function elegirSugerencias(
     );
   }
 
-  const disponibles = productos.filter(
-    (p) => !productosEnCarrito.has(p.id) && !p.agotado
-  );
+  const disponibles = productos.filter((p) => !productosEnCarrito.has(p.id) && !p.agotado);
 
   const elegidas: Sugerencia[] = [];
   const yaElegidos = new Set<string>();
