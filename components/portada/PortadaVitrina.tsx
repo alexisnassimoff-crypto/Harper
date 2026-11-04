@@ -21,7 +21,7 @@ import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { armarPack, cantidadesDePack, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
-import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, CUPON_BIENVENIDA as CUPON_SUSCRIPTOR } from "@/lib/suscriptores";
+import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
 import BeneficiosSuscriptor from "@/components/suscriptores/BeneficiosSuscriptor";
@@ -258,7 +258,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
           precio: precio ? formatearPrecio(precio) : null,
           cuota: textoCuota(cuota1),
           letraChica,
-          suscribite: TEXTOS.suscriptores.enlacePortada(formatearPrecio(CUPON_SUSCRIPTOR)),
+          // Ale, 04/11/2026: sin la línea «Suscribite gratis y desbloqueá $ 10.000…» debajo del botón.
+          suscribite: null,
         }}
       />
 

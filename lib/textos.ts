@@ -17,7 +17,8 @@
 
 export const TEXTOS = {
   portada: {
-    titulo: "Los anteojos también se eligen como la ropa.",
+    /** Ale, 04/11/2026: en lugar de «Los anteojos también se eligen como la ropa.» */
+    titulo: "Suscribite gratis y desbloqueá tus beneficios.",
     /** La frase de antes de la portada; ahora abre «Un mismo par». */
     sensacion: "Salís a la calle y se oscurecen solos.",
     etiqueta: "Filtro de luz azul · Fotocromáticos · UV400",
