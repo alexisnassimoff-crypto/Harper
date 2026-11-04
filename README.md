@@ -354,7 +354,8 @@ Datos fiscales en `Config` (vacíos = no se muestra nada; nunca se suponen):
 | `condicion_iva` | La condición de FOCUS VISION SRL frente al IVA: `Responsable Inscripto`, `Monotributo` o `Exento`. Decide la clase de cada factura (ver "Datos de facturación") | El contador |
 
 **Cuotas.** Por ahora 6 cuotas sin interés para todos, también suscriptores
-(Ale, 04/11/2026; es el tope de cuotas de la preferencia de Mercado Pago). Para
+(Ale, 04/11/2026). La preferencia de Mercado Pago deja elegir hasta 12, como
+siempre (las que tienen interés las muestra Mercado Pago con su costo). Para
 volver a separar 3 para todos y 6 para suscriptores alcanza con bajar
 `CUOTAS_TODOS` en `lib/suscriptores.ts`: la web vuelve a anunciar las de
 suscriptor y a limitar las cuotas de cada pago. `NEXT_PUBLIC_CUOTAS` es

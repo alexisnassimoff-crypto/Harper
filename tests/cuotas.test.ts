@@ -170,7 +170,7 @@ test("cada cantidad se verifica aparte con Mercado Pago, y sin cuotas de suscrip
   }
 });
 
-test("la preferencia de Mercado Pago: tope de 6 cuotas para todos (también suscriptores), el que se le pida, y 1 con dinero en cuenta", async () => {
+test("la preferencia de Mercado Pago: hasta 12 cuotas como siempre, el tope que se le pida, y 1 con dinero en cuenta", async () => {
   const { crearPreferencia } = await import("../lib/mercadopago");
   const cuerpos: { payment_methods: { installments: number } }[] = [];
   const fetchReal = globalThis.fetch;
@@ -193,7 +193,7 @@ test("la preferencia de Mercado Pago: tope de 6 cuotas para todos (también susc
     await crearPreferencia({ ...base, cuotasMaximas: cuotasMaximas(true) });
     await crearPreferencia({ ...base, cuotasMaximas: 3 });
     await crearPreferencia({ ...base, cuotasMaximas: cuotasMaximas(true), soloDineroEnCuenta: true });
-    assert.deepEqual(cuerpos.map((c) => c.payment_methods.installments), [6, 6, 3, 1]);
+    assert.deepEqual(cuerpos.map((c) => c.payment_methods.installments), [12, 6, 3, 1]);
   } finally {
     globalThis.fetch = fetchReal;
     delete process.env.MP_ACCESS_TOKEN;
