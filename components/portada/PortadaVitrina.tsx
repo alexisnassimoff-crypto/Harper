@@ -253,7 +253,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
         datos={{
           etiqueta: confirmados ? TEXTOS.portada.etiqueta : lineaVitrina.nombre,
           titulo: config.portadaTitulo || TEXTOS.portada.titulo,
-          bajada: config.portadaSubtitulo || TEXTOS.portada.bajadaMarca,
+          // Ale, 04/11/2026: sin la frase del accesorio debajo del título.
+          bajada: config.portadaSubtitulo || null,
           boton: TEXTOS.portada.boton,
           precio: precio ? formatearPrecio(precio) : null,
           cuota: textoCuota(cuota1),
