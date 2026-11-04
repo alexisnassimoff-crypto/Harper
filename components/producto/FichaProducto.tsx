@@ -1,6 +1,5 @@
 "use client";
 
-import MensajesConfianza from "@/components/MensajesConfianza";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
@@ -9,6 +8,7 @@ import { useAvisoCookiesAbierto } from "@/components/AvisoCookies";
 import CtaFija from "./CtaFija";
 import Galeria from "./Galeria";
 import ConsultaGraduados from "./ConsultaGraduados";
+import { Acordeon, CondicionesCompra, CristalesFotocromaticos, MedidasYTalle } from "./InfoFicha";
 import CuponBienvenida from "./CuponBienvenida";
 import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import OfertaCantidad from "./OfertaCantidad";
@@ -16,7 +16,10 @@ import OpcionesPares, { type OpcionPares } from "./OpcionesPares";
 import HojaPack, { type ColorDeADos, type HojaPackControl } from "@/components/HojaPack";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { parrafosDe } from "@/lib/descripcion";
-import type { Confianza } from "@/lib/confianza";
+import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, type Confianza } from "@/lib/confianza";
+import { esCategoriaDeAnteojos } from "@/lib/categorias";
+import { condicionesDeCompra, talleDe } from "@/lib/ficha";
+import { TEXTOS } from "@/lib/textos";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
@@ -172,13 +175,22 @@ export default function FichaProducto({
     ? `Precio de contado ${formatearPrecio(producto.precio)} · CFTEA ${cuotas.cftea} · ${NOMBRE_MARCAS}`
     : null;
 
-  const medidas = producto.medidas
-    ? [
-        producto.medidas.frenteMm ? { nombre: "Frente", valor: producto.medidas.frenteMm } : null,
-        producto.medidas.puenteMm ? { nombre: "Puente", valor: producto.medidas.puenteMm } : null,
-        producto.medidas.patillaMm ? { nombre: "Patilla", valor: producto.medidas.patillaMm } : null,
-      ].filter((m): m is { nombre: string; valor: number } => m !== null)
-    : [];
+  // Medidas y talle: en los anteojos, con la guía aunque falten las medidas (lib/ficha.ts).
+  const conTalle = esCategoriaDeAnteojos(producto.categoria);
+  const talle = talleDe(producto.medidas);
+  function verMedidas() {
+    const seccion = document.getElementById("medidas") as HTMLDetailsElement | null;
+    if (!seccion) return;
+    seccion.open = true;
+    seccion.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Envío, devolución, cambios, garantía y pago, con sus enlaces a la vista.
+  const condiciones = condicionesDeCompra(confianza, {
+    diasArrepentimiento: DIAS_ARREPENTIMIENTO,
+    diasCambio: DIAS_CAMBIO,
+    mesesGarantia: MESES_GARANTIA,
+  });
 
   const detalles = [
     producto.material ? { nombre: "Armazón", valor: producto.material } : null,
@@ -330,6 +342,21 @@ export default function FichaProducto({
 
         {pares ? <OpcionesPares opciones={pares.opciones} elegida={paresElegidos} alElegir={setParesElegidos} /> : null}
 
+        {/* El talle a mano antes de comprar: abre la sección de medidas. */}
+        {conTalle ? (
+          <p className="ficha-producto__talle">
+            {talle ? (
+              <>
+                <span className="label">Talle</span> {talle}
+                <span aria-hidden="true"> · </span>
+              </>
+            ) : null}
+            <button type="button" className="enlace-accion" onClick={verMedidas}>
+              {TEXTOS.ficha.talle.verMedidas}
+            </button>
+          </p>
+        ) : null}
+
         {/* Compra */}
         <div ref={bloqueCompra} className="pila" style={{ gap: "0.75rem" }}>
           {conPack ? (
@@ -378,7 +405,7 @@ export default function FichaProducto({
             (confirmados en lib/caracteristicas.ts): una consulta, no una venta. */}
         {caracteristicas ? <ConsultaGraduados modelo={producto.nombre} whatsapp={whatsapp} /> : null}
 
-        <MensajesConfianza mensajes={confianza} variante="lista" />
+        <CondicionesCompra condiciones={condiciones} />
 
         {/* Sin escala, la promoción del segundo par en una línea (solo
             anteojos); con la escala, las opciones de arriba ya la cuentan. */}
@@ -393,53 +420,52 @@ export default function FichaProducto({
           />
         )}
 
-        {incluye.length > 0 ? (
-          <section className="pila ficha-producto__bloque">
-            <h2 className="label">Incluye</h2>
-            <ul className="lista-incluye">
-              {incluye.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+        {/* Lo largo, en secciones que se abren de a una (como Etnia Barcelona en el celular). */}
+        <div className="ficha-acordeones">
+          {conTalle ? (
+            <Acordeon id="medidas" titulo={TEXTOS.ficha.talle.titulo} extra={talle}>
+              <MedidasYTalle medidas={producto.medidas} modelo={producto.nombre} whatsapp={whatsapp} />
+            </Acordeon>
+          ) : null}
 
-        {medidas.length > 0 || detalles.length > 0 ? (
-          <section className="pila ficha-producto__bloque">
-            <h2 className="label">Detalles</h2>
-            {medidas.length > 0 ? (
-              <ul className="medidas" aria-label="Medidas en milímetros">
-                {medidas.map((m) => (
-                  <li key={m.nombre} className="medidas__item">
-                    <span className="medidas__nombre">{m.nombre}</span>
-                    <span className="medidas__valor">{m.valor} mm</span>
-                  </li>
+          {caracteristicas ? (
+            <Acordeon titulo={TEXTOS.ficha.cristales.titulo}>
+              <CristalesFotocromaticos />
+            </Acordeon>
+          ) : null}
+
+          {parrafos.length > 0 || detalles.length > 0 ? (
+            <Acordeon titulo="Descripción">
+              {parrafos.length > 0 ? (
+                <div className="descripcion">
+                  {parrafos.map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </div>
+              ) : null}
+              {detalles.length > 0 ? (
+                <dl className="detalles">
+                  {detalles.map((d) => (
+                    <div key={d.nombre} className="detalles__fila">
+                      <dt>{d.nombre}</dt>
+                      <dd>{d.valor}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+            </Acordeon>
+          ) : null}
+
+          {incluye.length > 0 ? (
+            <Acordeon titulo="Qué incluye">
+              <ul className="lista-incluye">
+                {incluye.map((item) => (
+                  <li key={item}>{item}</li>
                 ))}
               </ul>
-            ) : null}
-            {detalles.length > 0 ? (
-              <dl className="detalles">
-                {detalles.map((d) => (
-                  <div key={d.nombre} className="detalles__fila">
-                    <dt>{d.nombre}</dt>
-                    <dd>{d.valor}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
-          </section>
-        ) : null}
-
-        {parrafos.length > 0 ? (
-          <section className="pila ficha-producto__bloque">
-            <h2 className="label">Descripción</h2>
-            <div className="descripcion">
-              {parrafos.map((p, i) => (
-                <p key={i}>{p}</p>
-              ))}
-            </div>
-          </section>
-        ) : null}
+            </Acordeon>
+          ) : null}
+        </div>
       </div>
 
       <CtaFija

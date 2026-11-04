@@ -50,7 +50,7 @@ export default async function Terminos() {
         correspondan ya aplicados, y no se aplica al costo de envío.
       </p>
 
-      <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Envíos</h2>
+      <h2 id="envios" style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Envíos</h2>
       <p>
         Realizamos envíos a domicilio dentro de la República Argentina. El
         pedido se despacha una vez acreditado el pago; el plazo de entrega

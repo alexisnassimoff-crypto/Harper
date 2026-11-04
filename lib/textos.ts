@@ -81,6 +81,41 @@ export const TEXTOS = {
       { titulo: "De noche", texto: "Quedan claros y los seguís usando para salir." },
     ],
   },
+  /**
+   * La ficha de producto (Plan Maestro, 04/11/2026): medidas, talle y cómo
+   * funcionan los cristales. Solo lo confirmado en lib/caracteristicas.ts y
+   * cómo se comporta cualquier cristal fotocromático; nada médico.
+   */
+  ficha: {
+    talle: {
+      titulo: "Medidas y talle",
+      verMedidas: "Ver medidas y talle",
+      sinMedidas: "Estamos cargando las medidas de este modelo. Si querés saberlas ya, escribinos y te las pasamos.",
+      dibujo: "Dibujo de un anteojo de frente con las medidas marcadas",
+      guiaTitulo: "Cómo saber si te va a quedar bien",
+      guia: [
+        "Buscá unos anteojos que te queden cómodos y mirá la parte de adentro de la patilla: vas a ver tres números, por ejemplo 52□18-140.",
+        "El primero es el calibre (el ancho de cada cristal), el segundo es el puente (la parte que apoya en la nariz) y el tercero es el largo de la patilla, en milímetros.",
+        "Si el calibre y el puente de este modelo están a 2 o 3 mm de los tuyos, te va a quedar parecido. La patilla influye menos.",
+      ],
+      tallesTitulo: "Talles, por el ancho total del frente",
+      orientativo: "Es una guía: la forma de la cara también cuenta.",
+      consultar: "¿Dudas con el talle? Escribinos",
+    },
+    cristales: {
+      titulo: "Cristales fotocromáticos",
+      bajada: "Cambian solos según la luz: al sol se oscurecen y adentro vuelven a aclararse. Así usás el mismo par todo el día.",
+      puntos: [
+        { titulo: "Cómo funcionan", texto: "Reaccionan a los rayos UV del sol. Por eso se oscurecen al aire libre y no con la luz de una lámpara." },
+        { titulo: "En el auto", texto: "El parabrisas frena gran parte de los rayos UV, así que ahí adentro se oscurecen menos." },
+        { titulo: "Con frío y con calor", texto: "El frío los oscurece un poco más y el calor, un poco menos." },
+        { titulo: "Además", texto: "Filtran parte de la luz azul de las pantallas y tienen protección UV400 contra los rayos UVA y UVB." },
+      ],
+    },
+    condiciones: {
+      titulo: "Envío, devoluciones y garantía",
+    },
+  },
   cierre: {
     titulo: "¿Cuál te llevás? ¿O cuáles?",
     precio: (precio: string) => `Cada par cuesta ${precio}.`,

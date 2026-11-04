@@ -72,6 +72,7 @@ export const PRODUCTOS: RegistroFixture[] = [
     Slug: "amatista",
     Orden: 1,
     // Medidas de ejemplo, solo para ver la ficha. No son datos confirmados.
+    Calibre_mm: 52,
     Frente_mm: 140,
     Puente_mm: 19,
     Patilla_mm: 145,

@@ -46,9 +46,13 @@ type FilaProducto = {
   Alto_cm?: number;
   /** Un renglón por ítem incluido en la caja. */
   Incluye?: string;
-  Frente_mm?: number;
+  /** Los tres números de la patilla («52□18-140»): calibre, puente y patilla. */
+  Calibre_mm?: number;
   Puente_mm?: number;
   Patilla_mm?: number;
+  /** El ancho total del anteojo y el alto de cada cristal. */
+  Frente_mm?: number;
+  Alto_mm?: number;
   Material?: string;
   Lentes?: string;
 };
@@ -158,12 +162,14 @@ function armarMedidas(f: FilaProducto): Medidas | null {
   };
 
   const medidas: Medidas = {
-    frenteMm: medida(f.Frente_mm),
+    calibreMm: medida(f.Calibre_mm),
     puenteMm: medida(f.Puente_mm),
     patillaMm: medida(f.Patilla_mm),
+    frenteMm: medida(f.Frente_mm),
+    altoMm: medida(f.Alto_mm),
   };
 
-  return medidas.frenteMm || medidas.puenteMm || medidas.patillaMm ? medidas : null;
+  return Object.values(medidas).some((m) => m !== null) ? medidas : null;
 }
 
 function texto(valor: string | undefined): string | null {
