@@ -562,6 +562,30 @@ export function mailCodigoSuscriptor(d: { email: string; codigo: string; config:
   };
 }
 
+/** El código para entrar al panel privado (/panel). Solo les llega a los mails autorizados. */
+export function mailCodigoPanel(d: { email: string; codigo: string; config: ConfigTienda }): Envio {
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Tu código para el panel</h1>
+<p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">
+  Escribilo en harper.ar/panel para entrar. Vence en 10 minutos.
+</p>
+<div style="font-size:28px;letter-spacing:8px;padding:16px;background:#f2f0ec;border:1px solid #e3e0d8;text-align:center;">
+  ${escaparHtml(d.codigo)}
+</div>
+<p style="margin:24px 0 0;font-size:12px;color:#78756c;line-height:1.6;">
+  Si no lo pediste vos, alguien escribió tu mail en el panel: sin el código no puede entrar.
+</p>`,
+    d.config
+  );
+
+  return {
+    para: d.email,
+    asunto: `${d.codigo} es tu código para el panel de Harper`,
+    html,
+    texto: `Tu código para el panel de Harper: ${d.codigo}\n\nEscribilo en harper.ar/panel para entrar. Vence en 10 minutos.\n\nSi no lo pediste vos, alguien escribió tu mail en el panel: sin el código no puede entrar.`,
+  };
+}
+
 /** Los beneficios, en el orden y con las palabras de la web (TEXTOS.suscriptores). */
 export function beneficiosDeSuscriptor(d: { cuponDisponible: boolean; cuotas: CuotasVerificadas | null }): string[] {
   const { beneficios } = TEXTOS.suscriptores;

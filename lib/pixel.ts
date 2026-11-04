@@ -10,6 +10,7 @@
  */
 
 import { aceptaPublicidad } from "./consentimiento";
+import { medir } from "./medir";
 import { CLAVE_ORIGEN, fbcDesdeClickId, origenVigente, type Origen } from "./origen";
 
 declare global {
@@ -81,6 +82,8 @@ export function trackAgregarAlCarrito(datos: {
   cantidad?: number;
 }) {
   const cantidad = datos.cantidad ?? 1;
+  // El embudo del panel cuenta sin cookies y sin pedir permiso (lib/medir.ts); Meta, solo con el sí.
+  medir("carrito");
 
   return trackPixel("AddToCart", {
     ...datosDeCompra({
@@ -97,6 +100,7 @@ export function trackAgregarVarios(datos: {
   nombre: string;
 }) {
   if (datos.items.length === 0) return false;
+  medir("carrito");
 
   return trackPixel("AddToCart", {
     ...datosDeCompra({

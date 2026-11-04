@@ -19,6 +19,7 @@ import {
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { TEXTOS } from "@/lib/textos";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
+import { medir } from "@/lib/medir";
 import { desglosar } from "@/lib/resumen";
 import type { DatosCliente, DestinoEnvio, EleccionEnvio } from "@/lib/tipos";
 import type { MedioPago } from "@/lib/dinero-mp";
@@ -413,6 +414,7 @@ export default function FormularioCheckout({
     if (!carrito || carrito.items.length === 0) return;
 
     checkoutAvisado.current = true;
+    medir("checkout");
     trackPixel("InitiateCheckout", datosDeCompra({ items: carrito.items, valor: carrito.subtotal }));
   }, [carrito, reintento]);
 

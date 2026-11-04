@@ -6175,3 +6175,309 @@ main:has(.cierre:last-child) ~ .pie {
     grid-template-columns: repeat(4, auto);
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Panel privado (/panel, Ale 04/11/2026). Números en Raleway con cifras de
+   igual ancho; los títulos, como en el resto del sitio.
+   ------------------------------------------------------------------------- */
+.panel {
+  display: grid;
+  gap: 1.75rem;
+  padding-bottom: 4rem;
+}
+.panel--entrar {
+  max-width: 28rem;
+  gap: 1rem;
+}
+.panel-entrar {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+.panel-cabecera {
+  display: grid;
+  gap: 1rem;
+}
+.panel-cabecera .enlace-accion {
+  display: inline;
+  padding: 0;
+  font-size: inherit;
+}
+.panel-fechas {
+  display: grid;
+  gap: 0.75rem;
+}
+.panel-periodos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+/* Fechas a elección: los dos días y el botón, en una fila que se acomoda en el celular. */
+.panel-elegir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.panel-elegir .campo {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+.panel-elegir .campo input {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.9rem;
+}
+.panel-elegir .boton {
+  min-height: 2.5rem;
+}
+.panel-seccion code {
+  font-size: 0.8125rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  background: var(--fondo-alt);
+  word-break: break-all;
+}
+.panel-periodo {
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-pill);
+  font-size: 0.875rem;
+  text-decoration: none;
+  color: var(--texto);
+}
+.panel-periodo[aria-current="page"] {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: var(--sobre-acento);
+}
+.panel-aviso {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radio);
+  background: var(--fondo-alt);
+  border: 1px solid var(--borde);
+  font-size: 0.875rem;
+}
+.panel-seccion {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.panel-seccion h2 {
+  font-family: var(--fuente-titulos), Georgia, serif;
+  font-weight: 500;
+  font-size: 1.375rem;
+  margin: 0;
+}
+.panel-seccion__nota {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+  line-height: 1.5;
+}
+.panel-seccion__nota a,
+.panel-seccion a {
+  text-decoration: underline;
+}
+.panel-cifras {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+.panel-cifra {
+  padding: 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+}
+.panel-cifra dt {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.panel-cifra dd {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.4rem 0 0;
+}
+.panel-cifra__valor {
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.panel-cifra__detalle {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+  line-height: 1.4;
+}
+.panel-num {
+  text-align: right;
+  font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap;
+}
+.panel-tabla {
+  overflow-x: auto;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+.panel-tabla table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.panel-tabla th,
+.panel-tabla td {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--borde);
+  vertical-align: top;
+}
+.panel-tabla th {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+  background: var(--fondo-alt);
+}
+.panel-tabla th.panel-num,
+.panel-tabla td.panel-num {
+  text-align: right;
+}
+.panel-tabla tr:last-child td {
+  border-bottom: 0;
+}
+.panel-cuenta {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  overflow: hidden;
+}
+.panel-cuenta > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--borde);
+  font-size: 0.875rem;
+}
+.panel-cuenta > div:last-child {
+  border-bottom: 0;
+}
+.panel-cuenta dd {
+  margin: 0;
+  font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap;
+}
+.panel-cuenta__total {
+  font-weight: 600;
+  background: var(--fondo-alt);
+}
+/* Facturado por día: barras finas, apoyadas en la base, con su valor al pasar o al enfocar. */
+.panel-barras {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 9rem;
+  padding-top: 1.75rem;
+  border-bottom: 1px solid var(--borde);
+}
+.panel-barras__barra {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 2px;
+  max-width: 1.5rem;
+  background: var(--acento);
+  border-radius: 4px 4px 0 0;
+  outline-offset: 2px;
+}
+.panel-barras__barra::before {
+  /* Para que la barra sea fácil de tocar aunque sea baja. */
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 9rem;
+}
+.panel-barras__barra:hover::after,
+.panel-barras__barra:focus-visible::after {
+  content: attr(data-valor);
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  background: var(--tinta);
+  color: var(--hueso);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.panel-barras__eje {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  color: var(--texto-suave);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.panel-detalle summary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  margin-bottom: 0.5rem;
+}
+.panel-embudo {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.panel-embudo li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "nombre valor" "pista pista";
+  gap: 0.3rem 1rem;
+  font-size: 0.875rem;
+}
+.panel-embudo__nombre {
+  grid-area: nombre;
+}
+.panel-embudo li > .panel-num {
+  grid-area: valor;
+}
+.panel-embudo__pista {
+  grid-area: pista;
+  height: 0.5rem;
+  border-radius: 4px;
+  background: var(--fondo-alt);
+  overflow: hidden;
+}
+.panel-embudo__barra {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 4px;
+  background: var(--acento);
+}
+.panel-columnas {
+  display: grid;
+  gap: 1.75rem;
+}
+@media (min-width: 56rem) {
+  .panel-cabecera {
+    grid-template-columns: 1fr auto;
+    align-items: end;
+  }
+  .panel-columnas {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}

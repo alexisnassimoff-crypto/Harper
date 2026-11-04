@@ -3,6 +3,7 @@ import Link from "next/link";
 import VaciarCarrito from "@/components/carrito/VaciarCarrito";
 import EsperarPago from "@/components/EsperarPago";
 import EventoPixel from "@/components/EventoPixel";
+import Medir from "@/components/Medir";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { getConfig } from "@/lib/config";
 import { buscarPedido } from "@/lib/pedidos";
@@ -65,6 +66,8 @@ export default async function Gracias({
     {/* Purchase solo con el pago confirmado en Airtable. Mismo event_id que
         manda el webhook por la Conversions API, y una sola vez por pedido en
         este navegador: recargar no es otra compra. */}
+    {/* Para Vercel, una por pedido (lib/medir.ts): el panel cuenta las compras desde Airtable. */}
+    {confirmado && pedido ? <Medir evento="compra" clave={pedido.numero} /> : null}
     {confirmado && pedido && !conSaldo ? (
       <EventoPixel
         evento="Purchase"

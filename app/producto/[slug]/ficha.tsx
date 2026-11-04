@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import FichaProducto from "@/components/producto/FichaProducto";
 import EventoPixel from "@/components/EventoPixel";
+import Medir from "@/components/Medir";
 import GrillaProductos from "@/components/GrillaProductos";
 import Opiniones from "@/components/portada/Opiniones";
 import { escalaDe, getTramos, nombreDelTramo } from "@/lib/descuentos";
@@ -209,6 +210,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
       />
       {/* El mismo identificador que AddToCart y Purchase: el SKU de la
           variante con la que abre la ficha. */}
+      <Medir evento="producto" />
       <EventoPixel evento="ViewContent" data={{
         content_ids: [producto.variantes[varianteInicial]?.sku ?? producto.slug],
         content_type: "product",
