@@ -30,11 +30,11 @@ export default async function Devoluciones() {
         envío de la devolución y te reintegramos el dinero por el mismo medio de
         pago, a través de Mercado Pago.
       </p>
-      <p>El producto tiene que volver en las mismas condiciones en que lo recibiste:</p>
+      <p>Para facilitar la devolución y cuidar el producto durante el traslado, te pedimos:</p>
       <ul className="lista-legal">
         <li>
-          <strong style={{ fontWeight: 500 }}>Sin uso.</strong> Podés abrirlo y probártelo para ver
-          cómo te queda, como en un local, pero no usarlo.
+          <strong style={{ fontWeight: 500 }}>Probarlo con cuidado.</strong> Podés abrirlo y probártelo
+          para ver cómo te queda, como en un local. Evitá usarlo más allá de esa prueba.
         </li>
         <li>
           <strong style={{ fontWeight: 500 }}>Sin daños:</strong> sin rayaduras, marcas, golpes ni
@@ -45,13 +45,13 @@ export default async function Devoluciones() {
           que venía en la caja.
         </li>
         <li>
-          <strong style={{ fontWeight: 500 }}>En su empaque original</strong>, sin daños.
+          <strong style={{ fontWeight: 500 }}>Con su empaque original, si lo conservás</strong>, para protegerlo en el envío.
         </li>
       </ul>
       <p>
-        Cuando nos llega, lo revisamos. Si tiene señales de uso, daños o le falta
-        algo, no podemos aceptar la devolución: te lo avisamos y te lo enviamos de
-        vuelta.
+        Cuando nos llega, lo revisamos. Si encontramos daños o faltantes, te lo
+        informamos y evaluamos la situación conforme a la normativa aplicable.
+        Abrir el empaque no anula por sí solo el derecho de arrepentimiento.
       </p>
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Cambios</h2>
@@ -67,7 +67,7 @@ export default async function Devoluciones() {
       </p>
 
       <h2 id="garantia" style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>
-        Garantía
+        Garantía por defectos de fabricación
       </h2>
       <p>
         Todos nuestros productos tienen {MESES_GARANTIA} meses de garantía legal por{" "}

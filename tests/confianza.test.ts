@@ -12,9 +12,10 @@ test("con envío gratis configurado y sin cuotas", () => {
   assert.equal(m[0].texto, "Pagás con Mercado Pago");
   assert.match(m[1].texto, /Envío gratis desde \$\s?80\.000/);
   assert.equal(m[1].detalle, "A domicilio");
-  assert.equal(DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, "30 días para todo, sin cifras que se contradigan");
-  assert.equal(m[2].texto, `Cambios y devoluciones hasta ${DIAS_CAMBIO} días`);
-  assert.equal(m[2].detalle, "Devolución sin costo, sin uso y en su empaque");
+  assert.equal(DIAS_ARREPENTIMIENTO, 10);
+  assert.equal(DIAS_CAMBIO, 30);
+  assert.equal(m[2].texto, `Cambios hasta ${DIAS_CAMBIO} días`);
+  assert.equal(m[2].detalle, `Devolución sin costo dentro de los ${DIAS_ARREPENTIMIENTO} días`);
   assert.equal(m[2].href, "/legales/devoluciones");
 });
 

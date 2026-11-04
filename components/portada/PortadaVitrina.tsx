@@ -368,8 +368,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               <dd>OFF extra pagando con dinero en tu cuenta de Mercado Pago.</dd>
             </div>
             <div>
-              <dt>{DIAS_CAMBIO}</dt>
-              <dd>días para cambiarlo o devolverlo, sin uso y en su empaque.</dd>
+              <dt>{DIAS_ARREPENTIMIENTO}</dt>
+              <dd>días corridos para devolverlo sin costo. Cambios hasta {DIAS_CAMBIO} días.</dd>
             </div>
             <div>
               <dt>{MESES_GARANTIA}</dt>
