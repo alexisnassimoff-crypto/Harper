@@ -238,12 +238,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const parDelDia = vitrina
     .flatMap((m) => m.colores.filter((c) => c.alSol && !c.agotada).map((c) => ({ m, c })))
     .at(0);
-  const momentosDelDia = [
-    { hora: "10:15", lugar: "Café", texto: TEXTOS.unDia.cafe },
-    { hora: "16:00", lugar: "Oficina", texto: TEXTOS.unDia.oficina },
-    { hora: "19:30", lugar: "Fútbol 5", texto: TEXTOS.unDia.futbol },
-    { hora: "Domingo", lugar: "Brunch", texto: TEXTOS.unDia.brunch },
-  ];
 
   return (
     <>
@@ -308,13 +302,10 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               </div>
               <div>
                 <ol className="un-par__momentos">
-                  {momentosDelDia.map((m) => (
-                    <li key={m.hora}>
-                      <span className="un-par__hora">
-                        {m.hora}
-                        <span className="un-par__lugar">{m.lugar}</span>
-                      </span>
-                      <span className="un-par__momento">{m.texto}</span>
+                  {TEXTOS.unDia.usos.map((u) => (
+                    <li key={u.titulo}>
+                      <span className="un-par__hora">{u.titulo}</span>
+                      <span className="un-par__momento">{u.texto}</span>
                     </li>
                   ))}
                 </ol>

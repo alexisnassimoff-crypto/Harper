@@ -73,10 +73,13 @@ export const TEXTOS = {
   unDia: {
     etiqueta: "Un día cualquiera",
     titulo: "Un mismo par, de la mañana a la noche.",
-    cafe: "Adentro del café están claros. Salís a la vereda y se oscurecen.",
-    oficina: "Toda la tarde frente a la compu, con filtro de luz azul.",
-    futbol: "Después del partido ya es de noche: quedan claros y los podés seguir usando.",
-    brunch: "Mesa afuera al mediodía, con los mismos anteojos de toda la semana.",
+    /** Ale, 04/11/2026: para qué sirven, sin horarios ni lugares que segmenten. */
+    usos: [
+      { titulo: "Compu y celu", texto: "Filtran parte de la luz azul de las pantallas." },
+      { titulo: "De día, al sol", texto: "Se oscurecen solos al salir y te protegen de los rayos UV." },
+      { titulo: "Adentro", texto: "Vuelven a aclararse cuando entrás: no tenés que sacártelos." },
+      { titulo: "De noche", texto: "Quedan claros y los seguís usando para salir." },
+    ],
   },
   cierre: {
     titulo: "¿Cuál te llevás? ¿O cuáles?",
