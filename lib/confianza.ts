@@ -23,8 +23,10 @@ import { precio as formatearPrecio } from "./formato";
  * 10 días corridos para devolver una compra online y 30 días para cambios
  * comerciales de color o modelo.
  */
-export const DIAS_ARREPENTIMIENTO = 10;
-export const DIAS_CAMBIO = 30;
+// Tipadas como number: con dos literales distintos (10 y 30), TypeScript rechaza
+// las comparaciones de abajo (TS2367) y `next build` falla.
+export const DIAS_ARREPENTIMIENTO: number = 10;
+export const DIAS_CAMBIO: number = 30;
 /** La garantía legal por defectos o fallas, desde que se recibe el producto. */
 export const MESES_GARANTIA = 6;
 
