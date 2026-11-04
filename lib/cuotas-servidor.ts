@@ -1,6 +1,6 @@
 import { cuotasAnunciables, evaluarCuotas, MARCAS_VERIFICADAS, resumirCuotasMP, type CuotasVerificadas } from "./cuotas";
 import { consultarCuotas, mercadoPagoConfigurado } from "./mercadopago";
-import { CUOTAS_SUSCRIPTORES, CUOTAS_TODOS } from "./suscriptores";
+import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, CUOTAS_TODOS } from "./suscriptores";
 
 /**
  * La consulta a Mercado Pago, solo en el servidor (usa el token de MP). La
@@ -38,8 +38,9 @@ export async function verificarCuotasPara(precios: number[], pedidas: number = C
  * /suscriptores): las de cualquier comprador y las de suscriptor, cada una
  * confirmada aparte con Mercado Pago para el mismo precio (Ale, 03/11/2026).
  * Las de suscriptor van solo si son más que las de todos: con el tope de
- * `NEXT_PUBLIC_CUOTAS` en 3, serían las mismas. Si Mercado Pago tarda más de
- * `ms`, sin cuotas.
+ * `NEXT_PUBLIC_CUOTAS` en 3, serían las mismas, y mientras las cuotas no sean
+ * un beneficio de suscriptor (lib/suscriptores.ts) ni se consultan. Si
+ * Mercado Pago tarda más de `ms`, sin cuotas.
  */
 export async function cuotasDeTodosYSuscriptores(
   precios: number[],
@@ -47,7 +48,7 @@ export async function cuotasDeTodosYSuscriptores(
 ): Promise<{ todos: CuotasVerificadas | null; suscriptores: CuotasVerificadas | null }> {
   const [todos, suscriptores] = await Promise.all([
     conEspera(verificarCuotasPara(precios, CUOTAS_TODOS), ms, null),
-    conEspera(verificarCuotasPara(precios, CUOTAS_SUSCRIPTORES), ms, null),
+    CUOTAS_SON_BENEFICIO ? conEspera(verificarCuotasPara(precios, CUOTAS_SUSCRIPTORES), ms, null) : Promise.resolve(null),
   ]);
   return { todos, suscriptores: suscriptores && (!todos || suscriptores.cuotas > todos.cuotas) ? suscriptores : null };
 }

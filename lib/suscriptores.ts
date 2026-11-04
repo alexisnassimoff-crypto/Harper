@@ -30,10 +30,21 @@ export const CUPON_BIENVENIDA = 10_000;
 export const CASHBACK_PORCENTAJE = 10;
 /** Días desde el pago hasta que el cashback se puede usar: el plazo de devolución. */
 export const DIAS_PARA_USAR_CASHBACK = 30;
-/** Cuotas sin interés para cualquier comprador (tope de la preferencia). */
-export const CUOTAS_TODOS = 3;
+/**
+ * Cuotas sin interés para cualquier comprador (tope de la preferencia).
+ * Ale, 04/11/2026: por ahora 6 para todos, como siempre; separar 3 para todos
+ * y 6 para suscriptores «lo vemos más adelante». Para volver a separarlas
+ * alcanza con bajar este número: la web vuelve a anunciar las de suscriptor.
+ */
+export const CUOTAS_TODOS = 6;
 /** Cuotas sin interés para un suscriptor. */
 export const CUOTAS_SUSCRIPTORES = 6;
+/**
+ * Si las cuotas son un beneficio de suscriptor (más que las de todos). Falso
+ * mientras sean las mismas: no se nombran en los beneficios, la barra, la
+ * ficha, el checkout, los mails ni las condiciones.
+ */
+export const CUOTAS_SON_BENEFICIO = CUOTAS_SUSCRIPTORES > CUOTAS_TODOS;
 
 /** Lo que el carrito sabe del suscriptor reconocido por su sesión (lib/suscriptores-cuenta.ts). */
 export type SuscriptorDelCarrito = {

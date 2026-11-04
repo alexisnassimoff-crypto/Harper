@@ -7,6 +7,7 @@ import { precio as formatearPrecio } from "@/lib/formato";
 import { VERSION_CONDICIONES_SUSCRIPTORES, versionTerminosLegible } from "@/lib/legales";
 import {
   CASHBACK_PORCENTAJE,
+  CUOTAS_SON_BENEFICIO,
   CUOTAS_SUSCRIPTORES,
   CUOTAS_TODOS,
   CUPON_BIENVENIDA,
@@ -18,7 +19,7 @@ import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
  * Las condiciones de Suscriptores Harper (Ale, 03/11/2026): gratis, con el
  * mail; el cupón de bienvenida de $ 10.000 en la primera compra, el 10% de
  * cashback como saldo (se usa a los 30 días y no vence), envío gratis
- * siempre y 6 cuotas sin interés. Los montos y plazos salen de
+ * siempre (las cuotas, solo si son un beneficio). Los montos y plazos salen de
  * lib/suscriptores.ts, los mismos con los que cobra el servidor. Cada alta
  * guarda la versión que aceptó (lib/legales.ts): si cambian estas
  * condiciones, se cambia esa fecha en el mismo commit.
@@ -90,11 +91,13 @@ export default async function CondicionesSuscriptores() {
           <strong>Envío gratis siempre.</strong> En todas las compras que hagas como suscriptor, a cualquier dirección de la República
           Argentina a la que hagamos envíos, sin monto mínimo.
         </li>
-        <li>
-          <strong>Cuotas sin interés.</strong> Para cualquier comprador ofrecemos hasta {CUOTAS_TODOS} cuotas, y para suscriptores hasta{" "}
-          {CUOTAS_SUSCRIPTORES}, con las tarjetas y los bancos que Mercado Pago tenga sin interés para ese monto. Las anunciamos solo cuando
-          Mercado Pago las confirma, con el costo financiero total (CFTEA) al lado, y las ves antes de pagar.
-        </li>
+        {CUOTAS_SON_BENEFICIO ? (
+          <li>
+            <strong>Cuotas sin interés.</strong> Para cualquier comprador ofrecemos hasta {CUOTAS_TODOS} cuotas, y para suscriptores hasta{" "}
+            {CUOTAS_SUSCRIPTORES}, con las tarjetas y los bancos que Mercado Pago tenga sin interés para ese monto. Las anunciamos solo cuando
+            Mercado Pago las confirma, con el costo financiero total (CFTEA) al lado, y las ves antes de pagar.
+          </li>
+        ) : null}
       </ul>
 
       <h2 style={h2}>5. Cómo se aplican</h2>

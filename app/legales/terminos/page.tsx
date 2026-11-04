@@ -3,7 +3,7 @@ import { getConfig } from "@/lib/config";
 import Link from "next/link";
 import { versionTerminosLegible } from "@/lib/legales";
 import { precio as formatearPrecio } from "@/lib/formato";
-import { CASHBACK_PORCENTAJE, CUOTAS_SUSCRIPTORES, CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK } from "@/lib/suscriptores";
+import { CASHBACK_PORCENTAJE, CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK } from "@/lib/suscriptores";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones",
@@ -87,8 +87,10 @@ export default async function Terminos() {
         bienvenida de {formatearPrecio(CUPON_BIENVENIDA)} en la primera compra,
         el {CASHBACK_PORCENTAJE}% de lo pagado en productos como saldo a favor
         (se puede usar desde los {DIAS_PARA_USAR_CASHBACK} días del pago y no
-        vence), envío sin cargo en todas las compras y hasta{" "}
-        {CUOTAS_SUSCRIPTORES} cuotas sin interés cuando Mercado Pago las ofrece.
+        vence)
+        {CUOTAS_SON_BENEFICIO
+          ? `, envío sin cargo en todas las compras y hasta ${CUOTAS_SUSCRIPTORES} cuotas sin interés cuando Mercado Pago las ofrece.`
+          : " y envío sin cargo en todas las compras."}{" "}
         La baja se pide en cualquier momento, sin costo.
       </p>
 

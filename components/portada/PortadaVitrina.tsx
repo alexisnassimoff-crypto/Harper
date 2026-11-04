@@ -21,7 +21,7 @@ import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 import { armarPack, cantidadesDePack, paresDisponibles } from "@/lib/packs";
 import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
-import { CUOTAS_SUSCRIPTORES, CUPON_BIENVENIDA as CUPON_SUSCRIPTOR } from "@/lib/suscriptores";
+import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, CUPON_BIENVENIDA as CUPON_SUSCRIPTOR } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
 import BeneficiosSuscriptor from "@/components/suscriptores/BeneficiosSuscriptor";
@@ -94,11 +94,12 @@ export default async function PortadaVitrina({ productos, config }: { productos:
 
   // Las cuotas de cada monto que se anuncia, confirmadas una por una con Mercado Pago.
   const montos = [...new Set([...packs.map((p) => p.total), ...(todos ? [todos.total] : [])])];
-  // Y las de suscriptor (6) para un par, aparte: se nombran solo si Mercado Pago las confirma.
+  // Y las de suscriptor para un par, aparte: se nombran solo si son un beneficio
+  // (lib/suscriptores.ts) y Mercado Pago las confirma.
   const [verificadas, mercadoLibre, cuotasSuscriptor] = await Promise.all([
     conEspera(Promise.all(montos.map(async (m) => [m, await verificarCuotas(m)] as const)), ESPERA_CUOTAS_MS, []),
     conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, ultimoDeMercadoLibre()),
-    precio ? conEspera(verificarCuotas(precio, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
+    precio && CUOTAS_SON_BENEFICIO ? conEspera(verificarCuotas(precio, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
   ]);
   const cuotasDe = (monto: number) => verificadas.find(([m]) => m === monto)?.[1] ?? undefined;
   const opiniones = mercadoLibre?.opiniones ?? null;

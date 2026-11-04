@@ -353,8 +353,11 @@ Datos fiscales en `Config` (vacíos = no se muestra nada; nunca se suponen):
 | `impuestos_nacionales_<categoría>` | El mismo dato para una categoría con otra alícuota (`anteojos`, `estuches`, `panos`…) | El contador |
 | `condicion_iva` | La condición de FOCUS VISION SRL frente al IVA: `Responsable Inscripto`, `Monotributo` o `Exento`. Decide la clase de cada factura (ver "Datos de facturación") | El contador |
 
-**Cuotas.** 3 cuotas sin interés para todos y 6 para suscriptores (también es
-el tope de cuotas de la preferencia de Mercado Pago). `NEXT_PUBLIC_CUOTAS` es
+**Cuotas.** Por ahora 6 cuotas sin interés para todos, también suscriptores
+(Ale, 04/11/2026; es el tope de cuotas de la preferencia de Mercado Pago). Para
+volver a separar 3 para todos y 6 para suscriptores alcanza con bajar
+`CUOTAS_TODOS` en `lib/suscriptores.ts`: la web vuelve a anunciar las de
+suscriptor y a limitar las cuotas de cada pago. `NEXT_PUBLIC_CUOTAS` es
 el tope y el interruptor: sin cargar, o con menos de 2, no se anuncia ninguna.
 Cada cantidad se anuncia solo si Mercado Pago lo confirma: el servidor
 consulta `/v1/payment_methods/installments` (Visa y Mastercard, cache de una
@@ -362,6 +365,14 @@ hora) y exige esas cuotas en todos los bancos, sin interés y con CFT 0. Se
 muestran el monto por cuota que calcula Mercado Pago (con centavos), el
 precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas. En el
 panel de Mercado Pago tienen que estar activadas las 3 y las 6 sin interés.
+
+**Tipografía.** Solo dos: Raleway (next/font/google) en todo lo que va sin
+serif y Melodrama (Fontshare, ITF Free Font License) en los títulos. La
+licencia de Melodrama permite usarla gratis en la tienda y alojarla en
+harper.ar, pero no repartirla en un repositorio público ni modificar el
+archivo: por eso no está en el repo. `npm run build` y `npm run dev` corren
+primero `scripts/bajar-fuentes.mjs`, que la baja de Fontshare a `app/fuentes/`
+(ignorada por git); si no se puede bajar, la compilación se corta.
 
 ## Rutas
 

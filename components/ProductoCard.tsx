@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import FotoCruzada from "./FotoCruzada";
+import Cifras from "./Cifras";
 import { useDeslizar } from "./useDeslizar";
 import { useCarrito } from "./carrito/CarritoContexto";
 import { caracteristicasDe } from "@/lib/caracteristicas";
@@ -108,7 +109,7 @@ export default function ProductoCard({
 
       <div className="ficha__cuerpo">
         <Link href={enlace} className="ficha__titulo">
-          {producto.nombre}
+          <Cifras>{producto.nombre}</Cifras>
         </Link>
 
         {rasgos ? (

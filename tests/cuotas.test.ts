@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cuotasActivas, cuotasAnunciables, evaluarCuotas, topeDeCuotas } from "../lib/cuotas";
-import { cuotasMaximas } from "../lib/suscriptores";
+import { CUOTAS_SON_BENEFICIO, cuotasMaximas } from "../lib/suscriptores";
 
 test("sin variable no se anuncian cuotas, ni a los suscriptores", () => {
   delete process.env.NEXT_PUBLIC_CUOTAS;
@@ -26,22 +26,24 @@ test("el tope solo acepta enteros de 2 o más", () => {
   delete process.env.NEXT_PUBLIC_CUOTAS;
 });
 
-test("3 cuotas para todos y 6 para suscriptores, nunca más que el tope (Ale, 03/11/2026)", () => {
-  // El tope de la preferencia de Mercado Pago, por comprador.
-  assert.deepEqual([cuotasMaximas(false), cuotasMaximas(true)], [3, 6]);
+test("por ahora 6 cuotas para todos, también suscriptores, nunca más que el tope (Ale, 04/11/2026)", () => {
+  // El tope de la preferencia de Mercado Pago, por comprador: el mismo para todos,
+  // así que las cuotas no son un beneficio de suscriptor.
+  assert.deepEqual([cuotasMaximas(false), cuotasMaximas(true)], [6, 6]);
+  assert.equal(CUOTAS_SON_BENEFICIO, false);
 
   process.env.NEXT_PUBLIC_CUOTAS = "6";
-  assert.deepEqual([cuotasActivas(), cuotasActivas(false), cuotasActivas(true)], [3, 3, 6]);
+  assert.deepEqual([cuotasActivas(), cuotasActivas(false), cuotasActivas(true)], [6, 6, 6]);
   process.env.NEXT_PUBLIC_CUOTAS = "12";
-  assert.deepEqual([cuotasActivas(), cuotasActivas(true)], [3, 6]);
-  // Con el tope en 3, el suscriptor también ve 3; con 2, los dos ven 2.
+  assert.deepEqual([cuotasActivas(), cuotasActivas(true)], [6, 6]);
+  // Con el tope en 3, todos ven 3; con 2, todos ven 2.
   process.env.NEXT_PUBLIC_CUOTAS = "3";
   assert.deepEqual([cuotasActivas(), cuotasActivas(true)], [3, 3]);
   process.env.NEXT_PUBLIC_CUOTAS = "2";
   assert.deepEqual([cuotasActivas(), cuotasActivas(true)], [2, 2]);
   // Una cantidad pedida a mano también respeta el tope, y menos de 2 no se anuncia.
   process.env.NEXT_PUBLIC_CUOTAS = "6";
-  assert.deepEqual([cuotasAnunciables(12), cuotasAnunciables(1), cuotasAnunciables()], [6, null, 3]);
+  assert.deepEqual([cuotasAnunciables(12), cuotasAnunciables(3), cuotasAnunciables(1), cuotasAnunciables()], [6, 3, null, 6]);
   delete process.env.NEXT_PUBLIC_CUOTAS;
 });
 
@@ -122,8 +124,8 @@ test("si esas cuotas no se ofrecen, o una marca no tiene opciones, no se anuncia
   assert.equal(evaluarCuotas([], 6, 89900), null);
 });
 
-test("cada comprador, con su cantidad verificada aparte: 3 para todos y 6 para el suscriptor (Mercado Pago de prueba)", async () => {
-  const { verificarCuotas } = await import("../lib/cuotas-servidor");
+test("cada cantidad se verifica aparte con Mercado Pago, y sin cuotas de suscriptor se pregunta una sola vez (Mercado Pago de prueba)", async () => {
+  const { cuotasDeTodosYSuscriptores, verificarCuotas } = await import("../lib/cuotas-servidor");
   const costo = (n: number, tasa: number) => ({
     installments: n,
     installment_rate: tasa,
@@ -142,9 +144,17 @@ test("cada comprador, con su cantidad verificada aparte: 3 para todos y 6 para e
   process.env.MP_ACCESS_TOKEN = "TEST-prueba";
   process.env.NEXT_PUBLIC_CUOTAS = "6";
   try {
-    assert.equal((await verificarCuotas(89900))?.cuotas, 3);
+    assert.equal((await verificarCuotas(89900))?.cuotas, 6);
     assert.equal((await verificarCuotas(89900, cuotasMaximas(true)))?.cuotas, 6);
-    // Si el banco cobra interés en 6, el suscriptor no ve las 6; las 3 de todos siguen.
+    assert.equal((await verificarCuotas(89900, 3))?.cuotas, 3);
+    // Mientras las cuotas no sean un beneficio, las de suscriptor no se anuncian
+    // ni se le preguntan aparte a Mercado Pago (una consulta por marca, no dos).
+    const antesDeLasDos = pedidos.length;
+    const dos = await cuotasDeTodosYSuscriptores([89900, 120000], 5_000);
+    assert.equal(dos.todos?.cuotas, 6);
+    assert.equal(dos.suscriptores, null);
+    assert.equal(pedidos.length - antesDeLasDos, 2);
+    // Si el banco cobra interés en 6, no se anuncian 6; 3 se pueden verificar igual.
     seisConInteres = true;
     assert.equal(await verificarCuotas(89900, 6), null);
     assert.equal((await verificarCuotas(89900, 3))?.cuotas, 3);
@@ -160,7 +170,7 @@ test("cada comprador, con su cantidad verificada aparte: 3 para todos y 6 para e
   }
 });
 
-test("la preferencia de Mercado Pago: tope de 3 cuotas para todos, 6 para un suscriptor y 1 con dinero en cuenta", async () => {
+test("la preferencia de Mercado Pago: tope de 6 cuotas para todos (también suscriptores), el que se le pida, y 1 con dinero en cuenta", async () => {
   const { crearPreferencia } = await import("../lib/mercadopago");
   const cuerpos: { payment_methods: { installments: number } }[] = [];
   const fetchReal = globalThis.fetch;
@@ -181,8 +191,9 @@ test("la preferencia de Mercado Pago: tope de 3 cuotas para todos, 6 para un sus
   try {
     await crearPreferencia(base);
     await crearPreferencia({ ...base, cuotasMaximas: cuotasMaximas(true) });
+    await crearPreferencia({ ...base, cuotasMaximas: 3 });
     await crearPreferencia({ ...base, cuotasMaximas: cuotasMaximas(true), soloDineroEnCuenta: true });
-    assert.deepEqual(cuerpos.map((c) => c.payment_methods.installments), [3, 6, 1]);
+    assert.deepEqual(cuerpos.map((c) => c.payment_methods.installments), [6, 6, 3, 1]);
   } finally {
     globalThis.fetch = fetchReal;
     delete process.env.MP_ACCESS_TOKEN;

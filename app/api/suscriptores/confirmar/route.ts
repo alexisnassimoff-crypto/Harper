@@ -8,7 +8,7 @@ import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 import { enviarMail, mailBienvenidaSuscriptor } from "@/lib/mails";
 import { claveDeCodigos, codigoCorrecto, normalizarEmail } from "@/lib/reconocer-cliente";
 import { urlDelSitio } from "@/lib/sitio";
-import { CUOTAS_SUSCRIPTORES, normalizarOrigenSuscripcion } from "@/lib/suscriptores";
+import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, normalizarOrigenSuscripcion } from "@/lib/suscriptores";
 import {
   darDeAlta,
   ErrorAltaEnCurso,
@@ -125,7 +125,9 @@ export async function POST(request: Request) {
         try {
           const [config, productos] = await Promise.all([getConfig(), getProductos()]);
           const precios = productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio);
-          const cuotas = await conEspera(verificarCuotasPara(precios, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null);
+          const cuotas = CUOTAS_SON_BENEFICIO
+            ? await conEspera(verificarCuotasPara(precios, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null)
+            : null;
           const enviado = await enviarMail(
             mailBienvenidaSuscriptor({
               email: cuenta.email,

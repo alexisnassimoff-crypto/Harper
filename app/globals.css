@@ -45,9 +45,9 @@
   --sombra-alta: 0 22px 48px -18px rgb(22 21 15 / 0.30);
 
   /* Tipografía (Ale, 03/11/2026): solo dos en toda la web. Raleway en todo lo
-     que va sin serif y Safira March en los títulos. Georgia queda solo de
-     respaldo mientras no estén los archivos de Safira March. */
-  --fuente-titulos: "Safira March", Georgia, serif;
+     que va sin serif y Melodrama en los títulos (04/11/2026: la más parecida a
+     Safira March, gratis). Las dos las define app/layout.tsx con next/font
+     (--fuente-texto y --fuente-titulos), por eso no se declaran acá. */
   --fuente-etiquetas: var(--fuente-texto);
   --tracking-titulo: -0.01em;
   --tracking-label: 0.16em;
@@ -131,13 +131,13 @@ p {
 .display {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-size: clamp(2.25rem, 9vw, 4.75rem);
-  font-weight: 300;
+  font-weight: 500;
 }
 
 .titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-size: clamp(1.75rem, 5vw, 2.5rem);
-  font-weight: 300;
+  font-weight: 500;
   line-height: 1.1;
 }
 
@@ -2425,7 +2425,7 @@ p {
 .hero__titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-size: clamp(2rem, 7vw, 3.5rem);
-  font-weight: 300;
+  font-weight: 500;
   line-height: 1.08;
   color: #fff;
 }
@@ -4048,7 +4048,7 @@ p {
 
 .titulo-serif {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 300;
+  font-weight: 500;
   font-size: clamp(1.875rem, 6vw, 3rem);
   line-height: 1.08;
   letter-spacing: -0.01em;
@@ -4114,7 +4114,7 @@ p {
 }
 .viene__titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 1.75rem;
 }
 .viene__modelos {
@@ -4267,6 +4267,7 @@ p {
 }
 .vitrina-todos__pregunta {
   font-family: var(--fuente-titulos), Georgia, serif;
+  font-weight: 500;
   font-size: 1.75rem;
 }
 .vitrina-todos__boton {
@@ -4325,6 +4326,7 @@ p {
 }
 .asi-llega__cierre {
   font-family: var(--fuente-titulos), Georgia, serif;
+  font-weight: 500;
   font-size: 1.5rem;
   line-height: 1.15;
 }
@@ -4505,7 +4507,7 @@ p {
 }
 .hoja-pack__titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 1.9rem;
 }
 .hoja-pack__cerrar {
@@ -4620,8 +4622,10 @@ p {
   border-top: 1px solid var(--borde);
 }
 .cuentas__lista dt {
-  font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 300;
+  /* Solo cifras: en Raleway, como los precios (Melodrama tacha el cero). */
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
   font-size: 2.1rem;
   line-height: 1;
   font-variant-numeric: lining-nums tabular-nums;
@@ -4798,7 +4802,7 @@ p {
 .nosotros-portada__titulo {
   max-width: 15ch;
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 300;
+  font-weight: 500;
   font-size: clamp(2.25rem, 9vw, 4.75rem);
   line-height: 1.04;
   letter-spacing: -0.01em;
@@ -4840,7 +4844,7 @@ p {
 }
 .nosotros-lista__titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 400;
+  font-weight: 500;
   font-size: clamp(1.6rem, 6vw, 2.25rem);
   line-height: 1.05;
 }
@@ -5008,7 +5012,7 @@ p {
    Ale, 03/11/2026: la suscripción gratis con el mail, en lugar de la
    membresía paga. La banda verde de la portada y de /suscriptores, el
    formulario (en una tarjeta clara), mi cuenta, la caja de la ficha y la del
-   checkout. Raleway en todo, Safira March solo en los títulos. */
+   checkout. Raleway en todo, Melodrama solo en los títulos. */
 
 .suscriptores-portada {
   background: var(--verde);
@@ -5031,7 +5035,7 @@ p {
 }
 .suscriptores-portada__titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 300;
+  font-weight: 500;
   font-size: clamp(2rem, 7.5vw, 3.25rem);
   line-height: 1.06;
   letter-spacing: -0.01em;
@@ -5068,7 +5072,7 @@ p {
 }
 .beneficios-suscriptor__titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 1.375rem;
   line-height: 1.15;
   font-variant-numeric: lining-nums;
@@ -5133,7 +5137,7 @@ p {
 }
 .suscripcion__listo {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 1.5rem;
   line-height: 1.15;
   color: var(--verde);
@@ -5352,7 +5356,7 @@ p {
 }
 .suscriptor-ficha__titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 1.25rem;
   line-height: 1.2;
   scroll-margin-top: 6rem;
@@ -5469,7 +5473,7 @@ p {
    La portada replanteada (Ale, 30/10/2026: «el home no me gusta, ni el
    diseño ni cómo está enfocado»). Arriba, un solo par sobre su color; abajo,
    los modelos una sola vez, un mismo par de la mañana a la noche, qué trae
-   cada par, suscriptores, lo que viene, preguntas y el cierre. Safira March en los
+   cada par, suscriptores, lo que viene, preguntas y el cierre. Melodrama en los
    títulos; los precios y todo lo demás, en Raleway.
    ========================================================================== */
 
@@ -5495,7 +5499,7 @@ p {
   margin-top: 0.75rem;
   max-width: 11em;
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 300;
+  font-weight: 500;
   font-size: clamp(2.375rem, 10.5vw, 5.25rem);
   line-height: 1.02;
   letter-spacing: -0.012em;
@@ -5778,8 +5782,10 @@ p {
   border-bottom: 1px solid var(--borde);
 }
 .un-par__hora {
-  font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 300;
+  /* La hora es una cifra: en Raleway, como los precios. */
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
   font-size: 1.3125rem;
   line-height: 1;
   font-variant-numeric: lining-nums tabular-nums;
@@ -5837,10 +5843,17 @@ p {
 }
 .asi-llega__cierre {
   margin-top: 0.75rem;
-  font-weight: 300;
+  font-weight: 500;
   font-size: clamp(1.875rem, 7vw, 3rem);
   line-height: 1.08;
   letter-spacing: -0.01em;
+}
+/* Las cifras dentro de un título (components/Cifras.tsx): en Raleway, porque
+   Melodrama tacha el cero y los precios van siempre en Raleway. */
+.cifra {
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.02em;
 }
 .asi-llega__cierre .cifra {
   font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
@@ -5898,7 +5911,7 @@ p {
 }
 .lo-que-viene__nombre {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 300;
+  font-weight: 500;
   font-size: 1.5rem;
   line-height: 1.15;
 }
@@ -5947,7 +5960,7 @@ p {
 }
 .cierre__titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 300;
+  font-weight: 500;
   font-size: clamp(2.125rem, 8.4vw, 5.5rem);
   line-height: 1.04;
   letter-spacing: -0.012em;

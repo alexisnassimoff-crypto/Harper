@@ -8,6 +8,7 @@ import { CASHBACK_PORCENTAJE, CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK } from "
 import { TEXTOS } from "@/lib/textos";
 import FormularioSuscripcion from "./FormularioSuscripcion";
 import { useSuscriptor } from "./useSuscriptor";
+import Cifras from "@/components/Cifras";
 
 const T = TEXTOS.suscriptores;
 
@@ -43,7 +44,7 @@ export default function SuscriptoresEnLaFicha({ cuotas }: { cuotas: CuotasVerifi
     <aside className="suscriptor-ficha" aria-labelledby="suscriptor-ficha-titulo">
       <p className="etiqueta-mono">{T.etiqueta}</p>
       <p id="suscriptor-ficha-titulo" className="suscriptor-ficha__titulo">
-        {T.ficha.titulo(formatearPrecio(CUPON_BIENVENIDA))}
+        <Cifras>{T.ficha.titulo(formatearPrecio(CUPON_BIENVENIDA))}</Cifras>
       </p>
       <ul className="suscriptor-ficha__puntos">
         {puntos.map((p) => (

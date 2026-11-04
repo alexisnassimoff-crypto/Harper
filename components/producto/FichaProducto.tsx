@@ -26,6 +26,7 @@ import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import Estrellas, { formatearPuntaje } from "@/components/portada/Estrellas";
 import SuscriptoresEnLaFicha from "@/components/suscriptores/SuscriptoresEnLaFicha";
+import Cifras from "@/components/Cifras";
 
 export default function FichaProducto({
   producto,
@@ -274,7 +275,9 @@ export default function FichaProducto({
             </a>
           ) : null}
           <span className="label">{producto.categoria}</span>
-          <h1 className="ficha-producto__nombre">{producto.nombre}</h1>
+          <h1 className="ficha-producto__nombre">
+            <Cifras>{producto.nombre}</Cifras>
+          </h1>
 
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem" }}>
             <span style={{ fontSize: "1.375rem" }}>

@@ -2,6 +2,7 @@ import { cfteaSinCortar, NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuo
 import { precio as formatearPrecio } from "@/lib/formato";
 import { CASHBACK_PORCENTAJE, CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
+import Cifras from "@/components/Cifras";
 
 const { tarjetas: T } = TEXTOS.suscriptores;
 
@@ -35,7 +36,9 @@ export default function BeneficiosSuscriptor({
     <ul className={`beneficios-suscriptor${compacta ? " beneficios-suscriptor--compacta" : ""}`}>
       {beneficiosDeSuscriptor(cuotas, cuotasTodos).map((b) => (
         <li key={b.clave} className="beneficios-suscriptor__item">
-          <strong className="beneficios-suscriptor__titulo">{b.titulo}</strong>
+          <strong className="beneficios-suscriptor__titulo">
+            <Cifras>{b.titulo}</Cifras>
+          </strong>
           <span className="beneficios-suscriptor__detalle">{b.detalle}</span>
         </li>
       ))}

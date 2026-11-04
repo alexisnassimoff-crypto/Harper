@@ -16,7 +16,7 @@ import { getProducto, getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
 import { verificarCuotas } from "@/lib/cuotas-servidor";
-import { CUOTAS_SUSCRIPTORES } from "@/lib/suscriptores";
+import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES } from "@/lib/suscriptores";
 import { netoDe } from "@/lib/impuestos";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import { rutaDeCategoria } from "@/lib/categorias";
@@ -132,8 +132,9 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
     getConfig(),
     getProductos(producto.categoria),
     verificarCuotas(producto.precio),
-    // Las de suscriptor (Ale, 03/11/2026), confirmadas aparte para el mismo precio.
-    verificarCuotas(producto.precio, CUOTAS_SUSCRIPTORES),
+    // Las de suscriptor (Ale, 03/11/2026), confirmadas aparte para el mismo
+    // precio, solo mientras sean un beneficio (lib/suscriptores.ts).
+    CUOTAS_SON_BENEFICIO ? verificarCuotas(producto.precio, CUOTAS_SUSCRIPTORES) : Promise.resolve(null),
     // Las opiniones de todos los productos Harper, de la copia que guarda la
     // portada: la ficha no le pregunta a Mercado Libre.
     datosGuardadosDeMercadoLibre(),
