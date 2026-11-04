@@ -36,6 +36,14 @@ export default async function Privacidad() {
         navegador una cookie de sesión por 90 días; no se usa para publicidad.
       </p>
 
+      <p>
+        Para saber cuántas personas visitan el sitio, qué páginas miran y qué
+        tan rápido carga, usamos estadísticas sin cookies (Vercel Web Analytics
+        y Speed Insights) y contamos, sin guardar quién sos, cuántas visitas
+        agregan algo al carrito o empiezan una compra. Estas estadísticas no te
+        identifican ni se usan para publicidad.
+      </p>
+
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Para qué los usamos</h2>
       <p>
         Los datos se utilizan para procesar el pago, preparar y despachar el

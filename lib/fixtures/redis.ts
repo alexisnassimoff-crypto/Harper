@@ -78,6 +78,16 @@ export function atenderRedis(comando: unknown[], ahora: number = Date.now()): { 
     return { result: 1 };
   }
 
+  // MGET: el panel lee los contadores del embudo de un saque (lib/medir-servidor.ts).
+  if (op === "MGET") {
+    return {
+      result: args.map((clave) => {
+        const entrada = datos.get(clave);
+        return vigente(entrada, ahora) ? entrada.valor : null;
+      }),
+    };
+  }
+
   if (op === "EVAL") {
     const [script, , clave, argumento] = args;
 

@@ -42,9 +42,10 @@ export function codigoNuevo(): string {
  * Para qué es el código: el de reconocer a quien compró (app/api/clientes/) y
  * el de suscribirse (app/api/suscriptores/) firman distinto, así un código
  * pedido para una cosa no sirve para la otra (cada una cuenta sus intentos
- * aparte: con el mismo desafío servido en las dos, se duplicaban).
+ * aparte: con el mismo desafío servido en las dos, se duplicaban). El del
+ * panel privado (app/api/panel/) firma «panel»: no abre nada más.
  */
-export type PropositoCodigo = "cliente" | "suscriptor";
+export type PropositoCodigo = "cliente" | "suscriptor" | "panel";
 
 function firma(clave: Buffer, email: string, codigo: string, vence: number, proposito: PropositoCodigo) {
   const base = `${email}|${codigo}|${vence}`;

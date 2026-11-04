@@ -98,6 +98,8 @@ export default function MetaPixel() {
     // La página de baja lleva en la dirección el enlace firmado del mail: no se
     // le cuenta a Meta (el Pixel manda la dirección completa).
     if (pathname?.startsWith("/suscriptores/baja")) return;
+    // El panel privado tampoco: no es una visita a la tienda.
+    if (pathname === "/panel" || pathname?.startsWith("/panel/")) return;
     cargarPixel();
     window.fbq?.("track", "PageView");
   }, [pathname, permitido]);
