@@ -22,7 +22,6 @@ export const TEXTOS = {
     /** La frase de antes de la portada; ahora abre «Un mismo par». */
     sensacion: "Salís a la calle y se oscurecen solos.",
     etiqueta: "Filtro de luz azul · Fotocromáticos · UV400",
-    bajadaMarca: "Hoy vuelven a ser un accesorio: los elegís por el color, por la forma y por cómo los combinás con lo que te ponés.",
     /** «Anteojos fotocromáticos con filtro de luz azul, a $ 89.900 el par.» Solo con las características confirmadas. */
     bajada: (precio: string | null) => `Anteojos fotocromáticos con filtro de luz azul${precio ? `, a ${precio} el par` : ""}.`,
     bajadaSinConfirmar: (precio: string | null) => `Anteojos Harper${precio ? `, a ${precio} el par` : ""}.`,
@@ -90,9 +89,8 @@ export const TEXTOS = {
     lema: "Diseño para todos los días.",
   },
   nosotros: {
-    titulo: "Los anteojos también se eligen como la ropa.",
-    bajada:
-      "Durante años fueron algo que había que usar. Hoy vuelven a ser un accesorio: los elegís por el color, por la forma y por cómo los combinás con lo que te ponés.",
+    /** Ale, 04/11/2026: sin «Los anteojos también se eligen como la ropa» ni lo del accesorio. */
+    titulo: "Quiénes somos",
     frase: ["Para ver bien.", "Y para que te vean."],
     manifiesto: [
       {

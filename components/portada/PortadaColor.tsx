@@ -27,7 +27,8 @@ export type ColorPortada = {
 export type DatosPortada = {
   etiqueta: string;
   titulo: string;
-  bajada: string;
+  /** Debajo del título; null no muestra nada. */
+  bajada: string | null;
   boton: string;
   /** "$ 89.900", o null si los modelos no cuestan lo mismo. */
   precio: string | null;
@@ -128,7 +129,7 @@ export default function PortadaColor({ colores, inicial, datos }: { colores: Col
           {datos.letraChica ? <p className="portada-color__letra">{datos.letraChica}</p> : null}
         </div>
 
-        <p className="portada-color__bajada">{datos.bajada}</p>
+        {datos.bajada ? <p className="portada-color__bajada">{datos.bajada}</p> : null}
       </div>
     </section>
   );

@@ -23,7 +23,7 @@ const enumerar = (partes: string[]) => (partes.length <= 1 ? partes.join("") : `
 export const metadata: Metadata = {
   title: "Quiénes somos",
   description:
-    "En Harper hacemos anteojos para elegir como cualquier prenda: por el color, por la forma y por cómo los combinás. Desde Buenos Aires, Argentina.",
+    "Harper hace anteojos con filtro de luz azul que se oscurecen solos al sol. Desde Buenos Aires, Argentina.",
   alternates: { canonical: "/quienes-somos" },
 };
 
@@ -64,11 +64,10 @@ export default async function QuienesSomos() {
   return (
     <>
       <section className="contenedor nosotros-portada" aria-labelledby="nosotros-titulo">
-        <p className="etiqueta-mono">Quiénes somos · Buenos Aires, Argentina</p>
+        <p className="etiqueta-mono">Harper · Buenos Aires, Argentina</p>
         <h1 id="nosotros-titulo" className="nosotros-portada__titulo">
           {N.titulo}
         </h1>
-        <p className="nosotros-portada__bajada">{N.bajada}</p>
         {tira.length > 0 ? (
           <ul className="nosotros-tira" aria-label="Los modelos">
             {tira.map((t, i) => (
