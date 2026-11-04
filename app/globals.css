@@ -6701,3 +6701,55 @@ main:has(.cierre:last-child) ~ .pie {
   font-size: 0.875rem;
   color: var(--texto-suave);
 }
+
+/* ---------------------------------------------------------------------------
+   Portada, Suscriptores Harper (Ale, 04/11/2026): en el celular, un botón
+   lleva directo al formulario, y el registro queda separado de los
+   beneficios, en su tarjeta con título propio.
+--------------------------------------------------------------------------- */
+.suscriptores-portada__cta {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+.suscriptores-portada__beneficios-titulo {
+  margin: 1.1rem 0 0;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.7);
+}
+.suscriptores-portada .beneficios-suscriptor {
+  margin-top: 0.4rem;
+}
+#suscribirme {
+  scroll-margin-top: 5.5rem;
+}
+.caja-suscripcion__encabezado {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--borde);
+}
+.caja-suscripcion__titulo {
+  margin: 0;
+  font-family: var(--fuente-titulos), Georgia, serif;
+  font-weight: 500;
+  font-size: 1.625rem;
+  line-height: 1.1;
+  color: var(--verde);
+}
+.caja-suscripcion__bajada {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+/* En escritorio el formulario ya está al lado de los beneficios: sin el botón. */
+@media (min-width: 48rem) {
+  .suscriptores-portada__cta {
+    display: none;
+  }
+}

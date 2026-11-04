@@ -226,6 +226,13 @@ export const TEXTOS = {
     cuotasSuscriptor: (cuotas: number) => `${cuotas} si sos suscriptor`,
     condiciones: "Ver las condiciones",
     /** El formulario de suscripción (components/suscriptores/FormularioSuscripcion.tsx). */
+    /** La sección de la portada (Ale, 04/11/2026): un botón que lleva al formulario y el registro separado de los beneficios. */
+    portada: {
+      cta: "Suscribirme gratis",
+      beneficios: "Tus beneficios",
+      formTitulo: "Suscribite con tu mail",
+      formBajada: "Es gratis. Te mandamos un código para confirmarlo y te das de baja cuando quieras.",
+    },
     form: {
       email: "Tu mail",
       nombre: "Tu nombre (opcional)",

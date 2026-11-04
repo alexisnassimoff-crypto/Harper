@@ -26,6 +26,7 @@ import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
 import BeneficiosSuscriptor from "@/components/suscriptores/BeneficiosSuscriptor";
 import CajaSuscripcion from "@/components/suscriptores/CajaSuscripcion";
+import IrAlFormulario from "@/components/suscriptores/IrAlFormulario";
 import { rutaDeVariante } from "@/lib/variantes";
 import { enLetras, FORMAS, fotosDeVitrina, precioUnico, tinteDe, tinteDeColor } from "@/lib/vitrina";
 
@@ -391,10 +392,16 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               {TEXTOS.suscriptores.titulo}
             </h2>
             <p className="suscriptores-portada__bajada">{TEXTOS.suscriptores.bajada}</p>
+            {/* En el celular, el formulario queda abajo: un botón lleva directo (Ale, 04/11/2026). */}
+            <IrAlFormulario />
+            <h3 className="suscriptores-portada__beneficios-titulo">{TEXTOS.suscriptores.portada.beneficios}</h3>
             <BeneficiosSuscriptor cuotas={cuotasDeSuscriptor} cuotasTodos={cuotasAnteojos?.cuotas ?? null} />
           </div>
-          <div className="suscriptores-portada__form">
-            <CajaSuscripcion origen="Portada" />
+          <div id="suscribirme" className="suscriptores-portada__form">
+            <CajaSuscripcion
+              origen="Portada"
+              encabezado={{ titulo: TEXTOS.suscriptores.portada.formTitulo, bajada: TEXTOS.suscriptores.portada.formBajada }}
+            />
           </div>
         </div>
       </section>

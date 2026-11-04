@@ -13,7 +13,16 @@ import { useSuscriptor } from "./useSuscriptor";
  * /suscriptores): a quien ya es suscriptor en este navegador no se lo invita,
  * se le dice que ya lo es y se lo lleva a su cuenta.
  */
-export default function CajaSuscripcion({ origen, conNombre = true }: { origen: OrigenSuscripcion; conNombre?: boolean }) {
+export default function CajaSuscripcion({
+  origen,
+  conNombre = true,
+  encabezado = null,
+}: {
+  origen: OrigenSuscripcion;
+  conNombre?: boolean;
+  /** Un título arriba del formulario (la portada); no sale si ya es suscriptor. */
+  encabezado?: { titulo: string; bajada: string } | null;
+}) {
   const { suscriptor } = useSuscriptor();
   // Recién suscripto acá: el formulario muestra su propio «¡Listo!».
   const [aca, setAca] = useState(false);
@@ -38,5 +47,15 @@ export default function CajaSuscripcion({ origen, conNombre = true }: { origen: 
     );
   }
 
-  return <FormularioSuscripcion origen={origen} conNombre={conNombre} alListo={() => setAca(true)} />;
+  const formulario = <FormularioSuscripcion origen={origen} conNombre={conNombre} alListo={() => setAca(true)} />;
+  if (!encabezado || aca) return formulario;
+  return (
+    <>
+      <div className="caja-suscripcion__encabezado">
+        <h3 className="caja-suscripcion__titulo">{encabezado.titulo}</h3>
+        <p className="caja-suscripcion__bajada">{encabezado.bajada}</p>
+      </div>
+      {formulario}
+    </>
+  );
 }
