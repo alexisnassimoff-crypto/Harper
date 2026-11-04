@@ -19,11 +19,11 @@ import { precio as formatearPrecio } from "./formato";
  * Plazos de la política de cambios y devoluciones.
  *
  * Son la fuente única: los usan esta lista, la portada y las páginas de
- * /legales, así nunca dicen cosas distintas. 30 días para devolver y para
- * cambiar, como Mercado Libre (decisión de Ale, 30/10/2026): la ley pide al
- * menos 10 para arrepentirse, y dar más está permitido.
+ * /legales, así nunca dicen cosas distintas. Decisión del 04/11/2026:
+ * 10 días corridos para devolver una compra online y 30 días para cambios
+ * comerciales de color o modelo.
  */
-export const DIAS_ARREPENTIMIENTO = 30;
+export const DIAS_ARREPENTIMIENTO = 10;
 export const DIAS_CAMBIO = 30;
 /** La garantía legal por defectos o fallas, desde que se recibe el producto. */
 export const MESES_GARANTIA = 6;
