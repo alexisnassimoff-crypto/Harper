@@ -1,25 +1,27 @@
 import { listRecords, TABLAS, type AirtableRecord } from "./airtable";
 import { getConfig } from "./config";
 import { leerConteos } from "./medir-servidor";
+import { IVA } from "./ml-avisos";
 import { TABLA_METRICAS_ML } from "./ml-metricas-servidor";
 import { TABLA_IMPORTACION_ML } from "./ml-resenas";
 import {
   armarEmbudo,
   diasEntre,
+  filasPorCanal,
   margenDe,
   pedidoDelPanel,
-  rangoDe,
   resumirML,
   resumirSaldos,
   resumirSuscriptores,
   resumirVentas,
   type CostoUnitario,
   type Embudo,
+  type FilaDeCanal,
   type FilaMetricasPanel,
   type FilaPedidoPanel,
   type FilaSuscriptorPanel,
   type Margen,
-  type Periodo,
+  type Rango,
   type ResumenML,
   type ResumenSaldos,
   type ResumenSuscriptores,
@@ -37,14 +39,17 @@ import { fechaArgentina, type MovimientoSaldo, type TipoMovimiento } from "./sus
 const TABLA_COSTOS_ML = "tblEkjLXaXO1Fy0zd";
 
 export type DatosDelPanel = {
-  periodo: Periodo;
+  rango: Rango;
   hoy: string;
-  desde: string;
   ventas: ResumenVentas | null;
   margen: Margen | null;
+  /** El IVA con el que se sacó el margen, en %, y si salió de Config o es el 21 % del resumen de Mercado Libre. */
+  iva: { tasa: number; deConfig: boolean };
   /** Por qué no hay margen, si no lo hay. */
   sinMargen: string | null;
   embudo: Embudo | null;
+  /** Visitas, carritos y compras por canal (contadores sin cookies). Null si no se pudieron leer. */
+  canales: FilaDeCanal[] | null;
   suscriptores: ResumenSuscriptores | null;
   saldos: ResumenSaldos | null;
   ml: ResumenML | null;
@@ -52,9 +57,8 @@ export type DatosDelPanel = {
   errores: string[];
 };
 
-export async function datosDelPanel(periodo: Periodo, ahora = new Date()): Promise<DatosDelPanel> {
+export async function datosDelPanel(rango: Rango, ahora = new Date()): Promise<DatosDelPanel> {
   const hoy = fechaArgentina(ahora);
-  const rango = rangoDe(hoy, periodo);
   const errores: string[] = [];
 
   const leer = async <T>(nombre: string, f: () => Promise<T>): Promise<T | null> => {
@@ -75,28 +79,27 @@ export async function datosDelPanel(periodo: Periodo, ahora = new Date()): Promi
     leer("los suscriptores", () => tabla<FilaSuscriptorPanel>(TABLAS.suscriptores)),
     leer("los saldos", () => tabla<FilaSaldoPanel>(TABLAS.saldos)),
     leer("las métricas de Mercado Libre", () => tabla<FilaMetricasPanel>(TABLA_METRICAS_ML)),
-    // Los días del período, para el embudo.
+    // Los días del período, para el recorrido y los canales.
     leerConteos(diasEntre(rango.desde, rango.hasta)),
   ]);
 
   const pedidos = filasPedidos ? filasPedidos.flatMap((r) => pedidoDelPanel(r.fields, r.createdTime) ?? []) : null;
-  const tasa = config.impuestosNacionales.general;
+  // Sin el dato del contador en Config, el 21 % con el que calcula la ganancia el resumen semanal de Mercado Libre.
+  const deConfig = config.impuestosNacionales.general;
+  const iva = { tasa: deConfig ?? IVA * 100, deConfig: deConfig !== null };
   const delPeriodo = pedidos?.filter((p) => p.dia >= rango.desde && p.dia <= rango.hasta) ?? [];
   const margen =
-    pedidos && costos ? margenDe(delPeriodo, { tasa, costoDe: (id) => costos.get(id) ?? null, envioPorDefecto: config.costoEnvio }) : null;
+    pedidos && costos ? margenDe(delPeriodo, { tasa: iva.tasa, costoDe: (id) => costos.get(id) ?? null, envioPorDefecto: config.costoEnvio }) : null;
 
   return {
-    periodo,
+    rango,
     hoy,
-    desde: rango.desde,
     ventas: pedidos ? resumirVentas(pedidos, rango) : null,
     margen,
-    sinMargen: margen
-      ? null
-      : tasa === null
-        ? "Falta el porcentaje de impuestos (Config, impuestos_nacionales)."
-        : "No se pudieron leer los pedidos o los costos.",
+    iva,
+    sinMargen: margen ? null : "No se pudieron leer los pedidos o los costos.",
     embudo: pedidos ? armarEmbudo(conteos, pedidos, rango) : null,
+    canales: conteos ? filasPorCanal(conteos) : null,
     suscriptores: filasSuscriptores ? resumirSuscriptores(filasSuscriptores.map((r) => r.fields), rango) : null,
     saldos: filasSaldos ? resumirSaldos(filasSaldos.map(movimientoDelPanel), rango, hoy) : null,
     ml: filasML ? resumirML(filasML.map((r) => r.fields)) : null,

@@ -13,12 +13,15 @@ import type { Cerrojo } from "../cerrojo";
 type Entrada = { valor: string; vence: number | null };
 
 const datos = new Map<string, Entrada>();
+/** Los hashes, aparte: los contadores del panel (lib/medir-servidor.ts). */
+const hashes = new Map<string, { campos: Map<string, string>; vence: number | null }>();
 
 /** Cuántos comandos atendió, por nombre. Para asegurar que el cerrojo se usó. */
 export const contadorRedis = new Map<string, number>();
 
 export function reiniciarRedis() {
   datos.clear();
+  hashes.clear();
   contadorRedis.clear();
 }
 
@@ -72,20 +75,34 @@ export function atenderRedis(comando: unknown[], ahora: number = Date.now()): { 
   }
 
   if (op === "PEXPIRE") {
+    const hash = hashes.get(args[0]);
+    if (hash && (hash.vence === null || hash.vence > ahora)) {
+      hash.vence = ahora + Number(args[1]);
+      return { result: 1 };
+    }
     const entrada = datos.get(args[0]);
     if (!vigente(entrada, ahora)) return { result: 0 };
     entrada.vence = ahora + Number(args[1]);
     return { result: 1 };
   }
 
-  // MGET: el panel lee los contadores del embudo de un saque (lib/medir-servidor.ts).
-  if (op === "MGET") {
-    return {
-      result: args.map((clave) => {
-        const entrada = datos.get(clave);
-        return vigente(entrada, ahora) ? entrada.valor : null;
-      }),
-    };
+  // HINCRBY y HGETALL: los contadores del panel (lib/medir-servidor.ts).
+  if (op === "HINCRBY") {
+    const [clave, campo, cuanto] = args;
+    let hash = hashes.get(clave);
+    if (!hash || (hash.vence !== null && hash.vence <= ahora)) {
+      hash = { campos: new Map(), vence: null };
+      hashes.set(clave, hash);
+    }
+    const nuevo = Number(hash.campos.get(campo) ?? 0) + Number(cuanto);
+    hash.campos.set(campo, String(nuevo));
+    return { result: nuevo };
+  }
+
+  if (op === "HGETALL") {
+    const hash = hashes.get(args[0]);
+    if (!hash || (hash.vence !== null && hash.vence <= ahora)) return { result: [] };
+    return { result: [...hash.campos].flat() };
   }
 
   if (op === "EVAL") {

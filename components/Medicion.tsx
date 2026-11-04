@@ -23,7 +23,9 @@ export default function Medicion() {
   return (
     <>
       <Analytics beforeSend={filtrarParaVercel} />
-      <SpeedInsights beforeSend={filtrarParaVercel} />
+      {/* La versión gratis de Speed Insights junta hasta 10.000 datos cada 30 días y,
+          si se pasa, deja de medir unos días (no cobra): con la mitad de las visitas alcanza. */}
+      <SpeedInsights beforeSend={filtrarParaVercel} sampleRate={0.5} />
     </>
   );
 }

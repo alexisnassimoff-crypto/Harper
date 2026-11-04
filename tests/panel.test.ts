@@ -5,13 +5,19 @@ process.env.HARPER_FIXTURES = "1";
 
 import { createRecord, TABLAS } from "../lib/airtable";
 import { fetchRedisFalso, reiniciarRedis } from "../lib/fixtures/redis";
-import { direccionParaMedir, esEventoMedido, rutaSinMedir } from "../lib/medir";
-import { claveDeConteo, contarEvento, leerConteos } from "../lib/medir-servidor";
+import { canalDeCampana, canalDeLaVisita, canalDelOrigen, canalDeReferencia } from "../lib/canales";
+import { direccionParaMedir, esEventoMedido, leerCuerpoDeMedicion, rutaSinMedir } from "../lib/medir";
+import { claveDelDia, contarEvento, conteoVacio, leerConteos } from "../lib/medir-servidor";
 import {
+  agruparPorTramo,
   armarEmbudo,
+  atajosDeMes,
+  diasDe,
   diasEntre,
   etiquetaDeOrigen,
+  filasPorCanal,
   leerPeriodo,
+  leerRango,
   margenDe,
   pedidoDelPanel,
   rangoDe,
@@ -129,11 +135,53 @@ test("medir: a Vercel no viaja el panel, la baja ni la búsqueda salvo los utm_"
   assert.equal(rutaSinMedir("/panelito"), false, "solo /panel y lo de adentro");
   assert.equal(rutaSinMedir("/panel/algo"), true);
   assert.equal(esEventoMedido("visita"), true);
-  assert.equal(esEventoMedido("compra"), false, "la compra la cuenta el panel desde Airtable");
+  assert.equal(esEventoMedido("compra"), true);
   assert.equal(esEventoMedido("<script>"), false);
 });
 
-test("medir: cada evento suma en la clave del día (Buenos Aires) y vence solo la primera vez", async () => {
+test("medir: el cuerpo es «evento:canal» y solo pasa lo conocido", () => {
+  assert.deepEqual(leerCuerpoDeMedicion("carrito:meta"), { evento: "carrito", canal: "meta" });
+  assert.deepEqual(leerCuerpoDeMedicion(" visita "), { evento: "visita", canal: "sin_dato" }, "sin canal, sin dato");
+  assert.equal(leerCuerpoDeMedicion("carrito:inventado"), null);
+  assert.equal(leerCuerpoDeMedicion("pago:meta"), null);
+  assert.equal(leerCuerpoDeMedicion("carrito:meta:extra"), null);
+  assert.equal(leerCuerpoDeMedicion(""), null);
+});
+
+test("canales: de la campaña, del anuncio o del sitio que la mandó", () => {
+  const visita = (search: string, referencia = "", ruta = "/") => canalDeLaVisita({ search, referencia, hostPropio: "harper.ar", ruta });
+  assert.deepEqual(visita("?utm_source=TikTok&utm_medium=paid"), { canal: "tiktok", cuentaComoVisita: true });
+  assert.equal(visita("?utm_source=ig").canal, "meta");
+  assert.equal(visita("?utm_source=facebook").canal, "meta");
+  assert.equal(visita("?utm_source=mercadolibre").canal, "mercadolibre");
+  assert.equal(visita("?utm_source=ml").canal, "mercadolibre");
+  assert.equal(visita("?utm_source=newsletter").canal, "mail");
+  assert.equal(visita("?utm_source=harper&utm_medium=email").canal, "mail");
+  assert.equal(visita("?utm_source=wa").canal, "whatsapp");
+  assert.equal(visita("?utm_source=un-blog").canal, "otros");
+  assert.equal(visita("?fbclid=abc").canal, "meta", "anuncio de Meta sin utm");
+  assert.equal(visita("?gclid=abc").canal, "google");
+  assert.equal(visita("?ttclid=abc").canal, "tiktok");
+  assert.equal(visita("", "https://l.instagram.com/").canal, "meta");
+  assert.equal(visita("", "https://www.google.com.ar/").canal, "google");
+  assert.equal(visita("", "https://mail.google.com/").canal, "mail", "Gmail no es una búsqueda de Google");
+  assert.equal(visita("", "android-app://com.google.android.gm/").canal, "mail");
+  assert.equal(visita("", "https://www.tiktok.com/").canal, "tiktok");
+  assert.equal(visita("", "https://articulo.mercadolibre.com.ar/MLA-1").canal, "mercadolibre");
+  assert.equal(visita("", "https://un-blog.com/nota").canal, "otros");
+  assert.deepEqual(visita("", ""), { canal: "directo", cuentaComoVisita: true }, "sin nada: escribió harper.ar o un favorito");
+  // No es una visita nueva: una pestaña abierta desde la misma tienda, o la vuelta de pagar.
+  assert.deepEqual(visita("", "https://harper.ar/anteojos"), { canal: "sin_dato", cuentaComoVisita: false });
+  assert.deepEqual(visita("", "https://www.mercadopago.com.ar/checkout", "/gracias"), { canal: "sin_dato", cuentaComoVisita: false });
+  assert.deepEqual(visita("", "", "/gracias"), { canal: "sin_dato", cuentaComoVisita: false });
+  assert.equal(canalDeReferencia("https://www.mercadopago.com.ar/"), "sin_dato", "Mercado Pago no es Mercado Libre");
+  assert.equal(canalDeCampana(null), null);
+  assert.equal(canalDelOrigen(null), "sin_dato");
+  assert.equal(canalDelOrigen({ utm_source: "ig", utm_medium: "paid" }), "meta");
+  assert.equal(canalDelOrigen({ fbclid: "x" }), "meta");
+});
+
+test("medir: un número por paso y canal en el hash del día (Buenos Aires), que vence solo la primera vez", async () => {
   reiniciarRedis();
   const redis = { url: "https://redis.prueba", token: "t" };
   const llamadas: string[] = [];
@@ -145,27 +193,45 @@ test("medir: cada evento suma en la clave del día (Buenos Aires) y vence solo l
 
   // 03:00 UTC del 15 es la medianoche del 15 en Buenos Aires: cuenta para el 15.
   const ahora = Date.UTC(2027, 0, 15, 3, 0);
-  assert.equal(await contarEvento("visita", { ahora, redis, fetchImpl }), true);
-  assert.equal(await contarEvento("visita", { ahora, redis, fetchImpl }), true);
-  assert.equal(await contarEvento("carrito", { ahora, redis, fetchImpl }), true);
-  assert.equal(llamadas.filter((c) => c.includes("PEXPIRE")).length, 2, "un vencimiento por clave, no por evento");
+  assert.equal(await contarEvento("visita", "meta", { ahora, redis, fetchImpl }), true);
+  assert.equal(await contarEvento("visita", "meta", { ahora, redis, fetchImpl }), true);
+  assert.equal(await contarEvento("visita", "google", { ahora, redis, fetchImpl }), true);
+  assert.equal(await contarEvento("compra", "meta", { ahora, redis, fetchImpl }), true);
+  assert.equal(
+    llamadas.filter((c) => c.includes("PEXPIRE")).length,
+    3,
+    "el vencimiento, solo al crear cada número del día (no en cada evento)"
+  );
 
   const conteos = await leerConteos(["2027-01-14", "2027-01-15"], { redis, fetchImpl });
-  assert.equal(conteos?.visita, 2);
-  assert.equal(conteos?.carrito, 1);
-  assert.equal(conteos?.porDia["2027-01-15"].visita, 2);
-  assert.equal(conteos?.porDia["2027-01-14"].visita, 0);
-  assert.equal(claveDeConteo("2027-01-15", "visita"), "harper:medir:2027-01-15:visita");
-  assert.equal(llamadas.filter((c) => c.includes("MGET")).length, 1, "todo el período en un solo comando");
+  assert.equal(conteos?.porDia["2027-01-15"].visita, 3);
+  assert.equal(conteos?.porDia["2027-01-15"].compra, 1);
+  assert.deepEqual(conteos?.porDia["2027-01-14"], conteoVacio());
+  assert.equal(conteos?.porCanal.meta.visita, 2);
+  assert.equal(conteos?.porCanal.meta.compra, 1);
+  assert.equal(conteos?.porCanal.google.visita, 1);
+  assert.equal(claveDelDia("2027-01-15"), "harper:medir:2027-01-15");
+  assert.equal(llamadas.filter((c) => c.includes("HGETALL")).length, 1, "todo el período en un solo viaje");
+
+  const filas = filasPorCanal(conteos);
+  assert.deepEqual(
+    filas.map((f) => [f.canal, f.visitas, f.compras, f.conversion]),
+    [
+      ["meta", 2, 1, 50],
+      ["google", 1, 0, 0],
+    ],
+    "sin los canales en cero, primero los que más compran"
+  );
 });
 
 test("medir: sin Redis no cuenta ni rompe", async () => {
-  assert.equal(await contarEvento("visita", { redis: null }), false);
+  assert.equal(await contarEvento("visita", "directo", { redis: null }), false);
   assert.equal(await leerConteos(["2027-01-15"], { redis: null }), null);
   const roto = (async () => new Response("caído", { status: 500 })) as typeof fetch;
   const redis = { url: "https://redis.prueba", token: "t" };
-  assert.equal(await contarEvento("visita", { redis, fetchImpl: roto }), false);
+  assert.equal(await contarEvento("visita", "directo", { redis, fetchImpl: roto }), false);
   assert.equal(await leerConteos(["2027-01-15"], { redis, fetchImpl: roto }), null);
+  assert.deepEqual(filasPorCanal(null), []);
 });
 
 // ---------------------------------------------------------------------------
@@ -183,6 +249,7 @@ function pedido(numero: string, cambios: Partial<PedidoPanel> = {}): PedidoPanel
     total: 121_000,
     envio: 0,
     items: [{ varianteId: "recVARIANTE00001", nombre: "CITRINO", color: "Negro", categoria: "Anteojos", cantidad: 1, subtotal: 121_000 }],
+    canal: "sin_dato",
     origen: "Directo o sin dato",
     provincia: "Buenos Aires",
     cupon: 0,
@@ -196,13 +263,84 @@ function pedido(numero: string, cambios: Partial<PedidoPanel> = {}): PedidoPanel
   };
 }
 
-test("panel: el período elegido es 7, 30 o 90 días (30 si no)", () => {
+test("panel: los atajos son 7, 30 o 90 días hasta hoy (30 si no)", () => {
   assert.equal(leerPeriodo("7"), 7);
   assert.equal(leerPeriodo(["90", "7"]), 90);
   assert.equal(leerPeriodo("365"), 30);
   assert.equal(leerPeriodo(undefined), 30);
-  assert.deepEqual(rangoDe(HOY, 7), { desde: "2027-01-09", hasta: HOY, anteriorDesde: "2027-01-02", anteriorHasta: "2027-01-08" });
+  assert.deepEqual(rangoDe(HOY, 7), {
+    desde: "2027-01-09",
+    hasta: HOY,
+    dias: 7,
+    anteriorDesde: "2027-01-02",
+    anteriorHasta: "2027-01-08",
+    periodo: 7,
+  });
   assert.equal(diasEntre("2026-12-30", "2027-01-02").length, 4);
+  assert.equal(diasDe("2026-12-30", "2027-01-02"), 4);
+  assert.equal(diasDe("2027-01-15", "2027-01-15"), 1);
+});
+
+test("panel: fechas a elección, ordenadas, sin pasar de hoy y de hasta un año, con el período anterior del mismo largo", () => {
+  // Octubre entero: 31 días, contra los 31 anteriores.
+  assert.deepEqual(leerRango({ desde: "2026-10-01", hasta: "2026-10-31" }, HOY), {
+    desde: "2026-10-01",
+    hasta: "2026-10-31",
+    dias: 31,
+    anteriorDesde: "2026-08-31",
+    anteriorHasta: "2026-09-30",
+    periodo: null,
+  });
+  // Al revés se ordenan; un solo día también vale.
+  assert.equal(leerRango({ desde: "2026-10-31", hasta: "2026-10-01" }, HOY).desde, "2026-10-01");
+  assert.equal(leerRango({ desde: "2027-01-10", hasta: "2027-01-10" }, HOY).dias, 1);
+  // El futuro se corta en hoy; sin «hasta», hasta hoy; sin «desde», ese día solo.
+  assert.equal(leerRango({ desde: "2027-01-10", hasta: "2027-03-01" }, HOY).hasta, HOY);
+  assert.deepEqual([leerRango({ desde: "2027-01-10" }, HOY).desde, leerRango({ desde: "2027-01-10" }, HOY).hasta], ["2027-01-10", HOY]);
+  assert.equal(leerRango({ desde: "2027-02-01" }, HOY).desde, HOY, "un desde futuro queda en hoy");
+  // Más de un año: se queda con los últimos 366 días hasta «hasta» (2026 tiene 365: entra el 31/12 anterior).
+  const largo = leerRango({ desde: "2020-01-01", hasta: "2026-12-31" }, HOY);
+  assert.deepEqual([largo.desde, largo.hasta, largo.dias], ["2025-12-31", "2026-12-31", 366]);
+  assert.equal(leerRango({ desde: "2026-01-01", hasta: "2026-12-31" }, HOY).dias, 365, "un año calendario entra entero");
+  // Fechas que no existen o cualquier otra cosa: los últimos 30 días.
+  assert.equal(leerRango({ desde: "2026-02-30", hasta: "2026-03-05" }, HOY).desde, "2026-03-05", "el 30 de febrero no existe: vale solo «hasta»");
+  assert.equal(leerRango({ desde: "hoy", hasta: "<script>" }, HOY).dias, 30);
+  assert.equal(leerRango({ dias: "7" }, HOY).periodo, 7);
+  assert.equal(leerRango({}, HOY).periodo, 30);
+  // Atajos de mes.
+  assert.deepEqual(atajosDeMes("2027-01-15"), [
+    { nombre: "Este mes", desde: "2027-01-01", hasta: "2027-01-15" },
+    { nombre: "Mes pasado", desde: "2026-12-01", hasta: "2026-12-31" },
+  ]);
+  assert.deepEqual(atajosDeMes("2026-03-31")[1], { nombre: "Mes pasado", desde: "2026-02-01", hasta: "2026-02-28" });
+});
+
+test("panel: las barras van por día hasta 2 meses, por semana hasta 6 y por mes después, sin perder pesos", () => {
+  const dias = (desde: string, n: number) =>
+    diasEntre(desde, "2099-01-01")
+      .slice(0, n)
+      .map((dia, i) => ({ dia, pedidos: 1, facturado: 1_000 * (i + 1) }));
+  const suma = (t: { facturado: number }[]) => t.reduce((a, x) => a + x.facturado, 0);
+
+  const corto = agruparPorTramo(dias("2027-01-01", 31));
+  assert.equal(corto.unidad, "día");
+  assert.equal(corto.tramos.length, 31);
+  assert.equal(corto.tramos[0].etiqueta, "01/01/2027");
+
+  const medio = agruparPorTramo(dias("2027-01-01", 90));
+  assert.equal(medio.unidad, "semana");
+  assert.equal(medio.tramos.length, 13, "12 semanas enteras y una de 6 días");
+  assert.equal(medio.tramos[0].etiqueta, "Del 01/01 al 07/01");
+  assert.equal(medio.tramos.at(-1)?.hasta, "2027-03-31");
+  assert.equal(suma(medio.tramos), suma(dias("2027-01-01", 90)));
+
+  const largo = agruparPorTramo(dias("2026-01-15", 366));
+  assert.equal(largo.unidad, "mes");
+  assert.equal(largo.tramos.length, 13, "de mediados de enero a mediados del enero siguiente");
+  assert.equal(largo.tramos[0].etiqueta, "ene 2026");
+  assert.equal(largo.tramos[1].desde, "2026-02-01");
+  assert.equal(suma(largo.tramos), suma(dias("2026-01-15", 366)));
+  assert.deepEqual(agruparPorTramo([]), { unidad: "día", tramos: [] });
 });
 
 test("panel: una fila de Pedidos se lee con su día en Buenos Aires, sus beneficios y su origen", () => {
@@ -223,6 +361,7 @@ test("panel: una fila de Pedidos se lee con su día en Buenos Aires, sus benefic
   assert.equal(p.cupon, 10_000);
   assert.equal(p.cashback, 7_990);
   assert.equal(p.origen, "ig / paid");
+  assert.equal(p.canal, "meta");
   assert.equal(p.envioCostoReal, 9_000);
   assert.equal(pedidoDelPanel({ Estado: "pagado" }), null, "sin número no es un pedido");
   assert.deepEqual(pedidoDelPanel({ Numero: "X", Items: "{roto" })?.items, [], "Items ilegible: sin productos, sin romper");
@@ -232,6 +371,7 @@ test("panel: el origen dice de dónde llegó en palabras", () => {
   assert.equal(etiquetaDeOrigen(null), "Directo o sin dato");
   assert.equal(etiquetaDeOrigen({ fbclid: "abc" }), "Meta (anuncio)");
   assert.equal(etiquetaDeOrigen({ gclid: "abc" }), "Google (anuncio)");
+  assert.equal(etiquetaDeOrigen({ utm_source: "ig", utm_medium: "paid", utm_campaign: "Verano" }), "ig / paid · verano");
   assert.equal(etiquetaDeOrigen({ referrer: "https://www.instagram.com/harper" }), "instagram.com");
   assert.equal(etiquetaDeOrigen({ referrer: "https://harper.ar/anteojos" }), "Directo o sin dato", "de la propia tienda no cuenta");
 });
@@ -239,7 +379,7 @@ test("panel: el origen dice de dónde llegó en palabras", () => {
 test("panel: ventas del período solo con pedidos confirmados, comparadas con el período anterior", () => {
   const pedidos = [
     pedido("A"),
-    pedido("B", { estado: "enviado", total: 200_000, items: [{ varianteId: "recVARIANTE00001", nombre: "AMATISTA", color: "Gris", categoria: "Anteojos", cantidad: 2, subtotal: 200_000 }], origen: "ig / paid", cupon: 10_000, suscriptor: true }),
+    pedido("B", { estado: "enviado", total: 200_000, items: [{ varianteId: "recVARIANTE00001", nombre: "AMATISTA", color: "Gris", categoria: "Anteojos", cantidad: 2, subtotal: 200_000 }], canal: "meta", origen: "ig / paid", cupon: 10_000, suscriptor: true }),
     pedido("C", { estado: "pendiente" }),
     pedido("D", { estado: "rechazado" }),
     pedido("E", { dia: "2027-01-05" }), // período anterior
@@ -254,6 +394,7 @@ test("panel: ventas del período solo con pedidos confirmados, comparadas con el
   assert.deepEqual(v.estados, { pagado: 1, enviado: 1, pendiente: 1, rechazado: 1 });
   assert.deepEqual(v.porModelo.map((m) => m.nombre), ["AMATISTA", "CITRINO"]);
   assert.deepEqual(v.porOrigen.map((o) => [o.origen, o.pedidos]), [["ig / paid", 1], ["Directo o sin dato", 1]]);
+  assert.deepEqual(v.porCanal.map((c) => [c.canal, c.pedidos, c.facturado]), [["meta", 1, 200_000], ["sin_dato", 1, 121_000]]);
   assert.equal(v.beneficios.conCupon, 1);
   assert.equal(v.beneficios.deSuscriptores, 1);
   assert.deepEqual(v.paraDespachar.map((p) => p.numero), ["F", "E", "A"], "pagados y preparando de cualquier fecha, el más viejo primero");
@@ -293,8 +434,8 @@ test("panel: cuánto dejó cada venta, sin IVA, con costo, packaging, envío y c
 test("panel: el embudo usa solo los días con visitas contadas", () => {
   const conteos = {
     porDia: {
-      "2027-01-14": { visita: 100, producto: 60, carrito: 10, checkout: 5 },
-      "2027-01-15": { visita: 100, producto: 40, carrito: 10, checkout: 5 },
+      "2027-01-14": { visita: 100, producto: 60, carrito: 10, checkout: 5, compra: 1 },
+      "2027-01-15": { visita: 100, producto: 40, carrito: 10, checkout: 5, compra: 1 },
     },
   };
   const pedidos = [pedido("A"), pedido("B", { estado: "pendiente" }), pedido("C", { dia: "2027-01-10" })];

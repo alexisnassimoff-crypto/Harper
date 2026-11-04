@@ -6203,10 +6203,39 @@ main:has(.cierre:last-child) ~ .pie {
   padding: 0;
   font-size: inherit;
 }
+.panel-fechas {
+  display: grid;
+  gap: 0.75rem;
+}
 .panel-periodos {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+/* Fechas a elección: los dos días y el botón, en una fila que se acomoda en el celular. */
+.panel-elegir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.panel-elegir .campo {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+.panel-elegir .campo input {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.9rem;
+}
+.panel-elegir .boton {
+  min-height: 2.5rem;
+}
+.panel-seccion code {
+  font-size: 0.8125rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  background: var(--fondo-alt);
+  word-break: break-all;
 }
 .panel-periodo {
   padding: 0.45rem 1rem;

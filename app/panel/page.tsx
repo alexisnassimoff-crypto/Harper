@@ -3,10 +3,10 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { EntrarAlPanel, SalirDelPanel } from "@/components/panel/EntrarAlPanel";
 import { precio } from "@/lib/formato";
-import { leerPeriodo, PERIODOS, type PedidoPanel } from "@/lib/panel-datos";
+import { agruparPorTramo, atajosDeMes, leerRango, PERIODOS, type PedidoPanel } from "@/lib/panel-datos";
 import { datosDelPanel } from "@/lib/panel-servidor";
 import { COOKIE_PANEL, mailDeLaSesionPanel } from "@/lib/panel-sesion";
-import { fechaLegible } from "@/lib/suscriptores";
+import { fechaArgentina, fechaLegible } from "@/lib/suscriptores";
 
 /**
  * El panel privado de Ale (04/11/2026): «una página solo para mí, toda la
@@ -40,12 +40,14 @@ const pct = (n: number | null, decimales = 1) => (n === null ? "—" : `${numero
 const pesos = (n: number | null) => (n === null ? "—" : precio(Math.round(n)));
 const conSigno = (n: number) => `${n < 0 ? "−" : ""}${precio(Math.round(Math.abs(n)))}`;
 
-/** «+12 %» contra el período anterior, o nada si antes no hubo ventas. */
+/** «+12 % vs. los 30 días anteriores», o nada si antes no hubo ventas. */
 function cambio(actual: number, anterior: number, dias: number): string | null {
   if (anterior <= 0) return null;
   const v = ((actual - anterior) / anterior) * 100;
-  return `${v >= 0 ? "+" : "−"}${numeroAR(Math.abs(v), 0)} % vs. los ${dias} días anteriores`;
+  return `${v >= 0 ? "+" : "−"}${numeroAR(Math.abs(v), 0)} % vs. ${diasAnteriores(dias)}`;
 }
+
+const diasAnteriores = (dias: number) => (dias === 1 ? "el día anterior" : `los ${dias} días anteriores`);
 
 function Cifra({ titulo, valor, detalle }: { titulo: string; valor: string; detalle?: string | null }) {
   return (
@@ -87,7 +89,7 @@ function TablaPedidos({ pedidos }: { pedidos: PedidoPanel[] }) {
               Total
             </th>
             <th scope="col">Provincia</th>
-            <th scope="col">Origen</th>
+            <th scope="col">Campaña</th>
           </tr>
         </thead>
         <tbody>
@@ -99,7 +101,7 @@ function TablaPedidos({ pedidos }: { pedidos: PedidoPanel[] }) {
               <td>{p.items.map((i) => `${i.cantidad} × ${i.nombre}${i.color ? ` ${i.color}` : ""}`).join(", ") || "—"}</td>
               <td className="panel-num">{precio(p.total)}</td>
               <td>{p.provincia || "—"}</td>
-              <td>{p.origen}</td>
+              <td>{p.canal === "sin_dato" ? "—" : p.origen}</td>
             </tr>
           ))}
         </tbody>
@@ -108,7 +110,9 @@ function TablaPedidos({ pedidos }: { pedidos: PedidoPanel[] }) {
   );
 }
 
-export default async function Panel({ searchParams }: { searchParams: Promise<{ dias?: string | string[] }> }) {
+type Parametros = { dias?: string | string[]; desde?: string | string[]; hasta?: string | string[] };
+
+export default async function Panel({ searchParams }: { searchParams: Promise<Parametros> }) {
   const valor = (await cookies()).get(COOKIE_PANEL)?.value ?? null;
   const email = await mailDeLaSesionPanel(valor).catch(() => null);
 
@@ -125,11 +129,14 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
     );
   }
 
-  const periodo = leerPeriodo((await searchParams).dias);
-  const d = await datosDelPanel(periodo);
+  const hoy = fechaArgentina(new Date());
+  const rango = leerRango(await searchParams, hoy);
+  const d = await datosDelPanel(rango);
   const v = d.ventas;
   const conversion = d.embudo?.pasos.at(-1)?.deLasVisitas ?? null;
-  const maxDia = v ? Math.max(1, ...v.porDia.map((x) => x.facturado)) : 1;
+  const barras = v ? agruparPorTramo(v.porDia) : null;
+  const maxTramo = barras ? Math.max(1, ...barras.tramos.map((x) => x.facturado)) : 1;
+  const meses = atajosDeMes(hoy);
   const visitasEmbudo = d.embudo?.pasos[0]?.valor ?? 0;
   const ahora = new Intl.DateTimeFormat("es-AR", {
     timeZone: "America/Argentina/Buenos_Aires",
@@ -146,16 +153,43 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
             Cómo va Harper
           </h1>
           <p className="apagado">
-            Del {fechaLegible(d.desde)} al {fechaLegible(d.hoy)} · leído a las {ahora} · {email} · <SalirDelPanel />
+            Del {fechaLegible(rango.desde)} al {fechaLegible(rango.hasta)} ({rango.dias} {rango.dias === 1 ? "día" : "días"}) · leído a las{" "}
+            {ahora} · {email} · <SalirDelPanel />
           </p>
         </div>
-        <nav className="panel-periodos" aria-label="Período">
-          {PERIODOS.map((p) => (
-            <Link key={p} href={`/panel?dias=${p}`} aria-current={p === periodo ? "page" : undefined} className="panel-periodo">
-              {p} días
-            </Link>
-          ))}
-        </nav>
+        <div className="panel-fechas">
+          <nav className="panel-periodos" aria-label="Atajos de fechas">
+            {PERIODOS.map((p) => (
+              <Link key={p} href={`/panel?dias=${p}`} aria-current={p === rango.periodo ? "page" : undefined} className="panel-periodo">
+                {p} días
+              </Link>
+            ))}
+            {meses.map((m) => (
+              <Link
+                key={m.nombre}
+                href={`/panel?desde=${m.desde}&hasta=${m.hasta}`}
+                aria-current={rango.periodo === null && rango.desde === m.desde && rango.hasta === m.hasta ? "page" : undefined}
+                className="panel-periodo"
+              >
+                {m.nombre}
+              </Link>
+            ))}
+          </nav>
+          {/* Fechas a elección: un formulario común, sin JavaScript. */}
+          <form className="panel-elegir" action="/panel" method="get">
+            <label className="campo">
+              <span>Desde</span>
+              <input type="date" name="desde" defaultValue={rango.desde} max={hoy} required />
+            </label>
+            <label className="campo">
+              <span>Hasta</span>
+              <input type="date" name="hasta" defaultValue={rango.hasta} max={hoy} required />
+            </label>
+            <button type="submit" className="boton boton--chico">
+              Ver
+            </button>
+          </form>
+        </div>
       </header>
 
       {d.errores.length > 0 ? (
@@ -167,8 +201,8 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
       <Seccion titulo="La tienda web">
         {v ? (
           <dl className="panel-cifras">
-            <Cifra titulo="Facturado" valor={precio(v.facturado)} detalle={cambio(v.facturado, v.anterior.facturado, periodo)} />
-            <Cifra titulo="Pedidos pagados" valor={numeroAR(v.pedidos)} detalle={`${numeroAR(v.anterior.pedidos)} en los ${periodo} días anteriores`} />
+            <Cifra titulo="Facturado" valor={precio(v.facturado)} detalle={cambio(v.facturado, v.anterior.facturado, rango.dias)} />
+            <Cifra titulo="Pedidos pagados" valor={numeroAR(v.pedidos)} detalle={`${numeroAR(v.anterior.pedidos)} en ${diasAnteriores(rango.dias)}`} />
             <Cifra titulo="Ticket promedio" valor={pesos(v.ticket)} />
             <Cifra titulo="Unidades" valor={numeroAR(v.unidades)} />
             <Cifra
@@ -197,22 +231,26 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
         </Seccion>
       ) : null}
 
-      {v ? (
-        <Seccion titulo="Facturado por día" nota="Pedidos pagados, por el día de la compra.">
-          <div className="panel-barras" role="img" aria-label={`Facturado por día, de ${fechaLegible(d.desde)} a ${fechaLegible(d.hoy)}`}>
-            {v.porDia.map((x) => (
+      {v && barras ? (
+        <Seccion titulo={`Facturado por ${barras.unidad}`} nota="Pedidos pagados, por el día de la compra.">
+          <div
+            className="panel-barras"
+            role="img"
+            aria-label={`Facturado por ${barras.unidad}, del ${fechaLegible(rango.desde)} al ${fechaLegible(rango.hasta)}. El detalle está en la tabla.`}
+          >
+            {barras.tramos.map((x) => (
               <span
-                key={x.dia}
+                key={x.desde}
                 className="panel-barras__barra"
                 tabIndex={0}
-                data-valor={`${fechaLegible(x.dia)}: ${precio(x.facturado)} · ${x.pedidos} ${x.pedidos === 1 ? "pedido" : "pedidos"}`}
-                style={{ height: `${x.facturado > 0 ? Math.max(3, (x.facturado / maxDia) * 100) : 0}%` }}
+                data-valor={`${x.etiqueta}: ${precio(x.facturado)} · ${x.pedidos} ${x.pedidos === 1 ? "pedido" : "pedidos"}`}
+                style={{ height: `${x.facturado > 0 ? Math.max(3, (x.facturado / maxTramo) * 100) : 0}%` }}
               />
             ))}
           </div>
           <div className="panel-barras__eje" aria-hidden="true">
-            <span>{fechaLegible(d.desde)}</span>
-            <span>{fechaLegible(d.hoy)}</span>
+            <span>{fechaLegible(rango.desde)}</span>
+            <span>{fechaLegible(rango.hasta)}</span>
           </div>
           <details className="panel-detalle">
             <summary>Ver la tabla</summary>
@@ -220,7 +258,7 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
               <table>
                 <thead>
                   <tr>
-                    <th scope="col">Día</th>
+                    <th scope="col">{barras.unidad === "día" ? "Día" : barras.unidad === "semana" ? "Semana" : "Mes"}</th>
                     <th scope="col" className="panel-num">
                       Pedidos
                     </th>
@@ -230,9 +268,9 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
                   </tr>
                 </thead>
                 <tbody>
-                  {[...v.porDia].reverse().map((x) => (
-                    <tr key={x.dia}>
-                      <td>{fechaLegible(x.dia)}</td>
+                  {[...barras.tramos].reverse().map((x) => (
+                    <tr key={x.desde}>
+                      <td>{x.etiqueta}</td>
                       <td className="panel-num">{x.pedidos}</td>
                       <td className="panel-num">{precio(x.facturado)}</td>
                     </tr>
@@ -279,8 +317,57 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
       </Seccion>
 
       <Seccion
+        titulo="De dónde vienen los compradores"
+        nota="Todas las visitas, sin cookies ni datos de nadie: solo por qué canal entraron (la dirección de la campaña o el sitio que las mandó). Las compras se cuentan al volver de Mercado Pago con el pago aprobado. Directo es quien escribió harper.ar o entró desde un favorito o una app que no dice de dónde viene."
+      >
+        {d.canales && d.canales.length > 0 ? (
+          <div className="panel-tabla">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Canal</th>
+                  <th scope="col" className="panel-num">
+                    Visitas
+                  </th>
+                  <th scope="col" className="panel-num">
+                    Al carrito
+                  </th>
+                  <th scope="col" className="panel-num">
+                    Compras
+                  </th>
+                  <th scope="col" className="panel-num">
+                    Conversión
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.canales.map((c) => (
+                  <tr key={c.canal}>
+                    <td>{c.nombre}</td>
+                    <td className="panel-num">{numeroAR(c.visitas)}</td>
+                    <td className="panel-num">{numeroAR(c.carrito)}</td>
+                    <td className="panel-num">{numeroAR(c.compras)}</td>
+                    <td className="panel-num">{pct(c.conversion, 2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <SinDatos texto={d.canales ? "Todavía no hay visitas contadas en este período." : "Los contadores no están disponibles (Redis)."} />
+        )}
+        <p className="panel-seccion__nota">
+          Para ver a quienes llegan desde Mercado Libre, el enlace o el QR que pongas ahí (por ejemplo, en la tarjeta del paquete) tiene que terminar en{" "}
+          <code>?utm_source=mercadolibre</code>. Lo mismo con TikTok, Instagram o un mail: <code>?utm_source=tiktok</code>,{" "}
+          <code>?utm_source=instagram</code>, <code>?utm_source=mail</code>.
+        </p>
+      </Seccion>
+
+      <Seccion
         titulo="Cuánto dejó"
-        nota="Estimado, de los pedidos pagados del período: ventas y envíos sin IVA, costo de la tabla Costos ML y el cashback que se dio. No incluye la comisión de Mercado Pago, que no queda en el pedido."
+        nota={`Estimado, de los pedidos pagados del período: ventas y envíos sin IVA (${numeroAR(d.iva.tasa, 1)} %${
+          d.iva.deConfig ? ", de Config" : ", el mismo del resumen semanal de Mercado Libre"
+        }), costo de la tabla Costos ML y el cashback que se dio. No incluye la comisión de Mercado Pago, que no queda en el pedido.`}
       >
         {d.margen ? (
           <>
@@ -359,13 +446,16 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
             )}
           </Seccion>
 
-          <Seccion titulo="De dónde llegaron" nota="Solo se guarda con el sí a las cookies de medición.">
-            {v.porOrigen.length > 0 ? (
+          <Seccion
+            titulo="Ventas por canal"
+            nota="Pedidos pagados, con lo que guardaron de su campaña. Solo se guarda con el sí a las cookies de medición: el resto queda en «Sin dato»."
+          >
+            {v.porCanal.length > 0 ? (
               <div className="panel-tabla">
                 <table>
                   <thead>
                     <tr>
-                      <th scope="col">Origen</th>
+                      <th scope="col">Canal</th>
                       <th scope="col" className="panel-num">
                         Pedidos
                       </th>
@@ -375,11 +465,11 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
                     </tr>
                   </thead>
                   <tbody>
-                    {v.porOrigen.map((o) => (
-                      <tr key={o.origen}>
-                        <td>{o.origen}</td>
-                        <td className="panel-num">{numeroAR(o.pedidos)}</td>
-                        <td className="panel-num">{precio(o.facturado)}</td>
+                    {v.porCanal.map((c) => (
+                      <tr key={c.canal}>
+                        <td>{c.nombre}</td>
+                        <td className="panel-num">{numeroAR(c.pedidos)}</td>
+                        <td className="panel-num">{precio(c.facturado)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -388,6 +478,37 @@ export default async function Panel({ searchParams }: { searchParams: Promise<{ 
             ) : (
               <p className="apagado">Sin ventas en el período.</p>
             )}
+            {v.porOrigen.some((o) => o.origen !== "Directo o sin dato") ? (
+              <details className="panel-detalle">
+                <summary>Ver las campañas</summary>
+                <div className="panel-tabla">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th scope="col">Campaña</th>
+                        <th scope="col" className="panel-num">
+                          Pedidos
+                        </th>
+                        <th scope="col" className="panel-num">
+                          Facturado
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {v.porOrigen
+                        .filter((o) => o.origen !== "Directo o sin dato")
+                        .map((o) => (
+                          <tr key={o.origen}>
+                            <td>{o.origen}</td>
+                            <td className="panel-num">{numeroAR(o.pedidos)}</td>
+                            <td className="panel-num">{precio(o.facturado)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            ) : null}
           </Seccion>
 
           <Seccion titulo="Pedidos del período, por estado">

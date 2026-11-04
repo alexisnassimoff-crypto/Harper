@@ -1,4 +1,5 @@
 import { track } from "@vercel/analytics";
+import { canalDeLaVisita, esCanal, type Canal } from "./canales";
 
 /**
  * La medición propia de la tienda, para el panel (Ale, 04/11/2026: «suma
@@ -7,10 +8,14 @@ import { track } from "@vercel/analytics";
  * Dos cosas, ninguna con cookies ni datos de la persona:
  *  - Vercel Web Analytics y Speed Insights (components/Medicion.tsx): visitas,
  *    de dónde llegan, qué páginas y qué tan rápido cargan. Se miran en Vercel.
- *  - Unos contadores del día en Redis (/api/medir) para el embudo del panel:
- *    cuántas visitas, cuántas abrieron una ficha, agregaron al carrito y
- *    empezaron el checkout. Cada uno cuenta una vez por pestaña, así el
- *    embudo compara visitas con visitas. Lo que se guarda es solo el número.
+ *  - Unos contadores del día en Redis (/api/medir) para el panel: cuántas
+ *    visitas, cuántas abrieron una ficha, agregaron al carrito, empezaron el
+ *    checkout y compraron, y por qué canal llegaron (lib/canales.ts). Cada
+ *    paso cuenta una vez por pestaña, así se comparan visitas con visitas. Lo
+ *    que se guarda es solo el número.
+ *
+ * En el navegador queda, mientras dura la pestaña (sessionStorage, no una
+ * cookie), el canal con el que llegó y qué pasos ya se contaron: nada más.
  *
  * No se mide el panel, las rutas de la API ni la página de baja (lleva en la
  * dirección el enlace firmado del mail). Tampoco a quien entró al panel en
@@ -18,18 +23,15 @@ import { track } from "@vercel/analytics";
  */
 
 /** Lo que cuentan los contadores del panel. */
-export const EVENTOS_MEDIDOS = ["visita", "producto", "carrito", "checkout"] as const;
+export const EVENTOS_MEDIDOS = ["visita", "producto", "carrito", "checkout", "compra"] as const;
 export type EventoMedido = (typeof EVENTOS_MEDIDOS)[number];
-
-/** Lo que además se le cuenta a Vercel; la compra la cuenta el panel desde Airtable. */
-export type EventoDeMedicion = EventoMedido | "compra";
 
 export function esEventoMedido(valor: unknown): valor is EventoMedido {
   return typeof valor === "string" && (EVENTOS_MEDIDOS as readonly string[]).includes(valor);
 }
 
 /** El nombre del evento en Vercel. La visita ya la cuenta Vercel sola. */
-const NOMBRE_EN_VERCEL: Record<EventoDeMedicion, string | null> = {
+const NOMBRE_EN_VERCEL: Record<EventoMedido, string | null> = {
   visita: null,
   producto: "Abrió una ficha",
   carrito: "Agregó al carrito",
@@ -90,14 +92,77 @@ export function filtrarParaVercel<T extends { url: string }>(evento: T): T | nul
   return url ? { ...evento, url } : null;
 }
 
+/** El cuerpo que viaja a /api/medir: «evento:canal». */
+export function cuerpoDeMedicion(evento: EventoMedido, canal: Canal) {
+  return `${evento}:${canal}`;
+}
+
+/** Lo contrario, en el servidor. Null si no es un evento conocido; sin canal, «sin_dato». */
+export function leerCuerpoDeMedicion(crudo: string): { evento: EventoMedido; canal: Canal } | null {
+  const [evento, canal, sobra] = crudo.trim().slice(0, 40).split(":");
+  if (!esEventoMedido(evento) || sobra !== undefined) return null;
+  if (canal === undefined) return { evento, canal: "sin_dato" };
+  return esCanal(canal) ? { evento, canal } : null;
+}
+
+const CLAVE_CANAL = "harper.medido.canal";
+/** Por si el navegador no deja guardar: vale para esta página. */
+let canalEnMemoria: Canal | null = null;
+
+/** Manda un paso a /api/medir y, si tiene nombre, a Vercel. */
+function enviar(evento: EventoMedido, canal: Canal) {
+  const cuerpo = cuerpoDeMedicion(evento, canal);
+  const enviado = typeof navigator.sendBeacon === "function" && navigator.sendBeacon("/api/medir", cuerpo);
+  if (!enviado) {
+    void fetch("/api/medir", { method: "POST", body: cuerpo, keepalive: true }).catch(() => {});
+  }
+  const nombre = NOMBRE_EN_VERCEL[evento];
+  if (nombre) track(nombre, { canal });
+}
+
 /**
- * Cuenta un paso del embudo, una sola vez por pestaña (y, con `clave`, una
- * vez por esa clave: la compra, una por pedido). Nunca falla ni demora nada.
+ * El canal de esta pestaña: el guardado o, en la primera página que se mide,
+ * el que se detecta. Esa primera vez también cuenta la visita (si es una
+ * visita nueva), sea cual sea el paso que llegó primero.
  */
-export function medir(evento: EventoDeMedicion, opciones: { clave?: string } = {}) {
+function canalDeEstaPestana(): Canal {
+  let guardado: string | null = canalEnMemoria;
+  try {
+    guardado = window.sessionStorage.getItem(CLAVE_CANAL) ?? guardado;
+  } catch {
+    // Sin almacenamiento, vale el de memoria.
+  }
+  if (esCanal(guardado)) return guardado;
+
+  const { canal, cuentaComoVisita } = canalDeLaVisita({
+    search: window.location.search,
+    referencia: document.referrer,
+    hostPropio: window.location.hostname,
+    ruta: window.location.pathname,
+  });
+  canalEnMemoria = canal;
+  try {
+    window.sessionStorage.setItem(CLAVE_CANAL, canal);
+  } catch {
+    // Igual que arriba.
+  }
+  if (cuentaComoVisita) enviar("visita", canal);
+  return canal;
+}
+
+/**
+ * Cuenta un paso, una sola vez por pestaña (y, con `clave`, una vez por esa
+ * clave: la compra, una por pedido). La visita cuenta sola, en la primera
+ * página de la pestaña: `medir("visita")` solo se asegura de que eso pase.
+ * Nunca falla ni demora nada.
+ */
+export function medir(evento: EventoMedido, opciones: { clave?: string } = {}) {
   if (typeof window === "undefined") return;
   try {
     if (rutaSinMedir(window.location.pathname) || esNavegadorDelPanel()) return;
+
+    const canal = canalDeEstaPestana();
+    if (evento === "visita") return;
 
     const marca = `harper.medido.${evento}${opciones.clave ? `.${opciones.clave}` : ""}`;
     try {
@@ -106,16 +171,7 @@ export function medir(evento: EventoDeMedicion, opciones: { clave?: string } = {
     } catch {
       // Sin almacenamiento puede contar de más en esta pestaña; no es grave.
     }
-
-    if (esEventoMedido(evento)) {
-      const enviado = typeof navigator.sendBeacon === "function" && navigator.sendBeacon("/api/medir", evento);
-      if (!enviado) {
-        void fetch("/api/medir", { method: "POST", body: evento, keepalive: true }).catch(() => {});
-      }
-    }
-
-    const nombre = NOMBRE_EN_VERCEL[evento];
-    if (nombre) track(nombre);
+    enviar(evento, canal);
   } catch {
     // La medición nunca rompe la página.
   }

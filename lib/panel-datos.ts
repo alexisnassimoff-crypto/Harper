@@ -1,3 +1,4 @@
+import { canalDelOrigen, CANALES, NOMBRE_DEL_CANAL, type Canal } from "./canales";
 import { esPedidoConDineroMP } from "./dinero-mp";
 import type { EventoMedido } from "./medir";
 import type { Origen } from "./origen";
@@ -19,19 +20,89 @@ import { ESTADOS_CONFIRMADOS } from "./webhook-decision";
 export const PERIODOS = [7, 30, 90] as const;
 export type Periodo = (typeof PERIODOS)[number];
 
+/** El rango más largo que se puede elegir: un año. Los contadores se guardan un poco más (lib/medir-servidor.ts). */
+export const DIAS_MAXIMOS = 366;
+
+export type Rango = {
+  desde: string;
+  hasta: string;
+  /** Cuántos días tiene, incluidos los dos extremos. */
+  dias: number;
+  /** El período anterior, del mismo largo, para comparar. */
+  anteriorDesde: string;
+  anteriorHasta: string;
+  /** El atajo elegido (7, 30 o 90 días hasta hoy), o null si son fechas a elección. */
+  periodo: Periodo | null;
+};
+
+/** Cuántos días hay de una fecha a otra, incluidas las dos. */
+export function diasDe(desde: string, hasta: string): number {
+  const ms = (d: string) => {
+    const [a, m, dia] = d.split("-").map(Number);
+    return Date.UTC(a, m - 1, dia);
+  };
+  return Math.round((ms(hasta) - ms(desde)) / 86_400_000) + 1;
+}
+
+/** "2026-11-04" si es una fecha de verdad (no 2026-02-30); null si no. */
+export function fechaValida(crudo: unknown): string | null {
+  const texto = Array.isArray(crudo) ? crudo[0] : crudo;
+  if (typeof texto !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(texto)) return null;
+  const [a, m, d] = texto.split("-").map(Number);
+  const fecha = new Date(Date.UTC(a, m - 1, d));
+  return a >= 2020 && fecha.toISOString().slice(0, 10) === texto ? texto : null;
+}
+
+/** El rango [desde, hasta] y el anterior del mismo largo. */
+export function rangoEntre(desde: string, hasta: string, periodo: Periodo | null = null): Rango {
+  const dias = diasDe(desde, hasta);
+  return {
+    desde,
+    hasta,
+    dias,
+    anteriorDesde: sumarDias(desde, -dias),
+    anteriorHasta: sumarDias(desde, -1),
+    periodo,
+  };
+}
+
+/** Los últimos `dias` días hasta hoy. */
+export function rangoDe(hoy: string, dias: Periodo): Rango {
+  return rangoEntre(sumarDias(hoy, -(dias - 1)), hoy, dias);
+}
+
 export function leerPeriodo(crudo: unknown): Periodo {
   const n = Number(Array.isArray(crudo) ? crudo[0] : crudo);
   return (PERIODOS as readonly number[]).includes(n) ? (n as Periodo) : 30;
 }
 
-/** Los días [desde, hasta] del período que termina hoy, y los del anterior del mismo largo. */
-export function rangoDe(hoy: string, dias: number) {
-  return {
-    desde: sumarDias(hoy, -(dias - 1)),
-    hasta: hoy,
-    anteriorDesde: sumarDias(hoy, -(2 * dias - 1)),
-    anteriorHasta: sumarDias(hoy, -dias),
-  };
+/**
+ * El rango que pidió la dirección del panel: `?desde=2026-10-01&hasta=2026-10-31`
+ * (fechas a elección) o `?dias=7|30|90` (atajos). Las fechas se ordenan, no
+ * pasan de hoy y no abarcan más de un año. Sin nada válido, los últimos 30 días.
+ */
+export function leerRango(params: { desde?: unknown; hasta?: unknown; dias?: unknown }, hoy: string): Rango {
+  let desde = fechaValida(params.desde);
+  let hasta = fechaValida(params.hasta);
+  if (!desde && !hasta) return rangoDe(hoy, leerPeriodo(params.dias));
+  desde ??= hasta!;
+  hasta ??= hoy;
+  if (desde > hasta) [desde, hasta] = [hasta, desde];
+  if (hasta > hoy) hasta = hoy;
+  if (desde > hasta) desde = hasta;
+  if (diasDe(desde, hasta) > DIAS_MAXIMOS) desde = sumarDias(hasta, -(DIAS_MAXIMOS - 1));
+  return rangoEntre(desde, hasta);
+}
+
+/** Atajos de meses para el panel: este mes (hasta hoy) y el anterior entero. */
+export function atajosDeMes(hoy: string): { nombre: string; desde: string; hasta: string }[] {
+  const inicio = `${hoy.slice(0, 8)}01`;
+  const anteriorFin = sumarDias(inicio, -1);
+  const anteriorInicio = `${anteriorFin.slice(0, 8)}01`;
+  return [
+    { nombre: "Este mes", desde: inicio, hasta: hoy },
+    { nombre: "Mes pasado", desde: anteriorInicio, hasta: anteriorFin },
+  ];
 }
 
 /** Todos los días entre dos fechas, incluidas. */
@@ -80,6 +151,9 @@ export type PedidoPanel = {
   total: number;
   envio: number;
   items: ItemDelPanel[];
+  /** El canal, con lo que guardó de su campaña (solo con el sí a las cookies). */
+  canal: Canal;
+  /** El detalle de la campaña, en palabras. */
   origen: string;
   provincia: string;
   cupon: number;
@@ -141,7 +215,8 @@ export function etiquetaDeOrigen(origen: Origen | null): string {
   const fuente = limpio(origen.utm_source);
   if (fuente) {
     const medio = limpio(origen.utm_medium);
-    return medio ? `${fuente} / ${medio}` : fuente;
+    const campana = limpio(origen.utm_campaign);
+    return `${medio ? `${fuente} / ${medio}` : fuente}${campana ? ` · ${campana}` : ""}`;
   }
   if (texto(origen.fbclid)) return "Meta (anuncio)";
   if (texto(origen.gclid)) return "Google (anuncio)";
@@ -164,6 +239,7 @@ export function pedidoDelPanel(fila: FilaPedidoPanel, creado?: string): PedidoPa
   if (!numeroPedido) return null;
   const fecha = new Date(fila.Fecha ?? creado ?? "");
   const beneficios = beneficiosDeNotas(fila.Notas);
+  const origen = leerOrigen(fila.Origen);
   return {
     numero: numeroPedido,
     estado: texto(fila.Estado, 20) || "pendiente",
@@ -171,7 +247,8 @@ export function pedidoDelPanel(fila: FilaPedidoPanel, creado?: string): PedidoPa
     total: numero(fila.Total),
     envio: numero(fila.Envio),
     items: leerItems(fila.Items),
-    origen: etiquetaDeOrigen(leerOrigen(fila.Origen)),
+    canal: canalDelOrigen(origen),
+    origen: etiquetaDeOrigen(origen),
     provincia: texto(fila.Provincia, 60),
     cupon: beneficios?.cupon ?? 0,
     saldoUsado: beneficios?.saldoUsado ?? 0,
@@ -266,6 +343,8 @@ export type ResumenVentas = {
   estados: Record<string, number>;
   porModelo: { nombre: string; unidades: number; facturado: number }[];
   porOrigen: { origen: string; pedidos: number; facturado: number }[];
+  /** Los pedidos pagados por canal, con lo que guardaron de su campaña. */
+  porCanal: { canal: Canal; nombre: string; pedidos: number; facturado: number }[];
   beneficios: { conCupon: number; cupones: number; saldoUsado: number; cashback: number; deSuscriptores: number; conDineroMP: number };
   porDia: { dia: string; pedidos: number; facturado: number }[];
   /** Pagados que todavía no salieron, de cualquier fecha: lo que hay que despachar. */
@@ -274,7 +353,7 @@ export type ResumenVentas = {
   ultimos: PedidoPanel[];
 };
 
-export function resumirVentas(pedidos: PedidoPanel[], rango: ReturnType<typeof rangoDe>): ResumenVentas {
+export function resumirVentas(pedidos: PedidoPanel[], rango: Rango): ResumenVentas {
   const enRango = (p: PedidoPanel, desde: string, hasta: string) => p.dia >= desde && p.dia <= hasta;
   const delPeriodo = pedidos.filter((p) => enRango(p, rango.desde, rango.hasta));
   const confirmados = delPeriodo.filter(esConfirmado);
@@ -286,6 +365,7 @@ export function resumirVentas(pedidos: PedidoPanel[], rango: ReturnType<typeof r
 
   const modelos = new Map<string, { nombre: string; unidades: number; facturado: number }>();
   const origenes = new Map<string, { origen: string; pedidos: number; facturado: number }>();
+  const canales = new Map<Canal, { canal: Canal; nombre: string; pedidos: number; facturado: number }>();
   for (const p of confirmados) {
     for (const i of p.items) {
       const fila = modelos.get(i.nombre) ?? { nombre: i.nombre, unidades: 0, facturado: 0 };
@@ -297,6 +377,10 @@ export function resumirVentas(pedidos: PedidoPanel[], rango: ReturnType<typeof r
     fila.pedidos++;
     fila.facturado += p.total;
     origenes.set(p.origen, fila);
+    const delCanal = canales.get(p.canal) ?? { canal: p.canal, nombre: NOMBRE_DEL_CANAL[p.canal], pedidos: 0, facturado: 0 };
+    delCanal.pedidos++;
+    delCanal.facturado += p.total;
+    canales.set(p.canal, delCanal);
   }
 
   const porDia = diasEntre(rango.desde, rango.hasta).map((dia) => {
@@ -315,6 +399,7 @@ export function resumirVentas(pedidos: PedidoPanel[], rango: ReturnType<typeof r
     estados,
     porModelo: [...modelos.values()].sort((a, b) => b.facturado - a.facturado),
     porOrigen: [...origenes.values()].sort((a, b) => b.facturado - a.facturado),
+    porCanal: [...canales.values()].sort((a, b) => b.facturado - a.facturado),
     beneficios: {
       conCupon: confirmados.filter((p) => p.cupon > 0).length,
       cupones: confirmados.reduce((t, p) => t + p.cupon, 0),
@@ -375,6 +460,67 @@ export function armarEmbudo(
       paso("Pagaron", delEmbudo.filter(esConfirmado).length),
     ],
   };
+}
+
+/** Las barras del facturado: por día hasta 2 meses, por semana hasta 6 meses y por mes en adelante. */
+export type Tramo = { etiqueta: string; desde: string; hasta: string; pedidos: number; facturado: number };
+
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const corta = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
+
+export function agruparPorTramo(porDia: { dia: string; pedidos: number; facturado: number }[]): {
+  unidad: "día" | "semana" | "mes";
+  tramos: Tramo[];
+} {
+  const unidad = porDia.length <= 62 ? "día" : porDia.length <= 182 ? "semana" : "mes";
+  const tramos: Tramo[] = [];
+  porDia.forEach((d, i) => {
+    const nuevo =
+      tramos.length === 0 ||
+      (unidad === "día" ? true : unidad === "semana" ? i % 7 === 0 : d.dia.slice(0, 7) !== tramos[tramos.length - 1].desde.slice(0, 7));
+    if (nuevo) tramos.push({ etiqueta: "", desde: d.dia, hasta: d.dia, pedidos: 0, facturado: 0 });
+    const t = tramos[tramos.length - 1];
+    t.hasta = d.dia;
+    t.pedidos += d.pedidos;
+    t.facturado += d.facturado;
+  });
+  for (const t of tramos) {
+    t.etiqueta =
+      unidad === "día"
+        ? `${corta(t.desde)}/${t.desde.slice(0, 4)}`
+        : unidad === "semana"
+          ? `Del ${corta(t.desde)} al ${corta(t.hasta)}`
+          : `${MESES[Number(t.desde.slice(5, 7)) - 1]} ${t.desde.slice(0, 4)}`;
+  }
+  return { unidad, tramos };
+}
+
+export type FilaDeCanal = {
+  canal: Canal;
+  nombre: string;
+  visitas: number;
+  carrito: number;
+  compras: number;
+  /** Compras sobre visitas, en %. */
+  conversion: number | null;
+};
+
+/** Visitas, carritos y compras por canal, de los contadores sin cookies. Sin los canales en cero. */
+export function filasPorCanal(conteos: { porCanal: Record<Canal, Record<EventoMedido, number>> } | null): FilaDeCanal[] {
+  if (!conteos) return [];
+  return CANALES.map((canal) => {
+    const c = conteos.porCanal[canal];
+    return {
+      canal,
+      nombre: NOMBRE_DEL_CANAL[canal],
+      visitas: c?.visita ?? 0,
+      carrito: c?.carrito ?? 0,
+      compras: c?.compra ?? 0,
+      conversion: c && c.visita > 0 ? (c.compra / c.visita) * 100 : null,
+    };
+  })
+    .filter((f) => f.visitas > 0 || f.carrito > 0 || f.compras > 0)
+    .sort((a, b) => b.compras - a.compras || b.visitas - a.visitas);
 }
 
 // ---------------------------------------------------------------------------

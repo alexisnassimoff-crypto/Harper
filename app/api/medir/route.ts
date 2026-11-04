@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { claveDeIp, consumirCuota } from "@/lib/cuota";
-import { esEventoMedido } from "@/lib/medir";
+import { leerCuerpoDeMedicion } from "@/lib/medir";
 import { contarEvento } from "@/lib/medir-servidor";
 import { claveDelPanel, COOKIE_PANEL, leerSesionPanel } from "@/lib/panel-sesion";
 
@@ -13,9 +13,10 @@ const DIA = 24 * HORA;
 const NO_ES_PERSONA = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|whatsapp|telegram|curl|wget|python|node-fetch|axios/i;
 
 /**
- * Cuenta un paso del embudo del panel (lib/medir.ts).
+ * Cuenta un paso del panel (lib/medir.ts), con el canal por el que llegó la
+ * visita (lib/canales.ts).
  *
- *   POST /api/medir  "visita" | "producto" | "carrito" | "checkout"  → 204
+ *   POST /api/medir  "visita:meta" | "carrito:google" | "compra:directo" | …  → 204
  *
  * Contesta 204 siempre, cuente o no: es una medición, no tiene nada que
  * decir. No cuenta a los robots, ni el navegador de quien tiene abierta la
@@ -27,8 +28,8 @@ export async function POST(request: Request) {
   if (request.headers.get("sec-fetch-site") === "cross-site") return nada;
   if (NO_ES_PERSONA.test(request.headers.get("user-agent") ?? "")) return nada;
 
-  const evento = (await request.text().catch(() => "")).trim().slice(0, 20);
-  if (!esEventoMedido(evento)) return nada;
+  const medido = leerCuerpoDeMedicion(await request.text().catch(() => ""));
+  if (!medido) return nada;
 
   // Desde el navegador del panel no se cuenta (alcanza con la firma: no hace falta Airtable).
   const clave = claveDelPanel();
@@ -45,6 +46,6 @@ export async function POST(request: Request) {
   );
   if (cuota.excedida) return nada;
 
-  await contarEvento(evento);
+  await contarEvento(medido.evento, medido.canal);
   return nada;
 }
