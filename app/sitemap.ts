@@ -22,6 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...categorias,
     { url: `${SITIO}/suscriptores`, priority: 0.7 },
     { url: `${SITIO}/quienes-somos`, priority: 0.5 },
+    { url: `${SITIO}/preguntas-frecuentes`, priority: 0.4 },
     { url: `${SITIO}/legales/terminos`, priority: 0.2 },
     { url: `${SITIO}/legales/privacidad`, priority: 0.2 },
     { url: `${SITIO}/legales/suscriptores`, priority: 0.2 },

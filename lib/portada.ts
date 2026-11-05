@@ -152,7 +152,7 @@ export function preguntasDePortada(datos: {
       datos.diasArrepentimiento === datos.diasCambio
         ? `Tenés ${datos.diasCambio} días desde que recibís el pedido para devolverlo sin costo o cambiarlo por otro color o modelo`
         : `Tenés ${datos.diasArrepentimiento} días desde que recibís el pedido para devolverlo sin costo y ${datos.diasCambio} días para cambiar de color o modelo`
-    }, sin uso, completo y en su empaque. Además, ${datos.mesesGarantia} meses de garantía por defectos de fabricación.`,
+    }. Te pedimos devolver el producto completo y cuidarlo durante la prueba. Además, ${datos.mesesGarantia} meses de garantía por defectos de fabricación.`,
     enlace: { href: "/legales/devoluciones", texto: "Ver la política de cambios" },
   });
 

@@ -38,6 +38,14 @@ export function mensajeGraduadosModelo(modelo: string): string {
     : "Hola, Harper. Quiero consultar por cristales graduados.";
 }
 
+/** Desde la guía de talles de la ficha: "…el talle del modelo AMATISTA." */
+export function mensajeTalleModelo(modelo: string): string {
+  const nombre = limpio(modelo, 40);
+  return nombre
+    ? `Hola, Harper. Quiero consultar por el talle y las medidas del modelo ${nombre}.`
+    : "Hola, Harper. Quiero consultar por el talle y las medidas de un modelo.";
+}
+
 /** Desde la confirmación del pedido y el mail: con el número de pedido si lo hay. */
 export function mensajeGraduadosPedido(numeroPedido?: string | null): string {
   const numero = limpio(numeroPedido ?? "", 30).replace(/ /g, "");

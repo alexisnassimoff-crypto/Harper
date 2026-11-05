@@ -132,6 +132,41 @@ export function combinarOpiniones(items: ResenasDeItem[], maximo = 20): Opinione
   return { promedio, total, destacadas };
 }
 
+/**
+ * Una selección corta de opiniones de anteojos (Ale, 05/11/2026): solo las
+ * que se pueden atribuir a un modelo de anteojos («Modelo CITRINO»), nunca
+ * las de estuches o paños ni las que no dicen qué se compró. Que digan algo
+ * (ni «Excelente!!!» ni un párrafo largo), las del mismo modelo primero si se
+ * pide uno y, si dos empiezan igual (la misma persona dos veces), una sola.
+ * El texto no se toca: son opiniones reales.
+ */
+export function opinionesDeAnteojos(destacadas: ResenaML[], opciones: { cantidad?: number; modelo?: string } = {}): ResenaML[] {
+  const { cantidad = 3, modelo } = opciones;
+  const plano = (t: string) =>
+    t
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  const deAnteojos = destacadas.filter(
+    (r) => r.producto?.startsWith("Modelo ") && r.estrellas >= 4 && r.texto.trim().length >= 25 && r.texto.trim().length <= 200,
+  );
+  const delModelo = modelo ? `Modelo ${modelo}`.toUpperCase() : null;
+  const ordenadas = delModelo
+    ? [...deAnteojos.filter((r) => r.producto?.toUpperCase() === delModelo), ...deAnteojos.filter((r) => r.producto?.toUpperCase() !== delModelo)]
+    : deAnteojos;
+  const vistas = new Set<string>();
+  const elegidas: ResenaML[] = [];
+  for (const r of ordenadas) {
+    const comienzo = plano(r.texto).slice(0, 16);
+    if (vistas.has(comienzo)) continue;
+    vistas.add(comienzo);
+    elegidas.push(r);
+    if (elegidas.length === cantidad) break;
+  }
+  return elegidas;
+}
+
 /** Cómo se nombra en la tarjeta lo que compró: "Modelo CUARZO", "Estuche R100", "Paño Premium Alta Densidad". */
 export function etiquetaDeProducto(nombre: string, categoria: Categoria): string {
   if (esCategoriaDeAnteojos(categoria)) return `Modelo ${nombre}`;

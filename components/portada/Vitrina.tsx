@@ -9,13 +9,15 @@ import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { TEXTOS } from "@/lib/textos";
 
 /**
- * La vitrina de la portada (la única vez que aparecen los modelos): una
- * tarjeta por modelo, sobre el color del armazón elegido, para tocar un color
- * y sumarlo sin salir de la portada. El interruptor «Al sol | Adentro» es uno
- * solo para toda la vitrina: muestra que son fotocromáticos sin explicarlo.
+ * «Comprar» en la portada (Ale, 05/11/2026): cuatro modelos destacados como
+ * mucho y, arriba, un acceso por cada categoría de anteojos con stock (hoy,
+ * los fotocromáticos; mañana también de sol, receta y clip-on, sin alargar la
+ * portada). Cada modelo, sobre el color del armazón elegido, se suma al
+ * carrito sin salir de la portada. Donde hay fotos al sol, el interruptor
+ * «Al sol | Adentro».
  *
- * Todo lo que es plata (precio, cuotas, el total de llevarse todos) viene
- * armado del servidor: acá no se calcula ningún monto.
+ * Todo lo que es plata (precio, cuotas) viene armado del servidor: acá no se
+ * calcula ningún monto.
  */
 
 export type ColorVitrina = {
@@ -45,131 +47,142 @@ export type ModeloVitrina = {
   inicial: number;
 };
 
-export type DatosVitrina = {
-  /** El nombre de la línea de la vitrina ("Fotocromáticos"). */
-  linea: string;
-  /** "$ 89.900", o null si los modelos no cuestan lo mismo. */
-  precio: string | null;
-  /** "6 cuotas sin interés de $ 14.983", verificada para ese precio; null si no. */
+/** Un acceso a la página de una categoría con stock: «Fotocromáticos (4)». */
+export type CategoriaVitrina = {
+  slug: string;
+  /** "Fotocromáticos", "Anteojos de sol". */
+  titulo: string;
+  /** La página de la categoría. */
+  enlace: string;
+  /** Cuántos modelos con stock tiene. */
+  cantidad: number;
+};
+
+export type DestacadoVitrina = ModeloVitrina & {
+  /** El nombre corto de su categoría; se muestra solo si hay más de una. */
+  categoria: string;
+  /** "6 cuotas sin interés de $ 14.983,33", verificada para su precio; null si no. */
   cuota: string | null;
-  /** El atajo para llevarse uno de cada uno; null con un solo modelo. */
-  todos: { texto: string } | null;
+};
+
+export type DatosVitrina = {
   /** "También: estuches y paños", con sus enlaces. */
   complementos: { nombre: string; slug: string }[];
 };
 
 type Estado = "sol" | "adentro";
 
-export default function Vitrina({ modelos, datos }: { modelos: ModeloVitrina[]; datos: DatosVitrina }) {
+const T = TEXTOS.inicio.comprar;
+
+export default function Vitrina({
+  destacados,
+  categorias,
+  datos,
+}: {
+  /** Cuatro como mucho (lib/vitrina.ts, destacadosDeLaPortada). */
+  destacados: DestacadoVitrina[];
+  /** Las categorías de anteojos con stock, para ir a ver todos los modelos de cada una. */
+  categorias: CategoriaVitrina[];
+  datos: DatosVitrina;
+}) {
   const { items, agregar, abrirPanel } = useCarrito();
   // Cuántos de cada color hay en el carrito: el número va arriba del color, como en la ficha.
   const enCarrito = new Map<string, number>();
   for (const item of items) enCarrito.set(item.varianteId, (enCarrito.get(item.varianteId) ?? 0) + item.cantidad);
   const [estado, setEstado] = useState<Estado>("sol");
-  const [elegidos, setElegidos] = useState<Record<string, number>>(() => Object.fromEntries(modelos.map((m) => [m.slug, m.inicial])));
+  const [elegidos, setElegidos] = useState<Record<string, number>>(() => Object.fromEntries(destacados.map((m) => [m.slug, m.inicial])));
   const [sumados, setSumados] = useState<Record<string, boolean>>({});
   const [aviso, setAviso] = useState("");
-  const hayAlSol = modelos.some((m) => m.colores.some((c) => c.alSol));
-
-  function fotoDe(c: ColorVitrina) {
-    return estado === "sol" && c.alSol ? c.alSol : c.adentro;
-  }
+  const hayAlSol = destacados.some((m) => m.colores.some((c) => c.alSol));
+  const variasCategorias = categorias.length > 1;
 
   function elegirColor(slug: string, indice: number) {
     setElegidos((e) => ({ ...e, [slug]: indice }));
     setSumados((s) => ({ ...s, [slug]: false }));
   }
 
-  function sumar(modelo: ModeloVitrina, color: ColorVitrina) {
-    agregar({ productoSlug: modelo.slug, varianteId: color.id, cantidad: 1 });
-    trackAgregarAlCarrito({ sku: color.sku, nombre: modelo.nombre, precio: modelo.precio });
-  }
-
   function sumarEste(modelo: ModeloVitrina) {
     const color = modelo.colores[elegidos[modelo.slug] ?? modelo.inicial];
     if (!color || color.agotada) return;
-    sumar(modelo, color);
+    agregar({ productoSlug: modelo.slug, varianteId: color.id, cantidad: 1 });
+    trackAgregarAlCarrito({ sku: color.sku, nombre: modelo.nombre, precio: modelo.precio });
     setSumados((s) => ({ ...s, [modelo.slug]: true }));
     setAviso(`Sumaste ${modelo.nombre} ${color.color}.`);
     // En escritorio se abre el carrito al costado; en el celular avisa la barra de abajo.
     abrirPanel();
   }
 
-  function sumarTodos() {
-    const nombres: string[] = [];
-    for (const modelo of modelos) {
-      const elegido = modelo.colores[elegidos[modelo.slug] ?? modelo.inicial];
-      // Si el color a la vista se agotó, el primero que tenga stock.
-      const color = elegido && !elegido.agotada ? elegido : modelo.colores.find((c) => !c.agotada);
-      if (!color) continue;
-      sumar(modelo, color);
-      nombres.push(`${modelo.nombre} ${color.color}`);
-    }
-    setSumados(Object.fromEntries(modelos.map((m) => [m.slug, true])));
-    setAviso(`Sumaste ${nombres.join(", ")}.`);
-    abrirPanel();
-  }
-
-  const interruptor = (clase: string) =>
-    hayAlSol ? (
-      <div className={`interruptor-sol ${clase}`} role="radiogroup" aria-label="Cómo se ven los cristales">
-        {(["sol", "adentro"] as const).map((e) => (
-          <button
-            key={e}
-            type="button"
-            role="radio"
-            aria-checked={estado === e}
-            className="interruptor-sol__opcion"
-            onClick={() => setEstado(e)}
-          >
-            {e === "sol" ? "Al sol" : "Adentro"}
-          </button>
-        ))}
-      </div>
-    ) : null;
-
   return (
-    <>
-      {/* ---------- Los modelos, uno por uno ---------- */}
-      <section id="los-modelos" className="contenedor seccion vitrina-modelos" aria-labelledby="los-modelos-titulo">
-        <div className="vitrina-modelos__cabecera">
-          {/* Sin contar modelos: la colección crece (Ale, 30/10/2026). */}
-          <p className="etiqueta-mono">{datos.linea} · Ya disponibles</p>
-          <h2 id="los-modelos-titulo" className="titulo-serif">
-            {datos.precio ? TEXTOS.modelos.titulo : TEXTOS.modelos.tituloSinPrecio}
+    <section id="los-modelos" className="comprar" aria-labelledby="comprar-titulo">
+      <div className="contenedor">
+        <div className="comprar__cabecera">
+          <p className="etiqueta-mono">{T.etiqueta}</p>
+          <h2 id="comprar-titulo" className="titulo-serif">
+            {T.titulo}
           </h2>
-          <p className="apagado">
-            {datos.precio ? `${TEXTOS.modelos.mismoPrecio} ` : null}
-            {hayAlSol ? TEXTOS.modelos.bajadaConSol : TEXTOS.modelos.bajada}
-          </p>
-          {interruptor("vitrina-modelos__interruptor")}
         </div>
 
-        <div className="pieza-lista">
-          {modelos.map((m) => {
+        <div className="comprar__fila">
+          {/* Un acceso por categoría con stock: lleva a todos sus modelos. */}
+          <nav className="comprar__categorias" aria-label="Categorías de anteojos">
+            {categorias.map((c) => (
+              <Link key={c.slug} href={c.enlace} className="comprar__chip">
+                {c.titulo}
+                <span className="comprar__cantidad">{c.cantidad}</span>
+                <span aria-hidden="true">→</span>
+              </Link>
+            ))}
+          </nav>
+          {hayAlSol ? (
+            <div className="interruptor-sol" role="radiogroup" aria-label="Cómo se ven los cristales">
+              {(["sol", "adentro"] as const).map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  role="radio"
+                  aria-checked={estado === e}
+                  className="interruptor-sol__opcion"
+                  onClick={() => setEstado(e)}
+                >
+                  {e === "sol" ? "Al sol" : "Adentro"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="comprar__grilla">
+          {destacados.map((m) => {
             const indice = elegidos[m.slug] ?? m.inicial;
             const color = m.colores[indice];
             if (!color) return null;
+            const foto = estado === "sol" && color.alSol ? color.alSol : color.adentro;
             return (
-              <article key={m.id} id={`modelo-${m.slug}`} className="pieza">
+              <article key={m.id} id={`modelo-${m.slug}`} className="tarjeta-inicio">
                 <Link
                   href={color.enlace}
-                  className="pieza__foto"
+                  className="tarjeta-inicio__foto"
                   style={{ background: color.tinte || m.tinte }}
                   aria-label={`Ver ${m.nombre} ${color.color}`}
                 >
                   <Image
-                    src={fotoDe(color)}
+                    src={foto}
                     alt={`${m.nombre} ${color.color}${estado === "sol" && color.alSol ? ", al sol" : ""}`}
                     fill
                     sizes="(max-width: 768px) 50vw, 24vw"
                     className="foto-multiplicada"
                   />
                 </Link>
-                <div className="pieza__cuerpo">
-                  {/* Los colores, pegados a la foto: al tocar uno se ve el cambio. */}
+                <div className="tarjeta-inicio__cuerpo">
+                  {variasCategorias ? <p className="etiqueta-mono tarjeta-inicio__categoria">{m.categoria}</p> : null}
+                  <div className="tarjeta-inicio__encabezado">
+                    <h3 className="tarjeta-inicio__nombre">
+                      <Link href={color.enlace}>{m.nombre}</Link>
+                    </h3>
+                    <span className="tarjeta-inicio__precio">{formatearPrecio(m.precio)}</span>
+                  </div>
                   {m.colores.length > 1 ? (
-                    <div className="pieza__colores" role="radiogroup" aria-label={`Color de ${m.nombre}`}>
+                    <div className="tarjeta-inicio__colores" role="radiogroup" aria-label={`Color de ${m.nombre}`}>
                       {m.colores.map((c, j) => {
                         const cantidad = enCarrito.get(c.id) ?? 0;
                         const enElCarrito = cantidad > 0 ? `, ${cantidad} en el carrito` : "";
@@ -194,48 +207,27 @@ export default function Vitrina({ modelos, datos }: { modelos: ModeloVitrina[]; 
                           </button>
                         );
                       })}
-                      <span className="pieza__color">{color.color}</span>
                     </div>
                   ) : null}
-
-                  <h3 className="pieza__nombre">{m.nombre}</h3>
-                  {m.forma ? <p className="pieza__forma">{m.forma}</p> : null}
-                  {m.colores.length > 1 ? null : <p className="pieza__color">{color.color}</p>}
-
-                  <p className="pieza__precio">
-                    <span>{formatearPrecio(m.precio)}</span>
-                    {datos.cuota ? <small>{datos.cuota}</small> : null}
-                  </p>
-
+                  <p className="tarjeta-inicio__color">{color.color}</p>
+                  {m.cuota ? <p className="tarjeta-inicio__cuota">{m.cuota}</p> : null}
                   <button
                     type="button"
-                    className="boton boton--bloque pieza__sumar"
+                    className="boton boton--bloque boton--chico tarjeta-inicio__sumar"
                     onClick={() => sumarEste(m)}
                     disabled={color.agotada}
                   >
-                    {color.agotada ? "Sin stock en este color" : sumados[m.slug] ? "Sumado. ¿Otro color?" : "Sumar este"}
+                    {color.agotada ? T.sinStock : sumados[m.slug] ? T.agregado : T.agregar}
                   </button>
-                  <Link href={color.enlace} className="pieza__ficha">
-                    Ver ficha completa
-                  </Link>
                 </div>
               </article>
             );
           })}
         </div>
 
-        {datos.todos ? (
-          <div className="vitrina-todos">
-            <p className="vitrina-todos__pregunta">{TEXTOS.modelos.todos}</p>
-            <button type="button" className="boton boton--contorno vitrina-todos__boton" onClick={sumarTodos}>
-              {datos.todos.texto}
-            </button>
-          </div>
-        ) : null}
-
         {datos.complementos.length > 0 ? (
-          <p className="vitrina-complementos">
-            También:{" "}
+          <p className="comprar__complementos">
+            {T.tambien}:{" "}
             {datos.complementos.map((c, i) => (
               <span key={c.slug}>
                 {i > 0 ? " y " : ""}
@@ -249,7 +241,7 @@ export default function Vitrina({ modelos, datos }: { modelos: ModeloVitrina[]; 
         <p className="solo-lectores" role="status">
           {aviso}
         </p>
-      </section>
-    </>
+      </div>
+    </section>
   );
 }

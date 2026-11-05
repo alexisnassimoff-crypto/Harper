@@ -29,30 +29,33 @@ export default function Header({
   const { unidades, listo, abrirPanel } = useCarrito();
   const pathname = usePathname();
   const [anunciosPausados, setAnunciosPausados] = useState(false);
+  // La portada va sin la barra de anuncios (Ale, 05/11/2026): las condiciones
+  // están en su bloque de confianza. En el resto del sitio sigue igual.
+  const avisos = pathname === "/" ? [] : anuncios;
 
   return (
     <>
-      {anuncios.length === 1 ? (
+      {avisos.length === 1 ? (
         <div className="anuncios">
-          <p className="anuncios__fijo">{anuncios[0]}</p>
+          <p className="anuncios__fijo">{avisos[0]}</p>
         </div>
-      ) : anuncios.length > 1 ? (
+      ) : avisos.length > 1 ? (
         // Pasan de derecha a izquierda, en una cinta que se repite: la segunda
         // copia es solo para que la vuelta no tenga un hueco. Se pueden frenar
         // con el botón del costado (en celular no hay "pasar el mouse").
         <div
           className="anuncios"
           data-pausado={anunciosPausados || undefined}
-          style={{ "--anuncios-duracion": `${anuncios.length * 7}s` } as React.CSSProperties}
+          style={{ "--anuncios-duracion": `${avisos.length * 7}s` } as React.CSSProperties}
         >
           <div className="anuncios__pista">
             <ul className="anuncios__grupo">
-              {anuncios.map((a) => (
+              {avisos.map((a) => (
                 <li key={a}>{a}</li>
               ))}
             </ul>
             <ul className="anuncios__grupo" aria-hidden="true">
-              {anuncios.map((a) => (
+              {avisos.map((a) => (
                 <li key={a}>{a}</li>
               ))}
             </ul>

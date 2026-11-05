@@ -367,13 +367,11 @@ muestran el monto por cuota que calcula Mercado Pago (con centavos), el
 precio de contado y el CFTEA. Si no lo confirma, no se anuncian cuotas. En el
 panel de Mercado Pago tienen que estar activadas las 3 y las 6 sin interés.
 
-**Tipografía.** Solo dos: Raleway (next/font/google) en todo lo que va sin
-serif y Melodrama (Fontshare, ITF Free Font License) en los títulos. La
-licencia de Melodrama permite usarla gratis en la tienda y alojarla en
-harper.ar, pero no repartirla en un repositorio público ni modificar el
-archivo: por eso no está en el repo. `npm run build` y `npm run dev` corren
-primero `scripts/bajar-fuentes.mjs`, que la baja de Fontshare a `app/fuentes/`
-(ignorada por git); si no se puede bajar, la compilación se corta.
+**Tipografía.** Solo dos, las dos de Google Fonts y servidas por next/font
+(Ale, 05/11/2026): Archivo Narrow Bold en los títulos, los nombres de los
+modelos y los botones, en mayúsculas; Roboto Mono en todo lo demás (textos,
+precios, etiquetas). Se definen en `app/layout.tsx` como `--fuente-titulos` y
+`--fuente-texto`.
 
 ## Rutas
 

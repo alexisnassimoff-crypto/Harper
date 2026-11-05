@@ -1,4 +1,7 @@
+import { categoriasConProductos, esCategoriaDeAnteojos, rutaDeCategoria, type Categoria } from "./categorias";
 import type { OfertaDeEscala } from "./descuentos";
+import { LINEAS } from "./lineas";
+import { paresDisponibles } from "./packs";
 import { RECORTES_ANTEOJOS } from "./recortes-anteojos";
 import type { Producto, Variante } from "./tipos";
 
@@ -185,4 +188,72 @@ export function empujeDeLaBarra(datos: {
   if (actual > 0 && actual >= cupon) return `${actual} % OFF aplicado${gratisPais ? " y envío gratis a todo el país" : ""}.`;
   if (gratisPais) return "Envío gratis a todo el país.";
   return null;
+}
+
+/**
+ * «Comprar» en la portada (Ale, 05/11/2026): una categoría de anteojos por
+ * bloque, solo las que tienen algún modelo con stock y en el orden de
+ * lib/categorias.ts. Hoy son los fotocromáticos; cuando se carguen de sol,
+ * de receta o clip-on con stock en Airtable, aparecen solas, sin tocar la
+ * portada. Una categoría sin stock no se muestra como disponible.
+ */
+export type CategoriaParaComprar<P> = {
+  nombre: Categoria;
+  slug: string;
+  /** El nombre de la línea ("Fotocromáticos") o, si no hay línea, el de la categoría. */
+  titulo: string;
+  /** Material y cristales de la línea, en una línea corta; null si no hay. */
+  detalle: string | null;
+  /** La página de la categoría ("/anteojos"). */
+  enlace: string;
+  productos: P[];
+};
+
+export function categoriasParaComprar<P extends Pick<Producto, "categoria" | "variantes">>(productos: P[]): CategoriaParaComprar<P>[] {
+  const conStock = productos.filter((p) => esCategoriaDeAnteojos(p.categoria) && paresDisponibles(p.variantes) > 0);
+  return categoriasConProductos(conStock).map((c) => {
+    const linea = LINEAS.find((l) => l.categoria === c.nombre);
+    return {
+      nombre: c.nombre,
+      slug: c.slug,
+      titulo: linea?.nombre ?? c.nombre,
+      // Sin repetir el nombre: «Filtro de luz azul · UV400» debajo de «Fotocromáticos».
+      detalle: linea ? linea.ficha.replace(new RegExp(`^${linea.nombre}\\s*·\\s*`), "") || null : null,
+      enlace: rutaDeCategoria(c.nombre),
+      productos: conStock.filter((p) => p.categoria === c.nombre),
+    };
+  });
+}
+
+/**
+ * La foto de la primera pantalla: un anteojo real entero, de tres cuartos y
+ * con el logo en la patilla (la segunda foto de cada color, «-2»), para que se
+ * aprecie la forma. Primero el carey con stock, el color más vistoso; si no
+ * hay, el primer color con stock. Sin caras: los protagonistas son los anteojos.
+ */
+export function fotoDeLaPortada(modelos: Pick<Producto, "nombre" | "variantes">[]): { src: string; alt: string } | null {
+  const opciones = modelos.flatMap((m) => m.variantes.filter((v) => !v.agotada && v.fotos.length > 0).map((v) => ({ m, v })));
+  const plano = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const elegida = opciones.find((o) => plano(o.v.color).startsWith("carey")) ?? opciones[0];
+  if (!elegida) return null;
+  const { m, v } = elegida;
+  const nombre = m.nombre.charAt(0) + m.nombre.slice(1).toLowerCase();
+  const deTresCuartos = v.fotos.find((f) => baseDeFoto(f) !== null && /-2\.(?:webp|jpe?g|png)$/i.test(f));
+  return { src: deTresCuartos ?? v.fotos[0], alt: `${nombre} en ${plano(v.color)}` };
+}
+
+/**
+ * Los modelos destacados de la portada (Ale, 05/11/2026): cuatro como mucho,
+ * en total. Se toman de a uno por categoría, en ronda (el primero de cada una,
+ * después el segundo...), así cuando haya de sol, receta o clip-on cada una
+ * tiene su lugar sin alargar la portada. El resto, en la página de cada categoría.
+ */
+export function destacadosDeLaPortada<P>(categorias: { productos: P[] }[], maximo = 4): P[] {
+  const elegidos: P[] = [];
+  for (let vuelta = 0; elegidos.length < maximo; vuelta++) {
+    const deEstaVuelta = categorias.map((c) => c.productos[vuelta]).filter((p): p is P => p !== undefined);
+    if (deEstaVuelta.length === 0) break;
+    elegidos.push(...deEstaVuelta.slice(0, maximo - elegidos.length));
+  }
+  return elegidos;
 }

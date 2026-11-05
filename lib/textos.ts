@@ -17,11 +17,20 @@
 
 export const TEXTOS = {
   portada: {
-    /** Ale, 04/11/2026: en lugar de «Los anteojos también se eligen como la ropa.» */
-    titulo: "Suscribite gratis y desbloqueá tus beneficios.",
+    /**
+     * Ale, 05/11/2026: la primera pantalla vende los anteojos, no la
+     * suscripción (que tiene su sección más abajo). Solo con las
+     * características confirmadas en lib/caracteristicas.ts.
+     */
+    titulo: "Anteojos de diseño que se oscurecen solos.",
+    tituloSinConfirmar: "Anteojos de diseño.",
+    descripcion:
+      "Fotocromáticos con filtro de luz azul y UV400: al sol se oscurecen y adentro vuelven a aclararse.",
+    /** La acción secundaria: baja a Suscriptores Harper. */
+    beneficios: "Conocer mis beneficios",
     /** La frase de antes de la portada; ahora abre «Un mismo par». */
     sensacion: "Salís a la calle y se oscurecen solos.",
-    etiqueta: "Filtro de luz azul · Fotocromáticos · UV400",
+    etiqueta: "Harper · Colección fotocromática",
     /** «Anteojos fotocromáticos con filtro de luz azul, a $ 89.900 el par.» Solo con las características confirmadas. */
     bajada: (precio: string | null) => `Anteojos fotocromáticos con filtro de luz azul${precio ? `, a ${precio} el par` : ""}.`,
     bajadaSinConfirmar: (precio: string | null) => `Anteojos Harper${precio ? `, a ${precio} el par` : ""}.`,
@@ -29,7 +38,68 @@ export const TEXTOS = {
     promo: (lleva: number, paga: number, total: string, cuotas: number, cuota: string) =>
       `Si te llevás ${lleva}, pagás ${paga}: ${total} en ${cuotas} cuotas sin interés de ${cuota}.`,
     nota: "Tocá «Al sol» o «Adentro» para ver cómo cambian. El tono final depende de la luz.",
-    boton: "Quiero los míos",
+    boton: "Ver anteojos",
+  },
+  /**
+   * La portada simplificada (Ale, 05/11/2026): presentación de la marca,
+   * comprar por categoría, confianza, suscripción y opiniones. Nada más.
+   * La primera pantalla presenta a Harper como marca de anteojos de diseño,
+   * sin atarla a los fotocromáticos (de sol, receta y clip-on vienen después).
+   */
+  inicio: {
+    /** La identificación del producto, arriba del titular: siempre visible. */
+    producto: "Anteojos de diseño",
+    /** El titular es la frase de la marca (TEXTOS.nosotros.frase), en dos tiempos. */
+    bajada: "Formas simples y colores para combinar con lo que ya tenés en el placard.",
+    boton: "Explorar anteojos",
+    comprar: {
+      etiqueta: "Comprar",
+      titulo: "Elegí tus anteojos.",
+      verTodos: "Ver todos",
+      agregar: "Agregar",
+      agregado: "Agregado",
+      sinStock: "Sin stock",
+      tambien: "También",
+    },
+    confianza: {
+      titulo: "Comprá tranquilo",
+      envio: "Envíos a todo el país",
+      envioDetalle: "A domicilio",
+      whatsapp: "Te asesoramos por WhatsApp",
+      whatsappDetalle: "Modelo, talle o cristales con aumento",
+    },
+    /**
+     * Suscriptores (Ale, 05/11/2026): breve, para dar curiosidad. Título,
+     * una bajada y el formulario a mano; los beneficios y sus condiciones, a
+     * un enlace (/suscriptores). Nada técnico: lo del código aparece recién
+     * cuando se manda.
+     */
+    suscripcion: {
+      etiqueta: "Suscriptores Harper · Es gratis",
+      titulo: "Ser parte tiene sus ventajas.",
+      bajada: "Unite gratis y descubrí los beneficios que preparamos para vos.",
+      /** El botón principal: lleva directo al formulario. */
+      cta: "Suscribirme gratis",
+      /** El enlace secundario, a /suscriptores. */
+      beneficios: "Conocé los beneficios y sus condiciones",
+      /** La caja de la ficha. */
+      boton: "Descubrir mis beneficios",
+      condiciones: "Ver las condiciones completas",
+    },
+  },
+  /** Por qué Harper (Ale, 05/11/2026): cómo es comprar, sin repetir las promociones. */
+  tranquilo: {
+    etiqueta: "Comprá tranquilo",
+    titulo: "Comprar online, sin vueltas.",
+    envio: { texto: "Envíos a domicilio a todo el país", detalle: "Lo despachamos cuando se acredita el pago." },
+    whatsapp: { texto: "Te asesoramos por WhatsApp", detalle: "Para elegir modelo, color o talle, o consultar por cristales con aumento.", enlace: "Escribinos" },
+  },
+  /** Las promociones de compra vigentes, en un solo lugar. */
+  promos: {
+    etiqueta: "Promociones vigentes",
+    titulo: "Beneficios al comprar.",
+    dineroMP: "OFF extra pagando con dinero en tu cuenta de Mercado Pago.",
+    envioGratis: "Envío gratis",
   },
   lineas: {
     titulo: "Un par para cada ocasión.",
@@ -80,6 +150,42 @@ export const TEXTOS = {
       { titulo: "Adentro", texto: "Vuelven a aclararse cuando entrás: no tenés que sacártelos." },
       { titulo: "De noche", texto: "Quedan claros y los seguís usando para salir." },
     ],
+  },
+  /**
+   * La ficha de producto (Plan Maestro, 04/11/2026): medidas, talle y cómo
+   * funcionan los cristales. Solo lo confirmado en lib/caracteristicas.ts y
+   * cómo se comporta cualquier cristal fotocromático; nada médico.
+   */
+  ficha: {
+    talle: {
+      titulo: "Medidas y talle",
+      verMedidas: "Ver medidas y talle",
+      sinMedidas: "Estamos cargando las medidas de este modelo. Si querés saberlas ya, escribinos y te las pasamos.",
+      dibujo: "Dibujo de un anteojo de frente con las medidas marcadas",
+      guiaTitulo: "Cómo saber si te va a quedar bien",
+      guia: [
+        "Buscá unos anteojos que te queden cómodos y mirá la parte de adentro de la patilla: vas a ver tres números, por ejemplo 52□18-140.",
+        "El primero es el calibre (el ancho de cada cristal), el segundo es el puente (la parte que apoya en la nariz) y el tercero es el largo de la patilla, en milímetros.",
+        "Si el calibre y el puente de este modelo están a 2 o 3 mm de los tuyos, lo más probable es que te quede parecido. La patilla influye menos.",
+      ],
+      tallesTitulo: "Talles, por el ancho total del frente",
+      orientativo: "Los talles son una orientación, no una garantía de ajuste: la forma de la cara y cómo te gusta llevarlos también cuentan.",
+      etiqueta: "Talle orientativo",
+      consultar: "¿Dudas con el talle? Escribinos",
+    },
+    cristales: {
+      titulo: "Cristales fotocromáticos",
+      bajada: "Cambian solos según la luz: al sol se oscurecen y adentro vuelven a aclararse. Así usás el mismo par todo el día.",
+      puntos: [
+        { titulo: "Cómo funcionan", texto: "Reaccionan a los rayos UV del sol. Por eso se oscurecen al aire libre y no con la luz de una lámpara." },
+        { titulo: "En el auto", texto: "El parabrisas frena gran parte de los rayos UV, así que ahí adentro se oscurecen menos." },
+        { titulo: "Con frío y con calor", texto: "El frío los oscurece un poco más y el calor, un poco menos." },
+        { titulo: "Además", texto: "Filtran parte de la luz azul de las pantallas y tienen protección UV400 contra los rayos UVA y UVB." },
+      ],
+    },
+    condiciones: {
+      titulo: "Envío, devoluciones y garantía",
+    },
   },
   cierre: {
     titulo: "¿Cuál te llevás? ¿O cuáles?",
@@ -190,6 +296,12 @@ export const TEXTOS = {
     cuotasSuscriptor: (cuotas: number) => `${cuotas} si sos suscriptor`,
     condiciones: "Ver las condiciones",
     /** El formulario de suscripción (components/suscriptores/FormularioSuscripcion.tsx). */
+    /** La sección de la portada (Ale, 04/11/2026): un botón que lleva al formulario y el registro separado de los beneficios. */
+    portada: {
+      cta: "Suscribirme gratis",
+      beneficios: "Tus beneficios",
+      formTitulo: "Suscribite con tu mail",
+    },
     form: {
       email: "Tu mail",
       nombre: "Tu nombre (opcional)",
@@ -197,7 +309,6 @@ export const TEXTOS = {
       faltaAcepto: "Para suscribirte, marcá que aceptás recibir nuestros mails.",
       suscribirme: "Suscribirme gratis",
       pedirCodigo: "Mandame el código",
-      notaCodigo: "Te mandamos un código de 6 números para confirmar que el mail es tuyo.",
       codigoEnviado: (email: string) => `Te mandamos un código a ${email}. Escribilo acá: vence en 10 minutos.`,
       codigo: "Código",
       confirmar: "Confirmar",
@@ -272,11 +383,9 @@ export const TEXTOS = {
     },
     /** La caja de la ficha. */
     ficha: {
-      titulo: (monto: string) => `Suscribite gratis y desbloqueá ${monto} de bienvenida.`,
       suscripto: "Sos suscriptor: tus beneficios se aplican solos en el carrito.",
       /** «Tenés $ 2.181 de saldo para usar.» */
       saldo: (monto: string) => `Tenés ${monto} de saldo para usar.`,
-      suscribirme: "Suscribirme gratis",
     },
     /** El checkout. */
     checkoutCaja: {

@@ -59,7 +59,7 @@ test("los campos nuevos de la ficha se leen y, si faltan, quedan vacíos", async
   const amatista = await getProducto("amatista");
   assert.ok(amatista);
   assert.deepEqual(amatista.incluye, ["Estuche rígido Harper", "Paño de microfibra"]);
-  assert.deepEqual(amatista.medidas, { frenteMm: 140, puenteMm: 19, patillaMm: 145 });
+  assert.deepEqual(amatista.medidas, { calibreMm: 52, puenteMm: 19, patillaMm: 145, frenteMm: 140, altoMm: null });
   assert.equal(amatista.material, "Acetato");
   assert.equal(amatista.lentes, "Fotocromáticos con filtro de luz azul");
 

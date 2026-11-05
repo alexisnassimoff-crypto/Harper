@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { Raleway } from "next/font/google";
-import localFont from "next/font/local";
+import { Archivo_Narrow, Roboto_Mono } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
@@ -20,26 +19,22 @@ import { anunciosDelHeader } from "@/lib/anuncios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
 import { cuotasDeTodosYSuscriptores } from "@/lib/cuotas-servidor";
 
-// La tipografía (Ale, 03/11/2026): solo dos en toda la web. Raleway para todo
-// lo que va sin serif (texto, precios, botones, etiquetas) y una con serif para
-// los títulos. Esa iba a ser Safira March, pero su licencia gratis no permite
-// usarla en una tienda; Ale (04/11/2026): «otra lo más parecida posible y que
-// sea gratis». Es Melodrama, de Fontshare: gratis también para uso comercial y
-// alojada en harper.ar. El archivo no está en el repo (la licencia no deja
-// repartirlo): lo baja scripts/bajar-fuentes.mjs antes de compilar.
-const texto = Raleway({
+// La tipografía, definitiva (Ale, 05/11/2026): solo dos en toda la web, las
+// dos de Google Fonts (gratis y servidas desde harper.ar por next/font).
+// - Archivo Narrow Bold para los títulos, los nombres de los modelos y los
+//   botones: angosta y en mayúsculas, como la referencia de D.Franklin.
+// - Roboto Mono para todo lo demás (textos, descripciones, mensajes, precios y
+//   etiquetas), como la de MOSCOT.
+const texto = Roboto_Mono({
   subsets: ["latin"],
   display: "swap",
   variable: "--fuente-texto",
 });
-const melodrama = localFont({
-  src: "./fuentes/melodrama.woff2",
-  weight: "300 700",
-  style: "normal",
+const titulos = Archivo_Narrow({
+  subsets: ["latin"],
+  weight: ["700"],
   display: "swap",
   variable: "--fuente-titulos",
-  fallback: ["Georgia", "serif"],
-  adjustFontFallback: "Times New Roman",
 });
 
 const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";
@@ -136,7 +131,7 @@ export default async function RootLayout({
   ];
 
   return (
-    <html lang="es" className={`${texto.variable} ${melodrama.variable}`}>
+    <html lang="es" className={`${texto.variable} ${titulos.variable}`}>
       <head>
         <script
           type="application/ld+json"

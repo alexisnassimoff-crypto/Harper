@@ -11,8 +11,8 @@ import type { ItemResuelto } from "./tipos";
  *    compra. Sobre los productos, nunca sobre el envío.
  *  - Cashback: el 10% de lo que paga en productos (sin el envío, después del
  *    cupón y del saldo usado) vuelve como saldo a favor en harper.ar. Se puede
- *    usar a los 30 días del pago, pasado el plazo de devolución. No vence y
- *    puede cubrir la compra entera.
+ *    usar a los 30 días del pago (espera comercial, independiente de los
+ *    10 días de arrepentimiento). No vence y puede cubrir la compra entera.
  *  - Envío gratis siempre.
  *  - Cuotas: 3 sin interés para todos, 6 para suscriptores (el tope de la
  *    preferencia de Mercado Pago; se anuncian solo si Mercado Pago las
