@@ -1644,17 +1644,20 @@ página calcula el descuento por su cuenta.
 
 ---
 
-## 17. Crédito Harper: dónde se guarda (Tareas 09 y 10)
+## 17. Crédito Harper: dónde se guarda y cómo se conecta (Tareas 09 a 11)
 
 ### 17.1 Estado
 
 - **La tabla «Créditos» existe y está vacía.** Ale la aprobó el 05/11/2026
   y se creó ese día en la base real (`tbljsISq3DoFBWiEF`), con los campos de
   §17.2. No se tocó ninguna otra tabla.
-- El cálculo (Tarea 08, `lib/credito-harper.ts`), la persistencia (Tarea 09,
-  `lib/credito-persistencia.ts`) y el adaptador de Airtable (Tarea 10,
-  `lib/credito-airtable.ts`) están en el código, **apagados y sin
-  conectar**. No los usa el webhook, ni el checkout, ni ninguna página.
+- Estas piezas están en el código, **apagadas y sin conectar**:
+  - el cálculo (Tarea 08, `lib/credito-harper.ts`);
+  - la persistencia (Tarea 09, `lib/credito-persistencia.ts`);
+  - el adaptador de Airtable (Tarea 10, `lib/credito-airtable.ts`);
+  - el lector de pagos y pedidos (Tarea 11, `lib/credito-pagos.ts`, §17.9).
+
+  No las usa el webhook, ni el checkout, ni ninguna página.
 - **El adaptador no escribe en la tabla real** mientras
   `HARPER_CREDITO_ACTIVO` esté apagado: solo en el Airtable de prueba.
 - Las pruebas corren contra una tabla y un cerrojo en memoria
@@ -1710,7 +1713,7 @@ conectar el checkout (§17.7).
 | Confirmar la entrega | Créditos del pedido | Fecha_entrega, Disponible_desde y Notas | Cuando hay una fecha confiable (§14, O1) |
 | Liberar | Créditos en Pendiente | Estado Disponible | Una vez por día |
 | Devolución | Créditos del pedido | Pendiente: Anulado, o Monto, Porcentaje, Base y Anteojos recalculados. Disponible: «A revisar» | Al registrar la devolución |
-| Cancelación, reembolso, contracargo perdido | Créditos del pedido | Pendiente: Anulado. Disponible: «A revisar» | Cuando Mercado Pago o Harper lo informan |
+| Cancelación, reembolso, contracargo perdido | Créditos del pedido y, obligatoriamente, si el pedido quedó sin cobro (§17.9) | Pendiente: Anulado. Disponible: «A revisar» | Cuando Mercado Pago o Harper lo informan |
 | Incidencia abierta o cerrada | Créditos del pedido | Incidencia_abierta. Si estaba Disponible y se abre: «A revisar» | Reclamo o contracargo |
 | Saldo de la cuenta | Saldos y Créditos del mail | Nada | Mi cuenta y checkout (otra tarea) |
 
@@ -1778,12 +1781,13 @@ está definida (§14, L1).
 1. ~~Aprobar la tabla «Créditos» y crearla.~~ Hecho el 05/11/2026.
 2. ~~El adaptador de Airtable, con pruebas en el Airtable de prueba.~~
    Tarea 10.
-3. **El webhook.** Tiene que:
-   - anotar al acreditarse el pago, leyendo adentro del cerrojo el estado
-     del pago en Mercado Pago y el del pedido en Pedidos (§17.8);
-   - decidir el régimen con el estado del pedido;
-   - anular por reembolso o contracargo.
+3. **El webhook.** La lógica está lista (Tarea 11, §17.9):
+   - lee el pago y el pedido de verdad;
+   - decide el régimen;
+   - reconoce pagos repetidos;
+   - no anula si el pedido sigue cobrado.
 
+   Falta conectarla: los cambios concretos están en §17.9 para autorizar.
    Con `HARPER_CREDITO_ACTIVO` apagado, no hace nada.
 4. De dónde sale la fecha de entrega (§14, O1).
 5. La liberación diaria.
@@ -1814,9 +1818,157 @@ Mercado Pago, el pedido en Pedidos), no el aviso que llegó.
 | Un aviso de pago atrasado sobre un crédito anulado o ya disponible | No lo revive ni lo cambia |
 | No se puede leer el pedido, o se lee otro | No se escribe nada y se suelta la llave |
 
-**Lo que todavía no se puede probar:** la concurrencia real con Redis y
-Airtable de verdad. Las pruebas usan los de prueba. Se va a probar al
-conectar el webhook, en una base de pruebas aislada, sin pagos reales.
+**Lo que todavía no se probó:** la concurrencia real con Redis y Airtable de
+verdad. Las pruebas usan los de prueba. La suite para una base aislada ya
+está escrita (§17.10) y falta correrla.
+
+### 17.9 El crédito con los avisos de pago (Tarea 11)
+
+**Qué hace `lib/credito-pagos.ts`.** Está sin conectar. Solo lee:
+
+- a Mercado Pago le hace GET, nunca crea, cambia ni reembolsa nada;
+- en Airtable lee Pedidos y Clientes;
+- lo único que escribe es la tabla «Créditos», a través de la persistencia.
+
+Ante el aviso de un pago:
+
+1. **Del aviso solo usa el ID del pago.**
+   - Lee el pago en Mercado Pago. Su `external_reference` es el pedido en
+     Airtable.
+   - Lee también **todos los pagos del pedido**, cada uno por su ID: la
+     búsqueda de Mercado Pago puede venir atrasada.
+2. **Del pedido lee:**
+   - el número;
+   - lo cobrado en cada renglón (Items);
+   - el total;
+   - el mail del cliente (Clientes);
+   - el régimen.
+3. **Decide con todos los pagos juntos** (`cobroDelPedido`):
+
+   | Lo que dicen los pagos | Qué pasa con el crédito |
+   |---|---|
+   | Lo vigente cubre el total (uno o más pagos aprobados) | Se anota; si ya estaba, se pone al día la incidencia |
+   | El cliente pagó dos veces | Un solo crédito; el resultado avisa que hay un pago repetido para devolver |
+   | Se reembolsó un pago y el otro sigue vigente | **No se anula**: el pedido sigue cobrado |
+   | Ya no queda nada vigente (reembolso total, contracargo perdido) | Se anula, o queda bloqueado si llegó antes del crédito |
+   | Reembolso parcial | Se abre la incidencia: no se libera hasta que Harper registre la devolución |
+   | Reclamo o contracargo en curso | Se anota con la incidencia abierta; ganado, se cierra |
+   | En curso, rechazado o nunca cobrado | Nada, ni una fila de bloqueo: puede pagar después |
+
+4. **Antes de escribir, vuelve a leer todo adentro del cerrojo del pedido.**
+   - Si algo cambió entre el aviso y la llave, vale lo nuevo.
+   - Por ejemplo, si el otro pago se reembolsó justo en ese momento, no se
+     anota. Si apareció un pago nuevo, no se anula.
+5. **Anular exige leer si el pedido quedó sin cobro.** Es obligatorio por
+   código (revisión del PR #68). Una anulación a mano de Harper lo tiene que
+   decir explícitamente.
+
+**El régimen** sale de las Notas del pedido:
+
+| Notas del pedido | Régimen |
+|---|---|
+| «Cashback a acreditar: …» (el de hoy) | Reglas de hoy: no hay crédito nuevo |
+| «Crédito Harper: reglas nuevas (credito-harper-v1)» | Crédito Harper |
+| Las dos | Reglas de hoy (no se suma nada) |
+| Ninguna (todos los pedidos de hoy) | Reglas de hoy |
+
+**Fallas.**
+
+- **Errores de lectura:** si Mercado Pago o Airtable no contestan, suben
+  como error y no se escribe nada.
+- **Sin Redis:** no se escribe nada.
+- **Cerrojo ocupado:** devuelve «ocupado».
+- **En todos esos casos:** quien llame contesta 503 y Mercado Pago reintenta.
+
+**Cambios concretos al flujo de pagos, PARA AUTORIZAR (no están hechos):**
+
+1. **`app/api/checkout/route.ts`**
+   - Con `HARPER_CREDITO_ACTIVO=1` y un pedido sin cashback de hoy, agregar
+     a las Notas del pedido la línea «Crédito Harper: reglas nuevas
+     (credito-harper-v1)».
+   - No cambia ni el precio, ni el cobro, ni la preferencia de Mercado Pago.
+   - Con el interruptor apagado, el pedido queda idéntico.
+2. **`lib/webhook-proceso.ts`, en `procesarNotificacion`**
+   - Cuándo: cuando el flujo de hoy ya contestó 200 y con
+     `HARPER_CREDITO_ACTIVO=1`.
+   - Qué hace: llamar a `procesarPagoParaCredito(id del pago)`.
+   - Va después de soltar el cerrojo del pedido. El del crédito es otra
+     llave.
+   - Si tira error o queda «ocupado», el aviso contesta 503 y Mercado Pago
+     reintenta. Los pasos de hoy ya son idempotentes: el reintento los salta.
+   - Va para todos los avisos, también los de reembolso y contracargo, que
+     hoy salen por la rama «duplicado».
+   - Con el interruptor apagado, el webhook queda idéntico.
+3. **Una ruta diaria nueva, `/api/credito/diario`** (cron de Vercel,
+   protegida):
+   - libera los créditos que cumplieron los 30 días;
+   - hace una conciliación que manda un mail a Harper: créditos duplicados,
+     créditos pendientes cuyo pedido ya no está cobrado y pagos repetidos sin
+     devolver;
+   - es lo que cubre el caso de una escritura que terminó después de vencer
+     la llave (revisión del PR #68, punto 4).
+4. **No se cambia:** el cashback de hoy, las cuotas, los precios ni las
+   condiciones.
+5. **Una observación sobre el cashback de hoy (no se cambia sin
+   autorización).**
+   - Hoy el webhook anula el cashback cuando se reembolsa el pago registrado
+     en el pedido, aunque quede vigente un pago repetido.
+   - Con `cobroDelPedido` se podría corregir en otra tarea.
+
+**Falta decidir antes de conectar:**
+
+- la fuente de la fecha de entrega (§14, O1);
+- el aviso a los suscriptores (§11);
+- cómo se usa el crédito en el checkout (§17.7, punto 6).
+
+### 17.10 Pruebas en una base aislada y Redis real (preparadas, sin correr)
+
+`tests/integracion/credito-sandbox.test.ts` prueba contra infraestructura de
+verdad, sin pedidos ni créditos de clientes:
+
+- varias instancias a la vez;
+- una llave que vence (TTL);
+- una respuesta de Airtable que se pierde después de escribir;
+- Redis inalcanzable;
+- un reembolso antes que el pago;
+- un aviso de pago de punta a punta, con pago repetido.
+
+**Protecciones:**
+
+- **Se saltea sola** si faltan las variables, como en la suite de siempre.
+- **Se niega a correr** si la base es la real de Harper o si aparece una
+  tabla real.
+- **Lo que crea lleva el prefijo `SANDBOX-…`** y se borra al terminar.
+- **Se ensayó con Airtable y Redis en memoria:** pasan las 6 pruebas y la
+  limpieza borra solo lo creado. Eso valida la lógica, no la
+  infraestructura.
+
+**Qué hace falta para correrla:**
+
+1. **Una base de Airtable nueva, «Harper Sandbox», vacía.**
+   - No duplicar la base real: copiaría la fórmula de «Etiqueta», que tiene
+     un secreto.
+   - Lleva cuatro tablas:
+     - **Créditos:** los 14 campos de §17.2.
+     - **Pedidos:** Numero (texto), Estado (selección), Cliente (vínculo a
+       Clientes), Items (texto largo), Total (número), Notas (texto largo).
+     - **Clientes:** Email.
+     - **Saldos:** Movimiento (texto), Pedido (texto), Tipo (selección:
+       Cashback, Uso, Ajuste), Anulado (casilla).
+2. **Un token personal de Airtable con acceso SOLO a esa base:** lectura y
+   escritura de registros.
+3. **Una base de Redis de Upstash aparte de la de producción.** El plan
+   gratis alcanza.
+4. **Cinco variables, solo donde se corra la prueba** (nunca en Vercel):
+   - `HARPER_SANDBOX_AIRTABLE_TOKEN`;
+   - `HARPER_SANDBOX_AIRTABLE_BASE`;
+   - `HARPER_SANDBOX_TABLAS`: `{"creditos":"tbl…","pedidos":"tbl…","clientes":"tbl…","saldos":"tbl…"}`;
+   - `HARPER_SANDBOX_REDIS_URL`;
+   - `HARPER_SANDBOX_REDIS_TOKEN`.
+5. **Correr** `npm run test:credito-sandbox`.
+
+**El adaptador escribe en esa base** solo con `HARPER_CREDITO_SANDBOX=1`,
+fuera de Vercel y con una base que no sea la real (`puedeEscribirCreditos`).
 
 ---
 

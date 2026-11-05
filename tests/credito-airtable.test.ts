@@ -48,6 +48,8 @@ function deps(): DependenciasCredito {
 }
 
 const anteojo = (subtotal: number): RenglonCobrado => ({ categoria: "Anteojos", cantidad: 1, subtotal });
+/** El pedido quedó sin cobro (dicho a mano en la prueba). */
+const SIN_COBRO = { quedoSinCobro: async () => true };
 const pedido = (numero: string, extra: Partial<PedidoAcreditable> = {}): PedidoAcreditable => ({
   numero,
   renglones: [anteojo(89_900), anteojo(67_425), { categoria: "Paños", cantidad: 1, subtotal: 4_900 }],
@@ -116,7 +118,7 @@ test("Sin Redis configurado, las dependencias de verdad no escriben: ErrorCerroj
   const reales = { ...dependenciasCredito(), ahora: () => ahora };
   assert.equal(reales.cerrojo, null, "no hay variables de Redis en esta prueba");
   await assert.rejects(registrarCredito(pedido("HARPER-5003"), reales), ErrorCerrojo);
-  await assert.rejects(anularPorPedido("HARPER-5003", "reembolso", reales), ErrorCerrojo);
+  await assert.rejects(anularPorPedido("HARPER-5003", "reembolso", reales, SIN_COBRO), ErrorCerrojo);
   assert.deepEqual(await filasDe("HARPER-5003"), []);
 });
 
@@ -136,7 +138,7 @@ test("El cashback de hoy se lee de Saldos (solo lectura) y bloquea el crédito n
 
 test("Reembolso que llega antes que el pago: fila anulada sin monto ni mail, y el pago de después no anota", async () => {
   const d = deps();
-  assert.equal((await anularPorPedido("HARPER-5004", "reembolso", d)).estado, "anulado-antes");
+  assert.equal((await anularPorPedido("HARPER-5004", "reembolso", d, SIN_COBRO)).estado, "anulado-antes");
   const [fila] = await filasDe("HARPER-5004");
   assert.equal(fila.fields.Estado, "Anulado");
   assert.equal(fila.fields.Monto, 0);
@@ -210,6 +212,11 @@ test("Solo escribe en el Airtable de prueba o con HARPER_CREDITO_ACTIVO=1 (apaga
   assert.equal(puedeEscribirCreditos({ HARPER_FIXTURES: "1", VERCEL: "1" }), false, "en Vercel el modo de prueba no cuenta");
   assert.equal(puedeEscribirCreditos({ VERCEL: "1", HARPER_CREDITO_ACTIVO: "0" }), false);
   assert.equal(puedeEscribirCreditos({ VERCEL: "1", HARPER_CREDITO_ACTIVO: "1" }), true, "recién cuando se prenda");
+  // La base de pruebas aislada (Tarea 11): nunca la real, nunca en Vercel.
+  assert.equal(puedeEscribirCreditos({ HARPER_CREDITO_SANDBOX: "1", AIRTABLE_BASE_ID: "appSANDBOX0000001" }), true);
+  assert.equal(puedeEscribirCreditos({ HARPER_CREDITO_SANDBOX: "1", AIRTABLE_BASE_ID: "appcFfhxM8uVdVKoP" }), false, "la base real, nunca");
+  assert.equal(puedeEscribirCreditos({ HARPER_CREDITO_SANDBOX: "1", AIRTABLE_BASE_ID: "appSANDBOX0000001", VERCEL: "1" }), false);
+  assert.equal(puedeEscribirCreditos({ HARPER_CREDITO_SANDBOX: "1" }), false, "sin base");
 });
 
 test("Con el crédito apagado y fuera del modo de prueba, crear y actualizar tiran antes de llamar a Airtable", async () => {

@@ -126,6 +126,9 @@ function sandbox(
   };
 }
 
+/** El pedido quedó sin cobro (en estas pruebas, dicho a mano; en el webhook se lee de Mercado Pago). */
+const SIN_COBRO = { quedoSinCobro: async () => true };
+
 const anteojo = (subtotal: number, cantidad = 1): RenglonCobrado => ({ categoria: "Anteojos", cantidad, subtotal });
 const estuche = (subtotal: number): RenglonCobrado => ({ categoria: "Estuches", cantidad: 1, subtotal });
 
@@ -199,7 +202,7 @@ test("Sin Redis no se escribe nada: cada operación tira ErrorCerrojo (se reinte
     ["entrega", () => confirmarEntrega(DUO.numero, "2026-11-10", deps)],
     ["liberar", () => liberarDisponibles(deps)],
     ["devolución", () => aplicarDevolucion(DUO.numero, [], deps)],
-    ["reembolso", () => anularPorPedido(DUO.numero, "reembolso", deps)],
+    ["reembolso", () => anularPorPedido(DUO.numero, "reembolso", deps, SIN_COBRO)],
     ["incidencia", () => marcarIncidencia(DUO.numero, true, "reclamo", deps)],
   ];
   for (const [que, hacer] of operaciones) await assert.rejects(hacer(), ErrorCerrojo, que);
@@ -294,7 +297,7 @@ test("Cerrojo ocupado por otra instancia: no lee ni escribe nada y avisa «ocupa
   cerrojo.llaves.set(claveCerrojoCredito(DUO.numero), "de-otra-instancia");
   assert.deepEqual(await registrarCredito(DUO, deps), { estado: "ocupado" });
   assert.deepEqual(await confirmarEntrega(DUO.numero, "2026-11-10", deps), { estado: "ocupado" });
-  assert.deepEqual(await anularPorPedido(DUO.numero, "cancelacion", deps), { estado: "ocupado" });
+  assert.deepEqual(await anularPorPedido(DUO.numero, "cancelacion", deps, SIN_COBRO), { estado: "ocupado" });
   assert.equal(almacen.escrituras, 0);
   assert.equal(cerrojo.llaves.get(claveCerrojoCredito(DUO.numero)), "de-otra-instancia", "no soltó la llave ajena");
 });
@@ -330,7 +333,7 @@ test("Un pedido con el cashback de hoy (anulado o no) no recibe crédito nuevo, 
 test("Un crédito anulado tampoco se vuelve a crear (Harper lo anuló a propósito)", async () => {
   const { almacen, deps } = sandbox();
   await registrarCredito(DUO, deps);
-  await anularPorPedido(DUO.numero, "cancelacion", deps);
+  await anularPorPedido(DUO.numero, "cancelacion", deps, SIN_COBRO);
   const r = await registrarCredito(DUO, deps);
   assert.equal(r.estado, "ya");
   assert.equal(r.estado === "ya" && r.fila?.estado, "Anulado");
@@ -515,13 +518,13 @@ test("Cancelación, reembolso y contracargo perdido con el crédito pendiente: s
   for (const motivo of ["cancelacion", "reembolso", "contracargo-perdido"] as const) {
     const { almacen, deps } = sandbox();
     await registrarCredito(DUO, deps);
-    assert.equal((await anularPorPedido(DUO.numero, motivo, deps)).estado, "anulado", motivo);
+    assert.equal((await anularPorPedido(DUO.numero, motivo, deps, SIN_COBRO)).estado, "anulado", motivo);
     assert.equal(almacen.filas[0].estado, "Anulado");
-    assert.equal((await anularPorPedido(DUO.numero, motivo, deps)).estado, "ya-anulado", "repetido, no hace nada");
+    assert.equal((await anularPorPedido(DUO.numero, motivo, deps, SIN_COBRO)).estado, "ya-anulado", "repetido, no hace nada");
   }
   // Sin crédito todavía: queda anulado de antemano (Tarea 10, reembolso anticipado).
   const { deps } = sandbox();
-  assert.equal((await anularPorPedido("HARPER-NO-EXISTE", "reembolso", deps)).estado, "anulado-antes");
+  assert.equal((await anularPorPedido("HARPER-NO-EXISTE", "reembolso", deps, SIN_COBRO)).estado, "anulado-antes");
 });
 
 test("Con el crédito ya disponible, nada se anula solo: queda «A revisar» y deja de contar", async () => {
@@ -536,8 +539,8 @@ test("Con el crédito ya disponible, nada se anula solo: queda «A revisar» y d
   };
   const casos: [string, (deps: DependenciasCredito) => Promise<{ estado: string }>][] = [
     ["devolución", (d) => aplicarDevolucion(DUO.numero, [], d)],
-    ["reembolso", (d) => anularPorPedido(DUO.numero, "reembolso", d)],
-    ["contracargo perdido", (d) => anularPorPedido(DUO.numero, "contracargo-perdido", d)],
+    ["reembolso", (d) => anularPorPedido(DUO.numero, "reembolso", d, SIN_COBRO)],
+    ["contracargo perdido", (d) => anularPorPedido(DUO.numero, "contracargo-perdido", d, SIN_COBRO)],
     ["contracargo abierto", (d) => marcarIncidencia(DUO.numero, true, "contracargo abierto", d)],
   ];
   for (const [que, hacer] of casos) {
@@ -572,6 +575,16 @@ test("Dos pagos aprobados del mismo pedido (pago repetido): un solo crédito, so
   assert.equal(s.almacen.filas.length, 1);
 });
 
+test("Anular sin leer si el pedido quedó sin cobro no se puede (Tarea 11): tira antes de tomar el cerrojo", async () => {
+  const { almacen, cerrojo, deps } = sandbox();
+  await registrarCredito(DUO, deps);
+  const sinLectura = anularPorPedido as (n: string, m: "reembolso", d: DependenciasCredito, o?: unknown) => Promise<unknown>;
+  await assert.rejects(sinLectura(DUO.numero, "reembolso", deps), TypeError);
+  await assert.rejects(sinLectura(DUO.numero, "reembolso", deps, {}), TypeError);
+  assert.equal(almacen.filas[0].estado, "Pendiente");
+  assert.equal(cerrojo.llaves.size, 0);
+});
+
 test("Se reembolsa el pago repetido y el pedido sigue cobrado: el crédito no se toca", async () => {
   const { almacen, deps } = sandbox();
   await registrarCredito(DUO, deps);
@@ -592,7 +605,7 @@ test("Se reembolsa el pago repetido y el pedido sigue cobrado: el crédito no se
 
 test("El reembolso llega antes que el aviso del pago: queda anulado y el pago que llega después no anota crédito", async () => {
   const { almacen, deps } = sandbox();
-  const r = await anularPorPedido(DUO.numero, "reembolso", deps);
+  const r = await anularPorPedido(DUO.numero, "reembolso", deps, SIN_COBRO);
   assert.equal(r.estado, "anulado-antes");
   assert.equal(almacen.filas.length, 1);
   assert.deepEqual(
@@ -606,7 +619,7 @@ test("El reembolso llega antes que el aviso del pago: queda anulado y el pago qu
   assert.equal(almacen.filas.length, 1, "no se creó el crédito");
   assert.deepEqual(saldosDeLaCuenta([], almacen.filas, "2027-01-01").credito, { disponible: 0, pendiente: 0, aRevisar: 0 });
   // Repetido: ya anulado, sin otra fila.
-  assert.equal((await anularPorPedido(DUO.numero, "reembolso", deps)).estado, "ya-anulado");
+  assert.equal((await anularPorPedido(DUO.numero, "reembolso", deps, SIN_COBRO)).estado, "ya-anulado");
   assert.equal(almacen.filas.length, 1);
 });
 
@@ -628,20 +641,20 @@ test("El reembolso llega mientras otro aviso anota el crédito: espera su turno 
   await pausa();
   await pausa();
   // Mientras tanto llega el reembolso: el cerrojo está tomado.
-  assert.deepEqual(await anularPorPedido(DUO.numero, "reembolso", deps), { estado: "ocupado" });
+  assert.deepEqual(await anularPorPedido(DUO.numero, "reembolso", deps, SIN_COBRO), { estado: "ocupado" });
   soltar();
   assert.equal((await registro).estado, "creado");
   almacen.antesDeCrear = async () => {};
   // El reintento del reembolso lo anula.
-  assert.equal((await anularPorPedido(DUO.numero, "reembolso", deps)).estado, "anulado");
+  assert.equal((await anularPorPedido(DUO.numero, "reembolso", deps, SIN_COBRO)).estado, "anulado");
   assert.equal(almacen.filas.length, 1);
   assert.equal(almacen.filas[0].estado, "Anulado");
 });
 
 test("Una cancelación o una devolución total antes del crédito: anulado; una devolución parcial: «A revisar» (lo decide Harper)", async () => {
   for (const hacer of [
-    (d: DependenciasCredito) => anularPorPedido(DUO.numero, "cancelacion", d),
-    (d: DependenciasCredito) => anularPorPedido(DUO.numero, "contracargo-perdido", d),
+    (d: DependenciasCredito) => anularPorPedido(DUO.numero, "cancelacion", d, SIN_COBRO),
+    (d: DependenciasCredito) => anularPorPedido(DUO.numero, "contracargo-perdido", d, SIN_COBRO),
     (d: DependenciasCredito) => aplicarDevolucion(DUO.numero, [estuche(9_900)], d),
   ]) {
     const { almacen, deps } = sandbox();
@@ -700,7 +713,7 @@ test("«Contracargo ganado» llega antes que «contracargo abierto»: leyendo el
 test("Un aviso de pago atrasado no revive un crédito anulado ni toca uno ya disponible", async () => {
   const anulado = sandbox();
   await registrarCredito(DUO, anulado.deps);
-  await anularPorPedido(DUO.numero, "reembolso", anulado.deps);
+  await anularPorPedido(DUO.numero, "reembolso", anulado.deps, SIN_COBRO);
   assert.equal((await registrarCredito(DUO, anulado.deps)).estado, "ya");
   assert.deepEqual(anulado.almacen.filas.map((f) => f.estado), ["Anulado"]);
 
@@ -726,7 +739,7 @@ test("Leer el pedido adentro del cerrojo: si falla o trae otro pedido, no se esc
 
 test("Sin conectar: ninguna página, ruta ni el webhook usa el crédito; solo sus tres archivos se usan entre sí", () => {
   const raiz = path.resolve(__dirname, "..", "..");
-  const propios = ["credito-harper", "credito-persistencia", "credito-airtable"].map((n) => path.join("lib", `${n}.ts`));
+  const propios = ["credito-harper", "credito-persistencia", "credito-airtable", "credito-pagos"].map((n) => path.join("lib", `${n}.ts`));
   const usos: string[] = [];
   const recorrer = (dir: string) => {
     for (const entrada of fs.readdirSync(path.join(raiz, dir), { withFileTypes: true })) {
@@ -734,7 +747,7 @@ test("Sin conectar: ninguna página, ruta ni el webhook usa el crédito; solo su
       if (entrada.isDirectory()) recorrer(relativo);
       else if (/\.(ts|tsx)$/.test(entrada.name) && !propios.includes(relativo)) {
         const texto = fs.readFileSync(path.join(raiz, relativo), "utf8");
-        if (/from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)credito-(?:persistencia|airtable)["']/.test(texto)) usos.push(relativo);
+        if (/from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)credito-(?:persistencia|airtable|pagos)["']/.test(texto)) usos.push(relativo);
       }
     }
   };
