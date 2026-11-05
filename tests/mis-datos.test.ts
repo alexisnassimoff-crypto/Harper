@@ -7,7 +7,9 @@ delete process.env.VERCEL;
 
 import { getRecord, TABLAS } from "../lib/airtable";
 import { SUSCRIPTOR_ANA, SUSCRIPTOR_BETO } from "../lib/fixtures/datos";
+import { cerrojoEnMemoria, leerRedis, reiniciarRedis } from "../lib/fixtures/redis";
 import { interceptar, reiniciar, RespuestaFixture } from "../lib/fixtures/servidor";
+import { ErrorCerrojo, ErrorCerrojoOcupado, type Cerrojo } from "../lib/cerrojo";
 import {
   cambiarDirecciones,
   direccionParaElCheckout,
@@ -21,7 +23,7 @@ import {
   type DireccionGuardada,
   type DireccionNueva,
 } from "../lib/mis-datos";
-import { guardarCambioDeDireccion, guardarDatosPersonales, misDatos } from "../lib/mis-datos-servidor";
+import { claveDirecciones, guardarCambioDeDireccion, guardarDatosPersonales, misDatos } from "../lib/mis-datos-servidor";
 import { suscriptorDeLaPeticion, suscriptorDeLaSesion, suscriptorPorId } from "../lib/suscriptores-cuenta";
 import { claveDeSesionSuscriptor, COOKIE_SUSCRIPTOR, crearSesionSuscriptor } from "../lib/suscriptores-sesion";
 
@@ -31,6 +33,7 @@ let escrituras: { path: string; campos: Record<string, unknown> }[] = [];
 
 beforeEach(() => {
   reiniciar();
+  reiniciarRedis();
   escrituras = [];
   interceptar((path, { method, body }) => {
     if (method === "PATCH" || method === "POST") escrituras.push({ path, campos: JSON.parse(body ?? "{}").fields ?? {} });
@@ -253,7 +256,9 @@ test("mis direcciones: cada cambio escribe solo «Direcciones» de esa cuenta y 
 
   // Lo que no cambia nada no escribe.
   escrituras = [];
-  assert.deepEqual(await guardarCambioDeDireccion(releida!, { accion: "eliminar", id: "dnoexiste" }), { estado: "no-existe" });
+  const noEsta = await guardarCambioDeDireccion(releida!, { accion: "eliminar", id: "dnoexiste" });
+  assert.equal(noEsta.estado, "no-existe");
+  assert.deepEqual(ids(noEsta.actuales), ["dtrab0002*", "dcasa0001"], "devuelve la lista como está, para refrescar la pantalla");
   assert.deepEqual(escrituras, []);
 });
 
@@ -265,4 +270,68 @@ test("mis direcciones: si falta el campo en Airtable, el error sube y la cuenta 
   assert.deepEqual(beto.direcciones, []);
   assert.equal(beto.telefono, "");
   await assert.rejects(guardarCambioDeDireccion(beto, { accion: "agregar", direccion: manual(), principal: false }), /422/);
+});
+
+/**
+ * Dos dispositivos con la misma cuenta abierta (Ale, 05/11/2026): el celular
+ * agrega una dirección y la computadora elimina otra, a la vez, cada uno con
+ * la lista que tenía en pantalla. La primera escritura se demora a propósito,
+ * para que la segunda llegue en el medio.
+ */
+async function dosDispositivosALaVez(cerrojo: Cerrojo) {
+  const ana = await cuentaDe(SUSCRIPTOR_ANA, "ana@ejemplo.com");
+  let primera = true;
+  interceptar(async (_path, { method }) => {
+    if (method !== "PATCH") return;
+    if (primera) {
+      primera = false;
+      await new Promise((listo) => setTimeout(listo, 400));
+    }
+  });
+  const celular = guardarCambioDeDireccion(ana, { accion: "agregar", direccion: manual({ direccion: "Mitre 100", alias: "Mamá" }), principal: false }, { cerrojo });
+  await new Promise((listo) => setTimeout(listo, 50));
+  const computadora = guardarCambioDeDireccion(ana, { accion: "eliminar", id: "dtrab0002" }, { cerrojo });
+  const resultados = await Promise.all([celular, computadora]);
+  interceptar(null);
+  return { resultados, final: (await suscriptorPorId(SUSCRIPTOR_ANA))!.direcciones };
+}
+
+test("mis direcciones: dos cambios a la vez desde dos dispositivos no se pisan (llave en Redis y la fila releída)", async () => {
+  const cerrojo = cerrojoEnMemoria();
+  const { resultados, final } = await dosDispositivosALaVez(cerrojo);
+  assert.deepEqual(resultados.map((r) => r.estado), ["ok", "ok"]);
+  // Quedan los dos cambios: la nueva está y la eliminada no.
+  assert.deepEqual(final.map((d) => d.direccion).sort(), ["Av. Cabildo 1234", "Mitre 100"]);
+  assert.ok(cerrojo.intentos > 2, "la computadora esperó a que el celular terminara");
+  assert.equal(leerRedis(claveDirecciones(SUSCRIPTOR_ANA)), null, "y la llave quedó libre");
+});
+
+test("mis direcciones: (control) sin la llave, esa misma carrera pierde un cambio", async () => {
+  const sinLlave: Cerrojo = { tomar: async () => true, soltar: async () => {} };
+  const { final } = await dosDispositivosALaVez(sinLlave);
+  const direcciones = final.map((d) => d.direccion).sort();
+  assert.notDeepEqual(direcciones, ["Av. Cabildo 1234", "Mitre 100"], "sin la llave, la última escritura pisa a la otra");
+});
+
+test("mis direcciones: sin la llave no se guarda nada (ocupada, Redis caído o sin configurar) y se puede reintentar", async () => {
+  const ana = await cuentaDe(SUSCRIPTOR_ANA, "ana@ejemplo.com");
+  const cambio = { accion: "eliminar" as const, id: "dtrab0002" };
+  // Otro cambio de la cuenta tiene la llave y no la suelta a tiempo.
+  const cerrojo = cerrojoEnMemoria();
+  await cerrojo.tomar(claveDirecciones(SUSCRIPTOR_ANA), "otro", 60_000);
+  const reloj = { ahora: () => 0, dormir: async () => {} };
+  await assert.rejects(guardarCambioDeDireccion(ana, cambio, { cerrojo, reloj, esperaMaxMs: 500 }), ErrorCerrojoOcupado);
+  // Redis no contesta, o no está configurado.
+  const caido: Cerrojo = {
+    tomar: async () => {
+      throw new ErrorCerrojo("Redis no contestó");
+    },
+    soltar: async () => {},
+  };
+  await assert.rejects(guardarCambioDeDireccion(ana, cambio, { cerrojo: caido }), ErrorCerrojo);
+  await assert.rejects(guardarCambioDeDireccion(ana, cambio, { cerrojo: null }), /Redis sin configurar/);
+  assert.deepEqual(escrituras, [], "nada escrito");
+  // Con la llave libre, el reintento guarda.
+  await cerrojo.soltar(claveDirecciones(SUSCRIPTOR_ANA), "otro");
+  assert.equal((await guardarCambioDeDireccion(ana, cambio, { cerrojo })).estado, "ok");
 });

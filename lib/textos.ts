@@ -469,6 +469,7 @@ export const TEXTOS = {
           guardada: "Listo, guardamos la dirección.",
           eliminada: "Eliminamos la dirección.",
           error: "No pudimos guardar la dirección ahora. Probá de nuevo en un rato.",
+          ocupado: "Estamos guardando otro cambio de tus direcciones. Probá de nuevo en unos segundos.",
           /** En el checkout, con la sesión abierta. */
           checkout: "Tus direcciones guardadas",
           otra: "Usar otra dirección",

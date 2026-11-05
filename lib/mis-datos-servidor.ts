@@ -1,4 +1,6 @@
-import { TABLAS, updateRecord } from "./airtable";
+import { modoFixtures, TABLAS, updateRecord } from "./airtable";
+import { cerrojoDesdeEntorno, ErrorCerrojo, ErrorCerrojoOcupado, soltarSinFallar, tomarConEspera, type Cerrojo } from "./cerrojo";
+import { cerrojoEnMemoria } from "./fixtures/redis";
 import {
   cambiarDirecciones,
   escribirDirecciones,
@@ -10,7 +12,8 @@ import {
   type ResultadoCambio,
 } from "./mis-datos";
 import { clienteQueCompro, datosDeLaUltimaCompra, type DatosRecordados } from "./reconocer-cliente";
-import type { CuentaSuscriptor, FilaSuscriptor } from "./suscriptores-cuenta";
+import { suscriptorPorId, type CuentaSuscriptor, type FilaSuscriptor } from "./suscriptores-cuenta";
+import { RELOJ_REAL, type Reloj } from "./webhook-lock";
 
 /**
  * «Mis datos» y «Mis direcciones» del lado del servidor (Ale, 05/11/2026).
@@ -77,14 +80,61 @@ export async function guardarDatosPersonales(cuenta: CuentaSuscriptor, datos: Om
   return { ...datos, email: cuenta.email };
 }
 
+/** La llave de las direcciones de una cuenta: un cambio a la vez, aunque lleguen de dos dispositivos. */
+export const claveDirecciones = (suscriptorId: string) => `harper:direcciones:${suscriptorId}`;
+
+/** Leer, cambiar y escribir tarda ~1 s; si la instancia muere, la llave vence sola. */
+export const TTL_DIRECCIONES_MS = 15_000;
+/** Cuánto espera un cambio a que termine el otro antes de pedir que se reintente. */
+export const ESPERA_DIRECCIONES_MS = 5_000;
+
+/** El cerrojo de Redis de Vercel; en el modo de prueba local, uno en memoria. */
+function cerrojoDeDirecciones(): Cerrojo | null {
+  return cerrojoDesdeEntorno() ?? (modoFixtures() ? cerrojoEnMemoria() : null);
+}
+
+export type OpcionesCambioDireccion = {
+  /** Sin pasarlo, el de Redis. null = sin Redis: no se guarda (ErrorCerrojo). */
+  cerrojo?: Cerrojo | null;
+  reloj?: Reloj;
+  esperaMaxMs?: number;
+};
+
 /**
  * Agrega, edita, elimina o marca como principal una dirección de la cuenta.
- * `cuenta` es la fila recién leída: el cambio parte de lo que de verdad está
- * guardado. Solo escribe el campo «Direcciones».
+ *
+ * Dos cambios a la vez (dos dispositivos, dos pestañas) no se pisan: cada uno
+ * toma la llave de la cuenta en Redis, RELEE la fila adentro de la llave y
+ * aplica su cambio sobre lo que de verdad está guardado. Así, si uno agrega
+ * una dirección y otro elimina otra, quedan los dos cambios. Sin Redis (o si
+ * no contesta) no se guarda nada: `ErrorCerrojo`, y la ruta pide reintentar.
+ * Si la llave sigue tomada después de la espera: `ErrorCerrojoOcupado`.
+ * Solo escribe el campo «Direcciones».
  */
-export async function guardarCambioDeDireccion(cuenta: CuentaSuscriptor, cambio: CambioDireccion): Promise<ResultadoCambio> {
-  const resultado = cambiarDirecciones(cuenta.direcciones, cambio);
-  if (resultado.estado !== "ok") return resultado;
-  await updateRecord<FilaSuscriptor>(TABLAS.suscriptores, cuenta.id, { Direcciones: escribirDirecciones(resultado.direcciones) });
-  return resultado;
+export async function guardarCambioDeDireccion(
+  cuenta: CuentaSuscriptor,
+  cambio: CambioDireccion,
+  opciones: OpcionesCambioDireccion = {}
+): Promise<ResultadoCambio & { actuales: DireccionGuardada[] }> {
+  const cerrojo = opciones.cerrojo === undefined ? cerrojoDeDirecciones() : opciones.cerrojo;
+  if (!cerrojo) throw new ErrorCerrojo("Redis sin configurar: no se guardan direcciones sin la llave");
+
+  const clave = claveDirecciones(cuenta.id);
+  const nonce = await tomarConEspera(cerrojo, clave, TTL_DIRECCIONES_MS, {
+    esperaMaxMs: opciones.esperaMaxMs ?? ESPERA_DIRECCIONES_MS,
+    reloj: opciones.reloj ?? RELOJ_REAL,
+  });
+  if (!nonce) throw new ErrorCerrojoOcupado(clave);
+
+  try {
+    // Lo guardado ahora, no lo que se leyó al llegar el pedido.
+    const fresca = await suscriptorPorId(cuenta.id);
+    if (!fresca || fresca.email !== cuenta.email) return { estado: "no-existe", actuales: [] };
+    const resultado = cambiarDirecciones(fresca.direcciones, cambio);
+    if (resultado.estado !== "ok") return { ...resultado, actuales: fresca.direcciones };
+    await updateRecord<FilaSuscriptor>(TABLAS.suscriptores, cuenta.id, { Direcciones: escribirDirecciones(resultado.direcciones) });
+    return { ...resultado, actuales: resultado.direcciones };
+  } finally {
+    await soltarSinFallar(cerrojo, clave, nonce);
+  }
 }
