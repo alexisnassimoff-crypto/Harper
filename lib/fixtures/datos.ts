@@ -441,15 +441,73 @@ export function saldosIniciales(hoy: string = fechaArgentina(new Date())): Regis
   ];
 }
 
+/**
+ * «Mis compras» para ver la cuenta de Ana con pedidos (solo con
+ * HARPER_FIXTURES_COMPRAS=1, así las demás pruebas siguen con la base de
+ * fábrica). Ana tiene su ficha de cliente con tres compras, un checkout sin
+ * pagar y un pago rechazado (esos dos no se muestran). Otra persona tiene su
+ * propia compra, que en la cuenta de Ana nunca tiene que aparecer.
+ */
+export function comprasDePrueba(hoy: string = fechaArgentina(new Date())): { clientes: RegistroFixture[]; pedidos: RegistroFixture[] } {
+  const item = (slug: string, nombre: string, color: string, archivo: string, cantidad: number, subtotal: number) => ({
+    productoSlug: slug,
+    nombre,
+    categoria: "Anteojos",
+    color,
+    foto: `/productos/anteojos/${archivo}-1.webp`,
+    precioLista: 89900,
+    precioUnitario: Math.round(subtotal / cantidad),
+    cantidad,
+    subtotal,
+  });
+  const pedido = (id: string, campos: Record<string, unknown>, items: ReturnType<typeof item>[]): RegistroFixture => ({
+    id,
+    createdTime: CREADO,
+    fields: { Items: JSON.stringify(items), ...campos },
+  });
+  const ANA = "recCLIENTEANA0001";
+  const OTRA = "recCLIENTEOTRA001";
+  const pedidos = [
+    pedido("recPEDIDOANA00001", { Numero: "HARPER-PRUEBA2", Estado: "entregado", Cliente: [ANA], Fecha: `${sumarDias(hoy, -41)}T14:10:00.000Z`, Subtotal: 79900, Envio: 0, Total: 79900, MP_status: "approved", Tracking: "AND0001234567" }, [
+      item("citrino", "CITRINO", "Carey", "citrino-carey", 1, 79900),
+    ]),
+    pedido("recPEDIDOANA00002", { Numero: "HARPER-PRUEBA3", Estado: "enviado", Cliente: [ANA], Fecha: `${sumarDias(hoy, -9)}T19:45:00.000Z`, Subtotal: 179800, Envio: 0, Total: 179800, MP_status: "approved", Tracking: "CA123456789AR" }, [
+      item("amatista", "AMATISTA", "Gris traslúcido", "amatista-gris", 1, 89900),
+      item("obsidiana", "OBSIDIANA", "Ámbar traslúcido", "obsidiana-ambar", 1, 89900),
+    ]),
+    pedido("recPEDIDOANA00003", { Numero: "HARPER-PRUEBA5", Estado: "pagado", Cliente: [ANA], Fecha: `${sumarDias(hoy, -1)}T11:20:00.000Z`, Subtotal: 89900, Envio: 6500, Total: 96400, MP_status: "approved" }, [
+      item("cuarzo", "CUARZO", "Negro", "cuarzo-negro", 1, 89900),
+    ]),
+    // No son compras: un checkout que no se pagó y un pago rechazado.
+    pedido("recPEDIDOANA00004", { Numero: "HARPER-PRUEBA6", Estado: "pendiente", Cliente: [ANA], Fecha: `${sumarDias(hoy, -3)}T10:00:00.000Z`, Total: 89900 }, [
+      item("citrino", "CITRINO", "Negro", "citrino-negro", 1, 89900),
+    ]),
+    pedido("recPEDIDOANA00005", { Numero: "HARPER-PRUEBA7", Estado: "rechazado", Cliente: [ANA], Fecha: `${sumarDias(hoy, -2)}T10:00:00.000Z`, Total: 89900, MP_status: "rejected" }, [
+      item("citrino", "CITRINO", "Negro", "citrino-negro", 1, 89900),
+    ]),
+    // De otra persona: nunca en la cuenta de Ana.
+    pedido("recPEDIDOOTRA0001", { Numero: "HARPER-OTRA", Estado: "pagado", Cliente: [OTRA], Fecha: `${sumarDias(hoy, -5)}T10:00:00.000Z`, Total: 89900, MP_status: "approved" }, [
+      item("citrino", "CITRINO", "Carey", "citrino-carey", 1, 89900),
+    ]),
+  ];
+  const clientes: RegistroFixture[] = [
+    { id: ANA, createdTime: CREADO, fields: { Email: "ana@ejemplo.com", Nombre: "Ana Pérez", Primera_compra: sumarDias(hoy, -41), Pedidos: pedidos.filter((p) => (p.fields.Cliente as string[])[0] === ANA).map((p) => p.id) } },
+    { id: OTRA, createdTime: CREADO, fields: { Email: "otra@ejemplo.com", Nombre: "Otra Persona", Primera_compra: sumarDias(hoy, -5), Pedidos: ["recPEDIDOOTRA0001"] } },
+  ];
+  return { clientes, pedidos };
+}
+
 /** Las tablas tal como las espera `lib/airtable.ts`, por su ID. */
 export function tablasIniciales(): Map<string, RegistroFixture[]> {
+  // «Mis compras» de prueba, solo si se piden (ver comprasDePrueba).
+  const compras = process.env.HARPER_FIXTURES_COMPRAS === "1" ? comprasDePrueba() : { clientes: [], pedidos: [] };
   return new Map<string, RegistroFixture[]>([
     [TABLAS.productos, estructurar(PRODUCTOS)],
     [TABLAS.variantes, estructurar(VARIANTES)],
     [TABLAS.config, estructurar(CONFIG)],
     [TABLAS.descuentos, estructurar(DESCUENTOS)],
-    [TABLAS.pedidos, estructurar(PEDIDOS)],
-    [TABLAS.clientes, []],
+    [TABLAS.pedidos, [...estructurar(PEDIDOS), ...estructurar(compras.pedidos)]],
+    [TABLAS.clientes, estructurar(compras.clientes)],
     [TABLAS.arrepentimientos, []],
     [TABLAS.suscriptores, suscriptoresIniciales()],
     [TABLAS.saldos, saldosIniciales()],

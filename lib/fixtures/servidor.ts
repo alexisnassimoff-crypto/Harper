@@ -51,7 +51,7 @@ function listar(id: string, query: Record<string, string | undefined>) {
   let filas = [...tabla(id)];
 
   const formula = query.filterByFormula;
-  if (formula) filas = filas.filter((f) => cumpleFormula(formula, f.fields));
+  if (formula) filas = filas.filter((f) => cumpleFormula(formula, f.fields, f.id));
 
   // sort[0][field], sort[0][direction], sort[1][field]…
   const ordenes = Object.keys(query)
