@@ -19,7 +19,7 @@ import {
   type RenglonDuo,
 } from "../lib/duo";
 import { resolverCarrito } from "../lib/pedidos";
-import type { Categoria } from "../lib/categorias";
+import { CATEGORIAS, type Categoria } from "../lib/categorias";
 import type { ItemResuelto } from "../lib/tipos";
 
 /** Motor del descuento Dúo (Ale, 05/11/2026 · Tarea 03). */
@@ -176,6 +176,58 @@ test("Dúo: cuentan todas las categorías de anteojos, salvo que se elija otra c
   const soloAnteojos = calcularDuo(mezcla, { esElegible: (c) => c === "Anteojos" });
   assert.equal(soloAnteojos.anteojos, 1);
   assert.equal(soloAnteojos.descuento, 0);
+});
+
+test("Dúo: Clip-On y Anteojos de receta cuentan como anteojos completos", () => {
+  // Dos Clip-On: uno con el 25 %.
+  const clipOn = calcularDuo([de("Clip-On", 99_900, 2)]);
+  assert.equal(clipOn.anteojos, 2);
+  assert.equal(clipOn.descuento, 24_975);
+
+  // Dos de receta: uno con el 25 %.
+  const receta = calcularDuo([de("Anteojos de receta", 129_900), de("Anteojos de receta", 129_900)]);
+  assert.equal(receta.anteojos, 2);
+  assert.equal(receta.descuento, 32_475);
+
+  // Un Clip-On y uno de receta forman un Dúo: el descuento va al más barato.
+  const mixtos = [de("Anteojos de receta", 129_900), de("Clip-On", 99_900)];
+  const r = calcularDuo(mixtos);
+  assert.equal(r.descuento, 24_975);
+  assert.deepEqual(r.renglones.map((x) => x.descuento), [0, 24_975]);
+  cierra(mixtos, r);
+
+  // Las cuatro categorías juntas: 4 anteojos, los dos más baratos con el 25 %.
+  const cuatro = [anteojo(89_900), de("Anteojos de sol", 99_900), de("Clip-On", 109_900), de("Anteojos de receta", 129_900)];
+  const r4 = calcularDuo(cuatro);
+  assert.equal(r4.anteojos, 4);
+  assert.deepEqual(r4.renglones.map((x) => x.unidadesConDescuento), [1, 1, 0, 0]);
+  assert.equal(r4.descuento, 22_475 + 24_975);
+  cierra(cuatro, r4);
+
+  // Un Clip-On o uno de receta con un estuche no es Dúo.
+  assert.equal(calcularDuo([de("Clip-On", 99_900), de("Estuches", 29_900)]).descuento, 0);
+  assert.equal(calcularDuo([de("Anteojos de receta", 129_900), de("Paños", 6_990, 3)]).descuento, 0);
+
+  // En el carrito, igual.
+  const carrito = aplicarDuo([item("Clip-On", 99_900, 1), item("Anteojos de receta", 129_900, 1), item("Estuches", 29_900, 1)]);
+  assert.equal(carrito.aplicado, true);
+  assert.equal(carrito.ahorro, 24_975);
+  assert.deepEqual(carrito.items.map((i) => i.subtotal), [74_925, 129_900, 29_900]);
+});
+
+test("Dúo: cuentan solo las categorías de anteojos completos; los complementos nunca", () => {
+  // Un clip que se vende suelto es un complemento, no un Clip-On: se carga con
+  // una categoría de complemento y no cuenta para el Dúo.
+  for (const { nombre, tipo } of CATEGORIAS) {
+    const r = calcularDuo([de(nombre, 89_900, 2)]);
+    if (tipo === "anteojos") assert.equal(r.descuento, 22_475, `${nombre} cuenta`);
+    else assert.equal(r.descuento, 0, `${nombre} no cuenta`);
+  }
+  assert.deepEqual(
+    CATEGORIAS.filter((c) => c.tipo === "anteojos").map((c) => c.nombre),
+    ["Anteojos", "Anteojos de sol", "Clip-On", "Anteojos de receta"],
+    "las cuatro categorías elegibles (Ale, 05/11/2026)"
+  );
 });
 
 test("Dúo: el redondeo se hace una vez sobre el total y los renglones cierran", () => {

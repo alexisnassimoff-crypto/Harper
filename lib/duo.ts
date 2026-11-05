@@ -24,7 +24,11 @@ import type { ItemResuelto } from "./tipos";
  *    descuento (como en lib/pedidos.ts y lib/dinero-mp.ts);
  *  - qué es un anteojo, de lib/categorias.ts (`esCategoriaDeAnteojos`).
  *
- * Estuches y paños no cuentan para el Dúo ni llevan este descuento.
+ * Cuentan las cuatro categorías de anteojos completos: Anteojos, Anteojos de
+ * sol, Clip-On y Anteojos de receta (Ale, 05/11/2026). Estuches, paños y
+ * cualquier complemento no cuentan ni llevan este descuento. Un clip que se
+ * venda suelto es un complemento: se carga con una categoría de complemento,
+ * no como Clip-On.
  */
 
 /** El descuento Dúo, en %. */
