@@ -1644,19 +1644,24 @@ página calcula el descuento por su cuenta.
 
 ---
 
-## 17. Crédito Harper: dónde se guarda (Tarea 09, propuesta para aprobar)
+## 17. Crédito Harper: dónde se guarda (Tareas 09 y 10)
 
 ### 17.1 Estado
 
-- El cálculo (Tarea 08, `lib/credito-harper.ts`) y la persistencia
-  (Tarea 09, `lib/credito-persistencia.ts`) están en el código, **apagados y
-  sin conectar**.
-- No escriben en Airtable. No los usa el webhook ni ninguna página.
-  `HARPER_CREDITO_ACTIVO` sigue apagado.
+- **La tabla «Créditos» existe y está vacía.** Ale la aprobó el 05/11/2026
+  y se creó ese día en la base real (`tbljsISq3DoFBWiEF`), con los campos de
+  §17.2. No se tocó ninguna otra tabla.
+- El cálculo (Tarea 08, `lib/credito-harper.ts`), la persistencia (Tarea 09,
+  `lib/credito-persistencia.ts`) y el adaptador de Airtable (Tarea 10,
+  `lib/credito-airtable.ts`) están en el código, **apagados y sin
+  conectar**. No los usa el webhook, ni el checkout, ni ninguna página.
+- **El adaptador no escribe en la tabla real** mientras
+  `HARPER_CREDITO_ACTIVO` esté apagado: solo en el Airtable de prueba.
 - Las pruebas corren contra una tabla y un cerrojo en memoria
-  (`tests/credito-persistencia.test.ts`).
+  (`tests/credito-persistencia.test.ts`) y contra el Airtable y el Redis de
+  prueba (`tests/credito-airtable.test.ts`).
 
-### 17.2 Una tabla nueva, «Créditos» (para aprobar)
+### 17.2 La tabla «Créditos» (aprobada y creada)
 
 **Por qué no en Saldos:**
 
@@ -1672,11 +1677,11 @@ página calcula el descuento por su cuenta.
 
 | Campo | Tipo en Airtable | Para qué |
 |---|---|---|
-| Clave | Texto (campo principal) | `credito-harper:<pedido>`: una sola vigente por pedido |
+| Clave | Texto (campo principal) | `credito-harper:<pedido>`. Airtable **no** impide filas repetidas: la unicidad la da el cerrojo (§17.4) |
 | Pedido | Texto | El número, «HARPER-…» |
 | Email | Email | La cuenta del crédito: el mail de la compra, en minúsculas |
 | Monto | Número, sin decimales | El crédito, en pesos |
-| Porcentaje | Número, sin decimales | 5 o 10 |
+| Porcentaje | Número, sin decimales | 5 o 10; 0 en una fila que bloquea (§17.8) |
 | Base | Número | Lo pagado en dinero en anteojos |
 | Anteojos | Número, sin decimales | Cuántos anteojos tuvo el pedido |
 | Estado | Selección única: Pendiente, Disponible, Anulado, A revisar | «A revisar» no se puede usar hasta que Harper decida |
@@ -1709,23 +1714,34 @@ conectar el checkout (§17.7).
 | Incidencia abierta o cerrada | Créditos del pedido | Incidencia_abierta. Si estaba Disponible y se abre: «A revisar» | Reclamo o contracargo |
 | Saldo de la cuenta | Saldos y Créditos del mail | Nada | Mi cuenta y checkout (otra tarea) |
 
-**Cerrojo.** Cada operación toma en Redis la llave
-`harper:credito:<pedido>` por 120 segundos. Es distinta de la del webhook.
-Si Redis falla, no se escribe nada y se reintenta.
+**Cerrojo obligatorio** (revisión del PR #67). Cada operación toma en Redis
+la llave `harper:credito:<pedido>` por 120 segundos. Es distinta de la del
+webhook.
+
+- **Sin Redis configurado, o si Redis falla:** no se lee ni se escribe nada.
+  La operación avisa con un error para que se reintente.
+- **Si el trabajo tarda más de 100 segundos:** la llave pudo vencer. No se
+  escribe y se reintenta.
 
 ### 17.4 Contra duplicados y webhooks a la vez
 
-- **Dos avisos del mismo pago a la vez:** el cerrojo deja trabajar a uno.
-  El otro recibe «ocupado» y reintenta. Probado con 10 a la vez: una fila.
+- **Lo que protege es el cerrojo.** Con dos avisos del mismo pago a la vez,
+  trabaja uno solo. El otro recibe «ocupado» y reintenta. Probado con 10 a
+  la vez en memoria y con 5 contra el Airtable y el Redis de prueba: una
+  fila.
 - **Un reintento:** antes de crear se busca la fila del pedido, aunque esté
   anulada. Si está, no se crea otra.
-- **Sin Redis, o una caída entre escribir y verificar:** después de crear se
-  vuelve a leer. Si hay dos vigentes, queda la más vieja y la otra se anula.
-  Lo mismo al liberar, así un duplicado nunca pasa a Disponible. Airtable no
-  tiene índices únicos: esto los reemplaza.
+- **Respaldo, no garantía:** al leer, si quedaron dos filas vigentes, queda
+  la más vieja y la otra se anula. Lo mismo al liberar, así un duplicado no
+  pasa a Disponible. Puede pasar si una instancia se cae en el medio o si la
+  llave venció. Esto **no reemplaza** al cerrojo: Airtable no tiene índices
+  únicos ni impide filas repetidas.
 - **Un crédito anulado no se vuelve a crear.**
 - **Un pedido con el cashback de hoy**, anulado o no, no recibe crédito
   nuevo.
+- **Una fila editada a mano con datos que no tienen sentido** se lee como
+  «A revisar». Por ejemplo, un estado desconocido, un monto con decimales o
+  una clave de otro pedido. No se usa ni se libera sola.
 
 ### 17.5 Devoluciones, cancelaciones y contracargos
 
@@ -1759,15 +1775,48 @@ está definida (§14, L1).
 
 ### 17.7 Lo que falta para conectarlo (cada paso con aprobación)
 
-1. Aprobar la tabla «Créditos» (§17.2) y crearla.
-2. El adaptador de Airtable para esa tabla, con pruebas en el Airtable de
-   prueba.
-3. El webhook: anotar al acreditarse el pago; anular por reembolso o
-   contracargo. Con `HARPER_CREDITO_ACTIVO` apagado, no hace nada.
+1. ~~Aprobar la tabla «Créditos» y crearla.~~ Hecho el 05/11/2026.
+2. ~~El adaptador de Airtable, con pruebas en el Airtable de prueba.~~
+   Tarea 10.
+3. **El webhook.** Tiene que:
+   - anotar al acreditarse el pago, leyendo adentro del cerrojo el estado
+     del pago en Mercado Pago y el del pedido en Pedidos (§17.8);
+   - decidir el régimen con el estado del pedido;
+   - anular por reembolso o contracargo.
+
+   Con `HARPER_CREDITO_ACTIVO` apagado, no hace nada.
 4. De dónde sale la fecha de entrega (§14, O1).
 5. La liberación diaria.
-6. Mostrarlo en Mi cuenta y usarlo en el checkout.
+6. **Mostrarlo en Mi cuenta y usarlo en el checkout.** Usarlo necesita
+   descontar o reservar el crédito sin descontarlo dos veces. «Disponible» es
+   lo ganado, no lo que queda después de usarlo. Es otra tarea, con su propia
+   propuesta.
 7. La regla de reintegro de la devolución parcial (§14, L1).
+
+### 17.8 Pagos repetidos, reembolsos anticipados y avisos fuera de orden (Tarea 10)
+
+Mercado Pago puede avisar dos veces, avisar tarde o avisar en otro orden. La
+regla: **adentro del cerrojo se lee el estado de verdad** (el pago en
+Mercado Pago, el pedido en Pedidos), no el aviso que llegó.
+
+| Caso | Qué pasa |
+|---|---|
+| Dos pagos aprobados del mismo pedido | Un solo crédito, sobre lo que se cobró en el pedido, no sobre la suma de los pagos |
+| Se reembolsa el pago repetido y el pedido sigue cobrado | El crédito no se toca. Antes de anular, se pregunta si el pedido quedó sin cobro |
+| El reembolso llega antes que el aviso del pago | Queda una fila «Anulado» sin monto ni mail. El pago que llega después no anota crédito |
+| El aviso dice «aprobado», pero hoy el pago ya está reembolsado | Se lee el estado de hoy: no se anota nada |
+| El reembolso llega mientras se está anotando el crédito | Espera su turno: «ocupado», se reintenta y lo anula |
+| Cancelación, contracargo perdido o devolución total antes del crédito | Fila «Anulado» que impide anotarlo después |
+| Devolución parcial antes del crédito | Fila «A revisar» sin monto: no se anota solo el crédito completo. El crédito menor lo decide Harper |
+| La entrega se confirma antes del aviso del pago | El crédito nace con la fecha de entrega del pedido y se libera a los 30 días |
+| El contracargo se abre antes de anotar el crédito | El crédito nace con la incidencia abierta y no se libera hasta cerrarla |
+| «Contracargo ganado» llega antes que «contracargo abierto» | Cada aviso lee el estado de hoy en Mercado Pago: queda cerrado y se libera a su tiempo |
+| Un aviso de pago atrasado sobre un crédito anulado o ya disponible | No lo revive ni lo cambia |
+| No se puede leer el pedido, o se lee otro | No se escribe nada y se suelta la llave |
+
+**Lo que todavía no se puede probar:** la concurrencia real con Redis y
+Airtable de verdad. Las pruebas usan los de prueba. Se va a probar al
+conectar el webhook, en una base de pruebas aislada, sin pagos reales.
 
 ---
 

@@ -262,8 +262,12 @@ test("Apagado por defecto y sin usar: ninguna página, componente ni ruta lo usa
     for (const entrada of fs.readdirSync(path.join(raiz, dir), { withFileTypes: true })) {
       const relativo = path.join(dir, entrada.name);
       if (entrada.isDirectory()) recorrer(relativo);
-      // lib/credito-persistencia.ts (Tarea 09) lo usa, y a ella no la usa nadie (tests/credito-persistencia.test.ts).
-      else if (/\.(ts|tsx)$/.test(entrada.name) && relativo !== path.join("lib", "credito-harper.ts") && relativo !== path.join("lib", "credito-persistencia.ts")) {
+      // Lo usan la persistencia (Tarea 09) y el adaptador de Airtable (Tarea 10),
+      // y a esos dos no los usa nadie (tests/credito-persistencia.test.ts).
+      else if (
+        /\.(ts|tsx)$/.test(entrada.name) &&
+        !["credito-harper.ts", "credito-persistencia.ts", "credito-airtable.ts"].some((n) => relativo === path.join("lib", n))
+      ) {
         const texto = fs.readFileSync(path.join(raiz, relativo), "utf8");
         if (/from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)credito-harper["']/.test(texto)) usos.push(relativo);
       }
