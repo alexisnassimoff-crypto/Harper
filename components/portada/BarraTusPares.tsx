@@ -21,11 +21,18 @@ import { empujeDeLaBarra } from "@/lib/vitrina";
  */
 export default function BarraTusPares({
   despuesDe,
+  ocultarEn,
   invitacion,
   precioPar,
 }: {
   /** El id del elemento que, al salir de pantalla, hace aparecer la barra. */
   despuesDe: string;
+  /**
+   * El id de una sección donde la barra no va (Suscriptores, Ale 05/11/2026):
+   * mientras se ve, la barra se va y el botón de WhatsApp también, para no
+   * tapar ni competir con el formulario.
+   */
+  ocultarEn?: string;
   /** Sin nada en el carrito: "Dos pares, en 6 cuotas sin interés de $ 28.468". */
   invitacion: string;
   precioPar: number;
@@ -47,7 +54,25 @@ export default function BarraTusPares({
     return () => observador.disconnect();
   }, [despuesDe]);
 
-  const visible = paso;
+  const [enSeccionAparte, setEnSeccionAparte] = useState(false);
+  useEffect(() => {
+    if (!ocultarEn) return;
+    const seccion = document.getElementById(ocultarEn);
+    if (!seccion) return;
+    // Cuenta como «en la sección» cuando ocupa el centro de la pantalla.
+    const observador = new IntersectionObserver(([e]) => setEnSeccionAparte(e.isIntersecting), { rootMargin: "-45% 0px -45% 0px" });
+    observador.observe(seccion);
+    return () => observador.disconnect();
+  }, [ocultarEn]);
+  useEffect(() => {
+    if (!enSeccionAparte) return;
+    document.body.dataset.sinFlotantes = "";
+    return () => {
+      delete document.body.dataset.sinFlotantes;
+    };
+  }, [enSeccionAparte]);
+
+  const visible = paso && !enSeccionAparte;
   useEffect(() => {
     if (!visible) return;
     document.body.dataset.ctaFija = "";

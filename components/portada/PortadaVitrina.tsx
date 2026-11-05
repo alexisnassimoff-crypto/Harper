@@ -3,13 +3,14 @@ import Link from "next/link";
 import BarraTusPares from "./BarraTusPares";
 import DeADos, { type ColorDeADos, type FilaDeADos } from "./DeADos";
 import Opiniones from "./Opiniones";
-import { PreguntasFrecuentes } from "./SeccionesPortada";
+import { CompraTranquila, PreguntasFrecuentes } from "./SeccionesPortada";
 import PortadaColor, { type ColorPortada } from "./PortadaColor";
 import Vitrina, { type ModeloVitrina } from "./Vitrina";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import type { ConfigTienda } from "@/lib/config";
-import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA } from "@/lib/confianza";
+import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, mensajesDeConfianza } from "@/lib/confianza";
+import { condicionesDeCompra } from "@/lib/ficha";
 import { CUPON_BIENVENIDA, HAY_CUPONES } from "@/lib/cupones";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { conEspera, verificarCuotas } from "@/lib/cuotas-servidor";
@@ -200,12 +201,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const cuotasAnteojos = cuota1 ?? null;
   // Las de suscriptor, solo si son más que las de todos (con el tope en 3 serían las mismas).
   const cuotasDeSuscriptor = cuotasSuscriptor && (!cuotasAnteojos || cuotasSuscriptor.cuotas > cuotasAnteojos.cuotas) ? cuotasSuscriptor : null;
-  // Con cuántos pares el envío es gratis a todo el país (null si con 5 todavía no).
-  const paresPaisGratis =
-    precio !== null
-      ? ([1, 2, 3, 4, 5].find((n) => gratisPais(armarPack({ precio, cantidad: n, tramos, categoria }).totalParaEnvio)) ?? null)
-      : null;
-  const paisConDos = paresPaisGratis !== null && paresPaisGratis > 1;
   const complementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
   // Los cristales con aumento los vende Harper: se consultan por WhatsApp (Ale, 30/10/2026).
   const consultaAumento = enlaceWhatsApp(config.whatsapp, mensajeGraduadosModelo(""));
@@ -240,47 +235,57 @@ export default async function PortadaVitrina({ productos, config }: { productos:
     .flatMap((m) => m.colores.filter((c) => c.alSol && !c.agotada).map((c) => ({ m, c })))
     .at(0);
 
+  // Envío, devolución, cambios, garantía y pago, con sus enlaces (los mismos de la ficha).
+  // Acá el envío no repite el mínimo para que sea gratis: eso va en las promociones.
+  const condiciones = condicionesDeCompra(
+    [
+      { clave: "envio", texto: TEXTOS.tranquilo.envio.texto, detalle: TEXTOS.tranquilo.envio.detalle },
+      ...mensajesDeConfianza(config).filter((m) => m.clave === "pago"),
+    ],
+    { diasArrepentimiento: DIAS_ARREPENTIMIENTO, diasCambio: DIAS_CAMBIO, mesesGarantia: MESES_GARANTIA },
+  );
+  const asesoramiento = enlaceWhatsApp(config.whatsapp, "Hola, Harper. Quiero consultar por los anteojos.");
+  // El envío gratis, tal como está en Config (en AMBA desde un mínimo y en todo el país desde otro).
+  const envioConfianza = mensajesDeConfianza(config).find((m) => m.clave === "envio");
+  const hayEnvioGratis = config.envioGratisDesde > 0 || config.envioGratisAmbaDesde > 0;
+
   return (
     <>
+      {/* 1. Presentación: qué vende Harper y qué tienen de especial (Ale, 05/11/2026). */}
       <PortadaColor
         colores={coloresPortada}
         inicial={inicialPortada}
         datos={{
           etiqueta: confirmados ? TEXTOS.portada.etiqueta : lineaVitrina.nombre,
-          titulo: config.portadaTitulo || TEXTOS.portada.titulo,
-          // Ale, 04/11/2026: sin la frase del accesorio debajo del título.
-          bajada: config.portadaSubtitulo || null,
+          // Config `portada_titulo` gana si se carga; hoy está vacío y vale el del código.
+          titulo: config.portadaTitulo || (confirmados ? TEXTOS.portada.titulo : TEXTOS.portada.tituloSinConfirmar),
+          bajada: config.portadaSubtitulo || (confirmados ? TEXTOS.portada.descripcion : null),
           boton: TEXTOS.portada.boton,
           precio: precio ? formatearPrecio(precio) : null,
           cuota: textoCuota(cuota1),
           letraChica,
-          // Ale, 04/11/2026: sin la línea «Suscribite gratis y desbloqueá $ 10.000…» debajo del botón.
-          suscribite: null,
+          suscribite: TEXTOS.portada.beneficios,
         }}
       />
 
+      {/* 2. Los modelos: elegir sin mensajes de promociones en el medio. */}
       <Vitrina
         modelos={vitrina}
         datos={{
           linea: lineaVitrina.nombre,
           precio: precio ? formatearPrecio(precio) : null,
           cuota: textoCuota(cuota1),
-          todos: todos
-            ? {
-                texto: `${TEXTOS.modelos.todosBoton} · ${formatearPrecio(todos.total)}${
-                  todos.porcentaje ? (escala.length > 0 ? ` · cada par a ${formatearPrecio(todos.precioUnitario)}` : ` · ${todos.porcentaje} % OFF`) : ""
-                }`,
-              }
-            : null,
+          todos: null,
           complementos: complementos.map((c) => ({ nombre: c.nombre, slug: c.slug })),
         }}
       />
 
+      {/* 3. Por qué Harper: cómo funcionan, qué trae y comprar tranquilo. */}
       {confirmados && parDelDia?.c.alSol ? (
         <section className="un-par" aria-labelledby="un-par-titulo">
           <div className="contenedor">
             <div className="un-par__cabecera">
-              <p className="etiqueta-mono">{TEXTOS.unDia.etiqueta}</p>
+              <p className="etiqueta-mono">Por qué Harper · {TEXTOS.ficha.cristales.titulo}</p>
               <h2 id="un-par-titulo" className="titulo-serif">
                 {TEXTOS.unDia.titulo}
               </h2>
@@ -329,6 +334,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               />
             </div>
             <div className="asi-llega__texto">
+              <p className="etiqueta-mono">En la caja</p>
               <h2 id="asi-llega-titulo" className="titulo-serif">
                 {TEXTOS.asiLlega.etiqueta}
               </h2>
@@ -347,15 +353,21 @@ export default async function PortadaVitrina({ productos, config }: { productos:
                   </a>
                 ) : null}
               </p>
-              {precio ? (
-                <p className="asi-llega__cierre">
-                  {TEXTOS.asiLlega.todoEso} <span className="cifra">{formatearPrecio(precio)}</span>.
-                  <span className="asi-llega__preparate">{TEXTOS.asiLlega.preparate}</span>
-                </p>
-              ) : null}
             </div>
           </div>
-          <dl className="contenedor cuentas__lista">
+        </section>
+      ) : null}
+
+      <CompraTranquila condiciones={condiciones} whatsapp={asesoramiento} />
+
+      {/* 4. Promociones: las vigentes, una sola vez. */}
+      <section className="promos" aria-labelledby="promos-titulo">
+        <div className="contenedor">
+          <p className="etiqueta-mono">{TEXTOS.promos.etiqueta}</p>
+          <h2 id="promos-titulo" className="titulo-serif">
+            {TEXTOS.promos.titulo}
+          </h2>
+          <dl className="cuentas__lista promos__lista">
             {cuotasAnteojos ? (
               <div>
                 <dt>{cuotasAnteojos.cuotas}</dt>
@@ -366,24 +378,54 @@ export default async function PortadaVitrina({ productos, config }: { productos:
             ) : null}
             <div>
               <dt>{PORCENTAJE_DINERO_MP}%</dt>
-              <dd>OFF extra pagando con dinero en tu cuenta de Mercado Pago.</dd>
+              <dd>{TEXTOS.promos.dineroMP}</dd>
             </div>
-            <div>
-              <dt>{DIAS_ARREPENTIMIENTO}</dt>
-              <dd>días corridos para devolverlo sin costo. Cambios hasta {DIAS_CAMBIO} días.</dd>
-            </div>
-            <div>
-              <dt>{MESES_GARANTIA}</dt>
-              <dd>meses de garantía por defectos de fabricación.</dd>
-            </div>
+            {hayEnvioGratis && envioConfianza ? (
+              <div>
+                <dt className="promos__palabra">{TEXTOS.promos.envioGratis}</dt>
+                <dd>
+                  {envioConfianza.texto.replace(/^Envío gratis /, "")}
+                  {envioConfianza.detalle && envioConfianza.detalle !== "A domicilio" ? `. ${envioConfianza.detalle}` : ""}.
+                </dd>
+              </div>
+            ) : null}
           </dl>
-        </section>
+        </div>
+      </section>
+
+      {precio && filas.length > 0 && hayPromo ? (
+        <DeADos
+          filas={filas}
+          colores={coloresPack}
+          estuche={
+            estuche && varianteEstuche
+              ? {
+                  slug: estuche.slug,
+                  varianteId: varianteEstuche.id,
+                  sku: varianteEstuche.sku,
+                  nombre: `estuche ${estuche.nombre}`,
+                  precio: estuche.precio,
+                  precioTexto: formatearPrecio(estuche.precio),
+                }
+              : null
+          }
+          fotos={fotosPack}
+          letraChica={letraChica ? `${letraChica}.` : ""}
+          totales={Object.fromEntries(packs.map((p) => [p.cantidad, formatearPrecio(p.total)]))}
+          encabezado={
+            escala.length > 0
+              ? {
+                  // El stock es limitado de verdad (Ale, 30/10/2026).
+                  etiqueta: "Stock limitado",
+                  titulo: `${nombreDelTramo(escala[0])}.`,
+                  bajada: TEXTOS.pack.bajada,
+                }
+              : undefined
+          }
+        />
       ) : null}
 
-      <Opiniones opiniones={opiniones} reputacion={reputacion} />
-
-      {/* Suscriptores Harper (Ale, 03/11/2026): donde estaban los socios, con
-          el formulario ahí mismo. */}
+      {/* 5. Suscriptores Harper: el registro, aparte de la compra. */}
       <section id="suscriptores" className="suscriptores-portada" aria-labelledby="suscriptores-portada-titulo">
         <div className="contenedor suscriptores-portada__grilla">
           <div className="suscriptores-portada__texto">
@@ -406,41 +448,32 @@ export default async function PortadaVitrina({ productos, config }: { productos:
         </div>
       </section>
 
-      {precio && filas.length > 0 && hayPromo ? (
-        <DeADos
-          filas={filas}
-          colores={coloresPack}
-          estuche={
-            estuche && varianteEstuche
-              ? {
-                  slug: estuche.slug,
-                  varianteId: varianteEstuche.id,
-                  sku: varianteEstuche.sku,
-                  nombre: `estuche ${estuche.nombre}`,
-                  precio: estuche.precio,
-                  precioTexto: formatearPrecio(estuche.precio),
-                }
-              : null
-          }
-          fotos={fotosPack}
-          letraChica={
-            letraChica
-              ? `${letraChica}. Con dinero en tu cuenta de Mercado Pago, ${PORCENTAJE_DINERO_MP} % OFF extra.`
-              : `Con dinero en tu cuenta de Mercado Pago, ${PORCENTAJE_DINERO_MP} % OFF extra.`
-          }
-          totales={Object.fromEntries(packs.map((p) => [p.cantidad, formatearPrecio(p.total)]))}
-          encabezado={
-            escala.length > 0
-              ? {
-                  // El stock es limitado de verdad (Ale, 30/10/2026).
-                  etiqueta: "Stock limitado",
-                  titulo: `${nombreDelTramo(escala[0])}.`,
-                  bajada: TEXTOS.pack.bajada,
-                }
-              : undefined
-          }
-        />
-      ) : null}
+      {/* 6. Opiniones, dudas, lo que viene (secundario) y el cierre. */}
+      <Opiniones opiniones={opiniones} reputacion={reputacion} />
+
+      <PreguntasFrecuentes
+        preguntas={preguntasDePortada({
+          incluye,
+          caracteristicas: confirmados ? (caracteristicasDe(modelos[0])?.lista ?? null) : null,
+          cuotas: cuotasAnteojos,
+          nombreMarcas: NOMBRE_MARCAS,
+          envioGratisDesde: config.envioGratisDesde,
+          envioGratisTexto: formatearPrecio(config.envioGratisDesde),
+          envioGratisAmbaTexto:
+            config.envioGratisAmbaDesde > 0 && (config.envioGratisDesde <= 0 || config.envioGratisAmbaDesde < config.envioGratisDesde)
+              ? formatearPrecio(config.envioGratisAmbaDesde)
+              : null,
+          hayWhatsapp: Boolean(config.whatsapp),
+          diasArrepentimiento: DIAS_ARREPENTIMIENTO,
+          diasCambio: DIAS_CAMBIO,
+          mesesGarantia: MESES_GARANTIA,
+          cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
+          escala: fraseDeLaEscala(tramos, categoria),
+          porcentajeDineroMP: PORCENTAJE_DINERO_MP,
+          cuotasSuscriptor: cuotasDeSuscriptor,
+          suscriptores: true,
+        })}
+      />
 
       {proximas.length > 0 ? (
         <section id="lo-que-viene" className="lo-que-viene" aria-labelledby="lo-que-viene-titulo">
@@ -485,47 +518,14 @@ export default async function PortadaVitrina({ productos, config }: { productos:
         </section>
       ) : null}
 
-      <PreguntasFrecuentes
-        preguntas={preguntasDePortada({
-          incluye,
-          caracteristicas: confirmados ? (caracteristicasDe(modelos[0])?.lista ?? null) : null,
-          cuotas: cuotasAnteojos,
-          nombreMarcas: NOMBRE_MARCAS,
-          envioGratisDesde: config.envioGratisDesde,
-          envioGratisTexto: formatearPrecio(config.envioGratisDesde),
-          envioGratisAmbaTexto:
-            config.envioGratisAmbaDesde > 0 && (config.envioGratisDesde <= 0 || config.envioGratisAmbaDesde < config.envioGratisDesde)
-              ? formatearPrecio(config.envioGratisAmbaDesde)
-              : null,
-          hayWhatsapp: Boolean(config.whatsapp),
-          diasArrepentimiento: DIAS_ARREPENTIMIENTO,
-          diasCambio: DIAS_CAMBIO,
-          mesesGarantia: MESES_GARANTIA,
-          cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
-          escala: fraseDeLaEscala(tramos, categoria),
-          porcentajeDineroMP: PORCENTAJE_DINERO_MP,
-          cuotasSuscriptor: cuotasDeSuscriptor,
-          suscriptores: true,
-        })}
-      />
-
       <section className="cierre" aria-labelledby="cierre-titulo">
         <div className="contenedor cierre__cuerpo">
           <h2 id="cierre-titulo" className="cierre__titulo">
             {TEXTOS.nosotros.frase[0]}
             <span>{TEXTOS.nosotros.frase[1]}</span>
           </h2>
-          {precio ? (
-            <p>
-              {TEXTOS.cierre.precio(formatearPrecio(precio))}
-              {escala[0]
-                ? TEXTOS.cierre.escala(enLetras(escala[0].desdeUnidades), enLetras(escala[0].paga ?? escala[0].desdeUnidades))
-                : paisConDos && paresPaisGratis
-                  ? ` Con ${enLetras(paresPaisGratis)}, envío gratis a todo el país.`
-                  : ""}
-            </p>
-          ) : null}
-          <a href="#los-modelos" className="boton cierre__boton">
+          {precio ? <p>{TEXTOS.cierre.precio(formatearPrecio(precio))}</p> : null}
+          <a href="#los-modelos" className="boton boton--claro cierre__boton">
             {TEXTOS.cierre.boton}
           </a>
           <p className="cierre__complementos">
@@ -537,6 +537,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       {precio ? (
         <BarraTusPares
           despuesDe="vitrina-portada"
+          ocultarEn="suscriptores"
           precioPar={precio}
           invitacion={
             cuota2 && tramo2 && nombrePromo

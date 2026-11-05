@@ -5492,8 +5492,8 @@ p {
 }
 .portada-color__grilla {
   display: grid;
-  grid-template-areas: "encabezado" "foto" "colores" "compra" "bajada";
-  padding-block: 1.5rem 2.25rem;
+  grid-template-areas: "encabezado" "foto" "colores" "compra";
+  padding-block: 1.25rem 2.25rem;
 }
 .portada-color__encabezado {
   grid-area: encabezado;
@@ -5507,7 +5507,7 @@ p {
   max-width: 11em;
   font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 500;
-  font-size: clamp(2.375rem, 10.5vw, 5.25rem);
+  font-size: clamp(2.125rem, 9vw, 5.25rem);
   line-height: 1.02;
   letter-spacing: -0.012em;
   text-wrap: balance;
@@ -5520,7 +5520,7 @@ p {
 .portada-color__marco {
   position: relative;
   display: block;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 16 / 10;
 }
 .portada-color__marco img {
   padding: 0 2%;
@@ -5621,11 +5621,10 @@ p {
   color: rgb(22 21 15 / 0.62);
 }
 .portada-color__bajada {
-  grid-area: bajada;
-  margin-top: 1.5rem;
+  margin-top: 0.75rem;
   max-width: 34rem;
-  font-size: 1rem;
-  line-height: 1.55;
+  font-size: 0.9375rem;
+  line-height: 1.5;
   color: rgb(22 21 15 / 0.8);
 }
 
@@ -5990,11 +5989,10 @@ main:has(.cierre:last-child) ~ .pie {
 @media (min-width: 48rem) {
   .portada-color__grilla {
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    grid-template-rows: 1fr auto auto auto auto 1fr;
+    grid-template-rows: 1fr auto auto auto 1fr;
     grid-template-areas:
       ". foto"
       "encabezado foto"
-      "bajada foto"
       "colores foto"
       "compra foto"
       ". foto";
@@ -6751,5 +6749,117 @@ main:has(.cierre:last-child) ~ .pie {
 @media (min-width: 48rem) {
   .suscriptores-portada__cta {
     display: none;
+  }
+}
+
+/* ===========================================================================
+   Portada reorganizada (Ale, 05/11/2026): presentación, modelos, por qué
+   Harper, promociones, Suscriptores, opiniones y cierre. Cada sección hace
+   una sola cosa; los flotantes no tapan el registro.
+   ========================================================================= */
+
+/* La acción secundaria de la primera pantalla: contorno, debajo (o al lado) de «Ver anteojos». */
+.portada-color__secundario {
+  background: transparent;
+}
+
+/* En Suscriptores no van la barra de compra ni el WhatsApp. */
+body[data-sin-flotantes] .wsp {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(0.75rem);
+}
+
+/* «Por qué Harper» arranca con la etiqueta en verde, como sus otras partes. */
+.asi-llega__texto .etiqueta-mono {
+  color: var(--verde);
+}
+
+/* Comprá tranquilo: envío, devolución, cambios, garantía, pago y WhatsApp. */
+.tranquilo {
+  padding-block: 3.5rem;
+  background: var(--hueso-calido);
+}
+.tranquilo .etiqueta-mono {
+  color: var(--verde);
+}
+.tranquilo .titulo-serif {
+  margin-top: 0.6rem;
+}
+.tranquilo__lista {
+  display: grid;
+  gap: 1.35rem;
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tranquilo__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.tranquilo__icono {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--verde);
+}
+.tranquilo__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--texto-suave);
+}
+.tranquilo__texto strong {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--texto);
+}
+.tranquilo__enlace {
+  width: fit-content;
+  margin-top: 0.15rem;
+  font-size: 0.8125rem;
+  color: var(--verde);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+/* Promociones vigentes: cuotas, dinero en Mercado Pago y envío gratis, una vez. */
+.promos {
+  padding-block: 3.5rem;
+}
+.promos .etiqueta-mono {
+  color: var(--verde);
+}
+.promos .titulo-serif {
+  margin-top: 0.6rem;
+}
+.promos__lista {
+  margin-top: 1.5rem;
+}
+.cuentas__lista dt.promos__palabra {
+  font-size: 1.125rem;
+  line-height: 1.15;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+@media (min-width: 48rem) {
+  .tranquilo,
+  .promos {
+    padding-block: 5rem;
+  }
+  .tranquilo__lista {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem 2.5rem;
   }
 }

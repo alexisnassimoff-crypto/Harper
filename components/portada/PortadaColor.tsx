@@ -4,12 +4,11 @@ import Image from "next/image";
 import { useState, type CSSProperties } from "react";
 
 /**
- * La portada (Ale, 30/10/2026: «el home no me gusta, ni el diseño ni cómo
- * está enfocado»). Arriba va la idea de la marca: los anteojos se eligen como
- * la ropa. Hay un solo par grande sobre su color, y tocando un círculo cambian
- * el anteojo y el fondo, como cuando elegís una prenda por el color. El color
- * cambia solo si la persona lo toca, nunca solo. Los montos vienen armados
- * del servidor.
+ * La primera pantalla (Ale, 05/11/2026): vende los anteojos. Qué son y qué
+ * tienen de especial arriba; un solo par grande sobre su color, que cambia
+ * tocando un círculo (nunca solo); el precio, «Ver anteojos» y, como acción
+ * secundaria, los beneficios de suscribirse. Los montos vienen armados del
+ * servidor.
  */
 
 export type ColorPortada = {
@@ -27,7 +26,7 @@ export type ColorPortada = {
 export type DatosPortada = {
   etiqueta: string;
   titulo: string;
-  /** Debajo del título; null no muestra nada. */
+  /** Qué son, en una o dos oraciones, debajo del título; null no muestra nada. */
   bajada: string | null;
   boton: string;
   /** "$ 89.900", o null si los modelos no cuestan lo mismo. */
@@ -36,7 +35,7 @@ export type DatosPortada = {
   cuota: string | null;
   /** "Cuotas sin interés con Visa y Mastercard · CFTEA 0,00 %"; null sin cuotas. */
   letraChica: string | null;
-  /** «Suscribite gratis y desbloqueá $ 10.000 de bienvenida», que baja a la sección de Suscriptores Harper. */
+  /** La acción secundaria («Conocer mis beneficios»), que baja a Suscriptores Harper; null no la muestra. */
   suscribite: string | null;
 };
 
@@ -65,6 +64,7 @@ export default function PortadaColor({ colores, inicial, datos }: { colores: Col
           <h1 id="portada-titulo" className="portada-color__titulo">
             {datos.titulo}
           </h1>
+          {datos.bajada ? <p className="portada-color__bajada">{datos.bajada}</p> : null}
         </div>
 
         <figure className="portada-color__foto">
@@ -121,7 +121,7 @@ export default function PortadaColor({ colores, inicial, datos }: { colores: Col
               {datos.boton}
             </a>
             {datos.suscribite ? (
-              <a href="#suscriptores" className="portada-color__suscribite">
+              <a href="#suscriptores" className="boton boton--contorno portada-color__secundario">
                 {datos.suscribite}
               </a>
             ) : null}
@@ -129,7 +129,6 @@ export default function PortadaColor({ colores, inicial, datos }: { colores: Col
           {datos.letraChica ? <p className="portada-color__letra">{datos.letraChica}</p> : null}
         </div>
 
-        {datos.bajada ? <p className="portada-color__bajada">{datos.bajada}</p> : null}
       </div>
     </section>
   );

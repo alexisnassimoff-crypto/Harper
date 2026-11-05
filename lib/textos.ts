@@ -17,11 +17,20 @@
 
 export const TEXTOS = {
   portada: {
-    /** Ale, 04/11/2026: en lugar de «Los anteojos también se eligen como la ropa.» */
-    titulo: "Suscribite gratis y desbloqueá tus beneficios.",
+    /**
+     * Ale, 05/11/2026: la primera pantalla vende los anteojos, no la
+     * suscripción (que tiene su sección más abajo). Solo con las
+     * características confirmadas en lib/caracteristicas.ts.
+     */
+    titulo: "Anteojos de diseño que se oscurecen solos.",
+    tituloSinConfirmar: "Anteojos de diseño.",
+    descripcion:
+      "Fotocromáticos con filtro de luz azul y UV400: al sol se oscurecen y adentro vuelven a aclararse.",
+    /** La acción secundaria: baja a Suscriptores Harper. */
+    beneficios: "Conocer mis beneficios",
     /** La frase de antes de la portada; ahora abre «Un mismo par». */
     sensacion: "Salís a la calle y se oscurecen solos.",
-    etiqueta: "Filtro de luz azul · Fotocromáticos · UV400",
+    etiqueta: "Harper · Colección fotocromática",
     /** «Anteojos fotocromáticos con filtro de luz azul, a $ 89.900 el par.» Solo con las características confirmadas. */
     bajada: (precio: string | null) => `Anteojos fotocromáticos con filtro de luz azul${precio ? `, a ${precio} el par` : ""}.`,
     bajadaSinConfirmar: (precio: string | null) => `Anteojos Harper${precio ? `, a ${precio} el par` : ""}.`,
@@ -29,7 +38,21 @@ export const TEXTOS = {
     promo: (lleva: number, paga: number, total: string, cuotas: number, cuota: string) =>
       `Si te llevás ${lleva}, pagás ${paga}: ${total} en ${cuotas} cuotas sin interés de ${cuota}.`,
     nota: "Tocá «Al sol» o «Adentro» para ver cómo cambian. El tono final depende de la luz.",
-    boton: "Quiero los míos",
+    boton: "Ver anteojos",
+  },
+  /** Por qué Harper (Ale, 05/11/2026): cómo es comprar, sin repetir las promociones. */
+  tranquilo: {
+    etiqueta: "Comprá tranquilo",
+    titulo: "Comprar online, sin vueltas.",
+    envio: { texto: "Envíos a domicilio a todo el país", detalle: "Lo despachamos cuando se acredita el pago." },
+    whatsapp: { texto: "Te asesoramos por WhatsApp", detalle: "Para elegir modelo, color o talle, o consultar por cristales con aumento.", enlace: "Escribinos" },
+  },
+  /** Las promociones de compra vigentes, en un solo lugar. */
+  promos: {
+    etiqueta: "Promociones vigentes",
+    titulo: "Beneficios al comprar.",
+    dineroMP: "OFF extra pagando con dinero en tu cuenta de Mercado Pago.",
+    envioGratis: "Envío gratis",
   },
   lineas: {
     titulo: "Un par para cada ocasión.",

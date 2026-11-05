@@ -69,8 +69,15 @@ export function CondicionesCompra({ condiciones }: { condiciones: Condicion[] })
   );
 }
 
-function IconoCondicion({ clave }: { clave: Condicion["clave"] }) {
+export function IconoCondicion({ clave }: { clave: Condicion["clave"] | "whatsapp" }) {
   if (clave === "envio" || clave === "pago" || clave === "cambios") return <IconoConfianza clave={clave} />;
+  if (clave === "whatsapp")
+    return (
+      <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4.5 19.5l1.2-3.6A8 8 0 1 1 8.4 18.6z" />
+        <path d="M9 9.2c.3 2.6 2.2 4.6 4.8 5l1.1-1.2-1.6-.8-.8.7c-.9-.4-1.6-1.1-2-2l.7-.8-.8-1.6z" />
+      </svg>
+    );
   if (clave === "devolucion") return <IconoConfianza clave="cambios" />;
   // Garantía: un escudo con un tilde.
   return (
