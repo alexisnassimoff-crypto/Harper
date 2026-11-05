@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { textoVentas, type OpinionesML, type ReputacionML } from "@/lib/ml-resenas";
+import { seleccionDeOpiniones, textoVentas, type OpinionesML, type ReputacionML } from "@/lib/ml-resenas";
 import Estrellas, { formatearPuntaje } from "./Estrellas";
 
 const MES = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" });
@@ -18,9 +18,15 @@ const MES = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", t
 export default function Opiniones({
   opiniones,
   reputacion,
+  compacta = false,
 }: {
   opiniones: OpinionesML | null;
   reputacion: ReputacionML | null;
+  /**
+   * La portada (Ale, 05/11/2026): una selección corta (lib/ml-resenas.ts,
+   * seleccionDeOpiniones), sin flechas y con las ventas en el resumen.
+   */
+  compacta?: boolean;
 }) {
   const carril = useRef<HTMLUListElement>(null);
   if (!opiniones && !reputacion) return null;
@@ -33,10 +39,11 @@ export default function Opiniones({
     nodo.scrollBy({ left: sentido * paso, behavior: "smooth" });
   }
 
-  const destacadas = opiniones?.destacadas ?? [];
+  const destacadas = compacta ? seleccionDeOpiniones(opiniones?.destacadas ?? []) : (opiniones?.destacadas ?? []);
+  const ventas = compacta && reputacion && reputacion.ventas > 0 ? textoVentas(reputacion.ventas) : null;
 
   return (
-    <section id="opiniones" className="contenedor seccion opiniones" aria-labelledby="opiniones-titulo">
+    <section id="opiniones" className={`contenedor seccion opiniones${compacta ? " opiniones--compacta" : ""}`} aria-labelledby="opiniones-titulo">
       <div className="seccion__cabecera">
         <div className="pila" style={{ gap: "0.4rem" }}>
           <span className="label">Opiniones</span>
@@ -44,7 +51,7 @@ export default function Opiniones({
             Lo que dicen quienes ya compraron Harper
           </h2>
         </div>
-        {destacadas.length > 1 ? (
+        {destacadas.length > 1 && !compacta ? (
           <div className="opiniones__flechas">
             <button type="button" className="opiniones__flecha" aria-label="Opiniones anteriores" onClick={() => pasar(-1)}>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -67,6 +74,7 @@ export default function Opiniones({
             <Estrellas puntaje={opiniones.promedio} tamano={18} />
             <span className="apagado" style={{ fontSize: "0.8125rem" }}>
               {opiniones.total.toLocaleString("es-AR")} {opiniones.total === 1 ? "opinión" : "opiniones"} de clientes Harper
+              {ventas ? ` · ${ventas}` : ""}
             </span>
           </span>
         </p>
@@ -93,7 +101,7 @@ export default function Opiniones({
         </ul>
       ) : null}
 
-      {reputacion && (reputacion.ventas > 0 || reputacion.positivas !== null) ? (
+      {!compacta && reputacion && (reputacion.ventas > 0 || reputacion.positivas !== null) ? (
         <div className="vendedor">
           <dl className="vendedor__datos">
             {reputacion.ventas > 0 ? (

@@ -1,45 +1,42 @@
-import Image from "next/image";
-import Link from "next/link";
 import BarraTusPares from "./BarraTusPares";
-import DeADos, { type ColorDeADos, type FilaDeADos } from "./DeADos";
 import Opiniones from "./Opiniones";
-import { CompraTranquila, PreguntasFrecuentes } from "./SeccionesPortada";
-import PortadaColor, { type ColorPortada } from "./PortadaColor";
-import Vitrina, { type ModeloVitrina } from "./Vitrina";
+import PortadaHero from "./PortadaHero";
+import { ConfianzaPortada, type ItemConfianza } from "./SeccionesPortada";
+import Vitrina, { type CategoriaVitrina } from "./Vitrina";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import type { ConfigTienda } from "@/lib/config";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, mensajesDeConfianza } from "@/lib/confianza";
-import { condicionesDeCompra } from "@/lib/ficha";
-import { CUPON_BIENVENIDA, HAY_CUPONES } from "@/lib/cupones";
-import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
+import { type CuotasVerificadas } from "@/lib/cuotas";
 import { conEspera, verificarCuotas } from "@/lib/cuotas-servidor";
-import { escalaDe, fraseDeLaEscala, getTramos, nombreDelTramo } from "@/lib/descuentos";
-import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
+import { condicionesDeCompra } from "@/lib/ficha";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
-import { LINEAS, lineasDeLaPortada } from "@/lib/lineas";
-import { enlaceWhatsApp, mensajeGraduadosModelo } from "@/lib/whatsapp";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
-import { armarPack, cantidadesDePack, paresDisponibles } from "@/lib/packs";
-import { ESTUCHE_PORTADA, preguntasDePortada } from "@/lib/portada";
 import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
-import BeneficiosSuscriptor from "@/components/suscriptores/BeneficiosSuscriptor";
+import { beneficiosDeSuscriptor } from "@/components/suscriptores/BeneficiosSuscriptor";
 import CajaSuscripcion from "@/components/suscriptores/CajaSuscripcion";
-import IrAlFormulario from "@/components/suscriptores/IrAlFormulario";
+import Cifras from "@/components/Cifras";
 import { rutaDeVariante } from "@/lib/variantes";
-import { enLetras, FORMAS, fotosDeVitrina, precioUnico, tinteDe, tinteDeColor } from "@/lib/vitrina";
+import { enlaceWhatsApp } from "@/lib/whatsapp";
+import { categoriasParaComprar, FORMAS, fotoDeLaPortada, fotosDeVitrina, precioUnico, tinteDe, tinteDeColor } from "@/lib/vitrina";
 
 /**
- * La portada vitrina (pedido de Ale, 30/10/2026): marca primero y compra
- * rápida. Los modelos sobre color, que se suman sin salir de la portada; la
- * cuenta de llevarse dos; lo que trae cada par; las opiniones; las cuentas
- * claras, un día con el mismo par y Suscriptores Harper (Ale, 03/11/2026: la
- * suscripción gratis con el mail, con el formulario ahí mismo). Lo de
- * siempre se respeta: los montos
- * salen de Airtable y de Mercado Pago (cuotas verificadas para cada total),
- * nada que no esté confirmado se afirma y no se nombra a Mercado Libre.
+ * La portada (Ale, 05/11/2026: «vamos a simplificar radicalmente el Home»).
+ * Solo cinco partes y el pie:
+ *
+ * 1. Presentación: Harper como marca de anteojos de diseño, una foto
+ *    protagonista y «Explorar anteojos».
+ * 2. Comprar: una categoría de anteojos por bloque, solo las que tienen stock.
+ * 3. Confianza: envío, devolución y asesoramiento, compacto.
+ * 4. Suscripción: breve, aparte y con el formulario a la vista.
+ * 5. Opiniones: unas pocas, reales.
+ *
+ * Lo largo (cómo funcionan los cristales, qué trae la caja, las preguntas)
+ * quedó en las fichas y en /preguntas-frecuentes. Los montos salen de
+ * Airtable y de Mercado Pago (cuotas verificadas), nada que no esté
+ * confirmado se afirma y no se nombra a Mercado Libre.
  */
 
 const ESPERA_CUOTAS_MS = 3_000;
@@ -49,9 +46,6 @@ const ESPERA_OPINIONES_MS = 9_000;
 const ORDEN_DE_COLORES = ["carey", "gris", "ambar", "negro"];
 
 const plano = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const mayuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
-/** ["a", "b", "c"] → "a, b y c". */
-const enumerar = (partes: string[]) => (partes.length <= 1 ? partes.join("") : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`);
 
 /** El color con el que abre cada modelo: con stock y foto al sol, sin repetir el del anterior si se puede. */
 function coloresIniciales(modelos: Producto[]): number[] {
@@ -71,481 +65,138 @@ function coloresIniciales(modelos: Producto[]): number[] {
   });
 }
 
-function textoCuota(c: CuotasVerificadas | undefined): string | null {
+function textoCuota(c: CuotasVerificadas | null | undefined): string | null {
   return c ? `${c.cuotas} cuotas sin interés de ${precioConCentavos(c.montoCuota)}` : null;
 }
 
 export default async function PortadaVitrina({ productos, config }: { productos: Producto[]; config: ConfigTienda }) {
-  // La vitrina es de los fotocromáticos (la primera línea); las demás líneas
-  // van en la tira de abajo y, mientras no tengan productos, en «Lo que viene».
-  const lineaVitrina = LINEAS[0];
-  const lineas = lineasDeLaPortada(productos);
-  const proximas = lineas.filter((l) => l.estado === "proximamente");
-  const modelos = productos.filter((p) => p.categoria === lineaVitrina.categoria && paresDisponibles(p.variantes) > 0);
-  const precio = precioUnico(modelos);
-  const estuche = productos.find((p) => p.slug === ESTUCHE_PORTADA) ?? null;
-  const varianteEstuche = estuche?.variantes.find((v) => !v.agotada) ?? null;
+  // Las categorías de anteojos con stock, en orden; cada una con sus modelos con stock.
+  const categorias = categoriasParaComprar(productos);
+  const modelos = categorias.flatMap((c) => c.productos);
+  const precios = [...new Set(categorias.map((c) => precioUnico(c.productos)).filter((p): p is number => p !== null))];
+  const precioPar = modelos.length > 0 ? Math.min(...modelos.map((m) => m.precio)) : null;
 
-  const tramos = await getTramos();
-  const categoria = modelos[0]?.categoria ?? "Anteojos";
-  const packs = precio ? cantidadesDePack(tramos, categoria).map((cantidad) => armarPack({ precio, cantidad, tramos, categoria })) : [];
-  // La escala «llevá 3, pagá 2 · llevá 5, pagá 3» (Ale, 30/10/2026); vacía si no hay.
-  const escala = escalaDe(tramos, categoria);
-  const tramoDe = (cantidad: number) => escala.find((t) => t.desdeUnidades === cantidad) ?? null;
-  const todos = precio && modelos.length > 1 ? armarPack({ precio, cantidad: modelos.length, tramos, categoria }) : null;
-
-  // Las cuotas de cada monto que se anuncia, confirmadas una por una con Mercado Pago.
-  const montos = [...new Set([...packs.map((p) => p.total), ...(todos ? [todos.total] : [])])];
-  // Y las de suscriptor para un par, aparte: se nombran solo si son un beneficio
-  // (lib/suscriptores.ts) y Mercado Pago las confirma.
+  // Las cuotas de cada precio que se anuncia, confirmadas con Mercado Pago; las
+  // de suscriptor, solo si son un beneficio (lib/suscriptores.ts).
   const [verificadas, mercadoLibre, cuotasSuscriptor] = await Promise.all([
-    conEspera(Promise.all(montos.map(async (m) => [m, await verificarCuotas(m)] as const)), ESPERA_CUOTAS_MS, []),
+    conEspera(Promise.all(precios.map(async (p) => [p, await verificarCuotas(p)] as const)), ESPERA_CUOTAS_MS, []),
     conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, ultimoDeMercadoLibre()),
-    precio && CUOTAS_SON_BENEFICIO ? conEspera(verificarCuotas(precio, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
+    precioPar && CUOTAS_SON_BENEFICIO ? conEspera(verificarCuotas(precioPar, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
   ]);
-  const cuotasDe = (monto: number) => verificadas.find(([m]) => m === monto)?.[1] ?? undefined;
-  const opiniones = mercadoLibre?.opiniones ?? null;
-  const reputacion = mercadoLibre?.reputacion ?? null;
+  const cuotasDe = (precio: number | null) => (precio === null ? null : (verificadas.find(([p]) => p === precio)?.[1] ?? null));
+  const cuotasAnteojos = cuotasDe(precioPar);
+  const cuotasDeSuscriptor =
+    cuotasSuscriptor && (!cuotasAnteojos || cuotasSuscriptor.cuotas > cuotasAnteojos.cuotas) ? cuotasSuscriptor : null;
 
+  // 2. Comprar: los modelos de cada categoría, con su color inicial y su fondo.
   const iniciales = coloresIniciales(modelos);
-  const vitrina: ModeloVitrina[] = modelos.map((m, i) => ({
-    id: m.id,
-    slug: m.slug,
-    nombre: m.nombre,
-    precio: m.precio,
-    tinte: tinteDe(m.slug, i),
-    forma: FORMAS[m.slug] ?? null,
-    inicial: iniciales[i],
-    colores: m.variantes.map((v, j) => ({
-      id: v.id,
-      sku: v.sku,
-      color: v.color,
-      colorHex: v.colorHex,
-      agotada: v.agotada,
-      ...fotosDeVitrina(v, m.fotoPrincipal ?? ""),
-      enlace: rutaDeVariante(m, j),
-      tinte: tinteDeColor(m.slug, v.color, i),
-    })),
+  const vitrina: CategoriaVitrina[] = categorias.map((c) => ({
+    slug: c.slug,
+    titulo: c.titulo,
+    // Lo de la línea («Fotocromáticos · Filtro de luz azul · UV400»), solo si está confirmado en cada modelo.
+    detalle: c.productos.every((p) => caracteristicasDe(p) !== null) ? c.detalle : null,
+    enlace: c.enlace,
+    cuota: textoCuota(cuotasDe(precioUnico(c.productos))),
+    modelos: c.productos.map((m) => {
+      const i = modelos.indexOf(m);
+      return {
+        id: m.id,
+        slug: m.slug,
+        nombre: m.nombre,
+        precio: m.precio,
+        tinte: tinteDe(m.slug, i),
+        forma: FORMAS[m.slug] ?? null,
+        inicial: iniciales[i],
+        colores: m.variantes.map((v, j) => ({
+          id: v.id,
+          sku: v.sku,
+          color: v.color,
+          colorHex: v.colorHex,
+          agotada: v.agotada,
+          ...fotosDeVitrina(v, m.fotoPrincipal ?? ""),
+          enlace: rutaDeVariante(m, j),
+          tinte: tinteDeColor(m.slug, v.color, i),
+        })),
+      };
+    }),
   }));
-
-  const confirmados = modelos.length > 0 && modelos.every((m) => caracteristicasDe(m) !== null);
-  const pack1 = packs.find((p) => p.cantidad === 1);
-  // El primer pack de más de un par: el de la promoción (3 con la escala, 2 sin ella).
-  const pack2 = packs.find((p) => p.cantidad > 1);
-  const cuota1 = pack1 ? cuotasDe(pack1.total) : undefined;
-  // Sin promoción por cantidad (Ale, 03/11/2026: sin «llevá 3, pagá 2») no se
-  // empuja a llevar más de uno: ni el bloque de packs ni la promo en la bajada o la barra.
-  const hayPromo = escala.length > 0 || packs.some((p) => p.porcentaje > 0);
-  const cuota2 = pack2 && hayPromo ? cuotasDe(pack2.total) : undefined;
-  const nombrePromo = pack2 && hayPromo ? (tramoDe(pack2.cantidad) ? nombreDelTramo(tramoDe(pack2.cantidad)!) : `${mayuscula(enLetras(pack2.cantidad))} pares`) : null;
-  const incluye = modelos[0]?.incluye ?? [];
-  const marcas = cuota1 ?? cuota2;
-  const letraChica = marcas ? `Cuotas sin interés con ${NOMBRE_MARCAS} · CFTEA ${marcas.cftea}` : null;
-
-  // Envío gratis: en AMBA desde un mínimo y en todo el país desde otro (sobre el subtotal sin cupón).
-  const gratisPais = (monto: number) => config.envioGratisDesde > 0 && monto >= config.envioGratisDesde;
-  const gratisAmba = (monto: number) => config.envioGratisAmbaDesde > 0 && monto >= config.envioGratisAmbaDesde && !gratisPais(monto);
-  const envioDe = (monto: number) =>
-    gratisPais(monto) ? "Envío gratis a todo el país" : gratisAmba(monto) ? "Envío gratis en AMBA" : null;
-
-  const tramo2 = pack2 ? tramoDe(pack2.cantidad) : null;
-
-  const filas: FilaDeADos[] = packs.map((p) => {
-    const cuota = textoCuota(cuotasDe(p.total));
-    const envio = envioDe(p.totalParaEnvio);
-    const destacada = p.cantidad === pack2?.cantidad;
-    const tramo = tramoDe(p.cantidad);
-    const ultimo = p.cantidad === packs[packs.length - 1]?.cantidad;
-    return {
-      cantidad: p.cantidad,
-      apodo: tramo
-        ? ultimo
-          ? "Mejor precio por par"
-          : `Llevás ${enLetras(tramo.desdeUnidades - tramo.paga)} gratis`
-        : p.cantidad === 1
-          ? "Para arrancar"
-          : p.cantidad === 2
-            ? "La cuenta que cierra"
-            : "Para cuando no te decidís",
-      titulo: tramo ? nombreDelTramo(tramo) : `${p.cantidad} ${p.cantidad === 1 ? "par" : "pares"}${p.porcentaje ? ` · ${p.porcentaje} % OFF` : ""}`,
-      total: formatearPrecio(p.total),
-      // El precio de a uno por la cantidad: el tachado es real.
-      tachado: p.cantidad > 1 && p.lista > p.total ? formatearPrecio(p.lista) : null,
-      detalle: [
-        cuota,
-        p.cantidad > 1 ? `Cada par te queda en ${formatearPrecio(p.precioUnitario)}` : null,
-        destacada ? null : envio,
-      ].filter((d): d is string => Boolean(d)),
-      sello: destacada ? envio : null,
-      boton: p.cantidad === 1 ? "Elegir 1" : p.cantidad === 2 ? "Armar mis dos" : `Armar mis ${enLetras(p.cantidad)}`,
-    };
-  });
-
-  const coloresPack: ColorDeADos[] = vitrina.flatMap((m) =>
-    m.colores.map((c) => ({
-      id: c.id,
-      sku: c.sku,
-      modeloSlug: m.slug,
-      modeloNombre: m.nombre,
-      precio: m.precio,
-      color: c.color,
-      foto: c.adentro,
-      agotada: c.agotada,
-    })),
-  );
-  const fotosPack = [vitrina[0], vitrina[Math.min(2, vitrina.length - 1)]]
-    .filter((m, i, lista) => m && lista.indexOf(m) === i)
-    .map((m) => ({ src: m.colores[m.inicial].adentro, alt: `${m.nombre} ${m.colores[m.inicial].color}` }));
-
-  const portadaAsiLlega = vitrina[0] ? modelos[0].variantes[vitrina[0].inicial]?.fotoPortada : null;
-  const cuotasAnteojos = cuota1 ?? null;
-  // Las de suscriptor, solo si son más que las de todos (con el tope en 3 serían las mismas).
-  const cuotasDeSuscriptor = cuotasSuscriptor && (!cuotasAnteojos || cuotasSuscriptor.cuotas > cuotasAnteojos.cuotas) ? cuotasSuscriptor : null;
   const complementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
-  // Los cristales con aumento los vende Harper: se consultan por WhatsApp (Ale, 30/10/2026).
-  const consultaAumento = enlaceWhatsApp(config.whatsapp, mensajeGraduadosModelo(""));
 
-  // La portada: un solo par grande, que abre en carey (el color más vistoso) si hay.
-  const coloresPortada: ColorPortada[] = vitrina.flatMap((m) =>
-    m.colores.map((c) => ({
-      id: c.id,
-      modeloSlug: m.slug,
-      modeloNombre: m.nombre,
-      color: c.color,
-      colorHex: c.colorHex,
-      foto: c.alSol ?? c.adentro,
-      alSol: c.alSol !== null,
-      tinte: c.tinte,
-      agotada: c.agotada,
-    }))
-  );
-  const inicialPortada = Math.max(
-    0,
-    [
-      (c: ColorPortada) => !c.agotada && c.alSol && plano(c.color).startsWith("carey"),
-      (c: ColorPortada) => !c.agotada && c.alSol,
-      (c: ColorPortada) => !c.agotada,
-    ]
-      .map((elegible) => coloresPortada.findIndex(elegible))
-      .find((i) => i >= 0) ?? 0,
-  );
-
-  // Un mismo par, adentro y al sol: el primero que tenga las dos fotos.
-  const parDelDia = vitrina
-    .flatMap((m) => m.colores.filter((c) => c.alSol && !c.agotada).map((c) => ({ m, c })))
-    .at(0);
-
-  // Envío, devolución, cambios, garantía y pago, con sus enlaces (los mismos de la ficha).
-  // Acá el envío no repite el mínimo para que sea gratis: eso va en las promociones.
-  const condiciones = condicionesDeCompra(
-    [
-      { clave: "envio", texto: TEXTOS.tranquilo.envio.texto, detalle: TEXTOS.tranquilo.envio.detalle },
-      ...mensajesDeConfianza(config).filter((m) => m.clave === "pago"),
-    ],
-    { diasArrepentimiento: DIAS_ARREPENTIMIENTO, diasCambio: DIAS_CAMBIO, mesesGarantia: MESES_GARANTIA },
-  );
-  const asesoramiento = enlaceWhatsApp(config.whatsapp, "Hola, Harper. Quiero consultar por los anteojos.");
-  // El envío gratis, tal como está en Config (en AMBA desde un mínimo y en todo el país desde otro).
-  const envioConfianza = mensajesDeConfianza(config).find((m) => m.clave === "envio");
+  // 3. Confianza: envío, devolución y asesoramiento (los mismos plazos y enlaces que la ficha).
+  const envio = mensajesDeConfianza(config).find((m) => m.clave === "envio");
   const hayEnvioGratis = config.envioGratisDesde > 0 || config.envioGratisAmbaDesde > 0;
+  const devolucion = condicionesDeCompra([], {
+    diasArrepentimiento: DIAS_ARREPENTIMIENTO,
+    diasCambio: DIAS_CAMBIO,
+    mesesGarantia: MESES_GARANTIA,
+  }).find((c) => c.clave === "devolucion");
+  const whatsapp = enlaceWhatsApp(config.whatsapp, "Hola, Harper. Quiero consultar por los anteojos.");
+  const confianza: ItemConfianza[] = [
+    {
+      clave: "envio",
+      texto: TEXTOS.inicio.confianza.envio,
+      detalle: hayEnvioGratis && envio ? envio.texto : TEXTOS.inicio.confianza.envioDetalle,
+      href: "/legales/terminos#envios",
+    },
+    ...(devolucion ? [{ clave: "devolucion" as const, texto: devolucion.texto, detalle: devolucion.detalle, href: devolucion.href }] : []),
+    ...(whatsapp
+      ? [{ clave: "whatsapp" as const, texto: TEXTOS.inicio.confianza.whatsapp, detalle: TEXTOS.inicio.confianza.whatsappDetalle, href: whatsapp, externo: true }]
+      : []),
+  ];
+
+  const beneficios = beneficiosDeSuscriptor(cuotasDeSuscriptor, cuotasAnteojos?.cuotas ?? null);
 
   return (
     <>
-      {/* 1. Presentación: qué vende Harper y qué tienen de especial (Ale, 05/11/2026). */}
-      <PortadaColor
-        colores={coloresPortada}
-        inicial={inicialPortada}
-        datos={{
-          etiqueta: confirmados ? TEXTOS.portada.etiqueta : lineaVitrina.nombre,
-          // Config `portada_titulo` gana si se carga; hoy está vacío y vale el del código.
-          titulo: config.portadaTitulo || (confirmados ? TEXTOS.portada.titulo : TEXTOS.portada.tituloSinConfirmar),
-          bajada: config.portadaSubtitulo || (confirmados ? TEXTOS.portada.descripcion : null),
-          boton: TEXTOS.portada.boton,
-          precio: precio ? formatearPrecio(precio) : null,
-          cuota: textoCuota(cuota1),
-          letraChica,
-          suscribite: TEXTOS.portada.beneficios,
-        }}
+      {/* 1. Presentación. Config `portada_titulo` y `portada_subtitulo` ganan si se cargan; hoy están vacíos. */}
+      <PortadaHero
+        etiqueta={TEXTOS.inicio.etiqueta}
+        titulo={config.portadaTitulo || TEXTOS.inicio.titulo}
+        bajada={config.portadaSubtitulo || TEXTOS.inicio.bajada}
+        boton={TEXTOS.inicio.boton}
+        foto={config.portadaImagen ? { src: config.portadaImagen, alt: "" } : fotoDeLaPortada(modelos)}
       />
 
-      {/* 2. Los modelos: elegir sin mensajes de promociones en el medio. */}
-      <Vitrina
-        modelos={vitrina}
-        datos={{
-          linea: lineaVitrina.nombre,
-          precio: precio ? formatearPrecio(precio) : null,
-          cuota: textoCuota(cuota1),
-          todos: null,
-          complementos: complementos.map((c) => ({ nombre: c.nombre, slug: c.slug })),
-        }}
-      />
+      {/* 2. Comprar, por categoría. */}
+      <Vitrina categorias={vitrina} datos={{ complementos: complementos.map((c) => ({ nombre: c.nombre, slug: c.slug })) }} />
 
-      {/* 3. Por qué Harper: cómo funcionan, qué trae y comprar tranquilo. */}
-      {confirmados && parDelDia?.c.alSol ? (
-        <section className="un-par" aria-labelledby="un-par-titulo">
-          <div className="contenedor">
-            <div className="un-par__cabecera">
-              <p className="etiqueta-mono">Por qué Harper · {TEXTOS.ficha.cristales.titulo}</p>
-              <h2 id="un-par-titulo" className="titulo-serif">
-                {TEXTOS.unDia.titulo}
-              </h2>
-              <p className="un-par__bajada">{TEXTOS.asiLlega.texto}</p>
-            </div>
-            <div className="un-par__grilla">
-              <div className="un-par__fotos">
-                <figure className="un-par__foto" style={{ background: "#ecebe6" }}>
-                  <Image src={parDelDia.c.adentro} alt={`${parDelDia.m.nombre} ${parDelDia.c.color}, adentro`} fill sizes="(max-width: 768px) 50vw, 30vw" className="foto-multiplicada" />
-                  <figcaption>
-                    <strong>Adentro</strong> {mayuscula(TEXTOS.asiLlega.adentro.replace(/^Adentro, /, ""))}
-                  </figcaption>
-                </figure>
-                <figure className="un-par__foto" style={{ background: parDelDia.c.tinte }}>
-                  <Image src={parDelDia.c.alSol} alt={`${parDelDia.m.nombre} ${parDelDia.c.color}, al sol`} fill sizes="(max-width: 768px) 50vw, 30vw" className="foto-multiplicada" />
-                  <figcaption>
-                    <strong>Al sol</strong> {mayuscula(TEXTOS.asiLlega.alSol.replace(/^Al sol, /, ""))}
-                  </figcaption>
-                </figure>
-              </div>
-              <div>
-                <ol className="un-par__momentos">
-                  {TEXTOS.unDia.usos.map((u) => (
-                    <li key={u.titulo}>
-                      <span className="un-par__hora">{u.titulo}</span>
-                      <span className="un-par__momento">{u.texto}</span>
-                    </li>
-                  ))}
-                </ol>
-                <p className="un-par__nota">Protección UV400 contra los rayos UVA y UVB. El tono final depende de la luz.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
+      {/* 3. Confianza. */}
+      <ConfianzaPortada items={confianza} />
 
-      {confirmados && portadaAsiLlega ? (
-        <section className="asi-llega" aria-labelledby="asi-llega-titulo">
-          <div className="contenedor asi-llega__grilla">
-            <div className="asi-llega__foto">
-              <Image
-                src={portadaAsiLlega}
-                alt={`${vitrina[0].nombre} al sol y adentro, con su estuche y su paño`}
-                fill
-                sizes="(max-width: 768px) 100vw, 50vw"
-              />
-            </div>
-            <div className="asi-llega__texto">
-              <p className="etiqueta-mono">En la caja</p>
-              <h2 id="asi-llega-titulo" className="titulo-serif">
-                {TEXTOS.asiLlega.etiqueta}
-              </h2>
-              {incluye.length > 0 ? (
-                <ul className="asi-llega__incluye">
-                  {incluye.map((i) => (
-                    <li key={i}>{i}</li>
-                  ))}
-                </ul>
-              ) : null}
-              <p className="asi-llega__tira">
-                {TEXTOS.asiLlega.aumento}{" "}
-                {consultaAumento ? (
-                  <a href={consultaAumento} target="_blank" rel="noopener noreferrer">
-                    Consultanos por WhatsApp.
-                  </a>
-                ) : null}
-              </p>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <CompraTranquila condiciones={condiciones} whatsapp={asesoramiento} />
-
-      {/* 4. Promociones: las vigentes, una sola vez. */}
-      <section className="promos" aria-labelledby="promos-titulo">
-        <div className="contenedor">
-          <p className="etiqueta-mono">{TEXTOS.promos.etiqueta}</p>
-          <h2 id="promos-titulo" className="titulo-serif">
-            {TEXTOS.promos.titulo}
-          </h2>
-          <dl className="cuentas__lista promos__lista">
-            {cuotasAnteojos ? (
-              <div>
-                <dt>{cuotasAnteojos.cuotas}</dt>
-                <dd>
-                  cuotas sin interés en anteojos con {NOMBRE_MARCAS}. CFTEA {cuotasAnteojos.cftea}.
-                </dd>
-              </div>
-            ) : null}
-            <div>
-              <dt>{PORCENTAJE_DINERO_MP}%</dt>
-              <dd>{TEXTOS.promos.dineroMP}</dd>
-            </div>
-            {hayEnvioGratis && envioConfianza ? (
-              <div>
-                <dt className="promos__palabra">{TEXTOS.promos.envioGratis}</dt>
-                <dd>
-                  {envioConfianza.texto.replace(/^Envío gratis /, "")}
-                  {envioConfianza.detalle && envioConfianza.detalle !== "A domicilio" ? `. ${envioConfianza.detalle}` : ""}.
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-        </div>
-      </section>
-
-      {precio && filas.length > 0 && hayPromo ? (
-        <DeADos
-          filas={filas}
-          colores={coloresPack}
-          estuche={
-            estuche && varianteEstuche
-              ? {
-                  slug: estuche.slug,
-                  varianteId: varianteEstuche.id,
-                  sku: varianteEstuche.sku,
-                  nombre: `estuche ${estuche.nombre}`,
-                  precio: estuche.precio,
-                  precioTexto: formatearPrecio(estuche.precio),
-                }
-              : null
-          }
-          fotos={fotosPack}
-          letraChica={letraChica ? `${letraChica}.` : ""}
-          totales={Object.fromEntries(packs.map((p) => [p.cantidad, formatearPrecio(p.total)]))}
-          encabezado={
-            escala.length > 0
-              ? {
-                  // El stock es limitado de verdad (Ale, 30/10/2026).
-                  etiqueta: "Stock limitado",
-                  titulo: `${nombreDelTramo(escala[0])}.`,
-                  bajada: TEXTOS.pack.bajada,
-                }
-              : undefined
-          }
-        />
-      ) : null}
-
-      {/* 5. Suscriptores Harper: el registro, aparte de la compra. */}
-      <section id="suscriptores" className="suscriptores-portada" aria-labelledby="suscriptores-portada-titulo">
-        <div className="contenedor suscriptores-portada__grilla">
-          <div className="suscriptores-portada__texto">
-            <p className="etiqueta-mono">{TEXTOS.suscriptores.etiqueta} · Es gratis</p>
-            <h2 id="suscriptores-portada-titulo" className="suscriptores-portada__titulo">
+      {/* 4. Suscripción: breve, aparte de la compra y con el formulario a la vista. */}
+      <section id="suscriptores" className="suscripcion-inicio" aria-labelledby="suscripcion-inicio-titulo">
+        <div className="contenedor suscripcion-inicio__grilla">
+          <div className="suscripcion-inicio__texto">
+            <p className="etiqueta-mono">{TEXTOS.inicio.suscripcion.etiqueta}</p>
+            <h2 id="suscripcion-inicio-titulo" className="suscripcion-inicio__titulo">
               {TEXTOS.suscriptores.titulo}
             </h2>
-            <p className="suscriptores-portada__bajada">{TEXTOS.suscriptores.bajada}</p>
-            {/* En el celular, el formulario queda abajo: un botón lleva directo (Ale, 04/11/2026). */}
-            <IrAlFormulario />
-            <h3 className="suscriptores-portada__beneficios-titulo">{TEXTOS.suscriptores.portada.beneficios}</h3>
-            <BeneficiosSuscriptor cuotas={cuotasDeSuscriptor} cuotasTodos={cuotasAnteojos?.cuotas ?? null} />
+            <ul className="suscripcion-inicio__beneficios">
+              {beneficios.map((b) => (
+                <li key={b.clave}>
+                  <Cifras>{b.titulo}</Cifras>
+                </li>
+              ))}
+            </ul>
+            <p className="suscripcion-inicio__bajada">{TEXTOS.inicio.suscripcion.bajada}</p>
           </div>
-          <div id="suscribirme" className="suscriptores-portada__form">
-            <CajaSuscripcion
-              origen="Portada"
-              encabezado={{ titulo: TEXTOS.suscriptores.portada.formTitulo, bajada: TEXTOS.suscriptores.portada.formBajada }}
-            />
+          <div id="suscribirme" className="suscripcion-inicio__form">
+            <CajaSuscripcion origen="Portada" />
           </div>
         </div>
       </section>
 
-      {/* 6. Opiniones, dudas, lo que viene (secundario) y el cierre. */}
-      <Opiniones opiniones={opiniones} reputacion={reputacion} />
+      {/* 5. Opiniones: una selección corta. */}
+      <Opiniones opiniones={mercadoLibre?.opiniones ?? null} reputacion={mercadoLibre?.reputacion ?? null} compacta />
 
-      <PreguntasFrecuentes
-        preguntas={preguntasDePortada({
-          incluye,
-          caracteristicas: confirmados ? (caracteristicasDe(modelos[0])?.lista ?? null) : null,
-          cuotas: cuotasAnteojos,
-          nombreMarcas: NOMBRE_MARCAS,
-          envioGratisDesde: config.envioGratisDesde,
-          envioGratisTexto: formatearPrecio(config.envioGratisDesde),
-          envioGratisAmbaTexto:
-            config.envioGratisAmbaDesde > 0 && (config.envioGratisDesde <= 0 || config.envioGratisAmbaDesde < config.envioGratisDesde)
-              ? formatearPrecio(config.envioGratisAmbaDesde)
-              : null,
-          hayWhatsapp: Boolean(config.whatsapp),
-          diasArrepentimiento: DIAS_ARREPENTIMIENTO,
-          diasCambio: DIAS_CAMBIO,
-          mesesGarantia: MESES_GARANTIA,
-          cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
-          escala: fraseDeLaEscala(tramos, categoria),
-          porcentajeDineroMP: PORCENTAJE_DINERO_MP,
-          cuotasSuscriptor: cuotasDeSuscriptor,
-          suscriptores: true,
-        })}
-      />
-
-      {proximas.length > 0 ? (
-        <section id="lo-que-viene" className="lo-que-viene" aria-labelledby="lo-que-viene-titulo">
-          <div className="contenedor lo-que-viene__grilla">
-            <div>
-              <p className="etiqueta-mono">Próximamente</p>
-              <h2 id="lo-que-viene-titulo" className="titulo-serif">
-                {TEXTOS.viene.titulo}
-              </h2>
-              <p className="lo-que-viene__bajada">
-                {TEXTOS.viene.bajada(
-                  enumerar(proximas.map((l) => l.nombre.toLowerCase())),
-                  proximas.reduce((n, l) => n + l.modelos, 0),
-                  proximas.reduce((n, l) => n + l.colores, 0),
-                )}
-              </p>
-            </div>
-            <div>
-              <ul className="lo-que-viene__lineas">
-                {proximas.map((l) => (
-                  <li key={l.clave} id={`viene-${l.clave}`}>
-                    <span className="lo-que-viene__nombre">{l.nombre}</span>
-                    <span className="lo-que-viene__promesa">{l.promesa}</span>
-                    <span className="lo-que-viene__cuantos">
-                      {l.modelos} {l.modelos === 1 ? "modelo" : "modelos"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="lo-que-viene__acciones">
-                <a href="#suscriptores" className="lo-que-viene__suscribite">
-                  {TEXTOS.viene.suscribite}
-                </a>
-                {config.instagram ? (
-                  <a href={config.instagram} target="_blank" rel="noopener noreferrer" className="boton boton--contorno lo-que-viene__boton">
-                    {TEXTOS.viene.boton}
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="cierre" aria-labelledby="cierre-titulo">
-        <div className="contenedor cierre__cuerpo">
-          <h2 id="cierre-titulo" className="cierre__titulo">
-            {TEXTOS.nosotros.frase[0]}
-            <span>{TEXTOS.nosotros.frase[1]}</span>
-          </h2>
-          {precio ? <p>{TEXTOS.cierre.precio(formatearPrecio(precio))}</p> : null}
-          <a href="#los-modelos" className="boton boton--claro cierre__boton">
-            {TEXTOS.cierre.boton}
-          </a>
-          <p className="cierre__complementos">
-            <Link href="/quienes-somos">Quiénes somos</Link>
-          </p>
-        </div>
-      </section>
-
-      {precio ? (
+      {/* Con algo en el carrito, la barra de abajo lleva a pagar; sin nada, no aparece. */}
+      {precioPar ? (
         <BarraTusPares
           despuesDe="vitrina-portada"
           ocultarEn="suscriptores"
-          precioPar={precio}
-          invitacion={
-            cuota2 && tramo2 && nombrePromo
-              ? `${nombrePromo}: ${cuota2.cuotas} cuotas sin interés de ${precioConCentavos(cuota2.montoCuota)} · CFTEA ${cuota2.cftea}`
-              : cuota1
-                ? `${formatearPrecio(precio)} · ${cuota1.cuotas} cuotas sin interés de ${precioConCentavos(cuota1.montoCuota)} · CFTEA ${cuota1.cftea}`
-                : `Cada par, ${formatearPrecio(precio)}`
-          }
+          soloConCarrito
+          precioPar={precioPar}
+          invitacion={cuotasAnteojos ? `${formatearPrecio(precioPar)} · ${textoCuota(cuotasAnteojos)}` : formatearPrecio(precioPar)}
         />
       ) : null}
     </>

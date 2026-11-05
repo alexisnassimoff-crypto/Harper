@@ -1,4 +1,7 @@
+import { categoriasConProductos, esCategoriaDeAnteojos, rutaDeCategoria, type Categoria } from "./categorias";
 import type { OfertaDeEscala } from "./descuentos";
+import { LINEAS } from "./lineas";
+import { paresDisponibles } from "./packs";
 import { RECORTES_ANTEOJOS } from "./recortes-anteojos";
 import type { Producto, Variante } from "./tipos";
 
@@ -185,4 +188,57 @@ export function empujeDeLaBarra(datos: {
   if (actual > 0 && actual >= cupon) return `${actual} % OFF aplicado${gratisPais ? " y envío gratis a todo el país" : ""}.`;
   if (gratisPais) return "Envío gratis a todo el país.";
   return null;
+}
+
+/**
+ * «Comprar» en la portada (Ale, 05/11/2026): una categoría de anteojos por
+ * bloque, solo las que tienen algún modelo con stock y en el orden de
+ * lib/categorias.ts. Hoy son los fotocromáticos; cuando se carguen de sol,
+ * de receta o clip-on con stock en Airtable, aparecen solas, sin tocar la
+ * portada. Una categoría sin stock no se muestra como disponible.
+ */
+export type CategoriaParaComprar<P> = {
+  nombre: Categoria;
+  slug: string;
+  /** El nombre de la línea ("Fotocromáticos") o, si no hay línea, el de la categoría. */
+  titulo: string;
+  /** Material y cristales de la línea, en una línea corta; null si no hay. */
+  detalle: string | null;
+  /** La página de la categoría ("/anteojos"). */
+  enlace: string;
+  productos: P[];
+};
+
+export function categoriasParaComprar<P extends Pick<Producto, "categoria" | "variantes">>(productos: P[]): CategoriaParaComprar<P>[] {
+  const conStock = productos.filter((p) => esCategoriaDeAnteojos(p.categoria) && paresDisponibles(p.variantes) > 0);
+  return categoriasConProductos(conStock).map((c) => {
+    const linea = LINEAS.find((l) => l.categoria === c.nombre);
+    return {
+      nombre: c.nombre,
+      slug: c.slug,
+      titulo: linea?.nombre ?? c.nombre,
+      // Sin repetir el nombre: «Filtro de luz azul · UV400» debajo de «Fotocromáticos».
+      detalle: linea ? linea.ficha.replace(new RegExp(`^${linea.nombre}\\s*·\\s*`), "") || null : null,
+      enlace: rutaDeCategoria(c.nombre),
+      productos: conStock.filter((p) => p.categoria === c.nombre),
+    };
+  });
+}
+
+/**
+ * La foto de la primera pantalla: un anteojo de cerca, con el logo en la
+ * patilla (la tercera foto de cada color). Primero el carey con stock, que es
+ * el color más vistoso; si no hay, el primer color con stock. Sin caras: los
+ * protagonistas son los anteojos.
+ */
+export function fotoDeLaPortada(modelos: Pick<Producto, "nombre" | "variantes">[]): { src: string; alt: string } | null {
+  const opciones = modelos.flatMap((m) => m.variantes.filter((v) => !v.agotada && v.fotos.length > 0).map((v) => ({ m, v })));
+  const plano = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const elegida = opciones.find((o) => plano(o.v.color).startsWith("carey")) ?? opciones[0];
+  if (!elegida) return null;
+  const { m, v } = elegida;
+  const nombre = m.nombre.charAt(0) + m.nombre.slice(1).toLowerCase();
+  // La de cerca es la «-3» de las fotos de la tienda; si no está, la primera.
+  const deCerca = v.fotos.find((f) => baseDeFoto(f) !== null && /-3\.(?:webp|jpe?g|png)$/i.test(f));
+  return { src: deCerca ?? v.fotos[0], alt: `${nombre} en ${plano(v.color)}, de cerca` };
 }

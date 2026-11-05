@@ -22,6 +22,7 @@ import { empujeDeLaBarra } from "@/lib/vitrina";
 export default function BarraTusPares({
   despuesDe,
   ocultarEn,
+  soloConCarrito = false,
   invitacion,
   precioPar,
 }: {
@@ -33,6 +34,11 @@ export default function BarraTusPares({
    * tapar ni competir con el formulario.
    */
   ocultarEn?: string;
+  /**
+   * Solo con algo en el carrito (la portada, Ale 05/11/2026): sin nada
+   * elegido no hay barra fija con promociones; con pares, es el carrito.
+   */
+  soloConCarrito?: boolean;
   /** Sin nada en el carrito: "Dos pares, en 6 cuotas sin interés de $ 28.468". */
   invitacion: string;
   precioPar: number;
@@ -72,7 +78,7 @@ export default function BarraTusPares({
     };
   }, [enSeccionAparte]);
 
-  const visible = paso && !enSeccionAparte;
+  const visible = paso && !enSeccionAparte && (!soloConCarrito || items.length > 0);
   useEffect(() => {
     if (!visible) return;
     document.body.dataset.ctaFija = "";

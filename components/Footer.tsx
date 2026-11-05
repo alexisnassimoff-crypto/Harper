@@ -78,6 +78,9 @@ export default function Footer({
 
         <nav className="pie__columna" aria-label="Ayuda">
           <span className="pie__titulo">Ayuda</span>
+          <Link href="/preguntas-frecuentes" className="pie__enlace">
+            Preguntas frecuentes
+          </Link>
           <Link href="/legales/devoluciones" className="pie__enlace">
             Cambios y devoluciones
           </Link>

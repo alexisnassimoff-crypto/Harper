@@ -40,6 +40,38 @@ export const TEXTOS = {
     nota: "Tocá «Al sol» o «Adentro» para ver cómo cambian. El tono final depende de la luz.",
     boton: "Ver anteojos",
   },
+  /**
+   * La portada simplificada (Ale, 05/11/2026): presentación de la marca,
+   * comprar por categoría, confianza, suscripción y opiniones. Nada más.
+   * La primera pantalla presenta a Harper como marca de anteojos de diseño,
+   * sin atarla a los fotocromáticos (de sol, receta y clip-on vienen después).
+   */
+  inicio: {
+    etiqueta: "Harper Eyewear · Buenos Aires",
+    titulo: "Anteojos de diseño.",
+    bajada: "Formas simples y actuales, en colores pensados para combinar con lo que ya tenés.",
+    boton: "Explorar anteojos",
+    comprar: {
+      etiqueta: "Comprar",
+      titulo: "Elegí tus anteojos.",
+      verTodos: "Ver todos",
+      agregar: "Agregar",
+      agregado: "Agregado",
+      sinStock: "Sin stock",
+      tambien: "También",
+    },
+    confianza: {
+      titulo: "Comprá tranquilo",
+      envio: "Envíos a todo el país",
+      envioDetalle: "A domicilio",
+      whatsapp: "Te asesoramos por WhatsApp",
+      whatsappDetalle: "Modelo, talle o cristales con aumento",
+    },
+    suscripcion: {
+      etiqueta: "Suscriptores Harper · Gratis",
+      bajada: "Solo necesitás tu mail. Te das de baja cuando quieras.",
+    },
+  },
   /** Por qué Harper (Ale, 05/11/2026): cómo es comprar, sin repetir las promociones. */
   tranquilo: {
     etiqueta: "Comprá tranquilo",

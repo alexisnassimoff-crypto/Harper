@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { IconoConfianza } from "@/components/MensajesConfianza";
 import { IconoCondicion } from "@/components/producto/InfoFicha";
-import type { Condicion } from "@/lib/ficha";
 import { TEXTOS } from "@/lib/textos";
 import type { Garantia, Paso, Pregunta } from "@/lib/portada";
 
@@ -41,46 +40,53 @@ export function Garantias({ garantias }: { garantias: Garantia[] }) {
  * pago y asesoramiento por WhatsApp, cada uno con su enlace. Son las mismas
  * condiciones de la ficha (lib/ficha.ts); el envío gratis va en promociones.
  */
-export function CompraTranquila({ condiciones, whatsapp }: { condiciones: Condicion[]; whatsapp: string | null }) {
-  const T = TEXTOS.tranquilo;
+/** Un renglón de «Comprá tranquilo»: envío, devolución o asesoramiento. */
+export type ItemConfianza = {
+  clave: "envio" | "devolucion" | "whatsapp";
+  texto: string;
+  detalle: string | null;
+  href: string;
+  /** WhatsApp abre en otra pestaña. */
+  externo?: boolean;
+};
+
+/**
+ * La confianza, en un bloque compacto (Ale, 05/11/2026): envío, devolución y
+ * asesoramiento, cada uno con su enlace. Los plazos y el envío salen de
+ * lib/confianza.ts y de Config, como en la ficha.
+ */
+export function ConfianzaPortada({ items }: { items: ItemConfianza[] }) {
+  if (items.length === 0) return null;
   return (
-    <section className="tranquilo" aria-labelledby="tranquilo-titulo">
-      <div className="contenedor">
-        <p className="etiqueta-mono">{T.etiqueta}</p>
-        <h2 id="tranquilo-titulo" className="titulo-serif">
-          {T.titulo}
-        </h2>
-        <ul className="tranquilo__lista">
-          {condiciones.map((c) => (
-            <li key={c.clave} className="tranquilo__item">
-              <span className="tranquilo__icono" aria-hidden="true">
+    <section className="confianza-inicio" aria-label={TEXTOS.inicio.confianza.titulo}>
+      <ul className="contenedor confianza-inicio__lista">
+        {items.map((c) => {
+          const contenido = (
+            <>
+              <span className="confianza-inicio__icono" aria-hidden="true">
                 <IconoCondicion clave={c.clave} />
               </span>
-              <span className="tranquilo__texto">
+              <span className="confianza-inicio__texto">
                 <strong>{c.texto}</strong>
                 {c.detalle ? <span>{c.detalle}</span> : null}
-                <Link href={c.href} className="tranquilo__enlace">
-                  {c.enlace}
-                </Link>
               </span>
-            </li>
-          ))}
-          {whatsapp ? (
-            <li className="tranquilo__item">
-              <span className="tranquilo__icono" aria-hidden="true">
-                <IconoCondicion clave="whatsapp" />
-              </span>
-              <span className="tranquilo__texto">
-                <strong>{T.whatsapp.texto}</strong>
-                <span>{T.whatsapp.detalle}</span>
-                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="tranquilo__enlace">
-                  {T.whatsapp.enlace}
+            </>
+          );
+          return (
+            <li key={c.clave}>
+              {c.externo ? (
+                <a href={c.href} target="_blank" rel="noopener noreferrer" className="confianza-inicio__item">
+                  {contenido}
                 </a>
-              </span>
+              ) : (
+                <Link href={c.href} className="confianza-inicio__item">
+                  {contenido}
+                </Link>
+              )}
             </li>
-          ) : null}
-        </ul>
-      </div>
+          );
+        })}
+      </ul>
     </section>
   );
 }

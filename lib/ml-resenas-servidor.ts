@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
-import { listRecords } from "./airtable";
+import { listRecords, modoFixtures } from "./airtable";
+import { DATOS_ML_DE_PRUEBA } from "./fixtures/opiniones";
 import { getProductosParaCobrar } from "./catalogo";
 import { guardarDatosML, leerDatosML, registrarIntentoML } from "./estado-ml";
 import { mlConfigurado, tokenVigente } from "./ml-auth";
@@ -251,6 +252,8 @@ export function ultimoDeMercadoLibre(): DatosMercadoLibre | null {
  * podría tener su propia copia y renovar el token por su lado.
  */
 export async function datosDeMercadoLibre(): Promise<DatosMercadoLibre | null> {
+  // Modo de datos de prueba (nunca en Vercel): la copia de lib/fixtures/opiniones.ts.
+  if (modoFixtures()) return DATOS_ML_DE_PRUEBA;
   if (!mlConfigurado()) return null;
   try {
     const datos = await mercadoLibreCacheado();
