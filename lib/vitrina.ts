@@ -3,7 +3,7 @@ import type { OfertaDeEscala } from "./descuentos";
 import { LINEAS } from "./lineas";
 import { paresDisponibles } from "./packs";
 import { RECORTES_ANTEOJOS } from "./recortes-anteojos";
-import type { Producto, Variante } from "./tipos";
+import type { DuoDelCarrito, Producto, Variante } from "./tipos";
 
 /**
  * La portada vitrina (pedido de Ale, 30/10/2026): los cuatro modelos sobre
@@ -158,11 +158,31 @@ export function empujeDeLaBarra(datos: {
   envioGratisDesde: number;
   /** Dónde está en la escala «llevá 3, pagá 2 · llevá 5, pagá 3»; null sin escala. */
   escala?: OfertaDeEscala | null;
+  /**
+   * El Dúo del carrito, del servidor (solo con el Dúo prendido; Tarea 07).
+   * Null o ausente: la barra de siempre.
+   */
+  duo?: DuoDelCarrito | null;
 }): string | null {
-  const { pares, actual, proximo, cupon, subtotalSinCupon, precioPar, envioGratisDesde, escala = null } = datos;
+  const { pares, actual, proximo, cupon, subtotalSinCupon, precioPar, envioGratisDesde, escala = null, duo = null } = datos;
   if (pares <= 0) return null;
   const gratisPais = envioGratisDesde > 0 && subtotalSinCupon >= envioGratisDesde;
   const gratisConUnoMas = envioGratisDesde > 0 && !gratisPais && subtotalSinCupon + precioPar >= envioGratisDesde;
+
+  // Con el Dúo (Tarea 07): lo que dice el servidor. Si con otro par conviene
+  // un tramo de Airtable, la barra de siempre cuenta el tramo.
+  if (duo && cupon === 0 && duo.siguiente !== "tramos") {
+    const pct = `${duo.porcentaje}% OFF`;
+    if (duo.siguiente === "duo") {
+      const envio = gratisConUnoMas ? " y envío gratis a todo el país" : "";
+      return duo.ahorro > 0
+        ? `Dúo aplicado. Uno más: ${pct} en otro par${envio}.`
+        : `${pares === 1 ? "Sumá otro" : "Uno más"}: ${pct} en el de menor precio${envio}.`;
+    }
+    if (duo.ahorro > 0) return `Dúo aplicado: ${pct}${gratisPais ? " y envío gratis a todo el país" : ""}.`;
+    return gratisPais ? "Envío gratis a todo el país." : null;
+  }
+  const yaConDuo = duo && duo.ahorro > 0 ? "Dúo aplicado. " : "";
 
   if (escala && cupon === 0) {
     const { actual: escalon, siguiente } = escala;
@@ -173,7 +193,7 @@ export function empujeDeLaBarra(datos: {
         gratis === 1 ? (siguiente.faltan === 1 ? "te lo llevás gratis" : "uno te sale gratis") : `te llevás ${gratis} gratis`;
       const envio = siguiente.faltan === 1 && gratisConUnoMas ? " y el envío es gratis a todo el país" : "";
       const sumar = siguiente.faltan === 1 ? (pares === 1 ? "Sumá otro" : "Uno más") : `Sumá ${siguiente.faltan} más`;
-      return `${aplicado ? `${aplicado}. ` : ""}${sumar} y ${premio}${envio}.`;
+      return `${yaConDuo}${aplicado ? `${aplicado}. ` : ""}${sumar} y ${premio}${envio}.`;
     }
     if (aplicado) return `${aplicado}${gratisPais ? " y envío gratis a todo el país" : ""}.`;
   }
@@ -183,8 +203,10 @@ export function empujeDeLaBarra(datos: {
       proximo.porcentaje > cupon ? `${proximo.porcentaje} % OFF` : null,
       gratisConUnoMas ? "envío gratis a todo el país" : null,
     ].filter(Boolean);
-    if (ganancias.length > 0) return `${pares === 1 ? "Sumá otro" : "Uno más"}: ${ganancias.join(" y ")}.`;
+    if (ganancias.length > 0) return `${yaConDuo}${pares === 1 ? "Sumá otro" : "Uno más"}: ${ganancias.join(" y ")}.`;
   }
+  // Con el Dúo aplicado, el porcentaje del tramo no es el que tiene.
+  if (yaConDuo) return `Dúo aplicado${gratisPais ? " y envío gratis a todo el país" : ""}.`;
   if (actual > 0 && actual >= cupon) return `${actual} % OFF aplicado${gratisPais ? " y envío gratis a todo el país" : ""}.`;
   if (gratisPais) return "Envío gratis a todo el país.";
   return null;

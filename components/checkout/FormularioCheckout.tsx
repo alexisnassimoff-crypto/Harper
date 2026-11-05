@@ -21,6 +21,8 @@ import { TEXTOS } from "@/lib/textos";
 import { datosDeCompra, origenParaElPedido, trackPixel } from "@/lib/pixel";
 import { medir } from "@/lib/medir";
 import { desglosar } from "@/lib/resumen";
+import { notaEnvioGratisDelDuo, textoDelRenglon } from "@/lib/promocion-anteojos";
+import FilasDescuento from "@/components/carrito/FilasDescuento";
 import type { DatosCliente, DestinoEnvio, EleccionEnvio } from "@/lib/tipos";
 import type { MedioPago } from "@/lib/dinero-mp";
 import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
@@ -964,6 +966,15 @@ export default function FormularioCheckout({
       : // Sin cotizar para una dirección que no se sabe si es AMBA: no se le
         // anuncia el mínimo de AMBA al lado de un envío que se cobra.
         textoEnvioGratis(cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales);
+  // Con el Dúo (Tarea 07): si el envío es gratis solo porque el mínimo se
+  // cuenta antes del 25 %, se aclara. Sin Dúo, null y nada cambia.
+  const notaDuo = conSuscriptor
+    ? null
+    : cotizacion?.bonificado
+      ? notaEnvioGratisDelDuo({ base: carrito.subtotalSinCupon ?? carrito.subtotal, items: carrito.items, umbral: cotizacion.gratisDesde, gratis: true })
+      : envioPorConocer
+        ? notaEnvioGratisDelDuo({ base: carrito.subtotalSinCupon ?? carrito.subtotal, items: carrito.items, umbral: umbrales.amba, gratis: gratisEnAmba })
+        : notaEnvioGratisDelDuo({ base: carrito.subtotalSinCupon ?? carrito.subtotal, items: carrito.items, umbral: umbrales.nacional, gratis: resumen.envio === 0 });
   // El total del botón: mientras falta saber el envío, se aclara que se suma.
   const totalBoton = `${formatearPrecio(resumen.total)}${envioPorConocer && !gratisEnAmba ? " + envío" : ""}`;
   const listaItems = (
@@ -980,6 +991,8 @@ export default function FormularioCheckout({
               {item.cantidad}× {item.nombre}
             </div>
             <div className="apagado">{item.color}</div>
+            {/* Qué producto llevó el Dúo (Tarea 07); sin Dúo, nada. */}
+            {textoDelRenglon(item) ? <div style={{ color: "var(--verde)" }}>{textoDelRenglon(item)}</div> : null}
           </div>
           {/* Con sus promociones; el cupón y el saldo del suscriptor van en su renglón. */}
           <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal + (item.cupon ?? 0) + (item.saldo ?? 0))}</span>
@@ -1280,7 +1293,9 @@ export default function FormularioCheckout({
                 {!opcionEnvio || !cotizacion
                   ? "Calculando el envío a tu dirección…"
                   : cotizacion.bonificado
-                    ? "¡Tu envío es gratis!"
+                    ? notaDuo
+                      ? `¡Tu envío es gratis! ${notaDuo}`
+                      : "¡Tu envío es gratis!"
                     : cotizacion.falta > 0
                       ? `Agregá ${formatearPrecio(cotizacion.falta)} más y tu envío es gratis.`
                       : null}
@@ -1476,14 +1491,7 @@ export default function FormularioCheckout({
           <span>{formatearPrecio(resumen.lista)}</span>
         </div>
 
-        {resumen.descuento > 0 ? (
-          <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>
-              {carrito.cupon?.estado === "aplicado" ? `Cupón ${carrito.cupon.codigo}` : "Descuento"}
-            </span>
-            <span>−{formatearPrecio(resumen.descuento)}</span>
-          </div>
-        ) : null}
+        <FilasDescuento ahorro={resumen.descuento} items={carrito.items} cupon={carrito.cupon} />
         <LineasSuscriptor cupon={resumen.cupon} saldo={resumen.saldo} />
 
         {resumen.dineroMP > 0 ? (
@@ -1499,6 +1507,7 @@ export default function FormularioCheckout({
         </div>
         {/* Con el envío cotizado, el plazo ya está en la caja de Entrega. */}
         {opcionEnvio ? null : <p className="apagado checkout__envio-nota">{notaEnvio}</p>}
+        {opcionEnvio || !notaDuo ? null : <p className="apagado checkout__envio-nota">{notaDuo}</p>}
 
         <div className="fila fila--total">
           <span>{envioPorConocer ? "Total sin envío" : "Total"}</span>

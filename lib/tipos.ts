@@ -94,6 +94,46 @@ export type ItemCarrito = {
 /** El Dúo de un renglón: porcentaje, unidades con descuento y pesos descontados (enteros). */
 export type DuoDelItem = { porcentaje: number; unidades: number; descuento: number };
 
+/**
+ * El Dúo en el carrito, tal como lo resolvió el servidor (Tarea 07): lo que la
+ * tienda necesita para contarlo sin calcular nada. Solo existe con el Dúo
+ * prendido (HARPER_DUO_ACTIVO); apagado, el carrito no lo trae.
+ */
+export type DuoDelCarrito = {
+  /** El descuento del Dúo: 25. */
+  porcentaje: number;
+  /** Los pesos que descontó el Dúo en este carrito (0 si no quedó: sin pares, ganó un tramo o un cupón). */
+  ahorro: number;
+  /** Cuántos anteojos llevan el descuento. */
+  unidades: number;
+  /**
+   * Qué gana el comprador con un anteojo más (calculado como si sumara otro
+   * del más barato del carrito): "duo" si suma otro anteojo con el 25 %;
+   * "tramos" si con ese anteojo le conviene un tramo de Airtable; null si no
+   * cambia nada (o hay un cupón aplicado).
+   */
+  siguiente: "duo" | "tramos" | null;
+};
+
+/** Lo que cobra el carrito del servidor por un pack, para mostrarlo (Tarea 07). */
+export type PackDelServidor = {
+  cantidad: number;
+  /** Los productos, con la promoción que eligió el servidor (sin envío). */
+  total: number;
+  /** El mismo pack pagado con dinero en Mercado Pago, según el servidor. */
+  totalDineroMP: number | null;
+  /** El precio de lista de todo: el tachado. */
+  lista: number;
+  ahorro: number;
+  /** La base del envío gratis, como en el carrito. */
+  totalParaEnvio: number;
+  /** Lo que pagan los complementos (el estuche), si hay; null si no. */
+  precioExtra: number | null;
+  /** Qué quedó en los anteojos. */
+  promocion: "duo" | "tramos" | "ninguna";
+  duo: DuoDelCarrito;
+};
+
 /** Un ítem ya resuelto contra el catálogo, con precio y stock reales. */
 export type ItemResuelto = {
   productoId: string;

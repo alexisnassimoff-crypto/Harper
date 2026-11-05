@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { textoPorcentaje } from "@/lib/descuentos";
 import { precio as formatearPrecio } from "@/lib/formato";
+import { textoDelRenglon } from "@/lib/promocion-anteojos";
 import type { ItemResuelto } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 
@@ -27,6 +28,9 @@ export default function LineaCarrito({
   // uno en su renglón: acá el precio con sus promociones.
   const subtotal = item.subtotal + (item.cupon ?? 0) + (item.saldo ?? 0);
   const tachado = item.descuento > 0;
+  // Con el Dúo (Tarea 07): «Dúo · 25% OFF en 1 de 2» en vez de un porcentaje
+  // promedio («−12,5%») que no dice qué se descontó. Sin Dúo, lo de siempre.
+  const conDuo = textoDelRenglon(item);
 
   return (
     <li style={{ display: "flex", gap: compacta ? "0.875rem" : "1rem", alignItems: "flex-start" }}>
@@ -49,6 +53,8 @@ export default function LineaCarrito({
         <span className="apagado" style={{ fontSize: "0.8125rem" }}>
           {item.color}
         </span>
+        {/* Qué llevó el Dúo, a lo ancho (Tarea 07); sin Dúo, nada. */}
+        {conDuo ? <span style={{ fontSize: "0.75rem", color: "var(--verde)" }}>{conDuo}</span> : null}
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           {/* Un +/− en vez del desplegable: sumar una unidad es un solo
@@ -103,7 +109,7 @@ export default function LineaCarrito({
           </div>
         ) : null}
         <span>{formatearPrecio(subtotal)}</span>
-        {item.descuento > 0 ? (
+        {item.descuento > 0 && !conDuo ? (
           <div style={{ fontSize: "0.75rem", color: "var(--verde)" }}>−{textoPorcentaje(item.descuento)}%</div>
         ) : null}
       </div>

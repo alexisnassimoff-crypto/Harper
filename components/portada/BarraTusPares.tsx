@@ -105,6 +105,8 @@ export default function BarraTusPares({
         precioPar,
         envioGratisDesde: datos.envioGratisDesde,
         escala: ofertaDeEscala(datos.tramos, "Anteojos", pares),
+        // Solo con el Dúo prendido (Tarea 07); apagado, no viene y la barra es la de siempre.
+        duo: datos.duo ?? null,
       })
     : null;
   // Sin dirección todavía el envío no se sabe: se muestran los productos y

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ItemResuelto } from "@/lib/tipos";
+import type { DuoDelCarrito, ItemResuelto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import type { Sugerencia } from "@/lib/sugerencias";
 import type { CuponResuelto } from "@/lib/cupones";
@@ -48,6 +48,8 @@ export type CarritoResueltoCliente = {
    * Null si no hay sesión.
    */
   suscriptor?: ResumenSuscriptor | null;
+  /** Solo con el Dúo prendido (Tarea 07): lo que descontó y qué gana con otro par. */
+  duo?: DuoDelCarrito;
 };
 
 /**

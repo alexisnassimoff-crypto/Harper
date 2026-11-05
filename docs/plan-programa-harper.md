@@ -1395,6 +1395,7 @@ devuelto.
 | O10 | **La recompra a 90 días de cada mes de primeras compras**, separando compra individual y Dúo | Es lo que dice si el crédito genera compras extra (A.8). Hoy no hay tasas reales, y las de A.8 son hipotéticas |
 | O11 | **Seguir los pedidos con Dúo que tengan el envío gratis solo por la regla nueva** (definido: el envío gratis se mide antes del Dúo, Ale, 05/11/2026) | Dejan menos que la regla anterior: en el ejemplo de §16.3, $ 12.799 menos en 6 cuotas. Con los precios de hoy no hay ninguno |
 | O12 | **Una categoría de complemento antes de vender clips sueltos** | Un clip suelto cargado como «Anteojos» o «Clip-On» recibiría el Dúo. Hoy no hay ninguno (§16.4) |
+| O13 | **Antes de activar un cupón que reemplace promociones:** probar el envío gratis y lo que queda registrado en el pedido cuando el cupón le gana al Dúo (revisión del PR #64) | Hoy el mínimo se mide antes del Dúo aunque después gane el cupón. No hay cupones activos (§16.3) |
 
 ### Debajo del piso del 22 % (a monitorear)
 
@@ -1448,7 +1449,7 @@ No es un lanzamiento: es el costo de respetar lo ya dado.
 
 ---
 
-## 16. Implementación del Dúo (Tareas 03 a 06)
+## 16. Implementación del Dúo (Tareas 03 a 07)
 
 ### 16.1 Estado
 
@@ -1465,7 +1466,7 @@ No es un lanzamiento: es el costo de respetar lo ya dado.
 
 1. registrar el Dúo en el pedido (hecho en la Tarea 05, §16.2);
 2. medir el envío gratis antes del Dúo (aprobado y hecho en la Tarea 06, §16.3);
-3. los textos del carrito y del checkout;
+3. los textos de la ficha, los packs, el carrito y el checkout (hechos en la Tarea 07, §16.5);
 4. las condiciones publicadas (§14, L2);
 5. la transición de los suscriptores (§11).
 
@@ -1606,6 +1607,40 @@ como «Anteojos» o como «Clip-On» sí recibiría el Dúo.
 1. crear una categoría de complemento (por ejemplo, «Accesorios») en el
    código y en Airtable, con autorización;
 2. cargar los clips sueltos en esa categoría (§14, O12).
+
+### 16.5 Cómo se cuenta en la tienda (Tarea 07)
+
+**Con el Dúo apagado, la tienda queda igual.** Se comparó el texto visible de
+la ficha, el carrito, el checkout y la barra «Tus pares» (11 pantallas,
+celular) entre main y esta versión, con los mismos datos de prueba:
+idénticos.
+
+**Con el Dúo prendido, todo sale de lo que calculó el servidor.** Ninguna
+página calcula el descuento por su cuenta.
+
+| Dónde | Qué dice |
+|---|---|
+| Ficha, sin anteojos en el carrito | «Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF.» y «Dos de este modelo: $ 157.325 (antes $ 179.800).», con lo que cobra el servidor por dos pares |
+| Ficha, con un anteojo en el carrito | «Sumá otro par y el de menor precio tiene 25% OFF.» |
+| Ficha, con el Dúo ya aplicado | «Tu carrito ya tiene el Dúo: 25% OFF en el anteojo de menor precio.» |
+| Renglón del carrito y del checkout | «Dúo · 25% OFF» o, si no todas las unidades lo llevan, «Dúo · 25% OFF en 1 de 2» |
+| Resumen (carrito, panel lateral, checkout) | Una fila «Dúo · 25% OFF −$ 22.475»; los descuentos de estuches y paños, aparte en «Descuento» |
+| Envío gratis solo por la regla de §16.3 | «Envío gratis por tu compra: el mínimo se cuenta antes del descuento del Dúo.» Nunca «te faltan» |
+| Barra «Tus pares» de la portada | «Sumá otro: 25% OFF en el de menor precio…» o «Dúo aplicado…» |
+| Sugerencias del carrito | «Segundo par: 25% OFF en el de menor precio», solo si el servidor confirma que suma otro con el Dúo |
+| Packs | En la portada en modo estrella y en las opciones de la ficha, el total que cobra el servidor por cada pack; la etiqueta «Dúo · 25% OFF en uno» |
+
+**Si gana un tramo de Airtable** (por ejemplo, con la escala «llevá 3, pagá
+2»), se cuenta el tramo como siempre y nada dice «Dúo».
+
+**Lo que no se tocó:**
+
+- los pagos y los precios;
+- el cashback;
+- Airtable;
+- las condiciones publicadas;
+- la barra verde de anuncios de arriba: anunciar el Dúo ahí es parte del
+  lanzamiento (§14, L2).
 
 ---
 

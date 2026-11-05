@@ -31,7 +31,8 @@ import {
   type Pack,
 } from "@/lib/packs";
 import { trackAgregarVarios, trackPixel } from "@/lib/pixel";
-import type { Producto } from "@/lib/tipos";
+import type { PackDelServidor, Producto } from "@/lib/tipos";
+import { packParaMostrar } from "@/lib/promocion-anteojos";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Garantia } from "@/lib/portada";
 import Estrellas, { formatearPuntaje } from "./Estrellas";
@@ -47,6 +48,12 @@ import { Garantias } from "./SeccionesPortada";
  * carrito igual los vuelve a calcular en el servidor al cobrar. Las cuotas se
  * anuncian solo para un total que Mercado Pago confirmó (`cuotasPorTotal`).
  */
+/**
+ * Con el Dúo prendido (Tarea 07): lo que cobra el servidor por cada pack de
+ * cada modelo, con y sin el estuche. Null con el Dúo apagado.
+ */
+export type PacksDuo = Record<string, Record<number, { sin: PackDelServidor | null; con: PackDelServidor | null }>>;
+
 export default function CompraPortada({
   modelos,
   modeloInicial,
@@ -56,6 +63,7 @@ export default function CompraPortada({
   envioGratisDesde,
   envioGratisAmbaDesde = 0,
   estuche,
+  packsDuo = null,
   calificacion,
   garantias,
   whatsapp,
@@ -73,6 +81,8 @@ export default function CompraPortada({
   envioGratisAmbaDesde?: number;
   /** El estuche que se ofrece sumar, o null si no hay. */
   estuche: Producto | null;
+  /** Con el Dúo prendido, los packs como los cobra el servidor; null: los de siempre. */
+  packsDuo?: PacksDuo | null;
   /**
    * Las opiniones de todos los anteojos Harper (no solo de este modelo: así
    * se dice), resumidas; null si no hay. Salen de Mercado Libre, pero no se
@@ -116,18 +126,28 @@ export default function CompraPortada({
   // el carrito (el cupón o la promoción por cantidad, la que convenga).
   const cuponPorcentaje = buscarCupon(cupon)?.porcentaje ?? 0;
   const base = { precio: producto.precio, tramos, categoria: producto.categoria, cuponPorcentaje };
-  const packs = CANTIDADES_PACK.map((c) => armarPack({ ...base, cantidad: c }));
+  // Con el Dúo prendido, los del servidor (Tarea 07). Si el servidor no dio un
+  // total para un pack, ese pack queda sin precio: nunca uno del navegador.
+  // Con el Dúo apagado, los de siempre.
+  const conDuo = packsDuo !== null;
+  const delServidor = packsDuo?.[producto.slug] ?? null;
+  const packs = CANTIDADES_PACK.map((c) => packParaMostrar(conDuo, delServidor?.[c]?.sin, c, () => armarPack({ ...base, cantidad: c })));
   const extra = estuche ? { precio: estuche.precio, categoria: estuche.categoria } : null;
-  const conElEstuche = armarPack({ ...base, cantidad, extra });
-  const compra = conEstuche ? conElEstuche : armarPack({ ...base, cantidad });
+  const conElEstuche = packParaMostrar(conDuo, delServidor?.[cantidad]?.con, cantidad, () => armarPack({ ...base, cantidad, extra }));
+  // Un estuche sin precio del servidor no se ofrece ni se suma.
+  const conEstucheValido = conEstuche && !conElEstuche.sinPrecio;
+  const compra = conEstucheValido
+    ? conElEstuche
+    : packParaMostrar(conDuo, delServidor?.[cantidad]?.sin, cantidad, () => armarPack({ ...base, cantidad }));
 
   // "Mejor precio por par" solo si de verdad lo es: el único con el par más barato.
-  const masBarato = Math.min(...packs.map((p) => p.precioUnitario));
-  const mejorPorPar = packs.filter((p) => p.precioUnitario === masBarato).length === 1 ? masBarato : null;
+  const conPrecio = packs.filter((p) => !p.sinPrecio);
+  const masBarato = Math.min(...conPrecio.map((p) => p.precioUnitario));
+  const mejorPorPar = conPrecio.filter((p) => p.precioUnitario === masBarato).length === 1 ? masBarato : null;
 
   const varianteEstuche = estuche?.variantes[colorEstuche] ?? null;
   const cuotas = cuotasPorTotal[String(compra.total)] ?? null;
-  const conDineroMP = conDescuento(compra.total, PORCENTAJE_DINERO_MP);
+  const conDineroMP = compra.duo?.totalDineroMP ?? conDescuento(compra.total, PORCENTAJE_DINERO_MP);
   // Gratis en todo el país, o al menos en AMBA (sin dirección, no se sabe dónde vive).
   const umbrales = { amba: envioGratisAmbaDesde, nacional: envioGratisDesde };
   const envioGratis = (pack: Pack) =>
@@ -140,10 +160,12 @@ export default function CompraPortada({
   // Res. SIyC 4/2025: el precio sin impuestos nacionales de lo que se compra.
   const netoPares = netoDe(impuestos, producto.categoria, compra.precioUnitario * cantidad);
   const netoEstuche =
-    conEstuche && estuche && compra.precioExtra !== null ? netoDe(impuestos, estuche.categoria, compra.precioExtra) : 0;
+    conEstucheValido && estuche && compra.precioExtra !== null ? netoDe(impuestos, estuche.categoria, compra.precioExtra) : 0;
   const neto = netoPares === null || netoEstuche === null ? null : Math.round((netoPares + netoEstuche) * 100) / 100;
 
-  const sinStock = colores.some((c) => c < 0) || (conEstuche && (!varianteEstuche || varianteEstuche.agotada));
+  const sinStock = colores.some((c) => c < 0) || (conEstucheValido && (!varianteEstuche || varianteEstuche.agotada));
+  // Con el Dúo prendido y sin total del servidor para lo elegido: no se vende desde acá.
+  const sinPrecio = Boolean(compra.sinPrecio);
   const caracteristicas = caracteristicasDe(producto);
   const parrafos = parrafosDe(producto.descripcion);
   const agotados = producto.variantes.filter((v) => v.agotada);
@@ -159,7 +181,7 @@ export default function CompraPortada({
       cantidad: n,
       precioUnitario: compra.precioUnitario,
     }));
-    if (!conEstuche || !estuche || !varianteEstuche || compra.precioExtra === null) return pares;
+    if (!conEstucheValido || !estuche || !varianteEstuche || compra.precioExtra === null) return pares;
     return [
       ...pares,
       {
@@ -351,7 +373,8 @@ export default function CompraPortada({
         <fieldset className="packs">
           <legend className="label packs__titulo">Elegí cuántos pares</legend>
           {packs.map((pack) => {
-            const disponible = pack.cantidad <= maximo;
+            // Con el Dúo prendido, un pack sin total del servidor no se elige.
+            const disponible = pack.cantidad <= maximo && !pack.sinPrecio;
             const etiqueta =
               pack.cantidad === PACK_RECOMENDADO
                 ? "Recomendado"
@@ -359,11 +382,13 @@ export default function CompraPortada({
                   ? "Mejor precio por par"
                   : null;
             const descuento =
-              pack.porcentaje > 0
-                ? pack.conCupon
-                  ? `${pack.porcentaje}% OFF con ${CUPON_BIENVENIDA.codigo}`
-                  : `${pack.porcentaje}% OFF`
-                : null;
+              pack.duo && pack.duo.promocion === "duo"
+                ? `Dúo · ${pack.duo.duo.porcentaje}% OFF en ${pack.duo.duo.unidades === 1 ? "uno" : pack.duo.duo.unidades}`
+                : pack.porcentaje > 0
+                  ? pack.conCupon
+                    ? `${pack.porcentaje}% OFF con ${CUPON_BIENVENIDA.codigo}`
+                    : `${pack.porcentaje}% OFF`
+                  : null;
 
             return (
               <label
@@ -388,9 +413,12 @@ export default function CompraPortada({
                   </span>
                   <span className="pack__detalle">
                     {!disponible
-                      ? "Sin stock para este pack"
+                      ? pack.cantidad > maximo
+                        ? "Sin stock para este pack"
+                        : "Precio no disponible"
                       : [
-                          pack.cantidad > 1 ? `${formatearPrecio(pack.precioUnitario)} c/u` : null,
+                          // Con el Dúo los pares no valen lo mismo: no hay «c/u».
+                          pack.cantidad > 1 && pack.duo?.promocion !== "duo" ? `${formatearPrecio(pack.precioUnitario)} c/u` : null,
                           descuento,
                           envioGratis(pack),
                         ]
@@ -398,10 +426,12 @@ export default function CompraPortada({
                           .join(" · ") || "Precio por unidad"}
                   </span>
                 </span>
-                <span className="pack__precios">
-                  <span className="pack__total">{formatearPrecio(pack.total)}</span>
-                  {pack.ahorro > 0 ? <s className="pack__lista">{formatearPrecio(pack.lista)}</s> : null}
-                </span>
+                {pack.sinPrecio ? null : (
+                  <span className="pack__precios">
+                    <span className="pack__total">{formatearPrecio(pack.total)}</span>
+                    {pack.ahorro > 0 ? <s className="pack__lista">{formatearPrecio(pack.lista)}</s> : null}
+                  </span>
+                )}
               </label>
             );
           })}
@@ -519,6 +549,11 @@ export default function CompraPortada({
         ) : null}
 
         {/* ---------- Total y compra ---------- */}
+        {sinPrecio ? (
+          <div className="resumen-pack">
+            <p className="resumen-pack__fila">Precio no disponible</p>
+          </div>
+        ) : (
         <div className="resumen-pack">
           <p className="resumen-pack__fila">
             <span className="resumen-pack__total">{formatearPrecio(compra.total)}</span>
@@ -545,11 +580,12 @@ export default function CompraPortada({
             <span className="resumen-pack__extra">{PORCENTAJE_DINERO_MP}% OFF extra</span>
           </span>
         </div>
+        )}
 
         <div ref={bloqueCompra} className="pila" style={{ gap: "0.75rem" }}>
-          {sinStock ? (
+          {sinStock || sinPrecio ? (
             <button type="button" className="boton boton--bloque" disabled>
-              Sin stock para esta combinación
+              {sinStock ? "Sin stock para esta combinación" : "Precio no disponible"}
             </button>
           ) : (
             <>
@@ -608,8 +644,8 @@ export default function CompraPortada({
           el del pack, no el del checkout, y abajo hay grillas con otros
           botones de compra que se podrían confundir con este. */}
       <CtaFija
-        visible={(!compraEnPantalla || avisoCookies) && !sinStock && !conOtrosProductos}
-        nombre={`${producto.nombre} · ${nombrePack(cantidad)}${conEstuche && estuche ? ` + estuche ${estuche.nombre}` : ""}`}
+        visible={(!compraEnPantalla || avisoCookies) && !sinStock && !sinPrecio && !conOtrosProductos}
+        nombre={`${producto.nombre} · ${nombrePack(cantidad)}${conEstucheValido && estuche ? ` + estuche ${estuche.nombre}` : ""}`}
         precio={formatearPrecio(compra.total)}
         detalle={cuotas ? `${cuotas.cuotas} cuotas de ${precioConCentavos(cuotas.montoCuota)} · CFTEA ${cuotas.cftea}` : null}
         ocupado={enTransicion}

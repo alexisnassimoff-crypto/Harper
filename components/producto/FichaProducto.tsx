@@ -12,12 +12,14 @@ import { Acordeon, CondicionesCompra, CristalesFotocromaticos, MedidasYTalle } f
 import CuponBienvenida from "./CuponBienvenida";
 import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import OfertaCantidad from "./OfertaCantidad";
+import OfertaDuo from "./OfertaDuo";
+import { esCategoriaDeAnteojos } from "@/lib/categorias";
+import { ofertaEnLaFicha, type DuoDeLaFicha } from "@/lib/promocion-anteojos";
 import OpcionesPares, { type OpcionPares } from "./OpcionesPares";
 import HojaPack, { type ColorDeADos, type HojaPackControl } from "@/components/HojaPack";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { parrafosDe } from "@/lib/descripcion";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, type Confianza } from "@/lib/confianza";
-import { esCategoriaDeAnteojos } from "@/lib/categorias";
 import { condicionesDeCompra, talleDe } from "@/lib/ficha";
 import { TEXTOS } from "@/lib/textos";
 import type { CuotasVerificadas } from "@/lib/cuotas";
@@ -35,6 +37,8 @@ import { tieneCuotasDeSuscriptor } from "@/lib/suscriptores";
 import BotonFavorito from "@/components/suscriptores/BotonFavorito";
 import Cifras from "@/components/Cifras";
 
+export type { DuoDeLaFicha };
+
 export default function FichaProducto({
   producto,
   tramos = [],
@@ -46,6 +50,7 @@ export default function FichaProducto({
   whatsapp = null,
   calificacion = null,
   pares = null,
+  duo = null,
 }: {
   producto: Producto;
   tramos?: Tramo[];
@@ -70,6 +75,8 @@ export default function FichaProducto({
    * los anteojos para armar el pack. Null si la categoría no tiene escala.
    */
   pares?: { opciones: OpcionPares[]; colores: ColorDeADos[]; totales: Record<number, string> } | null;
+  /** El Dúo, si está prendido (lo arma el servidor); null: la ficha de siempre. */
+  duo?: DuoDeLaFicha | null;
 }) {
   const router = useRouter();
   const { items, agregar, cupon, abrirPanel } = useCarrito();
@@ -105,6 +112,22 @@ export default function FichaProducto({
   // promoción del segundo par no se anuncia: no se suman.
   const cuponPorcentaje =
     cupon && carritoResuelto?.cupon?.estado !== "no-conviene" ? (buscarCupon(cupon)?.porcentaje ?? 0) : 0;
+
+  // El Dúo (Tarea 07), solo si el servidor dice que está prendido: con anteojos
+  // en el carrito, lo que resolvió el servidor para ese carrito; sin anteojos,
+  // la promoción con lo que cobra por dos de este modelo. Si ahí conviene un
+  // tramo de Airtable, se cuenta el tramo (OfertaCantidad), como siempre.
+  const duoDelCarrito = carritoResuelto?.duo ?? null;
+  const anteojosEnCarrito = (carritoResuelto?.items ?? [])
+    .filter((i) => esCategoriaDeAnteojos(i.categoria))
+    .reduce((total, i) => total + i.cantidad, 0);
+  const { duo: lineasDuo, conTramo } = ofertaEnLaFicha({
+    duo,
+    duoDelCarrito,
+    anteojosEnCarrito,
+    esAnteojo: esCategoriaDeAnteojos(producto.categoria),
+    cuponPorcentaje,
+  });
 
   // La foto de portada del color (al sol y adentro) va primera.
   const fotos = useMemo(() => fotosDeGaleria(variante), [variante]);
@@ -415,7 +438,8 @@ export default function FichaProducto({
 
         {/* Sin escala, la promoción del segundo par en una línea (solo
             anteojos); con la escala, las opciones de arriba ya la cuentan. */}
-        {pares ? null : (
+        {pares || !lineasDuo ? null : <OfertaDuo lineas={lineasDuo.lineas} detalle={lineasDuo.detalle} />}
+        {pares || !conTramo ? null : (
           <OfertaCantidad
             tramos={tramos}
             categoria={producto.categoria}
