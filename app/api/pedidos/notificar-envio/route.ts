@@ -23,7 +23,7 @@ const DETALLE: Record<MotivoSinAviso, string> = {
  *     → 200 { enviado: true }              salió el mail (una sola vez por pedido)
  *     → 200 { enviado: false, motivo }     no corresponde: no está «enviado»,
  *                                          falta el Tracking o ya se avisó
- *     → 422 sin mail del cliente · 502 el mail no salió · 503 Redis no contestó
+ *     → 422 sin mail del cliente · 502 el mail no salió · 503 Redis no está o no contestó
  *       (en esos tres no salió nada y se puede volver a intentar)
  *
  * La dispara la automatización de Airtable «Aviso de despacho» cuando un
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No existe ese pedido" }, { status: 404 });
     }
     if (error instanceof ErrorCerrojo) {
-      console.error("[notificar-envio] Redis no contestó:", error.message);
+      console.error("[notificar-envio] sin Redis, no se manda:", error.message);
       return NextResponse.json({ error: "No se pudo confirmar que el aviso no salió antes: se reintenta después" }, { status: 503 });
     }
     console.error("[notificar-envio] falló:", error);

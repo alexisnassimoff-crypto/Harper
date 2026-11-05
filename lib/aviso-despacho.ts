@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { getRecord, TABLAS, updateRecord } from "./airtable";
-import { cerrojoDesdeEntorno, soltarSinFallar, type Cerrojo } from "./cerrojo";
+import { cerrojoDesdeEntorno, ErrorCerrojo, soltarSinFallar, type Cerrojo } from "./cerrojo";
 import { getConfig } from "./config";
 import { enviarMailConDetalle, mailEnviado, type DatosMail } from "./mails";
 import type { DatosCliente, ItemResuelto } from "./tipos";
@@ -102,7 +102,7 @@ type MandarMail = (envio: ReturnType<typeof mailEnviado>) => Promise<{ ok: true 
 export type OpcionesAviso = {
   /** La URL del sitio, para los enlaces del mail. */
   sitio: string;
-  /** El cerrojo de Redis. Sin pasarlo, el de las variables de Vercel; null = sin Redis. */
+  /** El cerrojo de Redis. Sin pasarlo, el de las variables de Vercel; null = sin Redis (no se manda). */
   cerrojo?: Cerrojo | null;
   mandar?: MandarMail;
   ahora?: () => Date;
@@ -110,7 +110,7 @@ export type OpcionesAviso = {
 
 /**
  * Manda el aviso de despacho de ese pedido si corresponde, una sola vez.
- * Un Redis configurado que no contesta sube como `ErrorCerrojo`: sin poder
+ * Sin Redis (sin configurar o sin contestar) sube `ErrorCerrojo`: sin poder
  * asegurar que es la única corrida, no se manda (se reintenta después).
  */
 export async function avisarDespacho(pedidoId: string, opciones: OpcionesAviso): Promise<ResultadoAviso> {
@@ -129,12 +129,12 @@ export async function avisarDespacho(pedidoId: string, opciones: OpcionesAviso):
   const clave = claveAviso(pedidoId);
   const nonce = crypto.randomUUID();
 
-  if (cerrojo) {
-    // Se toma antes de mandar y, si el mail sale, no se suelta: vence sola.
-    if (!(await cerrojo.tomar(clave, nonce, TTL_AVISO_MS))) return { estado: "omitido", motivo: "en-otra-corrida" };
-  } else {
-    console.warn("[aviso-despacho] Redis sin configurar: solo protege la marca de Notas");
-  }
+  // Sin Redis no se puede asegurar que es la única corrida: no se manda, y el
+  // error es transitorio (la ruta contesta 503 y se reintenta después).
+  if (!cerrojo) throw new ErrorCerrojo("Redis sin configurar: no se manda el aviso sin la llave");
+
+  // Se toma antes de mandar y, si el mail sale, no se suelta: vence sola.
+  if (!(await cerrojo.tomar(clave, nonce, TTL_AVISO_MS))) return { estado: "omitido", motivo: "en-otra-corrida" };
 
   let envio: { ok: true } | { ok: false; error: string };
 

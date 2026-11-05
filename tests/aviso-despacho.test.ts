@@ -159,3 +159,17 @@ test("aviso: con Redis caído no se manda (sin saber si es la única corrida)", 
   assert.equal(mails.length, 0);
   assert.equal((await fila(ENVIADO)).Notas, undefined);
 });
+
+test("aviso: sin Redis configurado no se manda; es un error para reintentar y después sale una sola vez", async () => {
+  for (const variable of ["KV_REST_API_URL", "KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"]) delete process.env[variable];
+  // Pasado como null y tomado de las variables (que no están): las dos veces, ErrorCerrojo.
+  await assert.rejects(avisarDespacho(ENVIADO, opciones({ cerrojo: null })), ErrorCerrojo);
+  await assert.rejects(avisarDespacho(ENVIADO, { sitio: "https://harper.ar", mandar }), /Redis sin configurar/);
+  assert.equal(mails.length, 0);
+  assert.equal((await fila(ENVIADO)).Notas, undefined, "nada anotado: el reintento puede mandarlo");
+  assert.deepEqual(escrituras, []);
+  // Con Redis de vuelta, el reintento manda el aviso, una vez.
+  assert.equal((await avisarDespacho(ENVIADO, opciones())).estado, "enviado");
+  assert.equal((await avisarDespacho(ENVIADO, opciones())).estado, "omitido");
+  assert.equal(mails.length, 1);
+});
