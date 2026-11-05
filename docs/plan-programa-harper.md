@@ -1,23 +1,479 @@
 # Programa Harper: reglas comerciales y transición (Tarea 02)
 
-**Estado:** borrador con las decisiones de Ale del 05/11/2026 y con los
-ajustes de la revisión del PR #60. No hay nada implementado. Este documento
-no cambia precios, descuentos, créditos, checkout, Airtable ni las
-condiciones publicadas.
+**Estado:** borrador. No hay nada implementado. Este documento no cambia
+precios, descuentos, créditos, checkout, Airtable ni las condiciones
+publicadas. Reúne tres cosas:
+
+- las decisiones de Ale del 05/11/2026;
+- los ajustes de la revisión del PR #60;
+- el **ajuste estratégico en evaluación** (sección A).
 
 **Qué marca cada cosa:**
 
 - **Definido:** lo decidió Ale.
 - **Propuesta de trabajo:** se definió en la revisión del PR #60
   (05/11/2026). Es la base del documento hasta la aprobación final.
+- **En evaluación:** el ajuste estratégico de la sección A. Ale lo pidió para
+  evaluarlo. No reemplaza lo definido hasta que lo apruebe.
 - **A validar:** necesita una revisión legal u operativa antes de activar el
   programa. Están todas juntas en §14.
-- **No apto para lanzar:** un caso evaluado que no llega al 22 %. No se
-  lanza sin ajustar sus condiciones: precio, envío gratis o cuotas.
+- **No apto para lanzar:** un caso evaluado que no llega al piso del 22 %.
+  No se lanza sin ajustar sus condiciones: precio, envío gratis o cuotas.
+- **No llega al objetivo:** un caso que deja menos de $ 24.000 por anteojo,
+  supere o no el piso.
+
+**Hay dos análisis en el documento:**
+
+- **La sección A es la que vale para decidir.** Usa el costo de $ 10.208,
+  el 5 % de crédito en la compra individual y cuatro precios.
+- **Las secciones 0 a 13 conservan el análisis anterior.** Usan el costo de
+  $ 9.570, la compra individual sin crédito y el precio de $ 89.900.
+  - Sus reglas siguen valiendo: envío, cuotas, Dúo, transición,
+    devoluciones y validaciones.
+  - La excepción es lo que cambia la sección A (ver A.10).
 
 ---
 
-## 0. Cómo leer los números
+## Resumen ejecutivo
+
+**La pregunta:** cuánto se puede invertir en fidelización sin destruir la
+rentabilidad, y qué tiene que pasar para que esa inversión se recupere.
+
+**Resultados.** Con CAC de $ 20.000 por pedido, 6 cuotas, costo de $ 10.208
+y el peor envío de cada caso:
+
+1. **A $ 89.900, ningún escenario llega a $ 24.000 por anteojo.**
+   - La compra individual con 5 % no llega ni al piso del 22 % cuando Harper
+     paga el envío de GBA 2 y 3: deja $ 14.109 (19,0 %).
+   - La segunda compra individual tampoco: 20,2 %.
+   - A ese precio, esos dos casos son **no aptos para lanzar**.
+2. **Los $ 24.000 por anteojo dependen sobre todo del precio y del CAC, no
+   del crédito.**
+   - Sin crédito, la compra individual de $ 89.900 deja $ 17.824.
+   - El 5 % cuesta entre $ 3.715 y $ 4.541 por pedido.
+3. **Por precio:**
+   - **$ 99.900:** todos los escenarios superan el 22 %. Ninguno llega a
+     $ 24.000 en el peor envío.
+   - **$ 104.900:** llegan las segundas compras. Las primeras quedan cerca:
+     $ 23.089 la individual y $ 23.748 por anteojo el Dúo.
+   - **$ 109.900:** los cuatro escenarios superan el 22 % y los $ 24.000,
+     con todos los envíos evaluados.
+4. **El Dúo con 10 % supera el 22 % a los cuatro precios y con todos los
+   envíos evaluados:** 25,3 % o más.
+5. **Las recompras que no cuestan otros $ 20.000 dejan mucho más.** Si traer
+   una recompra cuesta $ 10.000, la recompra individual de $ 89.900 deja
+   $ 25.022 por anteojo. El costo comercial real todavía no está medido.
+6. **El crédito se recupera si genera compras que no habrían pasado sin él.**
+   - **El 5 % individual** necesita que entre el 11 % y el 25 % de las veces
+     que se usa sea una compra de ese tipo.
+   - **El 10 % del Dúo** necesita entre el 22 % y el 35 %.
+   - El resto de las veces, el crédito es un descuento sobre una compra que
+     iba a ocurrir igual.
+
+**Recomendación** (detalle en A.9):
+
+1. **Aprobar la estructura de crédito para todos:** 5 % en la compra
+   individual y, en el Dúo, 25 % de descuento más 10 % de crédito. Es una
+   inversión acotada por pedido y se recupera con pocas compras extra.
+2. **No lanzar el 5 % individual a $ 89.900 sin ajustar condiciones.** A ese
+   precio, la compra individual con envío gratis caro rompe el piso. Qué
+   ajustar lo decide Ale:
+   - evaluar un precio más alto: con $ 104.900, la compra individual podría
+     vender hasta 38,9 % menos y dejar lo mismo en total;
+   - o lanzar el 5 % como prueba con fecha de fin.
+3. **Mantener el costo de cada recompra por debajo de los topes de A.5 y
+   medir cuántas recompras son extra.**
+
+---
+
+## A. Ajuste estratégico: Crédito Harper para todos los compradores (en evaluación)
+
+### A.1 La propuesta (Ale, 05/11/2026)
+
+**La prioridad** es una marca con clientes que vuelvan, no solo el margen de
+la primera compra. **El objetivo** es que nadie quede afuera de la
+fidelización por llevar un solo anteojo.
+
+**Las recompensas:**
+
+- **Compra de 1 anteojo:** 5 % de Crédito Harper.
+- **Compra de 2 o más anteojos:** 25 % de descuento en los pares elegibles
+  de menor precio (la regla de §5.3), más 10 % de Crédito Harper.
+- **Las dos recompensas** valen también en las compras futuras.
+- **Sin tope.**
+
+**Cómo se calcula:**
+
+- Sobre lo efectivamente pagado en anteojos, después de los descuentos y del
+  crédito usado.
+- Nunca sobre el propio crédito usado, ni sobre estuches, paños o envío.
+
+**Cuándo se puede usar:**
+
+- Se genera pendiente al acreditarse el pago.
+- Pasa a disponible 30 días después de la entrega confirmada, sin
+  devoluciones ni incidencias pendientes.
+- El crédito nuevo no vence, por ahora.
+
+**Clientes anteriores:** se mantienen sus derechos y saldos (§11).
+
+**Qué cambia respecto de §1:** solo la compra de un anteojo. Antes no
+generaba crédito; ahora genera 5 %, también en las recompras. Lo demás queda
+igual.
+
+### A.2 El objetivo y cómo se mide
+
+**El objetivo:** USD 15 por anteojo × $ 1.600 = **$ 24.000 de contribución
+por anteojo**, después de costos variables y publicidad, antes de gastos
+fijos e impuestos adicionales.
+
+**El piso:** el 22 % sobre la venta neta de IVA es la referencia mínima, no
+el objetivo.
+
+**Tres cosas distintas que no hay que confundir:**
+
+| Concepto | Qué es | Dónde está |
+|---|---|---|
+| **Contribución por pedido** | Venta neta de IVA menos producto, preparación, envío, Mercado Pago, cuotas, IIBB, devoluciones, el crédito nuevo y la publicidad | La calcula el motor |
+| **Contribución por anteojo** | La del pedido dividida por los anteojos del pedido | Es la que se compara con $ 24.000 |
+| **Ganancia neta final** | La contribución menos gastos fijos e impuestos adicionales, por ejemplo Ganancias | Este documento no la calcula |
+
+**El crédito pesa una sola vez:** como costo en la compra que lo genera. La
+compra que lo usa no lo vuelve a restar (regla del PR #59). Por eso, en una
+recompra, lo cobrado baja (se cobra menos) pero la contribución no.
+
+### A.3 Supuestos
+
+- **Motor:** `lib/contribucion.ts`, sin cambios. El costo se le pasa como
+  parámetro.
+- **Costo por anteojo** puesto con estuche: USD 6,38 × $ 1.600 =
+  **$ 10.208**. Se tomó sin IVA, como el costo anterior. Si incluye IVA, hay
+  que recalcular.
+- **CAC:** $ 20.000 por pedido en la primera compra. En las recompras,
+  $ 20.000 como caso conservador, y costos comerciales menores en A.5 y A.6.
+- **Cuotas:** 6 sin interés en todos los casos, que es lo más exigente.
+- **Otros costos:** Mercado Pago 3,39 %, 6 cuotas 10,3 %, IIBB 3 %,
+  devoluciones 3 % y preparación $ 2.000.
+- **Envío, con las reglas de hoy:**
+  - **AMBA, gratis:** CABA $ 4.488 y GBA 2 y 3 $ 9.075. Son las tarifas de
+    `lib/rueddo.ts`; las vigentes se verifican al implementar.
+  - **Resto del país, a $ 10.000 y $ 15.000:** la compra individual (menos
+    de $ 150.000) paga el envío cotizado más 10 %. El Dúo supera los
+    $ 150.000 a los cuatro precios y tiene envío gratis.
+- **Precios:** $ 89.900, $ 99.900, $ 104.900 y $ 109.900, con los dos
+  anteojos del Dúo al mismo precio. **Son escenarios: no cambian ningún
+  precio.** El modelo no sabe cuánto se vende a cada precio.
+- **El crédito** se usa entero en la compra siguiente.
+- **El peor envío** de la compra individual es el gratis de GBA 2 y 3, que
+  paga Harper. El del Dúo es el gratis de $ 15.000.
+- **Las tablas completas,** con los cuatro envíos, están en el Anexo A.
+
+### A.4 Primera y segunda compra
+
+En el peor envío. Las tablas con los cuatro envíos están en el Anexo A, de
+A-1 a A-4.
+
+| Escenario | Precio | Cobrado | Crédito nuevo | Contribución del pedido | Por anteojo | Margen | 22 % | $ 24.000 |
+|---|---|---|---|---|---|---|---|---|
+| 1. Primera individual, 5 % | $ 89.900 | $ 89.900 | $ 4.495 | $ 14.109 | $ 14.109 | 19,0 % | ✗ | ✗ |
+|  | $ 99.900 | $ 99.900 | $ 4.995 | $ 20.096 | $ 20.096 | 24,3 % | ✓ | ✗ |
+|  | $ 104.900 | $ 104.900 | $ 5.245 | $ 23.089 | $ 23.089 | 26,6 % | ✓ | ✗ |
+|  | $ 109.900 | $ 109.900 | $ 5.495 | $ 26.082 | $ 26.082 | 28,7 % | ✓ | ✓ |
+| 2. Primer Dúo, 25 % + 10 % | $ 89.900 | $ 157.325 | $ 15.733 | $ 32.866 | $ 16.433 | 25,3 % | ✓ | ✗ |
+|  | $ 99.900 | $ 174.825 | $ 17.483 | $ 42.619 | $ 21.310 | 29,5 % | ✓ | ✗ |
+|  | $ 104.900 | $ 183.575 | $ 18.358 | $ 47.496 | $ 23.748 | 31,3 % | ✓ | ✗ |
+|  | $ 109.900 | $ 192.325 | $ 19.233 | $ 52.372 | $ 26.186 | 32,9 % | ✓ | ✓ |
+| 3. Segunda individual: usa el 5 % anterior y genera otro 5 % | $ 89.900 | $ 85.405 | $ 4.270 | $ 15.022 | $ 15.022 | 20,2 % | ✗ | ✗ |
+|  | $ 99.900 | $ 94.905 | $ 4.745 | $ 21.110 | $ 21.110 | 25,6 % | ✓ | ✗ |
+|  | $ 104.900 | $ 99.655 | $ 4.983 | $ 24.154 | $ 24.154 | 27,9 % | ✓ | ✓ |
+|  | $ 109.900 | $ 104.405 | $ 5.220 | $ 27.198 | $ 27.198 | 29,9 % | ✓ | ✓ |
+| 4. Segundo Dúo: usa el 10 % anterior y genera otro 10 % | $ 89.900 | $ 141.592 | $ 14.159 | $ 36.711 | $ 18.356 | 28,2 % | ✓ | ✗ |
+|  | $ 99.900 | $ 157.342 | $ 15.734 | $ 46.892 | $ 23.446 | 32,5 % | ✓ | ✗ |
+|  | $ 104.900 | $ 165.217 | $ 16.522 | $ 51.982 | $ 25.991 | 34,3 % | ✓ | ✓ |
+|  | $ 109.900 | $ 173.092 | $ 17.309 | $ 57.072 | $ 28.536 | 35,9 % | ✓ | ✓ |
+
+**No aptos para lanzar.** La compra individual de $ 89.900, primera y
+segunda, con envío gratis de GBA 2 y 3: 19,0 % y 20,2 %. Superan el 22 % con
+el envío de CABA o cuando el cliente paga el envío (Anexo A-1 y A-3).
+
+**No llegan al objetivo de $ 24.000 por anteojo:**
+
+- todos los escenarios de $ 89.900 y de $ 99.900 en el peor envío;
+- las primeras compras de $ 104.900.
+
+**Precio mínimo para llegar** (primera compra, CAC de $ 20.000):
+
+| Para llegar a | Caso | Precio mínimo |
+|---|---|---|
+| El 22 % | Compra individual con envío gratis de GBA 2 y 3 | $ 95.264 |
+| $ 24.000 por anteojo | Compra individual con envío gratis de GBA 2 y 3 | $ 106.422 |
+| | Compra individual en la que el cliente paga el envío | $ 96.962 |
+| | Dúo con envío gratis de GBA 2 y 3 | $ 100.395 |
+| | Dúo con envío gratis de $ 15.000 | $ 105.416 |
+
+**La segunda compra deja algo más que la primera,** porque el crédito que
+usa ya se pagó y el nuevo es un poco menor.
+
+### A.5 Recompras que no cuestan otros $ 20.000 (mail o CRM)
+
+El cliente que vuelve no siempre necesita otra campaña de adquisición, pero
+traerlo **no cuesta cero**. Están los mails, la plataforma, el tiempo y los
+descuentos, y ese costo todavía no está medido.
+
+La tabla prueba varios costos comerciales por recompra, en el peor envío.
+Cada celda muestra la contribución por anteojo, el margen y dos marcas: si
+llega al 22 % y si llega a $ 24.000. Las dos últimas columnas dan el costo
+máximo por recompra (por pedido) que deja llegar a cada meta.
+
+| Recompra (peor envío) | Precio | $ 0 (solo referencia) | $ 5.000 | $ 10.000 | $ 15.000 | $ 20.000 | Costo máximo para el 22 % | Costo máximo para $ 24.000 por anteojo |
+|---|---|---|---|---|---|---|---|---|
+| Individual con crédito (AMBA GBA 2 y 3, gratis) | $ 89.900 | $ 35.022 · 47,1 % · ✓✓ | $ 30.022 · 40,4 % · ✓✓ | $ 25.022 · 33,7 % · ✓✓ | $ 20.022 · 26,9 % · ✓✗ | $ 15.022 · 20,2 % · ✗✗ | $ 18.677 | $ 11.022 |
+| Individual con crédito (AMBA GBA 2 y 3, gratis) | $ 99.900 | $ 41.110 · 49,8 % · ✓✓ | $ 36.110 · 43,7 % · ✓✓ | $ 31.110 · 37,7 % · ✓✓ | $ 26.110 · 31,6 % · ✓✓ | $ 21.110 · 25,6 % · ✓✗ | $ 22.946 | $ 17.110 |
+| Individual con crédito (AMBA GBA 2 y 3, gratis) | $ 104.900 | $ 44.154 · 50,9 % · ✓✓ | $ 39.154 · 45,2 % · ✓✓ | $ 34.154 · 39,4 % · ✓✓ | $ 29.154 · 33,6 % · ✓✓ | $ 24.154 · 27,9 % · ✓✓ | $ 25.081 | $ 20.154 |
+| Individual con crédito (AMBA GBA 2 y 3, gratis) | $ 109.900 | $ 47.198 · 52,0 % · ✓✓ | $ 42.198 · 46,5 % · ✓✓ | $ 37.198 · 41,0 % · ✓✓ | $ 32.198 · 35,5 % · ✓✓ | $ 27.198 · 29,9 % · ✓✓ | $ 27.216 | $ 23.198 |
+| Dúo con crédito (resto $ 15.000, gratis) | $ 89.900 | $ 28.356 · 43,6 % · ✓✓ | $ 25.856 · 39,8 % · ✓✓ | $ 23.356 · 35,9 % · ✓✗ | $ 20.856 · 32,1 % · ✓✗ | $ 18.356 · 28,2 % · ✓✗ | $ 28.107 | $ 8.711 |
+| Dúo con crédito (resto $ 15.000, gratis) | $ 99.900 | $ 33.446 · 46,3 % · ✓✓ | $ 30.946 · 42,8 % · ✓✓ | $ 28.446 · 39,4 % · ✓✓ | $ 25.946 · 35,9 % · ✓✓ | $ 23.446 · 32,5 % · ✓✗ | $ 35.105 | $ 18.892 |
+| Dúo con crédito (resto $ 15.000, gratis) | $ 104.900 | $ 35.991 · 47,4 % · ✓✓ | $ 33.491 · 44,1 % · ✓✓ | $ 30.991 · 40,9 % · ✓✓ | $ 28.491 · 37,6 % · ✓✓ | $ 25.991 · 34,3 % · ✓✓ | $ 38.604 | $ 23.982 |
+| Dúo con crédito (resto $ 15.000, gratis) | $ 109.900 | $ 38.536 · 48,5 % · ✓✓ | $ 36.036 · 45,3 % · ✓✓ | $ 33.536 · 42,2 % · ✓✓ | $ 31.036 · 39,1 % · ✓✓ | $ 28.536 · 35,9 % · ✓✓ | $ 42.104 | $ 29.072 |
+
+**Qué muestra:**
+
+- **A $ 89.900, la recompra individual llega:**
+  - al 22 %, si cuesta hasta $ 18.677;
+  - a $ 24.000 por anteojo, si cuesta hasta $ 11.022.
+- **A $ 89.900, la recompra Dúo** solo llega a $ 24.000 por anteojo si cuesta
+  hasta $ 8.711.
+- **Desde $ 104.900,** las dos recompras llegan a las dos metas aun con un
+  costo de $ 20.000.
+
+### A.6 El cliente en una, dos y tres compras
+
+**Supuestos:**
+
+- envío gratis de $ 9.075 (AMBA, GBA 2 y 3) en todas las compras;
+- 6 cuotas;
+- CAC de $ 20.000 en la primera compra;
+- cada compra usa todo el crédito disponible de la anterior;
+- el crédito se cuenta una sola vez, en la compra que lo genera.
+
+El detalle compra por compra, con lo cobrado, el crédito usado, el crédito
+nuevo y la contribución, está en el Anexo A-5.
+
+**Cómo se mueve el crédito.** Ejemplo: tres Dúos de $ 99.900.
+
+| Compra | Usa | Genera | Contribución del pedido | Acumulada por anteojo |
+|---|---|---|---|---|
+| 1 | $ 0 | $ 17.483 | $ 47.516 | $ 23.758 |
+| 2 | $ 17.483 | $ 15.734 | $ 51.789 | $ 24.826 |
+| 3 | $ 15.734 | $ 15.909 | $ 51.361 | $ 25.111 |
+
+- Lo que se genera es parecido a lo que se usa, así que el crédito no se
+  acumula sin control.
+- Los $ 15.909 de la tercera compra quedan pendientes, pero ya están
+  cargados como costo en ese pedido.
+
+**Acumulado después de tres compras, según cuánto cueste cada recompra.**
+Cada celda: contribución acumulada por anteojo · margen acumulado · 22 % y
+$ 24.000.
+
+| Recorrido | Precio | Recompras a $ 20.000 | $ 10.000 | $ 5.000 |
+|---|---|---|---|---|
+| Individual, individual, individual | $ 89.900 | $ 14.703 · 19,8 % · ✗✗ | $ 21.369 · 28,8 % · ✓✗ | $ 24.703 · 33,2 % · ✓✓ |
+|  | $ 99.900 | $ 20.755 · 25,1 % · ✓✗ | $ 27.422 · 33,2 % · ✓✓ | $ 30.755 · 37,3 % · ✓✓ |
+|  | $ 104.900 | $ 23.781 · 27,4 % · ✓✗ | $ 30.448 · 35,1 % · ✓✓ | $ 33.781 · 39,0 % · ✓✓ |
+|  | $ 109.900 | $ 26.807 · 29,5 % · ✓✓ | $ 33.474 · 36,9 % · ✓✓ | $ 36.807 · 40,5 % · ✓✓ |
+| Dúo, Dúo, Dúo | $ 89.900 | $ 20.099 · 30,9 % · ✓✗ | $ 23.432 · 36,0 % · ✓✗ | $ 25.099 · 38,6 % · ✓✓ |
+|  | $ 99.900 | $ 25.111 · 34,8 % · ✓✓ | $ 28.444 · 39,4 % · ✓✓ | $ 30.111 · 41,7 % · ✓✓ |
+|  | $ 104.900 | $ 27.617 · 36,4 % · ✓✓ | $ 30.950 · 40,8 % · ✓✓ | $ 32.617 · 43,0 % · ✓✓ |
+|  | $ 109.900 | $ 30.123 · 37,9 % · ✓✓ | $ 33.456 · 42,1 % · ✓✓ | $ 35.123 · 44,2 % · ✓✓ |
+| Individual, Dúo, Dúo | $ 89.900 | $ 18.894 · 28,3 % · ✓✗ | $ 22.894 · 34,2 % · ✓✗ | $ 24.894 · 37,2 % · ✓✓ |
+|  | $ 99.900 | $ 24.100 · 32,4 % · ✓✓ | $ 28.100 · 37,8 % · ✓✓ | $ 30.100 · 40,5 % · ✓✓ |
+|  | $ 104.900 | $ 26.703 · 34,2 % · ✓✓ | $ 30.703 · 39,4 % · ✓✓ | $ 32.703 · 41,9 % · ✓✓ |
+|  | $ 109.900 | $ 29.306 · 35,9 % · ✓✓ | $ 33.306 · 40,7 % · ✓✓ | $ 35.306 · 43,2 % · ✓✓ |
+| Dúo, individual, individual | $ 89.900 | $ 17.482 · 25,1 % · ✓✗ | $ 22.482 · 32,3 % · ✓✗ | $ 24.982 · 35,9 % · ✓✓ |
+|  | $ 99.900 | $ 23.023 · 29,7 % · ✓✗ | $ 28.023 · 36,2 % · ✓✓ | $ 30.523 · 39,4 % · ✓✓ |
+|  | $ 104.900 | $ 25.794 · 31,7 % · ✓✓ | $ 30.794 · 37,9 % · ✓✓ | $ 33.294 · 41,0 % · ✓✓ |
+|  | $ 109.900 | $ 28.565 · 33,5 % · ✓✓ | $ 33.565 · 39,4 % · ✓✓ | $ 36.065 · 42,4 % · ✓✓ |
+
+**Qué muestra:**
+
+- **El cliente que compra de a un anteojo a $ 89.900 no llega al 22 %** si
+  cada recompra cuesta $ 20.000: queda en 19,8 % después de tres compras.
+  - Con recompras a $ 10.000 llega al piso.
+  - Con recompras a $ 5.000 llega a $ 24.000 por anteojo.
+- **El cliente que vuelve es el que paga el programa:** a cada precio, el
+  acumulado mejora a medida que baja el costo de la recompra.
+
+### A.7 Cuánto se puede invertir en fidelización sin destruir la rentabilidad
+
+La tabla muestra, en la primera compra, cuánto deja el pedido **antes** del
+crédito y cuánto margen tiene para invertir en crédito sin bajar de cada
+meta. Peor envío y CAC de $ 20.000.
+
+| Compra | Precio | Contribución sin crédito | Costo del crédito | Contribución con crédito | Espacio sobre el 22 % | Espacio sobre $ 24.000 por anteojo |
+|---|---|---|---|---|---|---|
+| Individual, 5 % (AMBA GBA 2 y 3) | $ 89.900 | $ 17.824 | $ 3.715 | $ 14.109 | $ 1.479 | −$ 6.176 |
+| | $ 99.900 | $ 24.224 | $ 4.128 | $ 20.096 | $ 6.060 | $ 224 |
+| | $ 104.900 | $ 27.424 | $ 4.335 | $ 23.089 | $ 8.351 | $ 3.424 |
+| | $ 109.900 | $ 30.624 | $ 4.541 | $ 26.082 | $ 10.642 | $ 6.624 |
+| Dúo, 10 % (resto $ 15.000) | $ 89.900 | $ 45.869 | $ 13.002 | $ 32.866 | $ 17.264 | −$ 2.131 |
+| | $ 99.900 | $ 57.068 | $ 14.449 | $ 42.619 | $ 25.282 | $ 9.068 |
+| | $ 104.900 | $ 62.668 | $ 15.172 | $ 47.496 | $ 29.291 | $ 14.668 |
+| | $ 109.900 | $ 68.268 | $ 15.895 | $ 52.372 | $ 33.299 | $ 20.268 |
+
+**La respuesta: el crédito entra sin romper la meta cuando su costo es menor
+que el espacio.**
+
+- **A $ 89.900:**
+  - el 5 % individual ($ 3.715) supera el espacio sobre el piso ($ 1.479);
+  - en ninguna de las dos compras hay espacio para el objetivo, ni siquiera
+    sin crédito.
+- **A $ 99.900:** el crédito entra en el piso, pero no en el objetivo.
+- **A $ 104.900:** entra en el piso. Le faltan unos $ 900 (individual) y
+  $ 500 (Dúo) para el objetivo.
+- **A $ 109.900:** entra en las dos metas.
+
+### A.8 Qué tiene que pasar para que el crédito se recupere
+
+**Cómo se calcula** (para la primera recompra):
+
+- **K** es el costo del crédito que se usa, neto de IVA.
+- **G** es lo que deja la recompra, ya con su costo comercial y con el
+  crédito nuevo que genera.
+- **Si la recompra no habría pasado sin el crédito** (es incremental),
+  Harper gana G y gasta K.
+- **Si habría pasado igual,** Harper solo gasta K: el crédito fue un
+  descuento.
+- **El crédito se recupera si, de cada 100 usos, más de 100 × K/G son
+  compras incrementales.**
+- **Con tasas de recompra:** si sin crédito vuelve el r0 % de los clientes,
+  con crédito tiene que volver al menos r0 ÷ (1 − K/G).
+- **Aquí el crédito cuesta solo cuando se usa.** En las tablas por pedido se
+  supone que se usa todo, que es lo más prudente.
+
+**No hay datos reales de recompra.** Las tasas r0 de 10 %, 20 % y 30 % son
+**hipotéticas**, solo para mostrar el cálculo.
+
+| Beneficio | Precio | K | Costo de la recompra | G | Usos incrementales mínimos (K/G) | Recompra necesaria si r0 = 10 % | Si r0 = 20 % | Si r0 = 30 % |
+|---|---|---|---|---|---|---|---|---|
+| 5 % individual | $ 89.900 | $ 3.715 | $ 20.000 | $ 15.022 | 24,7 % | 13,3 % | 26,6 % | 39,9 % |
+| | | | $ 10.000 | $ 25.022 | 14,8 % | 11,7 % | 23,5 % | 35,2 % |
+| | | | $ 5.000 | $ 30.022 | 12,4 % | 11,4 % | 22,8 % | 34,2 % |
+| 5 % individual | $ 99.900 | $ 4.128 | $ 20.000 | $ 21.110 | 19,6 % | 12,4 % | 24,9 % | 37,3 % |
+| | | | $ 10.000 | $ 31.110 | 13,3 % | 11,5 % | 23,1 % | 34,6 % |
+| | | | $ 5.000 | $ 36.110 | 11,4 % | 11,3 % | 22,6 % | 33,9 % |
+| 5 % individual | $ 104.900 | $ 4.335 | $ 20.000 | $ 24.154 | 17,9 % | 12,2 % | 24,4 % | 36,6 % |
+| | | | $ 10.000 | $ 34.154 | 12,7 % | 11,5 % | 22,9 % | 34,4 % |
+| | | | $ 5.000 | $ 39.154 | 11,1 % | 11,2 % | 22,5 % | 33,7 % |
+| 5 % individual | $ 109.900 | $ 4.541 | $ 20.000 | $ 27.198 | 16,7 % | 12,0 % | 24,0 % | 36,0 % |
+| | | | $ 10.000 | $ 37.198 | 12,2 % | 11,4 % | 22,8 % | 34,2 % |
+| | | | $ 5.000 | $ 42.198 | 10,8 % | 11,2 % | 22,4 % | 33,6 % |
+| 10 % Dúo | $ 89.900 | $ 13.002 | $ 20.000 | $ 36.711 | 35,4 % | 15,5 % | 31,0 % | 46,5 % |
+| | | | $ 10.000 | $ 46.711 | 27,8 % | 13,9 % | 27,7 % | 41,6 % |
+| | | | $ 5.000 | $ 51.711 | 25,1 % | 13,4 % | 26,7 % | 40,1 % |
+| 10 % Dúo | $ 99.900 | $ 14.449 | $ 20.000 | $ 46.892 | 30,8 % | 14,5 % | 28,9 % | 43,4 % |
+| | | | $ 10.000 | $ 56.892 | 25,4 % | 13,4 % | 26,8 % | 40,2 % |
+| | | | $ 5.000 | $ 61.892 | 23,3 % | 13,0 % | 26,1 % | 39,1 % |
+| 10 % Dúo | $ 104.900 | $ 15.172 | $ 20.000 | $ 51.982 | 29,2 % | 14,1 % | 28,2 % | 42,4 % |
+| | | | $ 10.000 | $ 61.982 | 24,5 % | 13,2 % | 26,5 % | 39,7 % |
+| | | | $ 5.000 | $ 66.982 | 22,7 % | 12,9 % | 25,9 % | 38,8 % |
+| 10 % Dúo | $ 109.900 | $ 15.895 | $ 20.000 | $ 57.072 | 27,9 % | 13,9 % | 27,7 % | 41,6 % |
+| | | | $ 10.000 | $ 67.072 | 23,7 % | 13,1 % | 26,2 % | 39,3 % |
+| | | | $ 5.000 | $ 72.072 | 22,1 % | 12,8 % | 25,7 % | 38,5 % |
+
+**Cómo se lee:** si hoy vuelve el 20 % de los compradores individuales de
+$ 89.900, con el 5 % y recompras a $ 10.000 tiene que volver al menos el
+23,5 % para que el crédito se pague.
+
+**Sensibilidad a quienes usan el crédito en compras que igual iban a hacer.**
+Resultado neto del crédito por cada 100 clientes que lo usan, con recompras
+a $ 10.000 y peor envío:
+
+| Beneficio | Precio | 0 % habría comprado igual | 25 % | 50 % | 75 % | 100 % |
+|---|---|---|---|---|---|---|
+| 5 % individual | $ 89.900 | $ 2.130.737 | $ 1.505.181 | $ 879.625 | $ 254.069 | −$ 371.488 |
+| 5 % individual | $ 99.900 | $ 2.698.203 | $ 1.920.450 | $ 1.142.697 | $ 364.943 | −$ 412.810 |
+| 5 % individual | $ 104.900 | $ 2.981.894 | $ 2.128.053 | $ 1.274.211 | $ 420.370 | −$ 433.471 |
+| 5 % individual | $ 109.900 | $ 3.265.669 | $ 2.335.719 | $ 1.405.768 | $ 475.818 | −$ 454.132 |
+| 10 % Dúo | $ 89.900 | $ 3.370.872 | $ 2.203.092 | $ 1.035.312 | −$ 132.468 | −$ 1.300.248 |
+| 10 % Dúo | $ 99.900 | $ 4.244.305 | $ 2.822.010 | $ 1.399.714 | −$ 22.581 | −$ 1.444.876 |
+| 10 % Dúo | $ 104.900 | $ 4.680.979 | $ 3.131.437 | $ 1.581.894 | $ 32.352 | −$ 1.517.190 |
+| 10 % Dúo | $ 109.900 | $ 5.117.737 | $ 3.440.927 | $ 1.764.116 | $ 87.306 | −$ 1.589.504 |
+
+**Qué muestra:**
+
+- **El 5 % individual aguanta mucho** que el crédito se use en compras que
+  igual iban a pasar: con recompras a $ 10.000 sigue positivo aunque sea el
+  75 %.
+- **El 10 % del Dúo cuesta más por uso.** Con el 75 % ya pierde a $ 89.900 y
+  a $ 99.900.
+- **Si todos los que lo usan iban a comprar igual,** cualquier crédito es
+  solo costo.
+
+### A.9 Recomendación comercial
+
+**1. Aprobar la estructura de crédito para todos:** 5 % individual y, en el
+Dúo, 25 % de descuento más 10 % de crédito.
+
+- **Dato:** el 5 % cuesta entre $ 3.715 y $ 4.541 por pedido. Se recupera si
+  entre el 11 % y el 25 % de sus usos son compras extra (A.8). El Dúo con
+  10 % supera el 22 % a los cuatro precios.
+- **Razonamiento:** es la forma más barata de que todos los compradores
+  tengan un motivo para volver. El riesgo está acotado por pedido.
+- **Qué mostraría que está mal:** que los compradores de un anteojo no
+  vuelvan más que antes del programa, o que casi todos los usos sean de
+  clientes que igual volvían.
+- **Cómo se mide:** recompra a 90 días de cada mes de primeras compras,
+  separando individual y Dúo, y comparando con los meses anteriores al
+  programa.
+
+**2. No lanzar el 5 % individual a $ 89.900 sin ajustar condiciones.**
+
+- **Dato:** a ese precio, la compra individual con envío gratis de GBA 2 y 3
+  queda en 19,0 % ($ 14.109). Ningún escenario llega a $ 24.000 por
+  anteojo.
+- **Razonamiento:** con CAC de $ 20.000, el objetivo depende del precio. El
+  crédito lo mueve poco.
+- **Opciones** (las elige Ale, este documento no cambia precios):
+  - evaluar un precio más alto. Con $ 104.900, la primera compra individual
+    deja $ 23.089 en el peor caso, y podría vender hasta 38,9 % menos que a
+    $ 89.900 y dejar lo mismo en total. El Dúo, hasta 30,8 % menos;
+  - o lanzar el 5 % a $ 89.900 como prueba con fecha de fin, sabiendo que
+    algunos pedidos quedan debajo del piso.
+- **Qué mostraría que está mal:** que a un precio más alto la conversión
+  caiga más que ese 38,9 %.
+- **Cómo se mide:** la conversión del embudo del panel antes y después,
+  separando la compra individual y el Dúo.
+
+**3. Poner un tope al costo de cada recompra y medir las recompras extra.**
+
+- **Dato:** a $ 89.900, la recompra individual llega a $ 24.000 por anteojo
+  solo si cuesta hasta $ 11.022, y al 22 % hasta $ 18.677 (A.5).
+- **Razonamiento:** el cliente que vuelve es el que paga el programa, pero
+  solo si traerlo cuesta menos que uno nuevo.
+- **Qué mostraría que está mal:** que el costo real por recompra (mails,
+  plataforma, tiempo) supere esos topes.
+- **Cómo se mide:** el costo mensual del mail o CRM dividido por las
+  recompras atribuidas a esos mails.
+
+### A.10 Qué cambia en el resto del documento si se aprueba
+
+- **La compra de un anteojo genera 5 %.** Ya está marcado en §1, §3, §5.3,
+  §6, §10.1, §10.2, §10.5, §11, §13.1 y §13.2.
+- **Hay que recalcular con el costo de $ 10.208 y el precio que se elija:**
+  - el 10 % por dinero en Mercado Pago (§8);
+  - el cupón ya dado (§7);
+  - los pedidos de 3 o más pares y con precios distintos (§5.2);
+  - las devoluciones (§13.2);
+  - los topes de envío (§9).
+- **Se suman tres validaciones a §14:**
+  - si USD 6,38 incluye IVA;
+  - el costo real de cada recompra;
+  - la recompra a 90 días de cada mes de primeras compras.
+
+---
+
+## 0. Cómo leer los números (análisis anterior)
 
 ### Parámetros
 
@@ -121,7 +577,8 @@ No son datos medidos:
      crédito, sin tope;
    - se calcula sobre lo **efectivamente pagado en anteojos**, después de los
      descuentos y **sin contar el crédito usado**;
-   - **una compra de un solo anteojo no genera crédito nuevo**;
+   - **una compra de un solo anteojo no genera crédito nuevo**. **En
+     evaluación:** que genere 5 %, también en las recompras (sección A);
    - no se genera sobre estuches, paños ni envío.
 
    **Definido.**
@@ -251,10 +708,10 @@ Fuentes: Config, `lib/envio-gratis.ts` y `lib/rueddo.ts`.
 | Tema | Hoy | Política nueva | Estado |
 |---|---|---|---|
 | Quién recibe los beneficios | Solo quien se suscribe (mail y consentimiento para recibir mails) | Dúo y cuotas: cualquier comprador, sin suscribirse ni registrarse. Crédito: el comprador con su cuenta (mail verificado). Nada depende de aceptar publicidad | **Definido**. Implementación: **a validar** |
-| Primera compra de 1 par | Suscriptor: cupón de $ 10.000, cashback del 10 %, envío gratis y hasta 6 cuotas. Quien no se suscribe: hasta 3 cuotas | Precio de lista y hasta 6 cuotas sin interés. Sin crédito. Envío según las reglas | **Definido** |
+| Primera compra de 1 par | Suscriptor: cupón de $ 10.000, cashback del 10 %, envío gratis y hasta 6 cuotas. Quien no se suscribe: hasta 3 cuotas | Precio de lista y hasta 6 cuotas sin interés. Sin crédito. Envío según las reglas | **Definido**. Que genere 5 % de crédito: **en evaluación** (sección A) |
 | Dos o más anteojos | Sin descuento | **Dúo:** 25 % en el de menor precio. Con 3 pares, en uno de los más baratos. Con 4, en los dos más baratos. Con 5 o más, en los ⌊n/2⌋ más baratos | **Definido**. Con 5 o más pares: **propuesta de trabajo** |
 | Cupón de bienvenida | $ 10.000 en la primera compra de cada suscriptor | Ya no se da en las altas nuevas. Los ya dados se respetan | **Definido** |
-| Crédito | 10 % en **cada** compra como suscriptor | 10 % en **cada compra de dos o más anteojos**, sobre lo pagado en anteojos sin el crédito usado y sin tope. Un anteojo solo no genera | **Definido** |
+| Crédito | 10 % en **cada** compra como suscriptor | 10 % en **cada compra de dos o más anteojos**, sobre lo pagado en anteojos sin el crédito usado y sin tope. Un anteojo solo no genera | **Definido**. Que un anteojo solo genere 5 %: **en evaluación** (sección A) |
 | Cuándo se genera y cuándo se puede usar | Se anota al acreditarse el pago y se puede usar 30 días después del pago | Se crea **pendiente** al acreditarse el pago. Pasa a **disponible** 30 días después de una entrega con fecha confiable, sin devoluciones ni incidencias pendientes. Lo ya ganado sigue a 30 días del pago | **Definido** y **propuesta de trabajo**. Fecha de entrega: **a validar** |
 | En qué se usa | En cualquier producto. Puede pagar la compra entera | El crédito nuevo, solo en anteojos, total o parcial. No paga el envío, ni estuches ni paños. No vence. El saldo antiguo conserva su alcance | **Definido** y **propuesta de trabajo** (§10.3) |
 | Cuotas | 3 para todos y 6 para suscriptores | Hasta 6 para todos los compradores, sin suscribirse ni registrarse, en primera compra y recompras, cuando Mercado Pago las confirma | **Definido** y **propuesta de trabajo** |
@@ -369,7 +826,7 @@ Todo en 6 cuotas, con CAC de $ 20.000.
 
 | Anteojos en el pedido | Llevan el 25 % | Ejemplo con precios distintos | Descuento | Paga | Crédito (10 %) |
 |---|---|---|---|---|---|
-| 1 | Ninguno | $ 89.900 | — | $ 89.900 | No genera |
+| 1 | Ninguno | $ 89.900 | — | $ 89.900 | No genera (en evaluación: 5 %, $ 4.495) |
 | 2 | El más barato | $ 89.900 + $ 69.900 | 25 % de $ 69.900 = $ 17.475 | $ 142.325 | $ 14.233 |
 | 3 | Uno de los más baratos | $ 89.900 + $ 89.900 + $ 69.900 | 25 % de $ 69.900 = $ 17.475 | $ 232.225 | $ 23.223 |
 | 4 | Los dos más baratos | $ 89.900 × 2 + $ 69.900 × 2 | 25 % de $ 69.900 × 2 = $ 34.950 | $ 284.650 | $ 28.465 |
@@ -395,8 +852,8 @@ rangos bajan y algunos casos no llegan (§5).
 | Dúo y hasta 6 cuotas | **Se combinan** (definido) | ✓ 26,3 % a 32,9 % |
 | Dúo y crédito del 10 %, en cada compra de dos o más anteojos | **Se combinan** (definido) | Igual que la fila anterior |
 | Dúo que usa crédito anterior y genera crédito nuevo | **Se combinan** (definido). El crédito nuevo va sobre lo pagado | ✓ 29,2 % a 35,3 % |
-| Par suelto y 6 cuotas, sin crédito nuevo | **Definido** | AMBA ✓ 24,8 % a 30,0 %. Resto del país, paga el cliente: ✓ 27,4 % a 31,9 % |
-| Par suelto que usa crédito | **Se combinan** (definido). No genera crédito nuevo | Con $ 15.733: ✓ 28,3 % a 35,1 % |
+| Par suelto y 6 cuotas, sin crédito nuevo (en evaluación: con 5 %, sección A) | **Definido** | AMBA ✓ 24,8 % a 30,0 %. Resto del país, paga el cliente: ✓ 27,4 % a 31,9 % |
+| Par suelto que usa crédito | **Se combinan** (definido). No genera crédito nuevo (en evaluación: genera 5 % sobre lo pagado) | Con $ 15.733: ✓ 28,3 % a 35,1 % |
 | Crédito y envío | **No**: el crédito no paga el envío (definido) | — |
 | Crédito nuevo y estuches o paños | **No**: no se genera sobre ellos (definido) ni se usa en ellos (propuesta de trabajo). El saldo antiguo sí, con su alcance original | — |
 | Dinero en Mercado Pago (1 pago) en el par suelto, el Dúo o la recompra | **Se combinan**: se mantiene (definido) | ✓ 31,5 % a 43,2 % (§8) |
@@ -509,7 +966,7 @@ seguir en el 22 %:
 
 | Compra | ¿Genera crédito? | Estado |
 |---|---|---|
-| Un solo anteojo, con o sin estuches o paños | **No** | **Definido** |
+| Un solo anteojo, con o sin estuches o paños | **No** en lo definido. **5 %** en el ajuste en evaluación | **Definido**. El 5 %: **en evaluación** (sección A) |
 | Dos o más anteojos, sea la primera compra o una recompra | **Sí**: 10 % de lo pagado en anteojos, sin tope | **Definido** |
 | La parte de una compra que se paga con crédito | **No**: el 10 % va solo sobre lo pagado | **Definido** |
 | Estuches, paños y envío | **No** | **Definido** |
@@ -547,7 +1004,9 @@ pendiente hasta que se resuelva.
 **3. Si se devuelve la compra.** Mientras el crédito está pendiente:
 
 - una devolución total lo anula;
-- una devolución parcial que deja menos de dos anteojos también lo anula;
+- una devolución parcial que deja menos de dos anteojos también lo anula.
+  Con el ajuste en evaluación (sección A), se recalcularía al 5 % de lo que
+  quede pagado;
 - si quedan dos o más anteojos, se recalcula sobre lo que queda pagado.
 
 Cómo se recalcula depende de la regla de reintegro, que todavía no está
@@ -665,7 +1124,8 @@ $ 157.325 − $ 14.302.
 **Por qué no crece sin control:**
 
 - solo generan crédito las compras de dos o más anteojos. El par suelto lo
-  usa, pero no genera;
+  usa, pero no genera. Con el ajuste en evaluación también genera 5 %; ese
+  recorrido está en A.6;
 - el crédito nuevo es el 10 % de lo pagado en dinero, nunca del crédito
   usado. No hay crédito sobre crédito;
 - no se genera sobre el envío, ni sobre estuches o paños;
@@ -718,7 +1178,7 @@ queda en ✗ 21,5 % / ✗ 16,5 % / ✗ 10,9 % (6 cuotas).
 
 | Hoy, para el suscriptor | Después del aviso | Por qué |
 |---|---|---|
-| Cashback del 10 % en cada compra, también la de un par | Crédito solo en las compras de dos o más anteojos | El de hoy no llega al 22 % (§4) |
+| Cashback del 10 % en cada compra, también la de un par | Crédito del 10 % en las compras de dos o más anteojos. En evaluación: 5 % en la compra de un anteojo (sección A) | El de hoy no llega al 22 % (§4) |
 | Envío gratis siempre | Las reglas de envío de todos | El par suelto con envío gratis caro no llega al 22 % |
 | Hasta 6 cuotas | Hasta 6 cuotas, igual que hoy | Sin cambio |
 | Beneficios atados a recibir mails | Cuenta y crédito independientes de los mails | Decisión de Ale |
@@ -776,7 +1236,7 @@ Están en §5.2 (cuánto deja cada uno) y §5.3 (cómo se aplica el Dúo con
 precios distintos).
 
 - **Resumen:**
-  - con 1 par, sin descuento ni crédito;
+  - con 1 par, sin descuento ni crédito (en evaluación: 5 % de crédito);
   - con 2, el 25 % al más barato;
   - con 3, a uno de los más baratos;
   - con 4, a los dos más baratos;
@@ -807,8 +1267,9 @@ eso también rige para el crédito nuevo (§14, L5).
 - Ejemplo con un par A de $ 89.900 y un par B de $ 69.900 (hipotético).
 - El 25 % va a B ($ 17.475): el cliente paga $ 142.325 y genera $ 14.233
   de crédito.
-- Si se queda con un solo anteojo, ese pedido ya no genera crédito. Cómo se
-  anula o recalcula también entra en la revisión legal.
+- Si se queda con un solo anteojo, ese pedido ya no genera crédito. Con el
+  ajuste en evaluación, generaría 5 % de lo que quede pagado. Cómo se anula
+  o recalcula también entra en la revisión legal.
 
 La tabla muestra cuánto deja lo que queda en 6 cuotas. Supone que Harper
 pagó el envío, que es lo más exigente, y no cuenta el retiro del par
@@ -894,6 +1355,9 @@ devuelto.
 | O5 | **La comisión de Mercado Pago con dinero en cuenta** | Se supuso igual a la de tarjeta (3,39 %). Mantener el 10 % depende de que el modelo siga llegando (§8) |
 | O6 | **Contar suscriptores activos, saldo total, cashback pendiente y cupones sin usar** | Hace falta para fijar la fecha y el plazo del aviso. No lo medí: está fuera del alcance |
 | O7 | **Compras sin cuenta:** cómo se acredita el crédito | Tiene que quedar en la cuenta del mail de la compra, verificado con código |
+| O8 | **Si el costo de USD 6,38 por anteojo incluye IVA** | La sección A lo toma sin IVA. Si lo incluye, hay que recalcular |
+| O9 | **El costo comercial real de cada recompra** (mail, CRM, plataforma, tiempo) | Hay que compararlo con los topes de A.5. No está medido, y $ 0 es solo una referencia |
+| O10 | **La recompra a 90 días de cada mes de primeras compras**, separando compra individual y Dúo | Es lo que dice si el crédito genera compras extra (A.8). Hoy no hay tasas reales, y las de A.8 son hipotéticas |
 
 ### No aptos para lanzar sin ajustar condiciones
 
@@ -938,4 +1402,171 @@ No es un lanzamiento: es el costo de respetar lo ya dado.
   condiciones publicadas ni la producción.
 - No mide la cantidad de suscriptores, el saldo, los cupones sin usar ni el
   costo real del envío por provincia: quedan en §14.
+- No cambia el precio: los cuatro precios de la sección A son escenarios
+  para decidir.
+- No inventa tasas de recompra: las de A.8 son hipotéticas.
 - No empieza la Tarea 03.
+
+---
+
+## Anexo A. Tablas completas del ajuste estratégico
+
+Salen de `lib/contribucion.ts` con los supuestos de A.3: costo de $ 10.208, CAC de $ 20.000 por pedido, 6 cuotas y las reglas de envío de hoy. «Cobrado» es lo que se cobra con IVA, con el envío si lo paga el cliente y sin el crédito usado. «Por anteojo» es la contribución del pedido dividida por los anteojos del pedido. «$ 24.000» marca si llega al objetivo por anteojo.
+
+### A-1. Primera compra individual, 5 % de crédito
+
+| Precio | Envío | Cobrado | Crédito nuevo | Contribución del pedido | Por anteojo | Margen | 22 % | $ 24.000 |
+|---|---|---|---|---|---|---|---|---|
+| $ 89.900 | AMBA, CABA ($ 4.488), gratis | $ 89.900 | $ 4.495 | $ 17.900 | $ 17.900 | 24,1 % | ✓ | ✗ |
+| $ 89.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 89.900 | $ 4.495 | $ 14.109 | $ 14.109 | 19,0 % | ✗ | ✗ |
+| $ 89.900 | Resto, $ 10.000, lo paga el cliente | $ 100.900 | $ 4.495 | $ 20.385 | $ 20.385 | 24,4 % | ✓ | ✗ |
+| $ 89.900 | Resto, $ 15.000, lo paga el cliente | $ 106.400 | $ 4.495 | $ 19.772 | $ 19.772 | 22,5 % | ✓ | ✗ |
+| $ 99.900 | AMBA, CABA ($ 4.488), gratis | $ 99.900 | $ 4.995 | $ 23.887 | $ 23.887 | 28,9 % | ✓ | ✗ |
+| $ 99.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 99.900 | $ 4.995 | $ 20.096 | $ 20.096 | 24,3 % | ✓ | ✗ |
+| $ 99.900 | Resto, $ 10.000, lo paga el cliente | $ 110.900 | $ 4.995 | $ 26.371 | $ 26.371 | 28,8 % | ✓ | ✓ |
+| $ 99.900 | Resto, $ 15.000, lo paga el cliente | $ 116.400 | $ 4.995 | $ 25.758 | $ 25.758 | 26,8 % | ✓ | ✓ |
+| $ 104.900 | AMBA, CABA ($ 4.488), gratis | $ 104.900 | $ 5.245 | $ 26.880 | $ 26.880 | 31,0 % | ✓ | ✓ |
+| $ 104.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 104.900 | $ 5.245 | $ 23.089 | $ 23.089 | 26,6 % | ✓ | ✗ |
+| $ 104.900 | Resto, $ 10.000, lo paga el cliente | $ 115.900 | $ 5.245 | $ 29.364 | $ 29.364 | 30,7 % | ✓ | ✓ |
+| $ 104.900 | Resto, $ 15.000, lo paga el cliente | $ 121.400 | $ 5.245 | $ 28.752 | $ 28.752 | 28,7 % | ✓ | ✓ |
+| $ 109.900 | AMBA, CABA ($ 4.488), gratis | $ 109.900 | $ 5.495 | $ 29.873 | $ 29.873 | 32,9 % | ✓ | ✓ |
+| $ 109.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 109.900 | $ 5.495 | $ 26.082 | $ 26.082 | 28,7 % | ✓ | ✓ |
+| $ 109.900 | Resto, $ 10.000, lo paga el cliente | $ 120.900 | $ 5.495 | $ 32.357 | $ 32.357 | 32,4 % | ✓ | ✓ |
+| $ 109.900 | Resto, $ 15.000, lo paga el cliente | $ 126.400 | $ 5.495 | $ 31.745 | $ 31.745 | 30,4 % | ✓ | ✓ |
+
+### A-2. Primera compra Dúo, 25 % y 10 % de crédito
+
+| Precio | Envío | Cobrado | Crédito nuevo | Contribución del pedido | Por anteojo | Margen | 22 % | $ 24.000 |
+|---|---|---|---|---|---|---|---|---|
+| $ 89.900 | AMBA, CABA ($ 4.488), gratis | $ 157.325 | $ 15.733 | $ 41.554 | $ 20.777 | 32,0 % | ✓ | ✗ |
+| $ 89.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 157.325 | $ 15.733 | $ 37.763 | $ 18.882 | 29,0 % | ✓ | ✗ |
+| $ 89.900 | Resto, $ 10.000, gratis | $ 157.325 | $ 15.733 | $ 36.999 | $ 18.499 | 28,5 % | ✓ | ✗ |
+| $ 89.900 | Resto, $ 15.000, gratis | $ 157.325 | $ 15.733 | $ 32.866 | $ 16.433 | 25,3 % | ✓ | ✗ |
+| $ 99.900 | AMBA, CABA ($ 4.488), gratis | $ 174.825 | $ 17.483 | $ 51.307 | $ 25.654 | 35,5 % | ✓ | ✓ |
+| $ 99.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 174.825 | $ 17.483 | $ 47.516 | $ 23.758 | 32,9 % | ✓ | ✗ |
+| $ 99.900 | Resto, $ 10.000, gratis | $ 174.825 | $ 17.483 | $ 46.752 | $ 23.376 | 32,4 % | ✓ | ✗ |
+| $ 99.900 | Resto, $ 15.000, gratis | $ 174.825 | $ 17.483 | $ 42.619 | $ 21.310 | 29,5 % | ✓ | ✗ |
+| $ 104.900 | AMBA, CABA ($ 4.488), gratis | $ 183.575 | $ 18.358 | $ 56.184 | $ 28.092 | 37,0 % | ✓ | ✓ |
+| $ 104.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 183.575 | $ 18.358 | $ 52.393 | $ 26.196 | 34,5 % | ✓ | ✓ |
+| $ 104.900 | Resto, $ 10.000, gratis | $ 183.575 | $ 18.358 | $ 51.628 | $ 25.814 | 34,0 % | ✓ | ✓ |
+| $ 104.900 | Resto, $ 15.000, gratis | $ 183.575 | $ 18.358 | $ 47.496 | $ 23.748 | 31,3 % | ✓ | ✗ |
+| $ 109.900 | AMBA, CABA ($ 4.488), gratis | $ 192.325 | $ 19.233 | $ 61.060 | $ 30.530 | 38,4 % | ✓ | ✓ |
+| $ 109.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 192.325 | $ 19.233 | $ 57.269 | $ 28.635 | 36,0 % | ✓ | ✓ |
+| $ 109.900 | Resto, $ 10.000, gratis | $ 192.325 | $ 19.233 | $ 56.505 | $ 28.252 | 35,5 % | ✓ | ✓ |
+| $ 109.900 | Resto, $ 15.000, gratis | $ 192.325 | $ 19.233 | $ 52.372 | $ 26.186 | 32,9 % | ✓ | ✓ |
+
+### A-3. Segunda compra individual: usa el 5 % de la primera y genera otro 5 %
+
+| Precio | Envío | Cobrado | Crédito usado | Crédito nuevo | Contribución del pedido | Por anteojo | Margen | 22 % | $ 24.000 |
+|---|---|---|---|---|---|---|---|---|---|
+| $ 89.900 | AMBA, CABA ($ 4.488), gratis | $ 85.405 | $ 4.495 | $ 4.270 | $ 18.813 | $ 18.813 | 25,3 % | ✓ | ✗ |
+| $ 89.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 85.405 | $ 4.495 | $ 4.270 | $ 15.022 | $ 15.022 | 20,2 % | ✗ | ✗ |
+| $ 89.900 | Resto, $ 10.000, lo paga el cliente | $ 96.405 | $ 4.495 | $ 4.270 | $ 21.297 | $ 21.297 | 25,5 % | ✓ | ✗ |
+| $ 89.900 | Resto, $ 15.000, lo paga el cliente | $ 101.905 | $ 4.495 | $ 4.270 | $ 20.685 | $ 20.685 | 23,5 % | ✓ | ✗ |
+| $ 99.900 | AMBA, CABA ($ 4.488), gratis | $ 94.905 | $ 4.995 | $ 4.745 | $ 24.901 | $ 24.901 | 30,2 % | ✓ | ✓ |
+| $ 99.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 94.905 | $ 4.995 | $ 4.745 | $ 21.110 | $ 21.110 | 25,6 % | ✓ | ✗ |
+| $ 99.900 | Resto, $ 10.000, lo paga el cliente | $ 105.905 | $ 4.995 | $ 4.745 | $ 27.385 | $ 27.385 | 29,9 % | ✓ | ✓ |
+| $ 99.900 | Resto, $ 15.000, lo paga el cliente | $ 111.405 | $ 4.995 | $ 4.745 | $ 26.773 | $ 26.773 | 27,8 % | ✓ | ✓ |
+| $ 104.900 | AMBA, CABA ($ 4.488), gratis | $ 99.655 | $ 5.245 | $ 4.983 | $ 27.945 | $ 27.945 | 32,2 % | ✓ | ✓ |
+| $ 104.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 99.655 | $ 5.245 | $ 4.983 | $ 24.154 | $ 24.154 | 27,9 % | ✓ | ✓ |
+| $ 104.900 | Resto, $ 10.000, lo paga el cliente | $ 110.655 | $ 5.245 | $ 4.983 | $ 30.429 | $ 30.429 | 31,8 % | ✓ | ✓ |
+| $ 104.900 | Resto, $ 15.000, lo paga el cliente | $ 116.155 | $ 5.245 | $ 4.983 | $ 29.816 | $ 29.816 | 29,7 % | ✓ | ✓ |
+| $ 109.900 | AMBA, CABA ($ 4.488), gratis | $ 104.405 | $ 5.495 | $ 5.220 | $ 30.989 | $ 30.989 | 34,1 % | ✓ | ✓ |
+| $ 109.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 104.405 | $ 5.495 | $ 5.220 | $ 27.198 | $ 27.198 | 29,9 % | ✓ | ✓ |
+| $ 109.900 | Resto, $ 10.000, lo paga el cliente | $ 115.405 | $ 5.495 | $ 5.220 | $ 33.473 | $ 33.473 | 33,5 % | ✓ | ✓ |
+| $ 109.900 | Resto, $ 15.000, lo paga el cliente | $ 120.905 | $ 5.495 | $ 5.220 | $ 32.861 | $ 32.861 | 31,5 % | ✓ | ✓ |
+
+### A-4. Segunda compra Dúo: usa el 10 % del primer Dúo y genera otro 10 %
+
+| Precio | Envío | Cobrado | Crédito usado | Crédito nuevo | Contribución del pedido | Por anteojo | Margen | 22 % | $ 24.000 |
+|---|---|---|---|---|---|---|---|---|---|
+| $ 89.900 | AMBA, CABA ($ 4.488), gratis | $ 141.592 | $ 15.733 | $ 14.159 | $ 45.399 | $ 22.699 | 34,9 % | ✓ | ✗ |
+| $ 89.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 141.592 | $ 15.733 | $ 14.159 | $ 41.608 | $ 20.804 | 32,0 % | ✓ | ✗ |
+| $ 89.900 | Resto, $ 10.000, gratis | $ 141.592 | $ 15.733 | $ 14.159 | $ 40.843 | $ 20.422 | 31,4 % | ✓ | ✗ |
+| $ 89.900 | Resto, $ 15.000, gratis | $ 141.592 | $ 15.733 | $ 14.159 | $ 36.711 | $ 18.356 | 28,2 % | ✓ | ✗ |
+| $ 99.900 | AMBA, CABA ($ 4.488), gratis | $ 157.342 | $ 17.483 | $ 15.734 | $ 55.580 | $ 27.790 | 38,5 % | ✓ | ✓ |
+| $ 99.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 157.342 | $ 17.483 | $ 15.734 | $ 51.789 | $ 25.894 | 35,8 % | ✓ | ✓ |
+| $ 99.900 | Resto, $ 10.000, gratis | $ 157.342 | $ 17.483 | $ 15.734 | $ 51.024 | $ 25.512 | 35,3 % | ✓ | ✓ |
+| $ 99.900 | Resto, $ 15.000, gratis | $ 157.342 | $ 17.483 | $ 15.734 | $ 46.892 | $ 23.446 | 32,5 % | ✓ | ✗ |
+| $ 104.900 | AMBA, CABA ($ 4.488), gratis | $ 165.217 | $ 18.358 | $ 16.522 | $ 60.669 | $ 30.335 | 40,0 % | ✓ | ✓ |
+| $ 104.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 165.217 | $ 18.358 | $ 16.522 | $ 56.878 | $ 28.439 | 37,5 % | ✓ | ✓ |
+| $ 104.900 | Resto, $ 10.000, gratis | $ 165.217 | $ 18.358 | $ 16.522 | $ 56.114 | $ 28.057 | 37,0 % | ✓ | ✓ |
+| $ 104.900 | Resto, $ 15.000, gratis | $ 165.217 | $ 18.358 | $ 16.522 | $ 51.982 | $ 25.991 | 34,3 % | ✓ | ✓ |
+| $ 109.900 | AMBA, CABA ($ 4.488), gratis | $ 173.092 | $ 19.233 | $ 17.309 | $ 65.760 | $ 32.880 | 41,4 % | ✓ | ✓ |
+| $ 109.900 | AMBA, GBA 2 y 3 ($ 9.075), gratis | $ 173.092 | $ 19.233 | $ 17.309 | $ 61.969 | $ 30.985 | 39,0 % | ✓ | ✓ |
+| $ 109.900 | Resto, $ 10.000, gratis | $ 173.092 | $ 19.233 | $ 17.309 | $ 61.205 | $ 30.602 | 38,5 % | ✓ | ✓ |
+| $ 109.900 | Resto, $ 15.000, gratis | $ 173.092 | $ 19.233 | $ 17.309 | $ 57.072 | $ 28.536 | 35,9 % | ✓ | ✓ |
+
+
+### A-5. El cliente en tres compras (cada recompra con un costo comercial de $ 20.000)
+
+Con envío gratis de $ 9.075 (AMBA, GBA 2 y 3) en todas las compras. Cada compra usa todo el crédito disponible de la anterior. El crédito pesa una sola vez: en la compra que lo genera.
+
+#### Individual, individual, individual
+
+| Precio | Compra | Cobrado | Crédito usado | Crédito nuevo | Contribución del pedido | Acumulada | Anteojos | Acumulada por anteojo | Margen acumulado | 22 % | $ 24.000 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| $ 89.900 | 1ª (individual) | $ 89.900 | $ 0 | $ 4.495 | $ 14.109 | $ 14.109 | 1 | $ 14.109 | 19,0 % | ✗ | ✗ |
+|  | 2ª (individual) | $ 85.405 | $ 4.495 | $ 4.270 | $ 15.022 | $ 29.132 | 2 | $ 14.566 | 19,6 % | ✗ | ✗ |
+|  | 3ª (individual) | $ 85.630 | $ 4.270 | $ 4.282 | $ 14.976 | $ 44.108 | 3 | $ 14.703 | 19,8 % | ✗ | ✗ |
+| $ 99.900 | 1ª (individual) | $ 99.900 | $ 0 | $ 4.995 | $ 20.096 | $ 20.096 | 1 | $ 20.096 | 24,3 % | ✓ | ✗ |
+|  | 2ª (individual) | $ 94.905 | $ 4.995 | $ 4.745 | $ 21.110 | $ 41.206 | 2 | $ 20.603 | 25,0 % | ✓ | ✗ |
+|  | 3ª (individual) | $ 95.155 | $ 4.745 | $ 4.758 | $ 21.059 | $ 62.265 | 3 | $ 20.755 | 25,1 % | ✓ | ✗ |
+| $ 104.900 | 1ª (individual) | $ 104.900 | $ 0 | $ 5.245 | $ 23.089 | $ 23.089 | 1 | $ 23.089 | 26,6 % | ✓ | ✗ |
+|  | 2ª (individual) | $ 99.655 | $ 5.245 | $ 4.983 | $ 24.154 | $ 47.243 | 2 | $ 23.621 | 27,2 % | ✓ | ✗ |
+|  | 3ª (individual) | $ 99.917 | $ 4.983 | $ 4.996 | $ 24.101 | $ 71.343 | 3 | $ 23.781 | 27,4 % | ✓ | ✗ |
+| $ 109.900 | 1ª (individual) | $ 109.900 | $ 0 | $ 5.495 | $ 26.082 | $ 26.082 | 1 | $ 26.082 | 28,7 % | ✓ | ✓ |
+|  | 2ª (individual) | $ 104.405 | $ 5.495 | $ 5.220 | $ 27.198 | $ 53.280 | 2 | $ 26.640 | 29,3 % | ✓ | ✓ |
+|  | 3ª (individual) | $ 104.680 | $ 5.220 | $ 5.234 | $ 27.142 | $ 80.422 | 3 | $ 26.807 | 29,5 % | ✓ | ✓ |
+
+#### Dúo, Dúo, Dúo
+
+| Precio | Compra | Cobrado | Crédito usado | Crédito nuevo | Contribución del pedido | Acumulada | Anteojos | Acumulada por anteojo | Margen acumulado | 22 % | $ 24.000 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| $ 89.900 | 1ª (Dúo) | $ 157.325 | $ 0 | $ 15.733 | $ 37.763 | $ 37.763 | 2 | $ 18.882 | 29,0 % | ✓ | ✗ |
+|  | 2ª (Dúo) | $ 141.592 | $ 15.733 | $ 14.159 | $ 41.608 | $ 79.371 | 4 | $ 19.843 | 30,5 % | ✓ | ✗ |
+|  | 3ª (Dúo) | $ 143.166 | $ 14.159 | $ 14.317 | $ 41.223 | $ 120.594 | 6 | $ 20.099 | 30,9 % | ✓ | ✗ |
+| $ 99.900 | 1ª (Dúo) | $ 174.825 | $ 0 | $ 17.483 | $ 47.516 | $ 47.516 | 2 | $ 23.758 | 32,9 % | ✓ | ✗ |
+|  | 2ª (Dúo) | $ 157.342 | $ 17.483 | $ 15.734 | $ 51.789 | $ 99.305 | 4 | $ 24.826 | 34,4 % | ✓ | ✓ |
+|  | 3ª (Dúo) | $ 159.091 | $ 15.734 | $ 15.909 | $ 51.361 | $ 150.666 | 6 | $ 25.111 | 34,8 % | ✓ | ✓ |
+| $ 104.900 | 1ª (Dúo) | $ 183.575 | $ 0 | $ 18.358 | $ 52.393 | $ 52.393 | 2 | $ 26.196 | 34,5 % | ✓ | ✓ |
+|  | 2ª (Dúo) | $ 165.217 | $ 18.358 | $ 16.522 | $ 56.878 | $ 109.271 | 4 | $ 27.318 | 36,0 % | ✓ | ✓ |
+|  | 3ª (Dúo) | $ 167.053 | $ 16.522 | $ 16.705 | $ 56.430 | $ 165.701 | 6 | $ 27.617 | 36,4 % | ✓ | ✓ |
+| $ 109.900 | 1ª (Dúo) | $ 192.325 | $ 0 | $ 19.233 | $ 57.269 | $ 57.269 | 2 | $ 28.635 | 36,0 % | ✓ | ✓ |
+|  | 2ª (Dúo) | $ 173.092 | $ 19.233 | $ 17.309 | $ 61.969 | $ 119.238 | 4 | $ 29.810 | 37,5 % | ✓ | ✓ |
+|  | 3ª (Dúo) | $ 175.016 | $ 17.309 | $ 17.502 | $ 61.499 | $ 180.737 | 6 | $ 30.123 | 37,9 % | ✓ | ✓ |
+
+#### Individual, Dúo, Dúo
+
+| Precio | Compra | Cobrado | Crédito usado | Crédito nuevo | Contribución del pedido | Acumulada | Anteojos | Acumulada por anteojo | Margen acumulado | 22 % | $ 24.000 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| $ 89.900 | 1ª (individual) | $ 89.900 | $ 0 | $ 4.495 | $ 14.109 | $ 14.109 | 1 | $ 14.109 | 19,0 % | ✗ | ✗ |
+|  | 2ª (Dúo) | $ 152.830 | $ 4.495 | $ 15.283 | $ 38.862 | $ 52.971 | 3 | $ 17.657 | 25,9 % | ✓ | ✗ |
+|  | 3ª (Dúo) | $ 142.042 | $ 15.283 | $ 14.204 | $ 41.498 | $ 94.469 | 5 | $ 18.894 | 28,3 % | ✓ | ✗ |
+| $ 99.900 | 1ª (individual) | $ 99.900 | $ 0 | $ 4.995 | $ 20.096 | $ 20.096 | 1 | $ 20.096 | 24,3 % | ✓ | ✗ |
+|  | 2ª (Dúo) | $ 169.830 | $ 4.995 | $ 16.983 | $ 48.737 | $ 68.833 | 3 | $ 22.944 | 30,3 % | ✓ | ✗ |
+|  | 3ª (Dúo) | $ 157.842 | $ 16.983 | $ 15.784 | $ 51.666 | $ 120.499 | 5 | $ 24.100 | 32,4 % | ✓ | ✓ |
+| $ 104.900 | 1ª (individual) | $ 104.900 | $ 0 | $ 5.245 | $ 23.089 | $ 23.089 | 1 | $ 23.089 | 26,6 % | ✓ | ✗ |
+|  | 2ª (Dúo) | $ 178.330 | $ 5.245 | $ 17.833 | $ 53.675 | $ 76.764 | 3 | $ 25.588 | 32,2 % | ✓ | ✓ |
+|  | 3ª (Dúo) | $ 165.742 | $ 17.833 | $ 16.574 | $ 56.751 | $ 133.514 | 5 | $ 26.703 | 34,2 % | ✓ | ✓ |
+| $ 109.900 | 1ª (individual) | $ 109.900 | $ 0 | $ 5.495 | $ 26.082 | $ 26.082 | 1 | $ 26.082 | 28,7 % | ✓ | ✓ |
+|  | 2ª (Dúo) | $ 186.830 | $ 5.495 | $ 18.683 | $ 58.612 | $ 84.694 | 3 | $ 28.231 | 33,9 % | ✓ | ✓ |
+|  | 3ª (Dúo) | $ 173.642 | $ 18.683 | $ 17.364 | $ 61.835 | $ 146.529 | 5 | $ 29.306 | 35,9 % | ✓ | ✓ |
+
+#### Dúo, individual, individual
+
+| Precio | Compra | Cobrado | Crédito usado | Crédito nuevo | Contribución del pedido | Acumulada | Anteojos | Acumulada por anteojo | Margen acumulado | 22 % | $ 24.000 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| $ 89.900 | 1ª (Dúo) | $ 157.325 | $ 0 | $ 15.733 | $ 37.763 | $ 37.763 | 2 | $ 18.882 | 29,0 % | ✓ | ✗ |
+|  | 2ª (individual) | $ 74.167 | $ 15.733 | $ 3.708 | $ 17.304 | $ 55.067 | 3 | $ 18.356 | 27,0 % | ✓ | ✗ |
+|  | 3ª (individual) | $ 86.192 | $ 3.708 | $ 4.310 | $ 14.862 | $ 69.929 | 4 | $ 17.482 | 25,1 % | ✓ | ✗ |
+| $ 99.900 | 1ª (Dúo) | $ 174.825 | $ 0 | $ 17.483 | $ 47.516 | $ 47.516 | 2 | $ 23.758 | 32,9 % | ✓ | ✗ |
+|  | 2ª (individual) | $ 82.417 | $ 17.483 | $ 4.121 | $ 23.645 | $ 71.161 | 3 | $ 23.720 | 31,3 % | ✓ | ✗ |
+|  | 3ª (individual) | $ 95.779 | $ 4.121 | $ 4.789 | $ 20.932 | $ 92.094 | 4 | $ 23.023 | 29,7 % | ✓ | ✗ |
+| $ 104.900 | 1ª (Dúo) | $ 183.575 | $ 0 | $ 18.358 | $ 52.393 | $ 52.393 | 2 | $ 26.196 | 34,5 % | ✓ | ✓ |
+|  | 2ª (individual) | $ 86.542 | $ 18.358 | $ 4.327 | $ 26.816 | $ 79.209 | 3 | $ 26.403 | 33,2 % | ✓ | ✓ |
+|  | 3ª (individual) | $ 100.573 | $ 4.327 | $ 5.029 | $ 23.967 | $ 103.176 | 4 | $ 25.794 | 31,7 % | ✓ | ✓ |
+| $ 109.900 | 1ª (Dúo) | $ 192.325 | $ 0 | $ 19.233 | $ 57.269 | $ 57.269 | 2 | $ 28.635 | 36,0 % | ✓ | ✓ |
+|  | 2ª (individual) | $ 90.667 | $ 19.233 | $ 4.533 | $ 29.987 | $ 87.256 | 3 | $ 29.085 | 34,9 % | ✓ | ✓ |
+|  | 3ª (individual) | $ 105.367 | $ 4.533 | $ 5.268 | $ 27.003 | $ 114.259 | 4 | $ 28.565 | 33,5 % | ✓ | ✓ |
+
