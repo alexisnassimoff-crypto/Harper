@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { AccionesCuenta, EntrarACuenta } from "@/components/suscriptores/AccionesCuenta";
+import MisCompras from "@/components/suscriptores/MisCompras";
+import { getConfig } from "@/lib/config";
+import { comprasDeLaCuenta } from "@/lib/mis-compras";
+import { enlaceWhatsApp } from "@/lib/whatsapp";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK, fechaArgentina, fechaLegible, type MovimientoSaldo } from "@/lib/suscriptores";
 import { resumenDeLaCuenta, suscriptorDeLaSesion } from "@/lib/suscriptores-cuenta";
@@ -11,9 +15,10 @@ import { TEXTOS } from "@/lib/textos";
 /**
  * «Mi cuenta» de Suscriptores Harper (Ale, 03/11/2026): entra con su mail y
  * el código que le llega, y ve su saldo, lo que tiene en camino (y desde
- * cuándo lo puede usar), su cupón de bienvenida y sus movimientos. Todo se
- * lee de nuevo de Airtable en cada visita (lib/suscriptores-cuenta.ts). Es a
- * donde llevan los mails.
+ * cuándo lo puede usar), su cupón de bienvenida, sus compras (Ale,
+ * 05/11/2026: «Mis compras», solo las del mail verificado de la cuenta,
+ * lib/mis-compras.ts) y sus movimientos. Todo se lee de nuevo de Airtable en
+ * cada visita (lib/suscriptores-cuenta.ts). Es a donde llevan los mails.
  */
 
 export const dynamic = "force-dynamic";
@@ -57,7 +62,15 @@ export default async function MiCuenta() {
     );
   }
 
-  const resumen = await resumenDeLaCuenta(cuenta);
+  // Las compras, en paralelo y por su lado: si no se pueden leer, el resto de la cuenta sigue.
+  const [resumen, compras, config] = await Promise.all([
+    resumenDeLaCuenta(cuenta),
+    comprasDeLaCuenta(cuenta.email).catch((error) => {
+      console.error("[mis-compras] no se pudieron leer:", error instanceof Error ? error.message : error);
+      return null;
+    }),
+    getConfig().catch(() => null),
+  ]);
   const hoy = fechaArgentina(new Date());
   // Lo que está en camino, cada cashback con el día desde el que se usa (el más cercano primero).
   const enCamino = resumen.movimientos
@@ -126,6 +139,12 @@ export default async function MiCuenta() {
       <Link href="/#los-modelos" className="boton cuenta-suscriptor__comprar">
         {TEXTOS.suscriptores.elegir}
       </Link>
+
+      <MisCompras
+        compras={compras}
+        email={resumen.email}
+        whatsapp={enlaceWhatsApp(config?.whatsapp ?? null, "Hola, Harper. Quiero consultar por un pedido.")}
+      />
 
       <section className="cuenta-suscriptor__movimientos" aria-labelledby="cuenta-movimientos-titulo">
         <h2 id="cuenta-movimientos-titulo" className="label">

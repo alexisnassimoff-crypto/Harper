@@ -10,6 +10,7 @@
  *   {Clave} = 'costo_envio'
  *   OR(…), NOT(…)
  *   AND({Estado} = 'pendiente', FIND('(rec…)', {Notas}))
+ *   OR(RECORD_ID() = 'rec…', RECORD_ID() = 'rec…')   (Mis compras: los pedidos de un cliente)
  *
  * Si aparece algo que no entiende, tira error: preferible a devolver todos los
  * registros y que una prueba pase por casualidad.
@@ -115,7 +116,11 @@ function iguales(a: unknown, b: unknown): boolean {
 class Analizador {
   private pos = 0;
 
-  constructor(private tokens: Token[], private campos: Campos) {}
+  constructor(
+    private tokens: Token[],
+    private campos: Campos,
+    private id = "",
+  ) {}
 
   private mirar(): Token | undefined {
     return this.tokens[this.pos];
@@ -200,6 +205,9 @@ class Analizador {
 
   private llamada(nombre: string): unknown {
     switch (nombre) {
+      case "RECORD_ID":
+        this.argumentos();
+        return this.id;
       case "TRUE":
         return true;
       case "FALSE":
@@ -232,8 +240,8 @@ class Analizador {
 }
 
 /** Verdadero si el registro pasa la fórmula. */
-export function cumpleFormula(formula: string, campos: Campos): boolean {
+export function cumpleFormula(formula: string, campos: Campos, id = ""): boolean {
   const limpia = formula.trim();
   if (!limpia) return true;
-  return verdadero(new Analizador(tokenizar(limpia), campos).evaluar());
+  return verdadero(new Analizador(tokenizar(limpia), campos, id).evaluar());
 }

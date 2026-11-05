@@ -349,6 +349,26 @@ export const TEXTOS = {
       cuponDisponible: (monto: string) => `${monto} de descuento en tu primera compra. Se aplica solo en el carrito.`,
       cuponUsado: (pedido: string) => (pedido ? `Ya lo usaste, en el pedido ${pedido}.` : "Ya lo usaste."),
       cuponYaCompro: "Es para la primera compra en harper.ar, y con este mail ya compraste.",
+      /** «Mis compras» (Ale, 05/11/2026): los pedidos hechos con el mail de la cuenta. */
+      compras: {
+        titulo: "Mis compras",
+        bajada: (email: string) => `Las compras hechas con ${email}.`,
+        vacio: "Todavía no hay compras con este mail. Cuando compres, tus pedidos aparecen acá.",
+        error: "No pudimos traer tus compras ahora. Probá de nuevo en un rato.",
+        total: "Total",
+        envio: (monto: string) => `Envío ${monto}`,
+        envioSinCargo: "Envío sin cargo",
+        seguimiento: "Seguimiento",
+        estados: {
+          "en-revision": "Pago en revisión",
+          pagado: "Confirmado",
+          preparando: "En preparación",
+          enviado: "Enviado",
+          entregado: "Entregado",
+          cancelado: "Cancelado",
+        },
+        ayuda: "¿Necesitás algo de un pedido? Escribinos por WhatsApp con su número.",
+      },
       movimientos: "Movimientos",
       sinMovimientos: "Todavía no hay movimientos. Con tu primera compra empieza a volver el 10%.",
       movimiento: {
