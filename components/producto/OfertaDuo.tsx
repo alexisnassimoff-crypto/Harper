@@ -10,12 +10,7 @@ export default function OfertaDuo({ lineas, detalle = null }: { lineas: (string 
     <p className="oferta-cantidad">
       <strong>{textos[0]}</strong>
       {textos.slice(1).map((t) => ` ${t}`)}
-      {detalle ? (
-        <>
-          {" "}
-          <span className="oferta-cantidad__detalle">{detalle}</span>
-        </>
-      ) : null}
+      {detalle ? <span className="oferta-cantidad__detalle oferta-cantidad__detalle--bloque">{detalle}</span> : null}
     </p>
   );
 }

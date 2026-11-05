@@ -1054,6 +1054,12 @@ p {
   color: color-mix(in srgb, var(--texto) 72%, var(--fondo-alt));
   white-space: nowrap;
 }
+/* El detalle del Dúo (Tarea 07): más largo, en su propia línea y con corte. */
+.oferta-cantidad__detalle--bloque {
+  display: block;
+  margin-top: 0.2rem;
+  white-space: normal;
+}
 
 /* Qué se está comprando, debajo del precio de la ficha. Una tilde fina en
    verde por punto: se lee como información, no como publicidad. */

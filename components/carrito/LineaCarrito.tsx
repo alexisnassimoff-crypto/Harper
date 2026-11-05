@@ -53,6 +53,8 @@ export default function LineaCarrito({
         <span className="apagado" style={{ fontSize: "0.8125rem" }}>
           {item.color}
         </span>
+        {/* Qué llevó el Dúo, a lo ancho (Tarea 07); sin Dúo, nada. */}
+        {conDuo ? <span style={{ fontSize: "0.75rem", color: "var(--verde)" }}>{conDuo}</span> : null}
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           {/* Un +/− en vez del desplegable: sumar una unidad es un solo
@@ -107,9 +109,7 @@ export default function LineaCarrito({
           </div>
         ) : null}
         <span>{formatearPrecio(subtotal)}</span>
-        {conDuo ? (
-          <div style={{ fontSize: "0.75rem", color: "var(--verde)" }}>{conDuo}</div>
-        ) : item.descuento > 0 ? (
+        {item.descuento > 0 && !conDuo ? (
           <div style={{ fontSize: "0.75rem", color: "var(--verde)" }}>−{textoPorcentaje(item.descuento)}%</div>
         ) : null}
       </div>
