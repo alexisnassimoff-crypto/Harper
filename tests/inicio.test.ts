@@ -99,7 +99,12 @@ test("inicio: los textos presentan la marca sin frases genéricas, sin exagerar 
   assert.equal(TEXTOS.inicio.producto, "Anteojos de diseño");
   assert.equal(TEXTOS.inicio.boton, "Explorar anteojos");
   assert.equal(TEXTOS.inicio.suscripcion.titulo, "Ser parte tiene sus ventajas.");
-  assert.equal(TEXTOS.inicio.suscripcion.boton, "Descubrir mis beneficios");
+  // El botón principal lleva al formulario; los beneficios, a un enlace aparte.
+  assert.equal(TEXTOS.inicio.suscripcion.cta, "Suscribirme gratis");
+  assert.match(TEXTOS.inicio.suscripcion.beneficios, /beneficios y sus condiciones/);
+  // Nada técnico en la presentación: lo del código aparece recién cuando se manda.
+  assert.ok(!JSON.stringify(TEXTOS.inicio.suscripcion).toLowerCase().includes("código"));
+  assert.ok(!("notaCodigo" in TEXTOS.suscriptores.form));
   for (const palabra of ["para todos los días", "premium", "lujo", "calidad superior", "canchero", "onda", "accesible", "fachero", "cura", "previene", "médic", "salud"]) {
     assert.ok(!todo.includes(palabra), `no dice «${palabra}»`);
   }

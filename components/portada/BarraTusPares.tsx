@@ -65,8 +65,10 @@ export default function BarraTusPares({
     if (!ocultarEn) return;
     const seccion = document.getElementById(ocultarEn);
     if (!seccion) return;
-    // Cuenta como «en la sección» cuando ocupa el centro de la pantalla.
-    const observador = new IntersectionObserver(([e]) => setEnSeccionAparte(e.isIntersecting), { rootMargin: "-45% 0px -45% 0px" });
+    // Cuenta como «en la sección» apenas asoma en la pantalla (Ale, 05/11/2026):
+    // así el botón de WhatsApp, que va abajo a la derecha, no tapa el botón de
+    // suscribirse ni los campos mientras se baja.
+    const observador = new IntersectionObserver(([e]) => setEnSeccionAparte(e.isIntersecting));
     observador.observe(seccion);
     return () => observador.disconnect();
   }, [ocultarEn]);

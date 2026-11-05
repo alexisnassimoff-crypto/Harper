@@ -69,25 +69,22 @@ export const TEXTOS = {
       whatsappDetalle: "Modelo, talle o cristales con aumento",
     },
     /**
-     * Suscriptores (Ale, 05/11/2026): «más atractiva, menos parecida a un
-     * listado de descuentos». Los beneficios van en una tarjeta de socio,
-     * cada uno con su regla corta; los montos los pone el código.
+     * Suscriptores (Ale, 05/11/2026): breve, para dar curiosidad. Título,
+     * una bajada y el formulario a mano; los beneficios y sus condiciones, a
+     * un enlace (/suscriptores). Nada técnico: lo del código aparece recién
+     * cuando se manda.
      */
     suscripcion: {
       etiqueta: "Suscriptores Harper · Es gratis",
       titulo: "Ser parte tiene sus ventajas.",
       bajada: "Unite gratis y descubrí los beneficios que preparamos para vos.",
+      /** El botón principal: lleva directo al formulario. */
+      cta: "Suscribirme gratis",
+      /** El enlace secundario, a /suscriptores. */
+      beneficios: "Conocé los beneficios y sus condiciones",
+      /** La caja de la ficha. */
       boton: "Descubrir mis beneficios",
-      tarjeta: "Suscriptor Harper",
       condiciones: "Ver las condiciones completas",
-      /** La regla de cada beneficio, en una línea. */
-      reglas: {
-        cupon: "En tu primera compra.",
-        cashback: "De lo que pagás, como saldo para la próxima.",
-        envio: "A todo el país, sin mínimo.",
-        cuotas: "Con tu mail de suscriptor.",
-      } as Record<string, string>,
-      baja: "Es gratis. Te das de baja cuando quieras.",
     },
   },
   /** Por qué Harper (Ale, 05/11/2026): cómo es comprar, sin repetir las promociones. */
@@ -304,7 +301,6 @@ export const TEXTOS = {
       cta: "Suscribirme gratis",
       beneficios: "Tus beneficios",
       formTitulo: "Suscribite con tu mail",
-      formBajada: "Es gratis. Te mandamos un código para confirmarlo y te das de baja cuando quieras.",
     },
     form: {
       email: "Tu mail",
@@ -313,7 +309,6 @@ export const TEXTOS = {
       faltaAcepto: "Para suscribirte, marcá que aceptás recibir nuestros mails.",
       suscribirme: "Suscribirme gratis",
       pedirCodigo: "Mandame el código",
-      notaCodigo: "Te mandamos un código de 6 números para confirmar que el mail es tuyo.",
       codigoEnviado: (email: string) => `Te mandamos un código a ${email}. Escribilo acá: vence en 10 minutos.`,
       codigo: "Código",
       confirmar: "Confirmar",

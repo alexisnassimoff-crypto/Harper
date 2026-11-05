@@ -296,7 +296,6 @@ export default function FormularioSuscripcion({
       <button type={tipoBoton} className={claseBoton} disabled={ocupado} onClick={anidado ? () => void pedirCodigo() : undefined}>
         {ocupado ? "Mandando…" : suscribe ? (textoBoton ?? T.suscribirme) : T.pedirCodigo}
       </button>
-      <p className="suscripcion__nota">{T.notaCodigo}</p>
       {conCambioDeModo ? (
         <p className="suscripcion__cambio">
           {suscribe ? (

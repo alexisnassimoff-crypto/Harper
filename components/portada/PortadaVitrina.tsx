@@ -12,14 +12,11 @@ import { conEspera, verificarCuotas } from "@/lib/cuotas-servidor";
 import { condicionesDeCompra } from "@/lib/ficha";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
-import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
-import { beneficiosDeSuscriptor } from "@/components/suscriptores/BeneficiosSuscriptor";
 import Link from "next/link";
 import CajaSuscripcion from "@/components/suscriptores/CajaSuscripcion";
 import IrAlFormulario from "@/components/suscriptores/IrAlFormulario";
-import Logo from "@/components/Logo";
 import { rutaDeVariante } from "@/lib/variantes";
 import { enlaceWhatsApp } from "@/lib/whatsapp";
 import { categoriasParaComprar, destacadosDeLaPortada, FORMAS, fotoDeLaPortada, fotosDeVitrina, tinteDe, tinteDeColor } from "@/lib/vitrina";
@@ -33,8 +30,8 @@ import { categoriasParaComprar, destacadosDeLaPortada, FORMAS, fotoDeLaPortada, 
  * 2. Comprar: cuatro modelos destacados como mucho y un acceso por cada
  *    categoría de anteojos con stock (las vacías no se muestran).
  * 3. Confianza: envío, devolución y asesoramiento, compacto.
- * 4. Suscriptores: «Ser parte tiene sus ventajas.», la tarjeta de socio con
- *    los beneficios y el formulario a la vista.
+ * 4. Suscriptores: «Ser parte tiene sus ventajas.», una bajada breve,
+ *    «Suscribirme gratis» y el formulario a la vista; los beneficios, a un enlace.
  * 5. Opiniones: solo de anteojos, reales; sin ninguna, no aparece.
  *
  * Lo largo (cómo funcionan los cristales, qué trae la caja, las preguntas)
@@ -81,17 +78,13 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const precios = [...new Set(destacadosProductos.map((p) => p.precio))];
   const precioPar = todos.length > 0 ? Math.min(...todos.map((m) => m.precio)) : null;
 
-  // Las cuotas de cada precio que se muestra, confirmadas con Mercado Pago; las
-  // de suscriptor, solo si son un beneficio (lib/suscriptores.ts).
-  const [verificadas, mercadoLibre, cuotasSuscriptor] = await Promise.all([
+  // Las cuotas de cada precio que se muestra, confirmadas con Mercado Pago.
+  const [verificadas, mercadoLibre] = await Promise.all([
     conEspera(Promise.all(precios.map(async (p) => [p, await verificarCuotas(p)] as const)), ESPERA_CUOTAS_MS, []),
     conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, ultimoDeMercadoLibre()),
-    precioPar && CUOTAS_SON_BENEFICIO ? conEspera(verificarCuotas(precioPar, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
   ]);
   const cuotasDe = (precio: number | null) => (precio === null ? null : (verificadas.find(([p]) => p === precio)?.[1] ?? null));
   const cuotasAnteojos = cuotasDe(precioPar);
-  const cuotasDeSuscriptor =
-    cuotasSuscriptor && (!cuotasAnteojos || cuotasSuscriptor.cuotas > cuotasAnteojos.cuotas) ? cuotasSuscriptor : null;
 
   // 2. Comprar: los destacados, cada uno con su color inicial, su fondo y sus cuotas.
   const iniciales = coloresIniciales(destacadosProductos);
@@ -141,7 +134,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       : []),
   ];
 
-  const beneficios = beneficiosDeSuscriptor(cuotasDeSuscriptor, cuotasAnteojos?.cuotas ?? null);
   const S = TEXTOS.inicio.suscripcion;
 
   return (
@@ -161,7 +153,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       {/* 3. Confianza. */}
       <ConfianzaPortada items={confianza} />
 
-      {/* 4. Suscriptores: la invitación, la tarjeta de socio con los beneficios y el formulario a la vista. */}
+      {/* 4. Suscriptores: breve. Título, bajada, «Suscribirme gratis» (directo al
+          formulario) y los beneficios con sus condiciones a un enlace. */}
       <section id="suscriptores" className="suscripcion-inicio" aria-labelledby="suscripcion-inicio-titulo">
         <div className="contenedor suscripcion-inicio__grilla">
           <div className="suscripcion-inicio__texto">
@@ -171,32 +164,13 @@ export default async function PortadaVitrina({ productos, config }: { productos:
             </h2>
             <p className="suscripcion-inicio__bajada">{S.bajada}</p>
             {/* En el celular lleva directo al formulario; en la compu ya está al lado. */}
-            <IrAlFormulario texto={S.boton} />
-            <div className="tarjeta-socio">
-              <div className="tarjeta-socio__cabeza">
-                <Logo alto={16} />
-                <span className="etiqueta-mono">{S.tarjeta}</span>
-              </div>
-              <ol className="tarjeta-socio__beneficios">
-                {beneficios.map((b, i) => (
-                  <li key={b.clave}>
-                    <span className="tarjeta-socio__numero" aria-hidden="true">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span className="tarjeta-socio__texto">
-                      <strong>{b.titulo}</strong>
-                      <span>{S.reglas[b.clave] ?? b.detalle}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-              <Link href="/legales/suscriptores" className="tarjeta-socio__condiciones">
-                {S.condiciones}
-              </Link>
-            </div>
+            <IrAlFormulario texto={S.cta} />
+            <Link href="/suscriptores" className="suscripcion-inicio__mas">
+              {S.beneficios}
+            </Link>
           </div>
           <div id="suscribirme" className="suscripcion-inicio__form">
-            <CajaSuscripcion origen="Portada" encabezado={{ titulo: TEXTOS.suscriptores.portada.formTitulo, bajada: S.baja }} />
+            <CajaSuscripcion origen="Portada" />
           </div>
         </div>
       </section>
