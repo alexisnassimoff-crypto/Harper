@@ -2,7 +2,7 @@ import BarraTusPares from "./BarraTusPares";
 import Opiniones from "./Opiniones";
 import PortadaHero from "./PortadaHero";
 import { ConfianzaPortada, type ItemConfianza } from "./SeccionesPortada";
-import Vitrina, { type CategoriaVitrina } from "./Vitrina";
+import Vitrina, { type CategoriaVitrina, type DestacadoVitrina } from "./Vitrina";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import type { ConfigTienda } from "@/lib/config";
@@ -16,22 +16,26 @@ import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
 import { beneficiosDeSuscriptor } from "@/components/suscriptores/BeneficiosSuscriptor";
+import Link from "next/link";
 import CajaSuscripcion from "@/components/suscriptores/CajaSuscripcion";
-import Cifras from "@/components/Cifras";
+import IrAlFormulario from "@/components/suscriptores/IrAlFormulario";
+import Logo from "@/components/Logo";
 import { rutaDeVariante } from "@/lib/variantes";
 import { enlaceWhatsApp } from "@/lib/whatsapp";
-import { categoriasParaComprar, FORMAS, fotoDeLaPortada, fotosDeVitrina, precioUnico, tinteDe, tinteDeColor } from "@/lib/vitrina";
+import { categoriasParaComprar, destacadosDeLaPortada, FORMAS, fotoDeLaPortada, fotosDeVitrina, tinteDe, tinteDeColor } from "@/lib/vitrina";
 
 /**
  * La portada (Ale, 05/11/2026: «vamos a simplificar radicalmente el Home»).
  * Solo cinco partes y el pie:
  *
- * 1. Presentación: Harper como marca de anteojos de diseño, una foto
- *    protagonista y «Explorar anteojos».
- * 2. Comprar: una categoría de anteojos por bloque, solo las que tienen stock.
+ * 1. Presentación: «Anteojos de diseño», la frase de la marca, una foto real
+ *    del anteojo entero y «Explorar anteojos».
+ * 2. Comprar: cuatro modelos destacados como mucho y un acceso por cada
+ *    categoría de anteojos con stock (las vacías no se muestran).
  * 3. Confianza: envío, devolución y asesoramiento, compacto.
- * 4. Suscripción: breve, aparte y con el formulario a la vista.
- * 5. Opiniones: unas pocas, reales.
+ * 4. Suscriptores: «Ser parte tiene sus ventajas.», la tarjeta de socio con
+ *    los beneficios y el formulario a la vista.
+ * 5. Opiniones: solo de anteojos, reales; sin ninguna, no aparece.
  *
  * Lo largo (cómo funcionan los cristales, qué trae la caja, las preguntas)
  * quedó en las fichas y en /preguntas-frecuentes. Los montos salen de
@@ -70,13 +74,14 @@ function textoCuota(c: CuotasVerificadas | null | undefined): string | null {
 }
 
 export default async function PortadaVitrina({ productos, config }: { productos: Producto[]; config: ConfigTienda }) {
-  // Las categorías de anteojos con stock, en orden; cada una con sus modelos con stock.
+  // Las categorías de anteojos con stock, en orden; de ahí, cuatro destacados como mucho.
   const categorias = categoriasParaComprar(productos);
-  const modelos = categorias.flatMap((c) => c.productos);
-  const precios = [...new Set(categorias.map((c) => precioUnico(c.productos)).filter((p): p is number => p !== null))];
-  const precioPar = modelos.length > 0 ? Math.min(...modelos.map((m) => m.precio)) : null;
+  const destacadosProductos = destacadosDeLaPortada(categorias);
+  const todos = categorias.flatMap((c) => c.productos);
+  const precios = [...new Set(destacadosProductos.map((p) => p.precio))];
+  const precioPar = todos.length > 0 ? Math.min(...todos.map((m) => m.precio)) : null;
 
-  // Las cuotas de cada precio que se anuncia, confirmadas con Mercado Pago; las
+  // Las cuotas de cada precio que se muestra, confirmadas con Mercado Pago; las
   // de suscriptor, solo si son un beneficio (lib/suscriptores.ts).
   const [verificadas, mercadoLibre, cuotasSuscriptor] = await Promise.all([
     conEspera(Promise.all(precios.map(async (p) => [p, await verificarCuotas(p)] as const)), ESPERA_CUOTAS_MS, []),
@@ -88,38 +93,30 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const cuotasDeSuscriptor =
     cuotasSuscriptor && (!cuotasAnteojos || cuotasSuscriptor.cuotas > cuotasAnteojos.cuotas) ? cuotasSuscriptor : null;
 
-  // 2. Comprar: los modelos de cada categoría, con su color inicial y su fondo.
-  const iniciales = coloresIniciales(modelos);
-  const vitrina: CategoriaVitrina[] = categorias.map((c) => ({
-    slug: c.slug,
-    titulo: c.titulo,
-    // Lo de la línea («Fotocromáticos · Filtro de luz azul · UV400»), solo si está confirmado en cada modelo.
-    detalle: c.productos.every((p) => caracteristicasDe(p) !== null) ? c.detalle : null,
-    enlace: c.enlace,
-    cuota: textoCuota(cuotasDe(precioUnico(c.productos))),
-    modelos: c.productos.map((m) => {
-      const i = modelos.indexOf(m);
-      return {
-        id: m.id,
-        slug: m.slug,
-        nombre: m.nombre,
-        precio: m.precio,
-        tinte: tinteDe(m.slug, i),
-        forma: FORMAS[m.slug] ?? null,
-        inicial: iniciales[i],
-        colores: m.variantes.map((v, j) => ({
-          id: v.id,
-          sku: v.sku,
-          color: v.color,
-          colorHex: v.colorHex,
-          agotada: v.agotada,
-          ...fotosDeVitrina(v, m.fotoPrincipal ?? ""),
-          enlace: rutaDeVariante(m, j),
-          tinte: tinteDeColor(m.slug, v.color, i),
-        })),
-      };
-    }),
+  // 2. Comprar: los destacados, cada uno con su color inicial, su fondo y sus cuotas.
+  const iniciales = coloresIniciales(destacadosProductos);
+  const destacados: DestacadoVitrina[] = destacadosProductos.map((m, i) => ({
+    id: m.id,
+    slug: m.slug,
+    nombre: m.nombre,
+    precio: m.precio,
+    tinte: tinteDe(m.slug, i),
+    forma: FORMAS[m.slug] ?? null,
+    inicial: iniciales[i],
+    categoria: categorias.find((c) => c.nombre === m.categoria)?.titulo ?? m.categoria,
+    cuota: textoCuota(cuotasDe(m.precio)),
+    colores: m.variantes.map((v, j) => ({
+      id: v.id,
+      sku: v.sku,
+      color: v.color,
+      colorHex: v.colorHex,
+      agotada: v.agotada,
+      ...fotosDeVitrina(v, m.fotoPrincipal ?? ""),
+      enlace: rutaDeVariante(m, j),
+      tinte: tinteDeColor(m.slug, v.color, i),
+    })),
   }));
+  const accesos: CategoriaVitrina[] = categorias.map((c) => ({ slug: c.slug, titulo: c.titulo, enlace: c.enlace, cantidad: c.productos.length }));
   const complementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
 
   // 3. Confianza: envío, devolución y asesoramiento (los mismos plazos y enlaces que la ficha).
@@ -145,49 +142,67 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   ];
 
   const beneficios = beneficiosDeSuscriptor(cuotasDeSuscriptor, cuotasAnteojos?.cuotas ?? null);
+  const S = TEXTOS.inicio.suscripcion;
 
   return (
     <>
       {/* 1. Presentación. Config `portada_titulo` y `portada_subtitulo` ganan si se cargan; hoy están vacíos. */}
       <PortadaHero
-        etiqueta={TEXTOS.inicio.etiqueta}
-        titulo={config.portadaTitulo || TEXTOS.inicio.titulo}
+        producto={TEXTOS.inicio.producto}
+        frase={config.portadaTitulo ? [config.portadaTitulo] : [TEXTOS.nosotros.frase[0], TEXTOS.nosotros.frase[1]]}
         bajada={config.portadaSubtitulo || TEXTOS.inicio.bajada}
         boton={TEXTOS.inicio.boton}
-        foto={config.portadaImagen ? { src: config.portadaImagen, alt: "" } : fotoDeLaPortada(modelos)}
+        foto={config.portadaImagen ? { src: config.portadaImagen, alt: "" } : fotoDeLaPortada(destacadosProductos)}
       />
 
-      {/* 2. Comprar, por categoría. */}
-      <Vitrina categorias={vitrina} datos={{ complementos: complementos.map((c) => ({ nombre: c.nombre, slug: c.slug })) }} />
+      {/* 2. Comprar: cuatro destacados y un acceso por categoría. */}
+      <Vitrina destacados={destacados} categorias={accesos} datos={{ complementos: complementos.map((c) => ({ nombre: c.nombre, slug: c.slug })) }} />
 
       {/* 3. Confianza. */}
       <ConfianzaPortada items={confianza} />
 
-      {/* 4. Suscripción: breve, aparte de la compra y con el formulario a la vista. */}
+      {/* 4. Suscriptores: la invitación, la tarjeta de socio con los beneficios y el formulario a la vista. */}
       <section id="suscriptores" className="suscripcion-inicio" aria-labelledby="suscripcion-inicio-titulo">
         <div className="contenedor suscripcion-inicio__grilla">
           <div className="suscripcion-inicio__texto">
-            <p className="etiqueta-mono">{TEXTOS.inicio.suscripcion.etiqueta}</p>
+            <p className="etiqueta-mono">{S.etiqueta}</p>
             <h2 id="suscripcion-inicio-titulo" className="suscripcion-inicio__titulo">
-              {TEXTOS.suscriptores.titulo}
+              {S.titulo}
             </h2>
-            <ul className="suscripcion-inicio__beneficios">
-              {beneficios.map((b) => (
-                <li key={b.clave}>
-                  <Cifras>{b.titulo}</Cifras>
-                </li>
-              ))}
-            </ul>
-            <p className="suscripcion-inicio__bajada">{TEXTOS.inicio.suscripcion.bajada}</p>
+            <p className="suscripcion-inicio__bajada">{S.bajada}</p>
+            {/* En el celular lleva directo al formulario; en la compu ya está al lado. */}
+            <IrAlFormulario texto={S.boton} />
+            <div className="tarjeta-socio">
+              <div className="tarjeta-socio__cabeza">
+                <Logo alto={16} />
+                <span className="etiqueta-mono">{S.tarjeta}</span>
+              </div>
+              <ol className="tarjeta-socio__beneficios">
+                {beneficios.map((b, i) => (
+                  <li key={b.clave}>
+                    <span className="tarjeta-socio__numero" aria-hidden="true">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="tarjeta-socio__texto">
+                      <strong>{b.titulo}</strong>
+                      <span>{S.reglas[b.clave] ?? b.detalle}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <Link href="/legales/suscriptores" className="tarjeta-socio__condiciones">
+                {S.condiciones}
+              </Link>
+            </div>
           </div>
           <div id="suscribirme" className="suscripcion-inicio__form">
-            <CajaSuscripcion origen="Portada" />
+            <CajaSuscripcion origen="Portada" encabezado={{ titulo: TEXTOS.suscriptores.portada.formTitulo, bajada: S.baja }} />
           </div>
         </div>
       </section>
 
-      {/* 5. Opiniones: una selección corta. */}
-      <Opiniones opiniones={mercadoLibre?.opiniones ?? null} reputacion={mercadoLibre?.reputacion ?? null} compacta />
+      {/* 5. Opiniones: solo de anteojos; sin ninguna, la sección no aparece. */}
+      <Opiniones opiniones={mercadoLibre?.opiniones ?? null} reputacion={null} soloAnteojos />
 
       {/* Con algo en el carrito, la barra de abajo lleva a pagar; sin nada, no aparece. */}
       {precioPar ? (

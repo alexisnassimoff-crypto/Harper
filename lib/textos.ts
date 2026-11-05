@@ -47,9 +47,10 @@ export const TEXTOS = {
    * sin atarla a los fotocromáticos (de sol, receta y clip-on vienen después).
    */
   inicio: {
-    etiqueta: "Harper Eyewear · Buenos Aires",
-    titulo: "Anteojos de diseño.",
-    bajada: "Formas simples y actuales, en colores pensados para combinar con lo que ya tenés.",
+    /** La identificación del producto, arriba del titular: siempre visible. */
+    producto: "Anteojos de diseño",
+    /** El titular es la frase de la marca (TEXTOS.nosotros.frase), en dos tiempos. */
+    bajada: "Formas simples y colores para combinar con lo que ya tenés en el placard.",
     boton: "Explorar anteojos",
     comprar: {
       etiqueta: "Comprar",
@@ -67,9 +68,26 @@ export const TEXTOS = {
       whatsapp: "Te asesoramos por WhatsApp",
       whatsappDetalle: "Modelo, talle o cristales con aumento",
     },
+    /**
+     * Suscriptores (Ale, 05/11/2026): «más atractiva, menos parecida a un
+     * listado de descuentos». Los beneficios van en una tarjeta de socio,
+     * cada uno con su regla corta; los montos los pone el código.
+     */
     suscripcion: {
-      etiqueta: "Suscriptores Harper · Gratis",
-      bajada: "Solo necesitás tu mail. Te das de baja cuando quieras.",
+      etiqueta: "Suscriptores Harper · Es gratis",
+      titulo: "Ser parte tiene sus ventajas.",
+      bajada: "Unite gratis y descubrí los beneficios que preparamos para vos.",
+      boton: "Descubrir mis beneficios",
+      tarjeta: "Suscriptor Harper",
+      condiciones: "Ver las condiciones completas",
+      /** La regla de cada beneficio, en una línea. */
+      reglas: {
+        cupon: "En tu primera compra.",
+        cashback: "De lo que pagás, como saldo para la próxima.",
+        envio: "A todo el país, sin mínimo.",
+        cuotas: "Con tu mail de suscriptor.",
+      } as Record<string, string>,
+      baja: "Es gratis. Te das de baja cuando quieras.",
     },
   },
   /** Por qué Harper (Ale, 05/11/2026): cómo es comprar, sin repetir las promociones. */
@@ -370,11 +388,9 @@ export const TEXTOS = {
     },
     /** La caja de la ficha. */
     ficha: {
-      titulo: (monto: string) => `Suscribite gratis y desbloqueá ${monto} de bienvenida.`,
       suscripto: "Sos suscriptor: tus beneficios se aplican solos en el carrito.",
       /** «Tenés $ 2.181 de saldo para usar.» */
       saldo: (monto: string) => `Tenés ${monto} de saldo para usar.`,
-      suscribirme: "Suscribirme gratis",
     },
     /** El checkout. */
     checkoutCaja: {

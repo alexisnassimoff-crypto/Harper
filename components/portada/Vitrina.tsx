@@ -9,11 +9,12 @@ import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { TEXTOS } from "@/lib/textos";
 
 /**
- * «Comprar» en la portada (Ale, 05/11/2026): un bloque por categoría de
- * anteojos con stock (hoy, los fotocromáticos; mañana también de sol, receta
- * y clip-on, sin rediseñar nada). Cada modelo, sobre el color del armazón
- * elegido, se suma al carrito sin salir de la portada. Donde hay fotos al
- * sol, un interruptor «Al sol | Adentro» por categoría.
+ * «Comprar» en la portada (Ale, 05/11/2026): cuatro modelos destacados como
+ * mucho y, arriba, un acceso por cada categoría de anteojos con stock (hoy,
+ * los fotocromáticos; mañana también de sol, receta y clip-on, sin alargar la
+ * portada). Cada modelo, sobre el color del armazón elegido, se suma al
+ * carrito sin salir de la portada. Donde hay fotos al sol, el interruptor
+ * «Al sol | Adentro».
  *
  * Todo lo que es plata (precio, cuotas) viene armado del servidor: acá no se
  * calcula ningún monto.
@@ -46,16 +47,21 @@ export type ModeloVitrina = {
   inicial: number;
 };
 
+/** Un acceso a la página de una categoría con stock: «Fotocromáticos (4)». */
 export type CategoriaVitrina = {
   slug: string;
   /** "Fotocromáticos", "Anteojos de sol". */
   titulo: string;
-  /** "Fotocromáticos · Filtro de luz azul · UV400"; null si no hay nada confirmado. */
-  detalle: string | null;
   /** La página de la categoría. */
   enlace: string;
-  modelos: ModeloVitrina[];
-  /** "6 cuotas sin interés de $ 14.983,33", verificada para el precio de la categoría; null si no. */
+  /** Cuántos modelos con stock tiene. */
+  cantidad: number;
+};
+
+export type DestacadoVitrina = ModeloVitrina & {
+  /** El nombre corto de su categoría; se muestra solo si hay más de una. */
+  categoria: string;
+  /** "6 cuotas sin interés de $ 14.983,33", verificada para su precio; null si no. */
   cuota: string | null;
 };
 
@@ -68,16 +74,27 @@ type Estado = "sol" | "adentro";
 
 const T = TEXTOS.inicio.comprar;
 
-export default function Vitrina({ categorias, datos }: { categorias: CategoriaVitrina[]; datos: DatosVitrina }) {
+export default function Vitrina({
+  destacados,
+  categorias,
+  datos,
+}: {
+  /** Cuatro como mucho (lib/vitrina.ts, destacadosDeLaPortada). */
+  destacados: DestacadoVitrina[];
+  /** Las categorías de anteojos con stock, para ir a ver todos los modelos de cada una. */
+  categorias: CategoriaVitrina[];
+  datos: DatosVitrina;
+}) {
   const { items, agregar, abrirPanel } = useCarrito();
   // Cuántos de cada color hay en el carrito: el número va arriba del color, como en la ficha.
   const enCarrito = new Map<string, number>();
   for (const item of items) enCarrito.set(item.varianteId, (enCarrito.get(item.varianteId) ?? 0) + item.cantidad);
-  const modelos = categorias.flatMap((c) => c.modelos);
-  const [estados, setEstados] = useState<Record<string, Estado>>({});
-  const [elegidos, setElegidos] = useState<Record<string, number>>(() => Object.fromEntries(modelos.map((m) => [m.slug, m.inicial])));
+  const [estado, setEstado] = useState<Estado>("sol");
+  const [elegidos, setElegidos] = useState<Record<string, number>>(() => Object.fromEntries(destacados.map((m) => [m.slug, m.inicial])));
   const [sumados, setSumados] = useState<Record<string, boolean>>({});
   const [aviso, setAviso] = useState("");
+  const hayAlSol = destacados.some((m) => m.colores.some((c) => c.alSol));
+  const variasCategorias = categorias.length > 1;
 
   function elegirColor(slug: string, indice: number) {
     setElegidos((e) => ({ ...e, [slug]: indice }));
@@ -103,126 +120,110 @@ export default function Vitrina({ categorias, datos }: { categorias: CategoriaVi
           <h2 id="comprar-titulo" className="titulo-serif">
             {T.titulo}
           </h2>
-          {/* Con más de una categoría, un atajo a cada una. */}
-          {categorias.length > 1 ? (
-            <nav className="comprar__categorias" aria-label="Categorías">
-              {categorias.map((c) => (
-                <a key={c.slug} href={`#categoria-${c.slug}`} className="comprar__chip">
-                  {c.titulo}
-                </a>
+        </div>
+
+        <div className="comprar__fila">
+          {/* Un acceso por categoría con stock: lleva a todos sus modelos. */}
+          <nav className="comprar__categorias" aria-label="Categorías de anteojos">
+            {categorias.map((c) => (
+              <Link key={c.slug} href={c.enlace} className="comprar__chip">
+                {c.titulo}
+                <span className="comprar__cantidad">{c.cantidad}</span>
+                <span aria-hidden="true">→</span>
+              </Link>
+            ))}
+          </nav>
+          {hayAlSol ? (
+            <div className="interruptor-sol" role="radiogroup" aria-label="Cómo se ven los cristales">
+              {(["sol", "adentro"] as const).map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  role="radio"
+                  aria-checked={estado === e}
+                  className="interruptor-sol__opcion"
+                  onClick={() => setEstado(e)}
+                >
+                  {e === "sol" ? "Al sol" : "Adentro"}
+                </button>
               ))}
-            </nav>
+            </div>
           ) : null}
         </div>
 
-        {categorias.map((categoria) => {
-          const estado = estados[categoria.slug] ?? "sol";
-          const hayAlSol = categoria.modelos.some((m) => m.colores.some((c) => c.alSol));
-          return (
-            <div key={categoria.slug} id={`categoria-${categoria.slug}`} className="comprar__categoria">
-              <div className="comprar__fila">
-                <div>
-                  <h3 className="comprar__nombre">{categoria.titulo}</h3>
-                  {categoria.detalle ? <p className="comprar__detalle">{categoria.detalle}</p> : null}
-                </div>
-                <div className="comprar__acciones">
-                  {hayAlSol ? (
-                    <div className="interruptor-sol" role="radiogroup" aria-label={`Cómo se ven los ${categoria.titulo.toLowerCase()}`}>
-                      {(["sol", "adentro"] as const).map((e) => (
-                        <button
-                          key={e}
-                          type="button"
-                          role="radio"
-                          aria-checked={estado === e}
-                          className="interruptor-sol__opcion"
-                          onClick={() => setEstados((s) => ({ ...s, [categoria.slug]: e }))}
-                        >
-                          {e === "sol" ? "Al sol" : "Adentro"}
-                        </button>
-                      ))}
+        <div className="comprar__grilla">
+          {destacados.map((m) => {
+            const indice = elegidos[m.slug] ?? m.inicial;
+            const color = m.colores[indice];
+            if (!color) return null;
+            const foto = estado === "sol" && color.alSol ? color.alSol : color.adentro;
+            return (
+              <article key={m.id} id={`modelo-${m.slug}`} className="tarjeta-inicio">
+                <Link
+                  href={color.enlace}
+                  className="tarjeta-inicio__foto"
+                  style={{ background: color.tinte || m.tinte }}
+                  aria-label={`Ver ${m.nombre} ${color.color}`}
+                >
+                  <Image
+                    src={foto}
+                    alt={`${m.nombre} ${color.color}${estado === "sol" && color.alSol ? ", al sol" : ""}`}
+                    fill
+                    sizes="(max-width: 768px) 50vw, 24vw"
+                    className="foto-multiplicada"
+                  />
+                </Link>
+                <div className="tarjeta-inicio__cuerpo">
+                  {variasCategorias ? <p className="etiqueta-mono tarjeta-inicio__categoria">{m.categoria}</p> : null}
+                  <div className="tarjeta-inicio__encabezado">
+                    <h3 className="tarjeta-inicio__nombre">
+                      <Link href={color.enlace}>{m.nombre}</Link>
+                    </h3>
+                    <span className="tarjeta-inicio__precio">{formatearPrecio(m.precio)}</span>
+                  </div>
+                  {m.colores.length > 1 ? (
+                    <div className="tarjeta-inicio__colores" role="radiogroup" aria-label={`Color de ${m.nombre}`}>
+                      {m.colores.map((c, j) => {
+                        const cantidad = enCarrito.get(c.id) ?? 0;
+                        const enElCarrito = cantidad > 0 ? `, ${cantidad} en el carrito` : "";
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={j === indice}
+                            aria-label={c.color + (c.agotada ? ", agotado" : "") + enElCarrito}
+                            title={c.color + (c.agotada ? " — agotado" : "") + enElCarrito}
+                            className="pieza__swatch"
+                            data-agotada={c.agotada || undefined}
+                            style={{ background: c.colorHex }}
+                            onClick={() => elegirColor(m.slug, j)}
+                          >
+                            {cantidad > 0 ? (
+                              <span className="swatch__cantidad" aria-hidden="true">
+                                {cantidad}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
                     </div>
                   ) : null}
-                  <Link href={categoria.enlace} className="comprar__ver">
-                    {T.verTodos}
-                  </Link>
+                  <p className="tarjeta-inicio__color">{color.color}</p>
+                  {m.cuota ? <p className="tarjeta-inicio__cuota">{m.cuota}</p> : null}
+                  <button
+                    type="button"
+                    className="boton boton--bloque boton--chico tarjeta-inicio__sumar"
+                    onClick={() => sumarEste(m)}
+                    disabled={color.agotada}
+                  >
+                    {color.agotada ? T.sinStock : sumados[m.slug] ? T.agregado : T.agregar}
+                  </button>
                 </div>
-              </div>
-
-              <div className="comprar__grilla">
-                {categoria.modelos.map((m) => {
-                  const indice = elegidos[m.slug] ?? m.inicial;
-                  const color = m.colores[indice];
-                  if (!color) return null;
-                  const foto = estado === "sol" && color.alSol ? color.alSol : color.adentro;
-                  return (
-                    <article key={m.id} id={`modelo-${m.slug}`} className="tarjeta-inicio">
-                      <Link
-                        href={color.enlace}
-                        className="tarjeta-inicio__foto"
-                        style={{ background: color.tinte || m.tinte }}
-                        aria-label={`Ver ${m.nombre} ${color.color}`}
-                      >
-                        <Image
-                          src={foto}
-                          alt={`${m.nombre} ${color.color}${estado === "sol" && color.alSol ? ", al sol" : ""}`}
-                          fill
-                          sizes="(max-width: 768px) 50vw, 24vw"
-                          className="foto-multiplicada"
-                        />
-                      </Link>
-                      <div className="tarjeta-inicio__cuerpo">
-                        <div className="tarjeta-inicio__encabezado">
-                          <h4 className="tarjeta-inicio__nombre">
-                            <Link href={color.enlace}>{m.nombre}</Link>
-                          </h4>
-                          <span className="tarjeta-inicio__precio">{formatearPrecio(m.precio)}</span>
-                        </div>
-                        {m.colores.length > 1 ? (
-                          <div className="tarjeta-inicio__colores" role="radiogroup" aria-label={`Color de ${m.nombre}`}>
-                            {m.colores.map((c, j) => {
-                              const cantidad = enCarrito.get(c.id) ?? 0;
-                              const enElCarrito = cantidad > 0 ? `, ${cantidad} en el carrito` : "";
-                              return (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  role="radio"
-                                  aria-checked={j === indice}
-                                  aria-label={c.color + (c.agotada ? ", agotado" : "") + enElCarrito}
-                                  title={c.color + (c.agotada ? " — agotado" : "") + enElCarrito}
-                                  className="pieza__swatch"
-                                  data-agotada={c.agotada || undefined}
-                                  style={{ background: c.colorHex }}
-                                  onClick={() => elegirColor(m.slug, j)}
-                                >
-                                  {cantidad > 0 ? (
-                                    <span className="swatch__cantidad" aria-hidden="true">
-                                      {cantidad}
-                                    </span>
-                                  ) : null}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                        <p className="tarjeta-inicio__color">{color.color}</p>
-                        {categoria.cuota ? <p className="tarjeta-inicio__cuota">{categoria.cuota}</p> : null}
-                        <button
-                          type="button"
-                          className="boton boton--bloque boton--chico tarjeta-inicio__sumar"
-                          onClick={() => sumarEste(m)}
-                          disabled={color.agotada}
-                        >
-                          {color.agotada ? T.sinStock : sumados[m.slug] ? T.agregado : T.agregar}
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+              </article>
+            );
+          })}
+        </div>
 
         {datos.complementos.length > 0 ? (
           <p className="comprar__complementos">

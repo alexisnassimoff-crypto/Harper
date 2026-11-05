@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { seleccionDeOpiniones, textoVentas, type OpinionesML, type ReputacionML } from "@/lib/ml-resenas";
+import { opinionesDeAnteojos, textoVentas, type OpinionesML, type ReputacionML } from "@/lib/ml-resenas";
 import Estrellas, { formatearPuntaje } from "./Estrellas";
 
 const MES = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" });
@@ -18,18 +18,24 @@ const MES = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", t
 export default function Opiniones({
   opiniones,
   reputacion,
-  compacta = false,
+  soloAnteojos = false,
+  modelo,
 }: {
   opiniones: OpinionesML | null;
   reputacion: ReputacionML | null;
   /**
-   * La portada (Ale, 05/11/2026): una selección corta (lib/ml-resenas.ts,
-   * seleccionDeOpiniones), sin flechas y con las ventas en el resumen.
+   * La portada y las fichas de anteojos (Ale, 05/11/2026): solo opiniones que
+   * se pueden atribuir a un modelo de anteojos (lib/ml-resenas.ts,
+   * opinionesDeAnteojos), unas pocas, sin el promedio general ni las ventas
+   * (son de todo junto: anteojos, estuches y paños). Sin ninguna, no aparece.
    */
-  compacta?: boolean;
+  soloAnteojos?: boolean;
+  /** En la ficha de un modelo, sus opiniones primero. */
+  modelo?: string;
 }) {
   const carril = useRef<HTMLUListElement>(null);
-  if (!opiniones && !reputacion) return null;
+  const deAnteojos = soloAnteojos ? opinionesDeAnteojos(opiniones?.destacadas ?? [], { modelo }) : [];
+  if (soloAnteojos ? deAnteojos.length === 0 : !opiniones && !reputacion) return null;
 
   function pasar(sentido: 1 | -1) {
     const nodo = carril.current;
@@ -39,8 +45,8 @@ export default function Opiniones({
     nodo.scrollBy({ left: sentido * paso, behavior: "smooth" });
   }
 
-  const destacadas = compacta ? seleccionDeOpiniones(opiniones?.destacadas ?? []) : (opiniones?.destacadas ?? []);
-  const ventas = compacta && reputacion && reputacion.ventas > 0 ? textoVentas(reputacion.ventas) : null;
+  const destacadas = soloAnteojos ? deAnteojos : (opiniones?.destacadas ?? []);
+  const compacta = soloAnteojos;
 
   return (
     <section id="opiniones" className={`contenedor seccion opiniones${compacta ? " opiniones--compacta" : ""}`} aria-labelledby="opiniones-titulo">
@@ -48,7 +54,7 @@ export default function Opiniones({
         <div className="pila" style={{ gap: "0.4rem" }}>
           <span className="label">Opiniones</span>
           <h2 id="opiniones-titulo" className="titulo titulo--chico">
-            Lo que dicen quienes ya compraron Harper
+            {soloAnteojos ? "Lo que dicen de nuestros anteojos" : "Lo que dicen quienes ya compraron Harper"}
           </h2>
         </div>
         {destacadas.length > 1 && !compacta ? (
@@ -67,14 +73,13 @@ export default function Opiniones({
         ) : null}
       </div>
 
-      {opiniones ? (
+      {opiniones && !compacta ? (
         <p className="opiniones__resumen">
           <span className="opiniones__promedio">{formatearPuntaje(opiniones.promedio)}</span>
           <span className="pila" style={{ gap: "0.15rem" }}>
             <Estrellas puntaje={opiniones.promedio} tamano={18} />
             <span className="apagado" style={{ fontSize: "0.8125rem" }}>
               {opiniones.total.toLocaleString("es-AR")} {opiniones.total === 1 ? "opinión" : "opiniones"} de clientes Harper
-              {ventas ? ` · ${ventas}` : ""}
             </span>
           </span>
         </p>

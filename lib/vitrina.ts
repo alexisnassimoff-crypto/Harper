@@ -226,19 +226,34 @@ export function categoriasParaComprar<P extends Pick<Producto, "categoria" | "va
 }
 
 /**
- * La foto de la primera pantalla: un anteojo de cerca, con el logo en la
- * patilla (la tercera foto de cada color). Primero el carey con stock, que es
- * el color más vistoso; si no hay, el primer color con stock. Sin caras: los
- * protagonistas son los anteojos.
+ * La foto de la primera pantalla: un anteojo real entero, de tres cuartos y
+ * con el logo en la patilla (la segunda foto de cada color, «-2»), para que se
+ * aprecie la forma. Primero el carey con stock, el color más vistoso; si no
+ * hay, el primer color con stock. Sin caras: los protagonistas son los anteojos.
  */
 export function fotoDeLaPortada(modelos: Pick<Producto, "nombre" | "variantes">[]): { src: string; alt: string } | null {
   const opciones = modelos.flatMap((m) => m.variantes.filter((v) => !v.agotada && v.fotos.length > 0).map((v) => ({ m, v })));
-  const plano = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const plano = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const elegida = opciones.find((o) => plano(o.v.color).startsWith("carey")) ?? opciones[0];
   if (!elegida) return null;
   const { m, v } = elegida;
   const nombre = m.nombre.charAt(0) + m.nombre.slice(1).toLowerCase();
-  // La de cerca es la «-3» de las fotos de la tienda; si no está, la primera.
-  const deCerca = v.fotos.find((f) => baseDeFoto(f) !== null && /-3\.(?:webp|jpe?g|png)$/i.test(f));
-  return { src: deCerca ?? v.fotos[0], alt: `${nombre} en ${plano(v.color)}, de cerca` };
+  const deTresCuartos = v.fotos.find((f) => baseDeFoto(f) !== null && /-2\.(?:webp|jpe?g|png)$/i.test(f));
+  return { src: deTresCuartos ?? v.fotos[0], alt: `${nombre} en ${plano(v.color)}` };
+}
+
+/**
+ * Los modelos destacados de la portada (Ale, 05/11/2026): cuatro como mucho,
+ * en total. Se toman de a uno por categoría, en ronda (el primero de cada una,
+ * después el segundo...), así cuando haya de sol, receta o clip-on cada una
+ * tiene su lugar sin alargar la portada. El resto, en la página de cada categoría.
+ */
+export function destacadosDeLaPortada<P>(categorias: { productos: P[] }[], maximo = 4): P[] {
+  const elegidos: P[] = [];
+  for (let vuelta = 0; elegidos.length < maximo; vuelta++) {
+    const deEstaVuelta = categorias.map((c) => c.productos[vuelta]).filter((p): p is P => p !== undefined);
+    if (deEstaVuelta.length === 0) break;
+    elegidos.push(...deEstaVuelta.slice(0, maximo - elegidos.length));
+  }
+  return elegidos;
 }

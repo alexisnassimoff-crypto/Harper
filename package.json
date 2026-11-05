@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node scripts/bajar-fuentes.mjs && next dev",
-    "build": "node scripts/bajar-fuentes.mjs && next build",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "tsc -p tsconfig.pruebas.json && node --test \".pruebas/tests/**/*.test.js\"",
-    "dev:fixtures": "node scripts/bajar-fuentes.mjs && HARPER_FIXTURES=1 next dev"
+    "dev:fixtures": "HARPER_FIXTURES=1 next dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

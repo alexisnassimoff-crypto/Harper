@@ -44,13 +44,14 @@
   --sombra-media: 0 10px 30px -12px rgb(22 21 15 / 0.22);
   --sombra-alta: 0 22px 48px -18px rgb(22 21 15 / 0.30);
 
-  /* Tipografía (Ale, 03/11/2026): solo dos en toda la web. Raleway en todo lo
-     que va sin serif y Melodrama en los títulos (04/11/2026: la más parecida a
-     Safira March, gratis). Las dos las define app/layout.tsx con next/font
-     (--fuente-texto y --fuente-titulos), por eso no se declaran acá. */
+  /* Tipografía definitiva (Ale, 05/11/2026): solo dos en toda la web.
+     Archivo Narrow Bold en títulos, nombres y botones; Roboto Mono en todo lo
+     demás. Las dos las define app/layout.tsx con next/font (--fuente-titulos y
+     --fuente-texto), por eso no se declaran acá. La mono ya es ancha: las
+     etiquetas en mayúsculas llevan poco espaciado. */
   --fuente-etiquetas: var(--fuente-texto);
-  --tracking-titulo: -0.01em;
-  --tracking-label: 0.16em;
+  --tracking-titulo: 0;
+  --tracking-label: 0.07em;
 }
 
 @media (min-width: 48rem) {
@@ -169,7 +170,7 @@ p {
   color: var(--sobre-acento);
   font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   overflow: hidden;
   isolation: isolate;
@@ -901,7 +902,7 @@ p {
   /* 16px: con menos, el iPhone hace zoom al tocar el campo. */
   font-size: 1rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .cupon__campo input:focus {
@@ -944,7 +945,7 @@ p {
   font: inherit;
   font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   cursor: pointer;
   transition: background var(--rapido) var(--curva);
@@ -1859,7 +1860,7 @@ p {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-size: 1.0625rem;
   font-weight: 500;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   transition: color var(--rapido) var(--curva);
 }
@@ -2981,7 +2982,7 @@ p {
 .pie__titulo {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: rgb(255 255 255 / 0.66);
 }
@@ -3244,7 +3245,7 @@ p {
   color: var(--hueso);
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.07em;
   line-height: 1.2;
   text-transform: uppercase;
 }
@@ -3585,7 +3586,7 @@ p {
   color: var(--sobre-acento);
   font-size: 0.625rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .pack__detalle {
@@ -4040,7 +4041,7 @@ p {
   font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--texto-suave);
   font-variant-numeric: lining-nums tabular-nums;
@@ -4079,7 +4080,7 @@ p {
   font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
@@ -4136,7 +4137,7 @@ p {
 .viene__nombre {
   font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.07em;
 }
 .viene__colores {
   display: flex;
@@ -4200,7 +4201,7 @@ p {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 500;
   font-size: 1.25rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   line-height: 1.1;
 }
@@ -4557,7 +4558,7 @@ p {
   flex-direction: column;
   font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.07em;
 }
 .hoja-pack__nombre small {
   font-weight: 400;
@@ -5220,7 +5221,7 @@ p {
 .cuenta-suscriptor__numero dt {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--texto-suave);
 }
@@ -5311,7 +5312,7 @@ p {
 .cuenta-suscriptor__baja h2 {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--texto-suave);
 }
@@ -5558,7 +5559,7 @@ p {
 .portada-color__modelo {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .portada-color__circulos {
@@ -5683,7 +5684,7 @@ p {
 }
 .vitrina-modelos .pieza__nombre {
   font-size: 1.0625rem;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
 }
 .vitrina-modelos .pieza__forma {
   display: none;
@@ -5769,7 +5770,7 @@ p {
   margin-bottom: 0.15rem;
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .un-par__momentos {
@@ -5802,7 +5803,7 @@ p {
   font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--verde);
 }
@@ -5927,7 +5928,7 @@ p {
   align-self: center;
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--texto-suave);
   white-space: nowrap;
@@ -6291,7 +6292,7 @@ main:has(.cierre:last-child) ~ .pie {
 .panel-cifra dt {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--texto-suave);
 }
@@ -6714,7 +6715,7 @@ main:has(.cierre:last-child) ~ .pie {
   font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: rgb(255 255 255 / 0.7);
 }
@@ -6881,12 +6882,14 @@ body[data-sin-flotantes] .wsp {
 .inicio-hero__foto {
   grid-area: foto;
   position: relative;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 16 / 10;
   overflow: hidden;
 }
+/* El anteojo entero, de tres cuartos, con aire alrededor. */
 .inicio-hero__foto img {
   object-fit: cover;
   object-position: 50% 50%;
+  transform: scale(0.9);
   animation: portada-aparece var(--lento) var(--curva);
 }
 .inicio-hero__texto {
@@ -6896,25 +6899,31 @@ body[data-sin-flotantes] .wsp {
   align-items: flex-start;
   padding: 1.25rem var(--gutter) 2.25rem;
 }
-.inicio-hero__texto .etiqueta-mono {
-  color: var(--tinta);
-  opacity: 0.65;
-}
 .inicio-hero__titulo {
-  margin-top: 0.6rem;
-  font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 500;
-  font-size: clamp(2.5rem, 11vw, 3.5rem);
+  display: grid;
+  font-size: clamp(2.25rem, 10vw, 3.5rem);
+  line-height: 0.95;
+}
+/* Qué vende Harper, siempre a la vista: arriba de la frase y en verde. */
+.inicio-hero__producto {
+  margin-bottom: 0.55rem;
+  font-size: 1.125rem;
   line-height: 1;
-  letter-spacing: -0.015em;
-  text-wrap: balance;
+  letter-spacing: 0.05em;
+  color: var(--verde);
+}
+.inicio-hero__frase {
+  display: block;
+}
+.inicio-hero__frase--acento {
+  color: var(--verde);
 }
 .inicio-hero__bajada {
-  margin-top: 0.75rem;
-  max-width: 26rem;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  color: rgb(22 21 15 / 0.74);
+  margin-top: 0.85rem;
+  max-width: 30rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: rgb(22 21 15 / 0.78);
 }
 /* Al ancho del texto: el botón flotante de WhatsApp (abajo a la derecha) no lo tapa. */
 .inicio-hero__boton {
@@ -6930,27 +6939,37 @@ body[data-sin-flotantes] .wsp {
 .comprar__cabecera {
   display: grid;
   gap: 0.5rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 .comprar__categorias {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.75rem;
 }
 .comprar__chip {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--borde);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--tinta);
   border-radius: var(--radio-pill);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  transition: border-color var(--rapido) var(--curva), color var(--rapido) var(--curva);
+  transition: background var(--rapido) var(--curva), color var(--rapido) var(--curva);
 }
 .comprar__chip:hover {
-  border-color: var(--verde);
-  color: var(--verde);
+  background: var(--tinta);
+  color: #fff;
+}
+.comprar__cantidad {
+  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.6;
 }
 .comprar__categoria {
   scroll-margin-top: 5.5rem;
@@ -6961,7 +6980,7 @@ body[data-sin-flotantes] .wsp {
 .comprar__fila {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem 1.25rem;
   margin-bottom: 1.25rem;
@@ -7049,7 +7068,7 @@ body[data-sin-flotantes] .wsp {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 500;
   font-size: 1.0625rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   line-height: 1.1;
 }
@@ -7151,41 +7170,92 @@ body[data-sin-flotantes] .wsp {
   min-width: 0;
 }
 .suscripcion-inicio__titulo {
-  font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 500;
-  font-size: clamp(1.875rem, 7vw, 2.75rem);
-  line-height: 1.06;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
+  font-size: clamp(2.25rem, 10vw, 3.75rem);
+  line-height: 0.95;
 }
-.suscripcion-inicio__beneficios {
+.suscripcion-inicio__bajada {
+  max-width: 30rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: rgb(255 255 255 / 0.82);
+}
+.suscripcion-inicio .suscriptores-portada__cta {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+}
+
+/* La tarjeta de socio: los beneficios como algo que se tiene, no como una
+   lista de descuentos. Cada uno con su regla corta y las condiciones a mano. */
+.tarjeta-socio {
+  max-width: 27rem;
+  margin-top: 0.75rem;
+  padding: 1.15rem 1.25rem 1.1rem;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgb(255 255 255 / 0.1), transparent 55%),
+    var(--verde-claro);
+  box-shadow: 0 28px 50px -28px rgb(0 0 0 / 0.55);
+}
+.tarjeta-socio__cabeza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px dashed rgb(255 255 255 / 0.25);
+}
+.tarjeta-socio__cabeza img {
+  filter: brightness(0) invert(1);
+}
+.tarjeta-socio__cabeza .etiqueta-mono {
+  color: rgb(255 255 255 / 0.75);
+}
+.tarjeta-socio__beneficios {
   display: grid;
-  gap: 0.55rem;
-  margin: 0.25rem 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
-.suscripcion-inicio__beneficios li {
-  position: relative;
-  padding-left: 1.85rem;
-  font-size: 1.0625rem;
-  line-height: 1.35;
+.tarjeta-socio__beneficios li {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 0.25rem;
+  padding-block: 0.8rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
 }
-.suscripcion-inicio__beneficios li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.1rem;
-  width: 1.2rem;
-  height: 1.2rem;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 0.14)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E")
-    center / 0.75rem no-repeat;
+.tarjeta-socio__numero {
+  padding-top: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.55);
 }
-.suscripcion-inicio__bajada {
-  font-size: 0.875rem;
+.tarjeta-socio__texto {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.tarjeta-socio__texto strong {
+  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+.tarjeta-socio__texto span {
+  font-size: 0.8125rem;
+  line-height: 1.45;
   color: rgb(255 255 255 / 0.75);
+}
+.tarjeta-socio__condiciones {
+  display: inline-block;
+  margin-top: 0.85rem;
+  font-size: 0.8125rem;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+  text-decoration-thickness: 1px;
 }
 .suscripcion-inicio__form {
   align-self: start;
@@ -7207,20 +7277,26 @@ body[data-sin-flotantes] .wsp {
 
 @media (min-width: 48rem) {
   .inicio-hero {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas: "texto foto";
-    min-height: min(44rem, calc(100svh - 6.5rem));
+    min-height: min(42rem, calc(100svh - 6.5rem));
   }
   .inicio-hero__foto {
     aspect-ratio: auto;
     min-height: 100%;
+  }
+  .inicio-hero__foto img {
+    transform: scale(0.84);
+  }
+  .inicio-hero__producto {
+    font-size: 1.375rem;
   }
   .inicio-hero__texto {
     justify-content: center;
     padding: 4rem 3rem 4rem max(var(--gutter), calc((100vw - var(--ancho)) / 2 + var(--gutter)));
   }
   .inicio-hero__titulo {
-    font-size: clamp(3.25rem, 5.6vw, 5.25rem);
+    font-size: clamp(2.75rem, 3.9vw, 4rem);
   }
   .inicio-hero__bajada {
     margin-top: 1.1rem;
@@ -7286,4 +7362,111 @@ body[data-sin-flotantes] .wsp {
     padding: 0;
     overflow: visible;
   }
+}
+
+/* ===========================================================================
+   Tipografía definitiva (Ale, 05/11/2026), en todo el sitio.
+   - Títulos (principales y secundarios), nombres de los modelos y botones:
+     Archivo Narrow Bold (700), en mayúsculas, como la referencia de D.Franklin.
+   - Textos, descripciones, mensajes, precios y etiquetas: Roboto Mono, como
+     la de MOSCOT, en un tamaño cómodo para el celular.
+   Va al final para ganarle a las reglas viejas de cada componente sin
+   tocarlas una por una.
+   ========================================================================= */
+
+body {
+  font-size: 15px;
+  line-height: 1.65;
+  letter-spacing: -0.01em;
+}
+
+h1,
+h2,
+h3,
+.display,
+.titulo,
+.titulo-serif,
+.hero__titulo,
+.ficha__titulo,
+.ficha-producto__nombre,
+.viene__titulo,
+.pieza__nombre,
+.vitrina-todos__pregunta,
+.asi-llega__cierre,
+.hoja-pack__titulo,
+.nosotros-portada__titulo,
+.nosotros-lista__titulo,
+.suscriptores-portada__titulo,
+.beneficios-suscriptor__titulo,
+.suscripcion__listo,
+.suscriptor-ficha__titulo,
+.portada-color__titulo,
+.lo-que-viene__nombre,
+.cierre__titulo,
+.panel-seccion h2,
+.caja-suscripcion__titulo,
+.inicio-hero__titulo,
+.comprar__nombre,
+.tarjeta-inicio__nombre,
+.suscripcion-inicio__titulo,
+.pregunta__titulo {
+  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.005em;
+  line-height: 1;
+  text-wrap: balance;
+}
+
+/* Los títulos de las secciones que se abren (ficha y preguntas): un poco más chicos. */
+.pregunta__titulo {
+  font-size: 1.125rem;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+}
+
+/* Los nombres de los modelos: un poco de aire entre letras, como una etiqueta. */
+.ficha__titulo,
+.ficha-producto__nombre,
+.pieza__nombre,
+.tarjeta-inicio__nombre {
+  letter-spacing: 0.03em;
+}
+
+/* Las cifras dentro de un título van con la letra del título. */
+.cifra,
+.asi-llega__cierre .cifra {
+  font-family: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+/* Botones: la letra de los títulos, más grande que antes, para leerlos de un vistazo. */
+.boton {
+  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.boton--chico {
+  font-size: 0.875rem;
+}
+
+/* Etiquetas en mayúsculas: mono, chicas y con poco espaciado. */
+.etiqueta-mono,
+.label {
+  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+}
+
+/* Precios: mono, con cifras parejas y bien marcadas. */
+.tarjeta-inicio__precio,
+.pieza__precio,
+.portada-color__precio strong {
+  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }

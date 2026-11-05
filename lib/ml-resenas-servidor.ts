@@ -285,6 +285,7 @@ async function registrarFalla(mensaje: string) {
  * Null si todavía no hay copia o Redis no contesta.
  */
 export async function datosGuardadosDeMercadoLibre(): Promise<DatosMercadoLibre | null> {
+  if (modoFixtures()) return DATOS_ML_DE_PRUEBA;
   if (!mlConfigurado()) return null;
   return (await leerDatosML()) ?? ultimoBueno;
 }

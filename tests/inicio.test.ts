@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DATOS_ML_DE_PRUEBA } from "../lib/fixtures/opiniones";
-import { seleccionDeOpiniones, type ResenaML } from "../lib/ml-resenas";
+import { opinionesDeAnteojos, type ResenaML } from "../lib/ml-resenas";
 import { TEXTOS } from "../lib/textos";
-import { categoriasParaComprar, fotoDeLaPortada } from "../lib/vitrina";
+import { categoriasParaComprar, destacadosDeLaPortada, fotoDeLaPortada } from "../lib/vitrina";
 
 /** La portada simplificada (Ale, 05/11/2026): lo que no depende de React. */
 
@@ -38,21 +38,33 @@ test("inicio: Comprar muestra solo categorías de anteojos con stock, en orden",
   assert.deepEqual(categoriasParaComprar([]), []);
 });
 
-test("inicio: la foto de la primera pantalla es un anteojo de cerca, del carey con stock", () => {
+test("inicio: la foto de la primera pantalla es un anteojo real entero, del carey con stock", () => {
   const fotos = (base: string) => [1, 2, 3].map((n) => `/productos/anteojos/${base}-${n}.webp`).concat("/productos/estuches/x-1.webp");
   const modelos = [
     { nombre: "AMATISTA", variantes: [variante("Negro", 5, fotos("amatista-negro"))] },
     { nombre: "CITRINO", variantes: [variante("Carey", 0, fotos("citrino-carey")), variante("Ámbar", 2, fotos("citrino-ambar"))] },
     { nombre: "CUARZO", variantes: [variante("Carey", 1, fotos("cuarzo-carey"))] },
   ];
-  // El carey del Citrino está agotado: va el del Cuarzo, su foto de cerca (-3).
-  assert.deepEqual(fotoDeLaPortada(modelos), { src: "/productos/anteojos/cuarzo-carey-3.webp", alt: "Cuarzo en carey, de cerca" });
-  // Sin carey con stock, el primer color con stock; sin la de cerca, su primera foto.
+  // El carey del Citrino está agotado: va el del Cuarzo, su foto de tres cuartos (-2).
+  assert.deepEqual(fotoDeLaPortada(modelos), { src: "/productos/anteojos/cuarzo-carey-2.webp", alt: "Cuarzo en carey" });
+  // Sin carey con stock, el primer color con stock; sin la de tres cuartos, su primera foto.
   assert.equal(fotoDeLaPortada([{ nombre: "OBSIDIANA", variantes: [variante("Negro", 1, ["/productos/anteojos/obsidiana-negro-1.webp"])] }])?.src, "/productos/anteojos/obsidiana-negro-1.webp");
   assert.equal(fotoDeLaPortada([{ nombre: "X", variantes: [variante("Negro", 0, ["/a.webp"])] }]), null);
 });
 
-test("inicio: las opiniones son una selección corta y real, sin repetir a la misma persona", () => {
+test("inicio: cuatro destacados como mucho, de a uno por categoría", () => {
+  const cat = (pre: string, n: number) => ({ productos: Array.from({ length: n }, (_, i) => `${pre}${i + 1}`) });
+  // Hoy: una sola categoría con cuatro modelos.
+  assert.deepEqual(destacadosDeLaPortada([cat("F", 4)]), ["F1", "F2", "F3", "F4"]);
+  assert.deepEqual(destacadosDeLaPortada([cat("F", 6)]), ["F1", "F2", "F3", "F4"]);
+  // Con más categorías, en ronda: cada una tiene su lugar y nunca pasan de cuatro.
+  assert.deepEqual(destacadosDeLaPortada([cat("F", 4), cat("S", 3)]), ["F1", "S1", "F2", "S2"]);
+  assert.deepEqual(destacadosDeLaPortada([cat("F", 4), cat("S", 1), cat("R", 2), cat("C", 2), cat("X", 2)]), ["F1", "S1", "R1", "C1"]);
+  assert.deepEqual(destacadosDeLaPortada([cat("F", 1), cat("S", 1)]), ["F1", "S1"]);
+  assert.deepEqual(destacadosDeLaPortada([]), []);
+});
+
+test("inicio: las opiniones son solo de anteojos, reales y sin repetir a la misma persona", () => {
   const r = (id: string, estrellas: number, texto: string, producto: string | null = null): ResenaML => ({
     id,
     estrellas,
@@ -62,25 +74,33 @@ test("inicio: las opiniones son una selección corta y real, sin repetir a la mi
     producto,
   });
   const lista = [
-    r("1", 5, "Excelente producto!!!."),
-    r("2", 4, "Me llegó un poco aplastado, pero está bueno igual."),
-    r("3", 5, "Hermosas fundas. Compre negra y azul."),
-    r("4", 5, "Hermosas fundas. Compre en negra y azul 😍."),
-    r("5", 5, "Cómodos, estéticos y bloquean muy bien la luz uv.", "Modelo CITRINO"),
-    r("6", 5, "Calidad y precios formidables. El estuche se ve resistente y de muy buena calidad."),
+    r("1", 5, "Excelente producto!!!.", "Modelo CUARZO"),
+    r("2", 5, "Muy lindo y además trae una microfibra gruesa."),
+    r("3", 5, "Hermosas fundas. Compre negra y azul.", "Estuche R100"),
+    r("4", 5, "Cómodos, estéticos y bloquean muy bien la luz uv.", "Modelo CITRINO"),
+    r("5", 5, "Cómodos, estéticos y bloquean muy bien la luz uv!", "Modelo CITRINO"),
+    r("6", 4, "Es el segundo que compro, cumple con todo lo dicho.", "Modelo OBSIDIANA"),
   ];
-  const elegidas = seleccionDeOpiniones(lista);
-  // Primero la que nombra un modelo; ni la corta, ni la de 4 estrellas, ni la repetida.
-  assert.deepEqual(elegidas.map((x) => x.id), ["5", "3", "6"]);
+  // Ni la de un estuche, ni la que no dice qué se compró, ni la corta, ni la repetida.
+  assert.deepEqual(opinionesDeAnteojos(lista).map((x) => x.id), ["4", "6"]);
+  // En la ficha de un modelo, las suyas primero.
+  assert.deepEqual(opinionesDeAnteojos(lista, { modelo: "Obsidiana" }).map((x) => x.id), ["6", "4"]);
   // El texto queda tal cual.
-  assert.equal(elegidas[0].texto, "Cómodos, estéticos y bloquean muy bien la luz uv.");
-  assert.ok(seleccionDeOpiniones(DATOS_ML_DE_PRUEBA.opiniones?.destacadas ?? []).length <= 3);
+  assert.equal(opinionesDeAnteojos(lista)[0].texto, "Cómodos, estéticos y bloquean muy bien la luz uv.");
+  // Sin opiniones de anteojos, nada (la sección no aparece).
+  assert.deepEqual(opinionesDeAnteojos([r("9", 5, "Muy buena presentación, viene con el paño.", "Paño Premium")]), []);
+  // Con la copia real de harper.ar: solo las que nombran un modelo.
+  const reales = opinionesDeAnteojos(DATOS_ML_DE_PRUEBA.opiniones?.destacadas ?? []);
+  assert.ok(reales.length > 0 && reales.length <= 3 && reales.every((x) => x.producto?.startsWith("Modelo ")));
 });
 
-test("inicio: los textos presentan la marca sin palabras que Harper evita ni promesas médicas", () => {
+test("inicio: los textos presentan la marca sin frases genéricas, sin exagerar y sin palabras que Harper evita", () => {
   const todo = JSON.stringify(TEXTOS.inicio).toLowerCase();
+  assert.equal(TEXTOS.inicio.producto, "Anteojos de diseño");
   assert.equal(TEXTOS.inicio.boton, "Explorar anteojos");
-  for (const palabra of ["canchero", "onda", "accesible", "fachero", "cura", "previene", "médic", "salud"]) {
+  assert.equal(TEXTOS.inicio.suscripcion.titulo, "Ser parte tiene sus ventajas.");
+  assert.equal(TEXTOS.inicio.suscripcion.boton, "Descubrir mis beneficios");
+  for (const palabra of ["para todos los días", "premium", "lujo", "calidad superior", "canchero", "onda", "accesible", "fachero", "cura", "previene", "médic", "salud"]) {
     assert.ok(!todo.includes(palabra), `no dice «${palabra}»`);
   }
 });

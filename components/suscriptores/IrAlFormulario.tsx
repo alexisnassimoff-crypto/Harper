@@ -9,7 +9,7 @@ import { useSuscriptor } from "./useSuscriptor";
  * cursor en el mail. Sin JavaScript es un enlace común a #suscribirme. A quien
  * ya es suscriptor no se lo muestra: la tarjeta de abajo ya se lo dice.
  */
-export default function IrAlFormulario({ destino = "suscribirme" }: { destino?: string }) {
+export default function IrAlFormulario({ destino = "suscribirme", texto = TEXTOS.suscriptores.portada.cta }: { destino?: string; texto?: string }) {
   const { suscriptor } = useSuscriptor();
   if (suscriptor && suscriptor.activo !== false) return null;
 
@@ -28,7 +28,7 @@ export default function IrAlFormulario({ destino = "suscribirme" }: { destino?: 
         }, 500);
       }}
     >
-      {TEXTOS.suscriptores.portada.cta}
+      {texto}
     </a>
   );
 }

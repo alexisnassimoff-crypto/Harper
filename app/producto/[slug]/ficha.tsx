@@ -20,7 +20,7 @@ import { verificarCuotas } from "@/lib/cuotas-servidor";
 import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES } from "@/lib/suscriptores";
 import { netoDe } from "@/lib/impuestos";
 import { indiceVarianteInicial } from "@/lib/variantes";
-import { rutaDeCategoria } from "@/lib/categorias";
+import { esCategoriaDeAnteojos, rutaDeCategoria } from "@/lib/categorias";
 import { parrafosDe, resumenDe } from "@/lib/descripcion";
 import { datosGuardadosDeMercadoLibre } from "@/lib/ml-resenas-servidor";
 
@@ -141,6 +141,10 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
     datosGuardadosDeMercadoLibre(),
   ]);
   const opiniones = mercadoLibre?.opiniones ?? null;
+  // En los anteojos (Ale, 05/11/2026), solo opiniones de anteojos y sin el
+  // promedio general junto al nombre: ese promedio es de todo junto (anteojos,
+  // estuches y paños) y no se muestra como si fuera del anteojo.
+  const esAnteojo = esCategoriaDeAnteojos(producto.categoria);
   const pares = await paresDeLaFicha(producto, tramos, delMismoTipo);
 
   const otros = delMismoTipo.filter((p) => p.id !== producto.id);
@@ -227,11 +231,15 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         cuotasSuscriptor={cuotasSuscriptor && (!cuotas || cuotasSuscriptor.cuotas > cuotas.cuotas) ? cuotasSuscriptor : null}
         precioSinImpuestos={netoDe(config.impuestosNacionales, producto.categoria, producto.precio)}
         whatsapp={config.whatsapp || null}
-        calificacion={opiniones ? { promedio: opiniones.promedio, total: opiniones.total } : null}
+        calificacion={opiniones && !esAnteojo ? { promedio: opiniones.promedio, total: opiniones.total } : null}
         pares={pares}
       />
 
-      <Opiniones opiniones={opiniones} reputacion={mercadoLibre?.reputacion ?? null} />
+      {esAnteojo ? (
+        <Opiniones opiniones={opiniones} reputacion={null} soloAnteojos modelo={producto.nombre} />
+      ) : (
+        <Opiniones opiniones={opiniones} reputacion={mercadoLibre?.reputacion ?? null} />
+      )}
 
       {otros.length > 0 ? (
         <section className="contenedor seccion seccion--secundaria" aria-labelledby="otros-modelos">

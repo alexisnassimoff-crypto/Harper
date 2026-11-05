@@ -8,7 +8,6 @@ import { CASHBACK_PORCENTAJE, CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK } from "
 import { TEXTOS } from "@/lib/textos";
 import FormularioSuscripcion from "./FormularioSuscripcion";
 import { useSuscriptor } from "./useSuscriptor";
-import Cifras from "@/components/Cifras";
 
 const T = TEXTOS.suscriptores;
 
@@ -34,7 +33,10 @@ export default function SuscriptoresEnLaFicha({ cuotas }: { cuotas: CuotasVerifi
     );
   }
 
+  // La misma voz que la portada (Ale, 05/11/2026): «Ser parte tiene sus
+  // ventajas.», y los beneficios a la vista, la bienvenida primero.
   const puntos = [
+    T.tarjetas.cupon(formatearPrecio(CUPON_BIENVENIDA)).titulo,
     T.tarjetas.envio.titulo,
     T.tarjetas.cashback(CASHBACK_PORCENTAJE, DIAS_PARA_USAR_CASHBACK).titulo,
     ...(cuotas ? [`${cuotas.cuotas} cuotas sin interés (${NOMBRE_MARCAS} · CFTEA ${cfteaSinCortar(cuotas.cftea)})`] : []),
@@ -44,7 +46,7 @@ export default function SuscriptoresEnLaFicha({ cuotas }: { cuotas: CuotasVerifi
     <aside className="suscriptor-ficha" aria-labelledby="suscriptor-ficha-titulo">
       <p className="etiqueta-mono">{T.etiqueta}</p>
       <p id="suscriptor-ficha-titulo" className="suscriptor-ficha__titulo">
-        <Cifras>{T.ficha.titulo(formatearPrecio(CUPON_BIENVENIDA))}</Cifras>
+        {TEXTOS.inicio.suscripcion.titulo}
       </p>
       <ul className="suscriptor-ficha__puntos">
         {puntos.map((p) => (
@@ -56,10 +58,10 @@ export default function SuscriptoresEnLaFicha({ cuotas }: { cuotas: CuotasVerifi
       ) : (
         <div className="suscriptor-ficha__acciones">
           <button type="button" className="boton boton--chico" onClick={() => setAbierta(true)}>
-            {T.ficha.suscribirme}
+            {TEXTOS.inicio.suscripcion.boton}
           </button>
-          <Link href="/suscriptores" className="suscripcion__enlace">
-            Ver los beneficios
+          <Link href="/legales/suscriptores" className="suscripcion__enlace">
+            {TEXTOS.inicio.suscripcion.condiciones}
           </Link>
         </div>
       )}
