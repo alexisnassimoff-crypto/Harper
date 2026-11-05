@@ -99,8 +99,9 @@ test("inicio: los textos presentan la marca sin frases genéricas, sin exagerar 
   assert.equal(TEXTOS.inicio.producto, "Anteojos de diseño");
   assert.equal(TEXTOS.inicio.boton, "Explorar anteojos");
   assert.equal(TEXTOS.inicio.suscripcion.titulo, "Ser parte tiene sus ventajas.");
-  // El botón principal lleva al formulario; los beneficios, a un enlace aparte.
-  assert.equal(TEXTOS.inicio.suscripcion.cta, "Suscribirme gratis");
+  // Un solo «Suscribirme gratis», el del formulario (Ale, 05/11/2026); los beneficios, a un enlace aparte.
+  assert.ok(!("cta" in TEXTOS.inicio.suscripcion));
+  assert.equal(TEXTOS.suscriptores.form.suscribirme, "Suscribirme gratis");
   assert.match(TEXTOS.inicio.suscripcion.beneficios, /beneficios y sus condiciones/);
   // Nada técnico en la presentación: lo del código aparece recién cuando se manda.
   assert.ok(!JSON.stringify(TEXTOS.inicio.suscripcion).toLowerCase().includes("código"));

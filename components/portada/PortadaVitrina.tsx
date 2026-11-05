@@ -16,7 +16,6 @@ import { TEXTOS } from "@/lib/textos";
 import type { Producto, Variante } from "@/lib/tipos";
 import Link from "next/link";
 import CajaSuscripcion from "@/components/suscriptores/CajaSuscripcion";
-import IrAlFormulario from "@/components/suscriptores/IrAlFormulario";
 import { rutaDeVariante } from "@/lib/variantes";
 import { enlaceWhatsApp } from "@/lib/whatsapp";
 import { categoriasParaComprar, destacadosDeLaPortada, FORMAS, fotoDeLaPortada, fotosDeVitrina, tinteDe, tinteDeColor } from "@/lib/vitrina";
@@ -30,8 +29,8 @@ import { categoriasParaComprar, destacadosDeLaPortada, FORMAS, fotoDeLaPortada, 
  * 2. Comprar: cuatro modelos destacados como mucho y un acceso por cada
  *    categoría de anteojos con stock (las vacías no se muestran).
  * 3. Confianza: envío, devolución y asesoramiento, compacto.
- * 4. Suscriptores: «Ser parte tiene sus ventajas.», una bajada breve,
- *    «Suscribirme gratis» y el formulario a la vista; los beneficios, a un enlace.
+ * 4. Suscriptores: «Ser parte tiene sus ventajas.», una bajada breve y el
+ *    formulario a la vista; los beneficios, a un enlace.
  * 5. Opiniones: solo de anteojos, reales; sin ninguna, no aparece.
  *
  * Lo largo (cómo funcionan los cristales, qué trae la caja, las preguntas)
@@ -153,8 +152,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       {/* 3. Confianza. */}
       <ConfianzaPortada items={confianza} />
 
-      {/* 4. Suscriptores: breve. Título, bajada, «Suscribirme gratis» (directo al
-          formulario) y los beneficios con sus condiciones a un enlace. */}
+      {/* 4. Suscriptores: breve. Título, bajada, los beneficios con sus condiciones
+          a un enlace y el formulario justo debajo, con su «Suscribirme gratis». */}
       <section id="suscriptores" className="suscripcion-inicio" aria-labelledby="suscripcion-inicio-titulo">
         <div className="contenedor suscripcion-inicio__grilla">
           <div className="suscripcion-inicio__texto">
@@ -163,8 +162,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
               {S.titulo}
             </h2>
             <p className="suscripcion-inicio__bajada">{S.bajada}</p>
-            {/* En el celular lleva directo al formulario; en la compu ya está al lado. */}
-            <IrAlFormulario texto={S.cta} />
             <Link href="/suscriptores" className="suscripcion-inicio__mas">
               {S.beneficios}
             </Link>
