@@ -16,7 +16,7 @@ import {
 } from "@/lib/facturacion";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
-import { limpiarItems, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
+import { itemsDelPedido, limpiarItems, notasDelPedido, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
 import { leerEleccionEnvio } from "@/lib/envio-elegido";
 import { cotizacionParaComprador, type CotizacionEnvio } from "@/lib/envio-gratis";
 import { CAMPOS_ENVIO_NUEVOS, camposDeEnvio, DESCRIPCION_ENVIO, notaDeEnvio } from "@/lib/envio-pedido";
@@ -322,7 +322,8 @@ export async function POST(request: Request) {
       Numero: numero,
       Estado: "pendiente",
       Cliente: [clienteId],
-      Items: JSON.stringify(cobro.items, null, 2),
+      // Los renglones que se cobran, con el Dúo de cada uno si lo hubo (lib/pedidos.ts).
+      Items: itemsDelPedido(cobro.items),
       Resumen: resumirItems(cobro.items),
       Subtotal: cobro.subtotal,
       Envio: carrito.envio,
@@ -362,6 +363,8 @@ export async function POST(request: Request) {
         .filter(Boolean)
         .join(" + ") || null;
     const notasSuscriptor = [beneficios ? notasDeBeneficios(beneficios).join("\n") : null, notaDni].filter(Boolean).join("\n") || null;
+    // Más la línea del Dúo, si lo hubo («Promoción: Dúo 25 % · …»). Sin Dúo, son las mismas.
+    const notasExtra = notasDelPedido(notasSuscriptor, cobro.items);
     const envio = { campos: camposDeEnvio(carrito.envioDelPedido, cliente), nota: notaDeEnvio(carrito.envioDelPedido) };
 
     // Todo pagado con el saldo del suscriptor, con su envío gratis: no hay
@@ -382,7 +385,7 @@ export async function POST(request: Request) {
         clienteId,
         // Nace pendiente y pasa a pagado recién con el cupón y el saldo anotados.
         crearPedido: () =>
-          crearPedido({ ...campos, MP_status: "pagando con saldo, sin Mercado Pago" }, envio, factura, cupon, false, notasSuscriptor),
+          crearPedido({ ...campos, MP_status: "pagando con saldo, sin Mercado Pago" }, envio, factura, cupon, false, notasExtra),
         marcarPagado: async (id) => {
           await updateRecord<FilaPedido>(TABLAS.pedidos, id, { Estado: "pagado", MP_status: "pagado con saldo, sin Mercado Pago" });
         },
@@ -412,7 +415,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ numero, initPoint: `/gracias?pedido=${encodeURIComponent(numero)}` });
     }
 
-    const pedido = await crearPedido(campos, envio, factura, cupon, Boolean(dineroMP), notasSuscriptor);
+    const pedido = await crearPedido(campos, envio, factura, cupon, Boolean(dineroMP), notasExtra);
 
     pedidoId = pedido.id;
 
@@ -490,7 +493,8 @@ async function crearPedido(
   factura: FacturacionPedido,
   cupon: string | null,
   conDineroMP: boolean,
-  notasSuscriptor: string | null = null
+  /** Las del suscriptor y la del Dúo (notasDelPedido, lib/pedidos.ts). */
+  notasExtra: string | null = null
 ) {
   const facturacion = camposDeFacturacion(factura);
   const conCupon = cupon ? { Cupon: cupon } : {};
@@ -519,7 +523,7 @@ async function crearPedido(
   }
   let rechazosEnvio = 0;
   const armar = ({ fila, notas }: Intento): FilaPedido => {
-    const texto = [...notas, notasSuscriptor, envioIncompleto ? envio.nota : null].filter(Boolean).join("\n\n");
+    const texto = [...notas, notasExtra, envioIncompleto ? envio.nota : null].filter(Boolean).join("\n\n");
     return { ...fila, ...camposEnvio, ...(texto ? { Notas: texto } : {}) };
   };
   // El campo del envío que nombra el rechazo de Airtable ("Unknown field

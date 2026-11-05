@@ -99,7 +99,9 @@ export function aplicarMejorPromocion(
     return { items, cupon: { codigo: cupon.codigo, estado: "no-conviene", ahorro: 0 } };
   }
 
-  const aplicados = items.map((i) => {
+  // El cupón reemplaza la promoción del renglón: si tenía el Dúo (lib/duo.ts),
+  // ya no lo tiene, y el pedido no lo registra.
+  const aplicados = items.map(({ duo: _duo, ...i }) => {
     const precioUnitario = precioConCupon(i.precioLista, cupon);
     return { ...i, descuento: cupon.porcentaje, precioUnitario, subtotal: precioUnitario * i.cantidad };
   });

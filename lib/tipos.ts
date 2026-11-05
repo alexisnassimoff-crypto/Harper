@@ -91,6 +91,9 @@ export type ItemCarrito = {
   cantidad: number;
 };
 
+/** El Dúo de un renglón: porcentaje, unidades con descuento y pesos descontados (enteros). */
+export type DuoDelItem = { porcentaje: number; unidades: number; descuento: number };
+
 /** Un ítem ya resuelto contra el catálogo, con precio y stock reales. */
 export type ItemResuelto = {
   productoId: string;
@@ -114,6 +117,13 @@ export type ItemResuelto = {
   cupon?: number;
   /** Los pesos de este renglón pagados con el saldo del suscriptor. */
   saldo?: number;
+  /**
+   * El descuento Dúo de este renglón (lib/duo.ts), calculado en el servidor:
+   * el porcentaje, cuántas unidades lo llevan y cuántos pesos descuenta. Solo
+   * existe si el Dúo está prendido y quedó en el carrito; se guarda con el
+   * pedido (campo Items). Los pedidos anteriores no lo tienen.
+   */
+  duo?: DuoDelItem;
   cantidad: number;
   subtotal: number;
   stockDisponible: number;

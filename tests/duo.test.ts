@@ -329,6 +329,22 @@ test("Dúo en el carrito: va antes del cupón, del saldo y del dinero en Mercado
   assert.throws(() => aplicarDuo([item("Anteojos", 89_900, 2, { descuentoDineroMP: 10 })]));
 });
 
+test("Dúo en el carrito: cada renglón descontado lleva su detalle para el pedido, y solo esos", () => {
+  // Tres precios: el 25 % va al más barato (una unidad del renglón de 69.900 × 2).
+  const items = [item("Anteojos", 89_900, 1), item("Anteojos", 69_900, 2, { color: "Ámbar" }), item("Estuches", 29_900, 1)];
+  const r = aplicarDuo(items);
+  assert.deepEqual(r.items.map((i) => i.duo ?? null), [null, { porcentaje: 25, unidades: 1, descuento: 17_475 }, null]);
+  assert.equal(r.items[1].precioLista * r.items[1].cantidad - r.items[1].subtotal, r.items[1].duo?.descuento);
+  assert.ok(items.every((i) => !("duo" in i)), "no modifica lo que recibe");
+
+  // Si no se aplica, ningún renglón lo lleva.
+  assert.ok(aplicarDuo([item("Anteojos", 89_900, 1)]).items.every((i) => !("duo" in i)));
+  assert.ok(aplicarDuo([item("Anteojos", 89_900, 2, { descuento: 5, precioUnitario: 85_405, subtotal: 170_810 })]).items.every((i) => !("duo" in i)));
+  // Aplicado dos veces, el detalle no se duplica ni cambia.
+  const una = aplicarDuo([item("Anteojos", 89_900, 2)]);
+  assert.deepEqual(aplicarDuo(una.items).items[0].duo, { porcentaje: 25, unidades: 1, descuento: 22_475 });
+});
+
 test("Dúo con el carrito real del servidor (fixtures): dos modelos y colores distintos", async () => {
   const productos = await getProductos();
   const amatista = productos.find((p) => p.slug === "amatista")!;

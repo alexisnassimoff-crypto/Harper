@@ -32,7 +32,7 @@ import {
   tramosVigentes,
   type Tramo,
 } from "./descuentos";
-import { duoActivo, elegirPromocionAnteojos } from "./duo";
+import { duoActivo, elegirPromocionAnteojos, notaDelDuo, registroDelDuo } from "./duo";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
 import {
@@ -620,6 +620,24 @@ function destinoCompleto(d: Partial<DestinoEnvio> | undefined): DestinoEnvio | n
 /** Sin tildes ni mayúsculas: "Córdoba" y "cordoba" son el mismo destino. */
 function sinTildes(texto: string) {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Lo que va en el campo Items del pedido: los renglones tal como los calculó
+ * y los cobra el servidor. Si un renglón llevó el Dúo, va con su detalle
+ * (`duo`: porcentaje, unidades y pesos); sin Dúo, queda igual que siempre.
+ */
+export function itemsDelPedido(items: ItemResuelto[]): string {
+  return JSON.stringify(items, null, 2);
+}
+
+/**
+ * Las notas del pedido que van después de la facturación: las del suscriptor
+ * (el webhook las lee de ahí) y, si hubo Dúo, su línea «Promoción: Dúo …».
+ * Sin Dúo devuelve exactamente las del suscriptor.
+ */
+export function notasDelPedido(notasSuscriptor: string | null, items: ItemResuelto[]): string | null {
+  return [notasSuscriptor, notaDelDuo(registroDelDuo(items))].filter(Boolean).join("\n\n") || null;
 }
 
 /** Texto corto del pedido, para leerlo de un vistazo en Airtable y en los mails. */

@@ -869,7 +869,9 @@ Todo en 6 cuotas, con CAC de $ 20.000.
 - **El crédito** es del 10 % desde 2 anteojos y del 5 % con 1.
 - **Envío:** el umbral de $ 150.000 se mide después del Dúo. Por eso un Dúo
   con un modelo más barato puede quedar debajo del umbral y pagar el envío
-  fuera de AMBA, como en el ejemplo de $ 142.325.
+  fuera de AMBA, como en el ejemplo de $ 142.325. Con una cotización alta,
+  ese pedido termina pagando más que sin el Dúo: está en §16.3, con la
+  alternativa recomendada, **a decidir**.
 
 ---
 
@@ -1391,6 +1393,8 @@ devuelto.
 | O8 | **Si el costo de USD 6,38 por anteojo incluye IVA** | La sección A lo toma sin IVA. Si lo incluye, hay que recalcular |
 | O9 | **El costo comercial real de cada recompra** (mail, CRM, plataforma, tiempo) | Hay que compararlo con los topes de A.5. No está medido, y $ 0 es solo una referencia |
 | O10 | **La recompra a 90 días de cada mes de primeras compras**, separando compra individual y Dúo | Es lo que dice si el crédito genera compras extra (A.8). Hoy no hay tasas reales, y las de A.8 son hipotéticas |
+| O11 | **Decidir si el Dúo puede hacer perder el envío gratis** | Con la regla actual, un Dúo que queda debajo del umbral puede pagar más en total que sin el Dúo. Hoy no pasa con ningún precio cargado. Alternativa recomendada en §16.3 |
+| O12 | **Una categoría de complemento antes de vender clips sueltos** | Un clip suelto cargado como «Anteojos» o «Clip-On» recibiría el Dúo. Hoy no hay ninguno (§16.4) |
 
 ### Debajo del piso del 22 % (a monitorear)
 
@@ -1441,6 +1445,140 @@ No es un lanzamiento: es el costo de respetar lo ya dado.
   para decidir.
 - No inventa tasas de recompra: las de A.8 son hipotéticas.
 - No empieza la Tarea 03.
+
+---
+
+## 16. Implementación del Dúo (Tareas 03 a 05)
+
+### 16.1 Estado
+
+- **El cálculo** está en `lib/duo.ts` (Tarea 03) y se aplica en el carrito
+  del servidor (`resolverCarrito`, Tarea 04): el mismo cálculo para el
+  carrito, el checkout y lo que se cobra.
+- **Está apagado.** Solo se prende con `HARPER_DUO_ACTIVO=1`. Apagado, la
+  tienda cobra exactamente lo de siempre.
+- **No se prende en previews conectadas a pagos o a Airtable reales.**
+- **Cuentan para el Dúo:** Anteojos, Anteojos de sol, Clip-On y Anteojos de
+  receta, siempre que sean anteojos completos. Estuches y paños, no.
+
+**Antes de prenderlo hace falta:**
+
+1. registrar el Dúo en el pedido (hecho en la Tarea 05, §16.2);
+2. la decisión de §16.3;
+3. los textos del carrito y del checkout;
+4. las condiciones publicadas (§14, L2);
+5. la transición de los suscriptores (§11).
+
+### 16.2 Qué queda registrado en el pedido (Tarea 05)
+
+Se guarda con los mismos renglones que calcula y cobra el servidor. No se
+vuelve a calcular nada.
+
+- **Campo Items** (el JSON de los productos del pedido): cada renglón que
+  llevó el Dúo tiene un detalle `duo` con el porcentaje, cuántas unidades lo
+  llevaron y cuántos pesos descontó. Por ejemplo:
+  `"duo": { "porcentaje": 25, "unidades": 1, "descuento": 22475 }`.
+- **Campo Notas:** una línea para leerlo de un vistazo en Airtable:
+  «Promoción: Dúo 25 % · −$ 22.475 · AMATISTA Negro (1 de 1)». Si el Dúo
+  va en dos renglones, los nombra a los dos.
+- **No hay campos nuevos en Airtable.** Si hace falta filtrar o sumar por
+  promoción, se puede agregar un campo «Promocion» más adelante, con
+  autorización.
+
+**Lo que no cambia:**
+
+- **Con el Dúo apagado,** Items y Notas quedan exactamente como hoy.
+- **Los pedidos anteriores** no tienen el detalle y se leen como «sin Dúo».
+  Mis compras, la página de gracias y los avisos los leen igual que antes.
+- **Los importes cobrados** son los mismos de la Tarea 04. Se comparó el
+  carrito de main con el de la rama en 1.040 casos:
+  - con el Dúo apagado, idénticos;
+  - con el Dúo prendido, idénticos salvo el detalle nuevo.
+- **Si un cupón le gana al Dúo,** el renglón queda con el cupón y sin el
+  detalle del Dúo. Hoy no hay cupones activos.
+- **El cupón de bienvenida del suscriptor, el saldo y el 10 % por dinero en
+  Mercado Pago** se aplican después del Dúo y no borran el registro.
+
+### 16.3 El Dúo que pierde el envío gratis (revisión del PR #62, a decidir)
+
+**La regla actual (§5.3):** el umbral del envío gratis se mide después del
+Dúo, y el Dúo se elige sin mirar el envío. Entonces un Dúo puede quedar
+debajo del umbral y, con una cotización alta, pagar más en total que sin
+el Dúo.
+
+**El ejemplo de la revisión:** un par de $ 89.900 y uno de $ 69.900, envío
+gratis desde $ 150.000 y una cotización de $ 20.000.
+
+| | Productos | Envío | Total |
+|---|---|---|---|
+| Sin el Dúo | $ 159.800 | Gratis | $ 159.800 |
+| Con el Dúo, regla actual | $ 142.325 | $ 20.000 | **$ 162.325** (paga $ 2.525 más) |
+| Con el Dúo, alternativa A | $ 142.325 | Gratis | $ 142.325 |
+
+**Cuándo pasa:**
+
+- **Con los precios de hoy y los previstos ($ 89.900 a $ 109.900) no pasa
+  nunca.** El Dúo más barato posible queda en $ 157.325, arriba de
+  $ 150.000. En AMBA, con el umbral de $ 60.000, tampoco.
+- **Pasaría si** entra un modelo más barato (por ejemplo, uno de entre
+  $ 60.100 y $ 80.100 junto a uno de $ 89.900), o si el umbral nacional
+  sube por encima de $ 157.325.
+
+**Las pruebas lo muestran con la regla actual** (`tests/duo-pedido.test.ts`):
+
+- con las cuentas del ejemplo;
+- con el carrito del servidor: umbral de $ 160.000 y un envío de $ 25.000,
+  el total pasa de $ 179.800 a $ 182.325.
+
+**Alternativas:**
+
+- **A (recomendada): medir el umbral antes del Dúo.**
+  - Es como ya funcionan el cupón y el 10 % por dinero en Mercado Pago, que
+    «no cambian quién tiene envío gratis».
+  - El Dúo nunca hace pagar más y el carrito sigue siendo un solo cálculo.
+  - **Cuánto cuesta:** en esos pedidos Harper paga el envío. En el ejemplo
+    deja $ 20.000 menos que con la regla actual.
+  - Según §9, ese Dúo hipotético soporta un envío gratis de hasta
+    $ 14.886 para seguir en el 22 %. Con $ 20.000 queda debajo del piso: se
+    monitorea, no bloquea.
+  - **Con los precios de hoy cuesta $ 0:** ningún pedido cae en esa franja.
+- **B: elegir comparando el total con envío.** El comprador nunca paga más,
+  pero a veces se queda sin el Dúo aunque lleve dos pares. Además, el envío
+  depende de la dirección, que se conoce recién en el checkout, así que el
+  precio cambiaría entre el carrito y el checkout. **No la recomiendo.**
+- **C: dejar la regla y avisar en el carrito** («con el Dúo te faltan $ X
+  para el envío gratis»). El comprador igual puede terminar pagando más.
+  **No la recomiendo sola.**
+
+**Qué mostraría que A estaba mal:** pedidos con Dúo y envío bonificado
+debajo del umbral que, en el panel, dejen menos que el piso más de lo
+previsto.
+
+**No está implementada.** Espera la aprobación de Ale (§14, O11). Si se
+aprueba, se cambia una línea de `resolverCarrito`, y la prueba que hoy
+muestra la regla actual pasa a mostrar la nueva.
+
+### 16.4 Un clip suelto no recibe el Dúo (verificado el 05/11/2026)
+
+**Hoy un clip suelto no puede recibir el Dúo:**
+
+- **Clip-On** es el anteojo completo con su clip, y cuenta para el Dúo
+  (Ale, 05/11/2026).
+- En Airtable (Productos), la categoría hoy solo tiene Anteojos, Estuches,
+  Paños y Membresía. No hay ningún clip cargado.
+- Un producto con otra categoría («Clip», «Clip suelto», «Clip magnético»,
+  «Accesorios», etc.) no se publica. Tampoco se puede cobrar: el carrito
+  del servidor lo descarta, así que no puede llevar el Dúo. Está probado en
+  `tests/duo-pedido.test.ts`.
+
+**Lo que depende de cómo se carguen los productos:** un clip suelto cargado
+como «Anteojos» o como «Clip-On» sí recibiría el Dúo.
+
+**Antes de vender clips sueltos:**
+
+1. crear una categoría de complemento (por ejemplo, «Accesorios») en el
+   código y en Airtable, con autorización;
+2. cargar los clips sueltos en esa categoría (§14, O12).
 
 ---
 
