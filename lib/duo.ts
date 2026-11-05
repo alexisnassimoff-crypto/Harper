@@ -308,6 +308,20 @@ export function notaDelDuo(registro: RegistroDuo | null): string | null {
   return `${PREFIJO_NOTA_DUO} ${porcentaje} % · −${formatearPrecio(registro.descuento)} · ${productos.join(", ")}`;
 }
 
+/**
+ * La base del envío gratis cuando quedó el Dúo (Tarea 06, Ale, 05/11/2026):
+ * el subtotal antes del 25 %. Los renglones con el Dúo vuelven a su precio
+ * de lista; los demás quedan como están (los otros anteojos ya van a lista,
+ * y los estuches y paños, con sus tramos). Sin Dúo en ningún renglón (Dúo
+ * apagado, o ganaron los tramos), es la suma de los subtotales de siempre.
+ *
+ * Así el Dúo no le saca el envío gratis a nadie que lo tenía sin él, y no
+ * se lo da a un pedido que a precio de lista tampoco llegaba.
+ */
+export function subtotalAntesDelDuo(items: readonly ItemResuelto[]): number {
+  return items.reduce((total, i) => total + (i.duo ? i.precioLista * i.cantidad : i.subtotal), 0);
+}
+
 export type PromocionAnteojos = "duo" | "tramos";
 
 export type PromocionElegida = {

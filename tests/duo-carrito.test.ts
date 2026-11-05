@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 // El carrito real del servidor contra el Airtable de prueba, con el envío
-// gratis desde $ 160.000: así se ve que el umbral se mide después del Dúo.
+// gratis desde $ 160.000: así se ve que el umbral se mide antes del Dúo
+// (Tarea 06): dos pares de $ 89.900 llegan a lista ($ 179.800) y con el Dúo
+// pagan $ 157.325, debajo del mínimo, sin perder el envío gratis.
 process.env.HARPER_FIXTURES = "1";
 process.env.HARPER_FIXTURES_ENVIO_GRATIS_DESDE = "160000";
 delete process.env.VERCEL;
@@ -97,13 +99,15 @@ test("Dúo prendido: dos modelos y colores distintos, importes coherentes en tod
   assert.deepEqual(con.items.map((i) => i.descuento), [25, 0]);
   assert.equal(con.subtotal, 157_325);
   assert.equal(con.ahorro, 22_475);
-  assert.equal(con.subtotalSinCupon, 157_325, "el envío gratis se mide después del Dúo");
+  assert.equal(con.subtotalSinCupon, 179_800, "el envío gratis se mide antes del Dúo (Tarea 06)");
 
-  // Con el envío gratis desde $ 160.000: sin Dúo no paga envío; con Dúo, sí.
+  // Con el envío gratis desde $ 160.000: sin Dúo no paga envío, y con el Dúo
+  // tampoco, aunque pague $ 157.325 (Tarea 06).
   assert.equal(sin.envio, 0);
-  assert.equal(con.envio, con.config.costoEnvio);
-  assert.equal(con.total, con.subtotal + con.envio);
-  assert.ok(con.total < sin.total, "aun pagando el envío, el cliente paga menos");
+  assert.equal(con.envio, 0);
+  assert.equal(con.envioBonificado, true);
+  assert.equal(con.total, 157_325);
+  assert.equal(sin.total - con.total, 22_475, "el cliente ahorra el Dúo entero");
 
   // Dinero en Mercado Pago: el 10 % va sobre lo que ya tiene el Dúo, no sobre la lista.
   assert.equal(con.dineroMP?.subtotal, conDescuento(157_325, 10));
@@ -150,7 +154,8 @@ test("Dúo prendido con un suscriptor: primero el Dúo, después el cupón de bi
   const { amatistaNegro, cuarzoAmbar } = await variantes();
   const suscriptor: SuscriptorDelCarrito = { id: "recPRUEBA", email: "prueba@harper.ar", cuponDisponible: true, saldoDisponible: 0, activo: true };
   const con = await prendido(() => resolverCarrito([linea(amatistaNegro), linea(cuarzoAmbar)], { suscriptor }));
-  assert.equal(con.subtotalSinCupon, 157_325);
+  assert.equal(con.subtotal + con.suscriptor!.cupon, 157_325, "el cupón va sobre lo que ya tiene el Dúo");
+  assert.equal(con.subtotalSinCupon, 179_800, "el envío gratis se mide antes del Dúo y del cupón");
   assert.equal(con.suscriptor?.cupon, 10_000);
   assert.equal(con.subtotal, 147_325);
   assert.equal(con.envio, 0, "el suscriptor tiene envío gratis, como hoy");
