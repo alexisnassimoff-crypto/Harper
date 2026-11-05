@@ -13,9 +13,12 @@ import { totalConDescuento } from "../lib/descuentos";
 import {
   aplicarDuo,
   calcularDuo,
+  duoActivo,
+  elegirPromocionAnteojos,
   PORCENTAJE_DUO,
   preciosConDescuentoDuo,
   unidadesConDescuentoDuo,
+  VARIABLE_DUO,
   type RenglonDuo,
 } from "../lib/duo";
 import { resolverCarrito } from "../lib/pedidos";
@@ -349,9 +352,69 @@ test("Dúo con el carrito real del servidor (fixtures): dos modelos y colores di
   assert.equal(r.items.reduce((t, i) => t + i.subtotal, 0), subtotalAntes - r.ahorro);
 });
 
-test("Dúo: todavía no está activo (ninguna página, ruta ni el carrito lo usan)", () => {
+test("Dúo: el interruptor está apagado salvo HARPER_DUO_ACTIVO=\"1\"", () => {
+  assert.equal(VARIABLE_DUO, "HARPER_DUO_ACTIVO");
+  assert.equal(duoActivo({}), false, "sin la variable, apagado");
+  for (const valor of ["", "0", "true", "si", "on", "2", " ", "uno"]) assert.equal(duoActivo({ HARPER_DUO_ACTIVO: valor }), false, `"${valor}"`);
+  assert.equal(duoActivo({ HARPER_DUO_ACTIVO: "1" }), true);
+  assert.equal(duoActivo({ HARPER_DUO_ACTIVO: " 1 " }), true, "con espacios de más");
+  // En estas pruebas, como en producción hoy, la variable no está.
+  assert.equal(duoActivo(), false);
+});
+
+test("Dúo frente a los tramos de Airtable: queda el que deja el total más bajo, nunca los dos", () => {
+  const lista = [item("Anteojos", 89_900, 2), item("Estuches", 29_900, 2)];
+  const conTramo = (porcentajeAnteojos: number) => [
+    porcentajeAnteojos > 0
+      ? item("Anteojos", 89_900, 2, { descuento: porcentajeAnteojos, subtotal: totalConDescuento(179_800, porcentajeAnteojos), precioUnitario: totalConDescuento(179_800, porcentajeAnteojos) / 2 })
+      : item("Anteojos", 89_900, 2),
+    item("Estuches", 29_900, 2, { descuento: 5, subtotal: totalConDescuento(59_800, 5), precioUnitario: totalConDescuento(59_800, 5) / 2 }),
+  ];
+
+  // Sin tramo de anteojos (como hoy): queda el Dúo; el estuche sigue con su 5 %.
+  const sinTramo = elegirPromocionAnteojos(lista, conTramo(0));
+  assert.equal(sinTramo.promocion, "duo");
+  assert.equal(sinTramo.items[0].subtotal, 157_325);
+  assert.equal(sinTramo.items[1].subtotal, totalConDescuento(59_800, 5));
+  assert.equal(sinTramo.ahorro, 22_475 + (59_800 - totalConDescuento(59_800, 5)));
+
+  // Un tramo peor (5 % sobre los dos = $ 8.990) no le gana al Dúo ($ 22.475).
+  const peor = elegirPromocionAnteojos(lista, conTramo(5));
+  assert.equal(peor.promocion, "duo");
+  assert.equal(peor.items[0].subtotal, 157_325);
+  assert.equal(peor.items[0].descuento, 12.5, "el Dúo solo, sin sumarle el 5 %");
+
+  // Un tramo mejor (20 % sobre los dos = $ 35.960) queda; el Dúo no se suma.
+  const mejor = elegirPromocionAnteojos(lista, conTramo(20));
+  assert.equal(mejor.promocion, "tramos");
+  assert.equal(mejor.items[0].subtotal, totalConDescuento(179_800, 20));
+  assert.equal(mejor.items[0].descuento, 20);
+
+  // A igual total (12,5 % sobre los dos = $ 22.475) quedan los tramos, lo de siempre.
+  const empate = elegirPromocionAnteojos(lista, conTramo(12.5));
+  assert.equal(empate.promocion, "tramos");
+  assert.equal(empate.items[0].subtotal, 157_325);
+
+  // Sin Dúo posible (un anteojo): queda todo como con los tramos.
+  const unoSolo = [item("Anteojos", 89_900, 1), item("Estuches", 29_900, 2)];
+  const r = elegirPromocionAnteojos(unoSolo, [item("Anteojos", 89_900, 1), conTramo(0)[1]]);
+  assert.equal(r.promocion, "tramos");
+  assert.equal(r.items[0].subtotal, 89_900);
+  assert.equal(r.duo.motivo, "sin-pares");
+
+  // No modifica lo que recibe.
+  const copia = structuredClone(lista);
+  elegirPromocionAnteojos(lista, conTramo(5));
+  assert.deepEqual(lista, copia);
+
+  // Si los renglones no son los mismos, es un error de integración.
+  assert.throws(() => elegirPromocionAnteojos(lista, [conTramo(0)[0]]));
+  assert.throws(() => elegirPromocionAnteojos(lista, [conTramo(0)[1], conTramo(0)[0]]));
+});
+
+test("Dúo: solo lo usa el servidor (resolverCarrito) y el modelo financiero", () => {
   const raiz = path.resolve(__dirname, "..", "..");
-  const permitidos = new Set([path.join("lib", "duo.ts"), path.join("lib", "contribucion.ts")]);
+  const permitidos = new Set([path.join("lib", "duo.ts"), path.join("lib", "contribucion.ts"), path.join("lib", "pedidos.ts")]);
   const usos: string[] = [];
   const recorrer = (dir: string) => {
     for (const entrada of fs.readdirSync(path.join(raiz, dir), { withFileTypes: true })) {
@@ -364,5 +427,5 @@ test("Dúo: todavía no está activo (ninguna página, ruta ni el carrito lo usa
     }
   };
   for (const dir of ["app", "components", "lib"]) recorrer(dir);
-  assert.deepEqual(usos, [], "integrar el Dúo es otra tarea: al hacerlo, se actualiza esta prueba");
+  assert.deepEqual(usos, [], "ninguna página, componente ni otra ruta lo calcula por su cuenta");
 });

@@ -32,6 +32,7 @@ import {
   tramosVigentes,
   type Tramo,
 } from "./descuentos";
+import { duoActivo, elegirPromocionAnteojos } from "./duo";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
 import {
@@ -240,6 +241,11 @@ export async function resolverCarrito(
   // Pago se le manda partido en pesos enteros (lib/mercadopago.ts).
   let ahorro = 0;
 
+  // Dúo (Tarea 04, lib/duo.ts): APAGADO salvo HARPER_DUO_ACTIVO="1". Apagado,
+  // no se toca nada y el carrito cobra exactamente lo de siempre. Prendido,
+  // se guardan los renglones a precio de lista para compararlo con los tramos.
+  const deLista = duoActivo() ? items.map((i) => ({ ...i })) : null;
+
   for (const [categoria, unidades] of porCategoria) {
     const porcentaje = porcentajeParaCantidad(tramos, categoria, unidades);
     if (porcentaje <= 0) continue;
@@ -257,6 +263,16 @@ export async function resolverCarrito(
       item.precioUnitario = lineas[n] / item.cantidad;
     });
     ahorro += lista - total;
+  }
+
+  // Con el Dúo prendido, en los anteojos queda el Dúo o el tramo de Airtable,
+  // el que le deje al comprador el total más bajo; nunca los dos. Estuches y
+  // paños siguen con sus tramos. Va antes del cupón, del saldo y del dinero en
+  // Mercado Pago, y antes del envío: el envío gratis se mide después del Dúo.
+  if (deLista) {
+    const elegida = elegirPromocionAnteojos(deLista, items);
+    items = elegida.items;
+    ahorro = elegida.ahorro;
   }
 
   // El envío se calcula como siempre, con el subtotal sin el cupón: el cupón

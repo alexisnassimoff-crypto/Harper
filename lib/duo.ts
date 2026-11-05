@@ -9,12 +9,14 @@ import type { ItemResuelto } from "./tipos";
  * Se pueden combinar modelos, colores y precios distintos
  * (docs/plan-programa-harper.md, §5.3).
  *
- * TODAVÍA NO ESTÁ ACTIVO: ninguna página, ruta, carrito ni checkout lo usa
- * (lo controla tests/duo.test.ts). Cuando se integre, lo llama el servidor
- * en `resolverCarrito` (lib/pedidos.ts), en el mismo paso que los descuentos
- * por cantidad: después de armar los renglones con su precio de lista y
- * antes del cupón, del saldo y del 10 % por dinero en Mercado Pago. El
- * navegador nunca lo calcula: solo muestra lo que devuelve el servidor.
+ * APAGADO POR DEFECTO (Tarea 04). Lo usa solo el servidor, en
+ * `resolverCarrito` (lib/pedidos.ts), y solo si la variable de entorno
+ * HARPER_DUO_ACTIVO vale "1" (ver `duoActivo`). Va en el mismo paso que los
+ * descuentos por cantidad: después de armar los renglones con su precio de
+ * lista y antes del cupón, del saldo y del 10 % por dinero en Mercado Pago.
+ * El carrito, la cotización del envío y el checkout pasan todos por
+ * `resolverCarrito`, así que el cálculo es uno solo. El navegador nunca lo
+ * calcula: solo muestra lo que devuelve el servidor.
  *
  * Usa el sistema de precios de siempre:
  *  - el precio de lista de cada renglón (`precioLista`, de Airtable);
@@ -33,6 +35,19 @@ import type { ItemResuelto } from "./tipos";
 
 /** El descuento Dúo, en %. */
 export const PORCENTAJE_DUO = 25;
+
+/** La variable de entorno que prende el Dúo en el servidor. */
+export const VARIABLE_DUO = "HARPER_DUO_ACTIVO";
+
+/**
+ * Si el Dúo está prendido: solo con HARPER_DUO_ACTIVO="1". Sin la variable,
+ * vacía o con cualquier otro valor ("0", "true"), está apagado y el carrito
+ * cobra exactamente lo de siempre. Es del servidor: en Vercel se puede
+ * prender primero solo en las vistas previas y después en producción.
+ */
+export function duoActivo(entorno: Record<string, string | undefined> = process.env): boolean {
+  return entorno[VARIABLE_DUO]?.trim() === "1";
+}
 
 /** Cuántos anteojos llevan el descuento: la mitad, redondeada hacia abajo. */
 export function unidadesConDescuentoDuo(anteojos: number): number {
@@ -198,4 +213,57 @@ export function aplicarDuo(items: readonly ItemResuelto[], opciones: OpcionesDuo
     item.descuento = (r.descuento / lista) * 100;
   });
   return { items: copias, aplicado: true, ahorro: duo.descuento, duo };
+}
+
+export type PromocionAnteojos = "duo" | "tramos";
+
+export type PromocionElegida = {
+  /** Los renglones con la promoción que quedó. */
+  items: ItemResuelto[];
+  /** Qué quedó en los anteojos. "tramos" también cuando no hay ninguno: es lo de siempre. */
+  promocion: PromocionAnteojos;
+  /** Lo que se ahorra en todo el carrito: precio de lista − subtotal, renglón por renglón. */
+  ahorro: number;
+  /** El cálculo del Dúo, aunque no haya quedado. */
+  duo: CarritoConDuo;
+};
+
+/**
+ * Con el Dúo prendido: qué promoción queda en los anteojos, el Dúo o los
+ * tramos de Airtable (por cantidad o «llevá N, pagá M»). Queda la que le deje
+ * al comprador el total más bajo en sus anteojos, como el cupón frente a los
+ * tramos (lib/cupones.ts). **Nunca las dos juntas.** A igual total quedan los
+ * tramos, que es lo de siempre.
+ *
+ * - `deLista`: los renglones a precio de lista, antes de los tramos.
+ * - `conTramos`: los mismos renglones, en el mismo orden, con los tramos ya
+ *   aplicados como hoy.
+ *
+ * Los renglones que no son anteojos (estuches, paños) quedan siempre como en
+ * `conTramos`. Así un tramo de anteojos peor que el Dúo no le gana al cliente
+ * en silencio, y uno mejor no se pierde.
+ */
+export function elegirPromocionAnteojos(
+  deLista: readonly ItemResuelto[],
+  conTramos: readonly ItemResuelto[],
+  opciones: OpcionesDuo = {}
+): PromocionElegida {
+  if (deLista.length !== conTramos.length || deLista.some((i, n) => i.varianteId !== conTramos[n].varianteId || i.cantidad !== conTramos[n].cantidad)) {
+    throw new Error("El Dúo necesita los mismos renglones, en el mismo orden, a precio de lista y con los tramos");
+  }
+  const esElegible = opciones.esElegible ?? esCategoriaDeAnteojos;
+  const duo = aplicarDuo(deLista, opciones);
+  const ahorroDe = (items: readonly ItemResuelto[]) => items.reduce((total, i) => total + i.precioLista * i.cantidad - i.subtotal, 0);
+  const sinCambios = (): PromocionElegida => {
+    const items = conTramos.map((i) => ({ ...i }));
+    return { items, promocion: "tramos", ahorro: ahorroDe(items), duo };
+  };
+  if (!duo.aplicado) return sinCambios();
+
+  const anteojos = conTramos.map((i) => esElegible(i.categoria));
+  const totalAnteojos = (items: readonly ItemResuelto[]) => items.reduce((total, i, n) => total + (anteojos[n] ? i.subtotal : 0), 0);
+  if (totalAnteojos(duo.items) >= totalAnteojos(conTramos)) return sinCambios();
+
+  const items = conTramos.map((i, n) => (anteojos[n] ? duo.items[n] : { ...i }));
+  return { items, promocion: "duo", ahorro: ahorroDe(items), duo };
 }
