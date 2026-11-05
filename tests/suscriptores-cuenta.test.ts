@@ -138,7 +138,7 @@ test("el alta es por mail en minúsculas: nunca dos filas, y el cupón nace disp
   const fila = await getRecord<Record<string, unknown>>(TABLAS.suscriptores, nueva.cuenta.id);
   assert.deepEqual(
     [fila.fields.Email, fila.fields.Nombre, fila.fields.Alta, fila.fields.Acepta_mails, fila.fields.Origen, fila.fields.Cupon, fila.fields.Version_condiciones],
-    ["nuevo@ejemplo.com", "Nico", "2026-11-03T15:00:00.000Z", true, "Portada", "Disponible", "2026-11-04"]
+    ["nuevo@ejemplo.com", "Nico", "2026-11-03T15:00:00.000Z", true, "Portada", "Disponible", "2026-11-05"]
   );
 
   // Otra vez (otra pestaña, otro día): la misma fila.

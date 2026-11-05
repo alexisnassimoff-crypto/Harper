@@ -6,7 +6,8 @@
  * en el checkout y cuándo (Pedidos.Terminos_aceptados). Al publicar otra
  * versión de los Términos, se cambia esta fecha en el mismo commit.
  */
-export const VERSION_TERMINOS = "2026-11-04";
+// 2026-11-05: hasta 3 cuotas sin interés para todos y hasta 6 para suscriptores (Ale).
+export const VERSION_TERMINOS = "2026-11-05";
 
 /** "22 de octubre de 2026", para mostrar en la página. */
 export function versionTerminosLegible(version = VERSION_TERMINOS): string {
@@ -28,4 +29,5 @@ export function registroAceptacion(momento: Date, version = VERSION_TERMINOS): s
  * alta guarda la que aceptó en Suscriptores.Version_condiciones. Al publicar
  * otras condiciones, se cambia esta fecha en el mismo commit.
  */
-export const VERSION_CONDICIONES_SUSCRIPTORES = "2026-11-04";
+// 2026-11-05: vuelve la cláusula de cuotas (hasta 3 para todos, hasta 6 para suscriptores).
+export const VERSION_CONDICIONES_SUSCRIPTORES = "2026-11-05";

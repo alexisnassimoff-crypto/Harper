@@ -15,10 +15,12 @@
  * contado, cantidad y monto de cada cuota (el que calcula Mercado Pago, con
  * centavos) y el costo financiero total efectivo anual.
  *
- * Desde Suscriptores Harper (Ale, 03/11/2026) la cantidad depende de quién
- * compra: 3 cuotas para todos y 6 para suscriptores (lib/suscriptores.ts),
- * que es también el tope de la preferencia de Mercado Pago. Cada cantidad se
- * verifica por separado. `NEXT_PUBLIC_CUOTAS` queda como tope y como
+ * Desde Suscriptores Harper (Ale, 03/11/2026; definitivo el 05/11/2026) la
+ * cantidad depende de quién compra: hasta 3 cuotas para todos y hasta 6 para
+ * suscriptores con la sesión verificada (lib/suscriptores.ts), que es también
+ * el tope de la preferencia de Mercado Pago. Para cada importe se anuncian
+ * las más que Mercado Pago confirma sin interés hasta ese tope
+ * (evaluarMejoresCuotas). `NEXT_PUBLIC_CUOTAS` queda como tope y como
  * interruptor: sin cargar (o con menos de 2) no se anuncia ninguna.
  */
 
@@ -140,6 +142,22 @@ export function evaluarCuotas(
     montoCuota: montoCuota ?? Math.round((monto / cuotas) * 100) / 100,
     cftea: "0,00 %",
   };
+}
+
+/**
+ * Las más cuotas sin interés que Mercado Pago confirma para este monto, sin
+ * pasar de `tope` (Ale, 05/11/2026): de `tope` para abajo, la primera
+ * cantidad que cumple todo lo de `evaluarCuotas`. Así un suscriptor con un
+ * total debajo del mínimo que Ale puso para 6 en Mercado Pago ve las 3 que
+ * sí tiene, y nadie ve una cantidad que Mercado Pago no confirmó. Los
+ * mínimos no se fijan acá: salen de la respuesta de Mercado Pago para el monto.
+ */
+export function evaluarMejoresCuotas(respuestas: unknown[], tope: number, monto: number): CuotasVerificadas | null {
+  for (let cuotas = Math.floor(tope); cuotas >= 2; cuotas--) {
+    const verificadas = evaluarCuotas(respuestas, cuotas, monto);
+    if (verificadas) return verificadas;
+  }
+  return null;
 }
 
 /**

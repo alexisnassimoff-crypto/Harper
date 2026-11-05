@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cuotasMaximas } from "@/lib/suscriptores";
+import { cuotasDelComprador } from "@/lib/suscriptores";
 import { suscriptorDelCarritoDeLaPeticion } from "@/lib/suscriptores-cuenta";
 import { claveDeIp, consumirCuota } from "@/lib/cuota";
 import { verificarCuotas } from "@/lib/cuotas-servidor";
@@ -104,9 +104,10 @@ export async function POST(request: Request) {
 
     // Las cuotas sin interés se anuncian solo para el total exacto: se
     // verifican para el total con este envío (también si es gratis o la
-    // tarifa plana), que es lo que se cobra.
+    // tarifa plana), que es lo que se cobra. Hasta 3, o hasta 6 para un
+    // suscriptor de la sesión verificada con los beneficios activos (Ale, 05/11/2026).
     const verificadas =
-      carrito.total > 0 ? await conLimite(verificarCuotas(carrito.total, cuotasMaximas(Boolean(suscriptor))), ESPERA_CUOTAS_MS, null) : null;
+      carrito.total > 0 ? await conLimite(verificarCuotas(carrito.total, cuotasDelComprador(suscriptor)), ESPERA_CUOTAS_MS, null) : null;
     const cuotas: CotizacionEnvio["cuotas"] = verificadas ? { ...verificadas, monto: carrito.total } : null;
 
     return NextResponse.json({ ...envio, cuotas } satisfies CotizacionEnvio, { headers: sinCache });

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
-import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
+import { NOMBRE_MARCAS } from "@/lib/cuotas";
 import { esEnvioGratis, textoEnvioGratis } from "@/lib/envio-gratis";
 import {
   CONDICIONES_IVA,
@@ -142,7 +142,6 @@ export default function FormularioCheckout({
   buscador = false,
   cotizaEnvio = false,
   medioInicial = "mercadopago",
-  cuotasSuscriptor = null,
 }: {
   /** Verdadero cuando vuelve de un pago rechazado: no es un checkout nuevo. */
   reintento?: boolean;
@@ -155,12 +154,6 @@ export default function FormularioCheckout({
   cotizaEnvio?: boolean;
   /** Al volver de un pago rechazado con dinero en Mercado Pago, sigue elegida. */
   medioInicial?: MedioPago;
-  /**
-   * Las cuotas de suscriptor confirmadas para los anteojos, para nombrarlas
-   * en la invitación a suscribirse. Las de esta compra se confirman aparte,
-   * con el total exacto, cuando ya es suscriptor.
-   */
-  cuotasSuscriptor?: CuotasVerificadas | null;
 }) {
   const { items, quitar, cupon, quitarCupon } = useCarrito();
   // Suscriptores Harper (Ale, 03/11/2026): el saldo se usa salvo que lo
@@ -1012,7 +1005,11 @@ export default function FormularioCheckout({
           suscriptor={carrito.suscriptor ?? null}
           email={form.email}
           nombre={form.nombre}
-          cuotasSuscriptor={cuotasSuscriptor}
+          // Sin cuotas en la invitación (Ale, 05/11/2026): promete el cupón «en
+          // esta compra», y con el cupón el total baja y podría quedar debajo
+          // del mínimo que Mercado Pago pide para 6. Las 6 se anuncian en la
+          // ficha, el carrito y los beneficios, cada una para su importe.
+          cuotasSuscriptor={null}
           usarSaldo={usarSaldo}
           alCambiarSaldo={setUsarSaldo}
           alCambiarSesion={() => {

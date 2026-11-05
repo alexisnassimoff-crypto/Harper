@@ -28,8 +28,7 @@ import { normalizarCliente, validarCliente } from "@/lib/validacion";
 import {
   cashbackDe,
   constanciaDelCuponDeBienvenida,
-  cuotasMaximas,
-  CUOTAS_SON_BENEFICIO,
+  cuotasDelComprador,
   MINUTOS_RESERVA,
   notasDeBeneficios,
   type BeneficiosDelPedido,
@@ -429,10 +428,11 @@ export async function POST(request: Request) {
       sitio: urlDelSitio(request),
       // Con "Dinero en Mercado Pago", Mercado Pago ofrece solo el saldo de la cuenta.
       soloDineroEnCuenta: Boolean(dineroMP),
-      // El tope por comprador solo si las cuotas son un beneficio de suscriptor
-      // (lib/suscriptores.ts). Hoy no lo son (6 sin interés para todos): la
-      // preferencia queda como siempre, hasta 12.
-      ...(CUOTAS_SON_BENEFICIO ? { cuotasMaximas: cuotasMaximas(Boolean(suscriptor?.activo !== false && suscriptor)) } : {}),
+      // El tope de cuotas de este comprador (Ale, 05/11/2026): hasta 3, o hasta
+      // 6 si es un suscriptor de la sesión verificada (la cookie firmada,
+      // releída de Airtable arriba) con los beneficios activos. Nunca por el
+      // mail que se escribió en el formulario (lib/suscriptores.ts).
+      cuotasMaximas: cuotasDelComprador(suscriptor),
       // Si usa saldo o el cupón, los aparta mientras su link cobra: un link corto.
       ...(beneficios && (beneficios.saldoUsado > 0 || beneficios.cupon > 0) ? { venceEnMinutos: MINUTOS_RESERVA } : {}),
     });

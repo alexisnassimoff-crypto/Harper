@@ -7913,3 +7913,40 @@ body[data-cta-fija] .aviso-favoritos {
   font-size: 0.875rem;
   line-height: 1.5;
 }
+
+/* ---------- Cuotas de la compra (Ale, 05/11/2026) ----------
+   Hasta 3 para todos y hasta 6 para suscriptores: las del comprador en
+   verde, la invitación a las de suscriptor debajo y las condiciones al pie. */
+.cuotas-compra {
+  display: grid;
+  gap: 0.2rem;
+}
+.cuotas-compra p {
+  margin: 0;
+}
+.cuotas-compra__suyas {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--verde);
+}
+.cuotas-compra__etiqueta {
+  display: block;
+  width: fit-content;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radio-pill);
+  background: color-mix(in srgb, var(--verde) 10%, #fff);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+.cuotas-compra--carrito {
+  margin-top: 0.15rem;
+}
+.cuotas-compra--carrito .cuotas-suscriptor,
+.cuotas-compra--carrito .cuotas-condiciones {
+  font-size: 0.75rem;
+}

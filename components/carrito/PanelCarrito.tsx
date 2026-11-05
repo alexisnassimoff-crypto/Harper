@@ -15,6 +15,7 @@ import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 import LineaCarrito from "./LineaCarrito";
 import { useCarritoResuelto } from "./useCarritoResuelto";
+import CuotasDelCarrito from "./CuotasDelCarrito";
 import { Fila } from "./VistaCarrito";
 
 /**
@@ -43,7 +44,7 @@ export default function PanelCarrito() {
 
 function Contenido({ alCerrar }: { alCerrar: () => void }) {
   const { cupon, unidades } = useCarrito();
-  const { datos, cargando, actualizando, error, recargar } = useCarritoResuelto();
+  const { datos, cargando, actualizando, error, recargar } = useCarritoResuelto({ cuotas: true });
   const idTitulo = useId();
   const caja = useRef<HTMLDivElement>(null);
   const cerrar = useRef<HTMLButtonElement>(null);
@@ -258,6 +259,8 @@ function Resumen({
         <span>{envio.total}</span>
         <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total - resumen.envio)}</strong>
       </div>
+      {/* Las cuotas para este total (Ale, 05/11/2026): hasta 3, o hasta 6 para suscriptores. */}
+      <CuotasDelCarrito datos={datos} monto={resumen.total - resumen.envio} />
 
       <Link href="/checkout" className="boton boton--bloque">
         Finalizar compra

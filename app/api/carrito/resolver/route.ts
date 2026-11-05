@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { limpiarItems, resolverCarrito } from "@/lib/pedidos";
 import { sugerirParaCarrito } from "@/lib/sugerencias";
 import { buscarCupon } from "@/lib/cupones";
-import { verificarCuotas } from "@/lib/cuotas-servidor";
-import { cuotasMaximas } from "@/lib/suscriptores";
+import { cuotasParaComprador } from "@/lib/cuotas-servidor";
+import { tieneCuotasDeSuscriptor } from "@/lib/suscriptores";
 import { suscriptorDelCarritoDeLaPeticion } from "@/lib/suscriptores-cuenta";
 
 export const dynamic = "force-dynamic";
@@ -57,26 +57,30 @@ export async function POST(request: Request) {
     usarSaldo: usarSaldo === true,
     usarCupon: usarCupon !== false,
   });
-  // 3 cuotas sin interés para todos, 6 para un suscriptor: cada cantidad se verifica aparte.
-  const cuotasPedidas = cuotasMaximas(Boolean(suscriptor));
+  // Hasta 3 cuotas sin interés para todos, hasta 6 para un suscriptor de la
+  // sesión verificada con los beneficios activos (Ale, 05/11/2026).
+  const esSuscriptor = tieneCuotasDeSuscriptor(suscriptor);
 
   // Las sugerencias no pueden romper el carrito: si fallan, se muestra igual.
   const cuponAplicado = resuelto.cupon?.estado === "aplicado" ? (buscarCupon(resuelto.cupon.codigo)?.porcentaje ?? 0) : 0;
-  // El checkout pide además las cuotas sin interés para el total con tarjeta
-  // (con el envío): se anuncian solo si Mercado Pago las confirma para ese
-  // monto, igual que en las fichas. Sin respuesta de Mercado Pago, no hay.
-  // También para el total sin el envío, que es lo que muestra el checkout
-  // mientras no sabe la dirección (el envío depende de la zona).
+  // El carrito y el checkout piden además las cuotas sin interés para el
+  // total con tarjeta (con el envío, después de descuentos, cupón y saldo):
+  // se anuncian solo si Mercado Pago las confirma para ese monto exacto,
+  // igual que en las fichas. Sin respuesta de Mercado Pago, no hay. También
+  // para el total sin el envío, que es lo que muestran el carrito y el
+  // checkout mientras no saben la dirección (el envío depende de la zona). A
+  // quien no es suscriptor, también las que tendría siéndolo, para invitarlo.
   const pideCuotas = cuotas === true && resuelto.items.length > 0 && resuelto.total > 0;
-  const [sugerencias, cuotasVerificadas, cuotasSinEnvio] = await Promise.all([
+  const sinCuotas = { suyas: null, deSuscriptor: null };
+  const [sugerencias, conEnvio, sinEnvio] = await Promise.all([
     sugerirParaCarrito(resuelto.items, cuponAplicado).catch((error) => {
       console.error("[carrito] no se pudieron armar las sugerencias:", error);
       return [];
     }),
-    pideCuotas ? conLimite(verificarCuotas(resuelto.total, cuotasPedidas), ESPERA_CUOTAS_MS, null) : Promise.resolve(null),
+    pideCuotas ? conLimite(cuotasParaComprador(resuelto.total, esSuscriptor), ESPERA_CUOTAS_MS, sinCuotas) : Promise.resolve(sinCuotas),
     pideCuotas && resuelto.envio > 0
-      ? conLimite(verificarCuotas(resuelto.subtotal, cuotasPedidas), ESPERA_CUOTAS_MS, null)
-      : Promise.resolve(null),
+      ? conLimite(cuotasParaComprador(resuelto.subtotal, esSuscriptor), ESPERA_CUOTAS_MS, sinCuotas)
+      : Promise.resolve(sinCuotas),
   ]);
 
   return NextResponse.json({
@@ -103,7 +107,12 @@ export async function POST(request: Request) {
       : null,
     sugerencias,
     suscriptor: resuelto.suscriptor,
-    cuotas: cuotasVerificadas ? { ...cuotasVerificadas, monto: resuelto.total } : null,
-    cuotasSinEnvio: cuotasSinEnvio ? { ...cuotasSinEnvio, monto: resuelto.subtotal } : null,
+    cuotas: conEnvio.suyas ? { ...conEnvio.suyas, monto: resuelto.total } : null,
+    cuotasSinEnvio: sinEnvio.suyas ? { ...sinEnvio.suyas, monto: resuelto.subtotal } : null,
+    // Las de suscriptor para los mismos montos, solo a quien todavía no las tiene.
+    cuotasSuscriptor: [
+      ...(conEnvio.deSuscriptor ? [{ ...conEnvio.deSuscriptor, monto: resuelto.total }] : []),
+      ...(sinEnvio.deSuscriptor ? [{ ...sinEnvio.deSuscriptor, monto: resuelto.subtotal }] : []),
+    ],
   });
 }

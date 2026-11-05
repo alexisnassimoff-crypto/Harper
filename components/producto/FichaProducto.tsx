@@ -20,7 +20,7 @@ import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, type Confianza } fro
 import { esCategoriaDeAnteojos } from "@/lib/categorias";
 import { condicionesDeCompra, talleDe } from "@/lib/ficha";
 import { TEXTOS } from "@/lib/textos";
-import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
+import type { CuotasVerificadas } from "@/lib/cuotas";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { fotosDeGaleria } from "@/lib/galeria";
@@ -29,6 +29,9 @@ import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import Estrellas, { formatearPuntaje } from "@/components/portada/Estrellas";
 import SuscriptoresEnLaFicha from "@/components/suscriptores/SuscriptoresEnLaFicha";
+import { useSuscriptor } from "@/components/suscriptores/useSuscriptor";
+import CuotasDeLaCompra from "@/components/CuotasDeLaCompra";
+import { tieneCuotasDeSuscriptor } from "@/lib/suscriptores";
 import BotonFavorito from "@/components/suscriptores/BotonFavorito";
 import Cifras from "@/components/Cifras";
 
@@ -167,14 +170,16 @@ export default function FichaProducto({
     iniciarTransicion(() => router.push("/checkout"));
   }
 
+  // Las cuotas de quien mira (Ale, 05/11/2026): hasta 3 para todos y hasta 6
+  // para un suscriptor con la sesión abierta y los beneficios activos. La
+  // página es la misma para todos; quién es se sabe en el navegador
+  // (useSuscriptor), pero cobrar, cobra el servidor con su propio tope.
   // Res. SIyC 4/2025, art. 2 inc. d: cantidad y monto de cada cuota (el de
   // Mercado Pago, con centavos), precio de contado y CFTEA.
-  const cuotaTexto = cuotas
-    ? `${cuotas.cuotas} cuotas sin interés de ${precioConCentavos(cuotas.montoCuota)}`
-    : null;
-  const cuotaCondiciones = cuotas
-    ? `Precio de contado ${formatearPrecio(producto.precio)} · CFTEA ${cuotas.cftea} · ${NOMBRE_MARCAS}`
-    : null;
+  const { suscriptor } = useSuscriptor();
+  const esSuscriptor = tieneCuotasDeSuscriptor(suscriptor);
+  const cuotasSuyas = esSuscriptor ? (cuotasSuscriptor ?? cuotas) : cuotas;
+  const cuotasDeSuscriptor = esSuscriptor ? null : cuotasSuscriptor;
 
   // Medidas y talle: en los anteojos, con la guía aunque falten las medidas (lib/ficha.ts).
   const conTalle = esCategoriaDeAnteojos(producto.categoria);
@@ -318,22 +323,16 @@ export default function FichaProducto({
             </small>
           ) : null}
 
-          {cuotaTexto ? (
-            <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--verde)" }}>
-              {cuotaTexto}
-            </span>
-          ) : null}
-          {/* 3 cuotas para todos y 6 para suscriptores, cada una con su monto
-              (las condiciones de abajo valen para las dos: el CFTEA es el mismo). */}
-          {cuotasSuscriptor ? (
-            <span className="cuotas-suscriptor">
-              {cuotaTexto ? "O " : ""}
-              {cuotasSuscriptor.cuotas} cuotas sin interés de {precioConCentavos(cuotasSuscriptor.montoCuota)}{" "}
-              <a href="#suscriptor-ficha-titulo">si sos suscriptor</a>
-              {cuotaTexto ? "" : ` · CFTEA ${cuotasSuscriptor.cftea} · ${NOMBRE_MARCAS}`}
-            </span>
-          ) : null}
-          {cuotaCondiciones ? <span className="cuotas-condiciones">{cuotaCondiciones}</span> : null}
+          {/* Hasta 3 cuotas para todos y hasta 6 para suscriptores, cada una
+              con su monto (las condiciones valen para las dos: el CFTEA es el mismo). */}
+          <CuotasDeLaCompra
+            suyas={cuotasSuyas}
+            deSuscriptor={cuotasDeSuscriptor}
+            esSuscriptor={esSuscriptor}
+            precioContado={producto.precio}
+            enlace="#suscriptor-ficha-titulo"
+            className="cuotas-compra--ficha"
+          />
         </div>
 
         {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}
@@ -482,8 +481,8 @@ export default function FichaProducto({
         detalle={
           conPack
             ? (opcionElegida?.cuota ?? null)
-            : cuotas
-              ? `${cuotas.cuotas} cuotas de ${precioConCentavos(cuotas.montoCuota)} · CFTEA ${cuotas.cftea}`
+            : cuotasSuyas
+              ? `${cuotasSuyas.cuotas} cuotas de ${precioConCentavos(cuotasSuyas.montoCuota)} · CFTEA ${cuotasSuyas.cftea}`
               : null
         }
         ocupado={enTransicion}
