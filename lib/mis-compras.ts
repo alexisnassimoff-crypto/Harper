@@ -198,3 +198,48 @@ export async function comprasDeLaCuenta(emailVerificado: string, maximo = MAXIMO
 
   return comprasDeLosClientes(idsDeClientes, filas, maximo);
 }
+
+/** Las cuatro etapas de un pedido pagado, en orden (Ale, 05/11/2026). */
+export const ETAPAS_DE_COMPRA = ["pagado", "preparando", "enviado", "entregado"] as const;
+export type EtapaDeCompra = (typeof ETAPAS_DE_COMPRA)[number];
+
+/**
+ * El recorrido del pedido para «Mis compras», solo con el Estado de Airtable:
+ * la etapa en la que está es «actual» y las anteriores, «hecha» (un pedido
+ * enviado ya se pagó y se preparó). Sin fechas ni pasos que el Estado no
+ * diga. Un pago en revisión y un pedido cancelado no tienen recorrido: null.
+ */
+export function etapasDeCompra(estado: EstadoDeCompra): { etapa: EtapaDeCompra; paso: "hecha" | "actual" | "pendiente" }[] | null {
+  const actual = ETAPAS_DE_COMPRA.indexOf(estado as EtapaDeCompra);
+  if (actual < 0) return null;
+  return ETAPAS_DE_COMPRA.map((etapa, i) => ({ etapa, paso: i < actual ? "hecha" : i === actual ? "actual" : "pendiente" }));
+}
+
+/**
+ * Los operadores cuyos enlaces de seguimiento se ofrecen como «Seguir mi
+ * envío»: solo https y solo estos dominios. Un enlace de otro sitio no se
+ * muestra como enlace (queda el texto para copiar).
+ */
+const OPERADORES = ["correoargentino.com.ar", "andreani.com", "oca.com.ar", "envia.com"];
+
+/**
+ * El seguimiento del pedido, del campo Tracking de Airtable: un número para
+ * copiar o, si lo que hay es un enlace de un operador conocido, ese enlace
+ * para «Seguir mi envío». No se arma ningún enlace a partir del número.
+ */
+export function seguimientoDe(tracking: string | null): { numero: string | null; enlace: string | null } {
+  const valor = (tracking ?? "").trim();
+  if (!valor) return { numero: null, enlace: null };
+  if (/^https?:\/\//i.test(valor)) {
+    try {
+      const url = new URL(valor);
+      const host = url.hostname.toLowerCase();
+      const delOperador = OPERADORES.some((d) => host === d || host.endsWith(`.${d}`));
+      return url.protocol === "https:" && delOperador ? { numero: null, enlace: url.toString() } : { numero: null, enlace: null };
+    } catch {
+      return { numero: null, enlace: null };
+    }
+  }
+  // Un número de seguimiento: letras, números, guiones y espacios, como lo da el operador.
+  return /^[A-Za-z0-9][A-Za-z0-9 \-]{2,63}$/.test(valor) ? { numero: valor, enlace: null } : { numero: null, enlace: null };
+}
