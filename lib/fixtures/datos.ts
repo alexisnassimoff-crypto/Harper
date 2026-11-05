@@ -542,6 +542,8 @@ export function tablasIniciales(): Map<string, RegistroFixture[]> {
     [TABLAS.arrepentimientos, []],
     [TABLAS.suscriptores, suscriptoresIniciales()],
     [TABLAS.saldos, saldosIniciales()],
+    // Crédito Harper: vacía, como la real (lib/credito-airtable.ts).
+    [TABLAS.creditos, []],
     [TABLA_IMPORTACION_ML, estructurar(IMPORTACION_ML)],
   ]);
 }

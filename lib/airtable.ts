@@ -21,6 +21,10 @@ const TABLAS_HARPER = {
   // (lib/suscriptores-cuenta.ts) y los movimientos de su saldo a favor.
   suscriptores: "tblvaaoydP0pnIwuq",
   saldos: "tblRUhR5fI1ZAmC9Z",
+  // Crédito Harper (Ale, 05/11/2026): una fila por pedido, separada de Saldos
+  // (docs/plan-programa-harper.md §17). Solo la usa lib/credito-airtable.ts,
+  // que nadie llama todavía.
+  creditos: "tbljsISq3DoFBWiEF",
 };
 
 export type NombreTabla = keyof typeof TABLAS_HARPER;
