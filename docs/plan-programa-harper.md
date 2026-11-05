@@ -1644,6 +1644,133 @@ página calcula el descuento por su cuenta.
 
 ---
 
+## 17. Crédito Harper: dónde se guarda (Tarea 09, propuesta para aprobar)
+
+### 17.1 Estado
+
+- El cálculo (Tarea 08, `lib/credito-harper.ts`) y la persistencia
+  (Tarea 09, `lib/credito-persistencia.ts`) están en el código, **apagados y
+  sin conectar**.
+- No escriben en Airtable. No los usa el webhook ni ninguna página.
+  `HARPER_CREDITO_ACTIVO` sigue apagado.
+- Las pruebas corren contra una tabla y un cerrojo en memoria
+  (`tests/credito-persistencia.test.ts`).
+
+### 17.2 Una tabla nueva, «Créditos» (para aprobar)
+
+**Por qué no en Saldos:**
+
+1. El código de hoy lee un tipo desconocido como «Ajuste» y cuenta como
+   disponible todo lo que no tiene `Disponible_desde`. Un crédito pendiente
+   se vería como saldo para gastar.
+2. El saldo de hoy sirve en cualquier producto. El crédito nuevo, solo en
+   anteojos (§10.3). En la misma tabla se mezclarían.
+3. El crédito nuevo se libera por la entrega, no por el pago. Necesita
+   campos que Saldos no tiene.
+
+**Los campos, uno por uno:**
+
+| Campo | Tipo en Airtable | Para qué |
+|---|---|---|
+| Clave | Texto (campo principal) | `credito-harper:<pedido>`: una sola vigente por pedido |
+| Pedido | Texto | El número, «HARPER-…» |
+| Email | Email | La cuenta del crédito: el mail de la compra, en minúsculas |
+| Monto | Número, sin decimales | El crédito, en pesos |
+| Porcentaje | Número, sin decimales | 5 o 10 |
+| Base | Número | Lo pagado en dinero en anteojos |
+| Anteojos | Número, sin decimales | Cuántos anteojos tuvo el pedido |
+| Estado | Selección única: Pendiente, Disponible, Anulado, A revisar | «A revisar» no se puede usar hasta que Harper decida |
+| Generado_el | Fecha y hora | Cuándo se anotó: al acreditarse el pago |
+| Fecha_entrega | Fecha | La entrega confirmada |
+| Disponible_desde | Fecha | 30 días después de la entrega |
+| Incidencia_abierta | Casilla | Devolución, reclamo o contracargo abierto |
+| Reglas | Texto | La versión de las reglas: «credito-harper-v1» |
+| Notas | Texto largo | El historial, una línea por cambio |
+
+**No cambia nada más:** ni Saldos, ni Pedidos, ni Suscriptores, ni Config.
+La tabla va en la misma base, con el mismo token del sitio.
+
+**Qué pedidos van con las reglas de hoy.** Se decide al crear el pedido. Hoy
+el checkout ya anota «Cashback a acreditar» en las Notas del pedido; el
+crédito nuevo se anotaría igual, sin campo nuevo en Pedidos. Eso es parte de
+conectar el checkout (§17.7).
+
+### 17.3 Las operaciones
+
+**Nunca se borra una fila.** Se anula y queda la nota.
+
+| Operación | Lee | Escribe | Cuándo |
+|---|---|---|---|
+| Anotar el crédito | Créditos del pedido. Saldos: si el pedido tiene «Cashback», solo lectura | Una fila Pendiente | Al acreditarse el pago |
+| Confirmar la entrega | Créditos del pedido | Fecha_entrega, Disponible_desde y Notas | Cuando hay una fecha confiable (§14, O1) |
+| Liberar | Créditos en Pendiente | Estado Disponible | Una vez por día |
+| Devolución | Créditos del pedido | Pendiente: Anulado, o Monto, Porcentaje, Base y Anteojos recalculados. Disponible: «A revisar» | Al registrar la devolución |
+| Cancelación, reembolso, contracargo perdido | Créditos del pedido | Pendiente: Anulado. Disponible: «A revisar» | Cuando Mercado Pago o Harper lo informan |
+| Incidencia abierta o cerrada | Créditos del pedido | Incidencia_abierta. Si estaba Disponible y se abre: «A revisar» | Reclamo o contracargo |
+| Saldo de la cuenta | Saldos y Créditos del mail | Nada | Mi cuenta y checkout (otra tarea) |
+
+**Cerrojo.** Cada operación toma en Redis la llave
+`harper:credito:<pedido>` por 120 segundos. Es distinta de la del webhook.
+Si Redis falla, no se escribe nada y se reintenta.
+
+### 17.4 Contra duplicados y webhooks a la vez
+
+- **Dos avisos del mismo pago a la vez:** el cerrojo deja trabajar a uno.
+  El otro recibe «ocupado» y reintenta. Probado con 10 a la vez: una fila.
+- **Un reintento:** antes de crear se busca la fila del pedido, aunque esté
+  anulada. Si está, no se crea otra.
+- **Sin Redis, o una caída entre escribir y verificar:** después de crear se
+  vuelve a leer. Si hay dos vigentes, queda la más vieja y la otra se anula.
+  Lo mismo al liberar, así un duplicado nunca pasa a Disponible. Airtable no
+  tiene índices únicos: esto los reemplaza.
+- **Un crédito anulado no se vuelve a crear.**
+- **Un pedido con el cashback de hoy**, anulado o no, no recibe crédito
+  nuevo.
+
+### 17.5 Devoluciones, cancelaciones y contracargos
+
+| Caso | Crédito pendiente | Crédito ya disponible |
+|---|---|---|
+| Devolución total | Se anula | «A revisar» |
+| Devolución parcial | Se recalcula: 5 % si queda un anteojo, 10 % si quedan dos o más, sobre lo que quedó pagado. Nunca sube | «A revisar» |
+| Cancelación del pedido | Se anula | «A revisar» |
+| Reembolso del pago | Se anula | «A revisar» |
+| Contracargo abierto | Queda pendiente: no se libera | «A revisar» |
+| Contracargo ganado | Se cierra la incidencia y se libera a su tiempo | Sigue «A revisar»: decide Harper |
+| Contracargo perdido | Se anula | «A revisar» |
+
+**Por qué «A revisar» y no anular solo.** Si el cliente ya lo usó, anularlo
+deja la cuenta en negativo. Hoy el cashback disponible tampoco se anula
+solo: lo decide Harper. Mientras está «A revisar», no se puede usar.
+
+**La devolución parcial** depende de la regla de reintegro, que todavía no
+está definida (§14, L1).
+
+### 17.6 Compatibilidad con el saldo de hoy
+
+- **Saldos no se toca:** ni campos ni filas. El saldo de hoy se calcula
+  exactamente igual (está probado).
+- **La cuenta tendría dos bolsillos:**
+  - el saldo de hoy: sirve en cualquier producto;
+  - el Crédito Harper: solo anteojos. Disponible, pendiente y «A revisar»,
+    por separado.
+- **Usar el crédito en el checkout es otra tarea.** Necesita su propia
+  propuesta: cómo se anota el uso.
+
+### 17.7 Lo que falta para conectarlo (cada paso con aprobación)
+
+1. Aprobar la tabla «Créditos» (§17.2) y crearla.
+2. El adaptador de Airtable para esa tabla, con pruebas en el Airtable de
+   prueba.
+3. El webhook: anotar al acreditarse el pago; anular por reembolso o
+   contracargo. Con `HARPER_CREDITO_ACTIVO` apagado, no hace nada.
+4. De dónde sale la fecha de entrega (§14, O1).
+5. La liberación diaria.
+6. Mostrarlo en Mi cuenta y usarlo en el checkout.
+7. La regla de reintegro de la devolución parcial (§14, L1).
+
+---
+
 ## Anexo A. Tablas completas de la sección A
 
 Salen de `lib/contribucion.ts` con los supuestos de A.3: costo de $ 10.208, CAC de $ 20.000 por pedido, 6 cuotas y las reglas de envío de hoy. «Cobrado» es lo que se cobra con IVA, con el envío si lo paga el cliente y sin el crédito usado. «Por anteojo» es la contribución del pedido dividida por los anteojos del pedido. «$ 24.000» marca si llega al objetivo por anteojo.

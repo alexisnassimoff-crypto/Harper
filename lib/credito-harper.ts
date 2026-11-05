@@ -150,8 +150,8 @@ export type CreditoAAnotar =
  * Lo que ya está anotado para un pedido y cuenta como su crédito. Son dos
  * clases (revisión del PR #66):
  *  - "cashback-anterior": el cashback de hoy (tabla Saldos, tipo «Cashback»);
- *  - "credito-harper": el Crédito Harper nuevo (su tipo en Saldos se define
- *    en la Tarea 09, con autorización).
+ *  - "credito-harper": el Crédito Harper nuevo (Tarea 09: en su propia tabla,
+ *    «Créditos», propuesta para aprobar en docs/plan-programa-harper.md §17).
  * Anulado o no, bloquea igual.
  */
 export type CreditoYaAnotado = {

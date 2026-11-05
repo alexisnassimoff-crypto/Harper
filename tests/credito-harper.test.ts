@@ -249,7 +249,7 @@ test("Devoluciones con el crédito pendiente: se anula o se recalcula, nunca sub
 
 // ---------- Sin activar ----------
 
-test("Apagado por defecto y sin usar: ninguna página, componente ni ruta lo usa todavía", () => {
+test("Apagado por defecto y sin usar: ninguna página, componente ni ruta lo usa todavía (solo la persistencia sin conectar)", () => {
   assert.equal(VARIABLE_CREDITO, "HARPER_CREDITO_ACTIVO");
   assert.equal(creditoActivo({}), false);
   for (const valor of ["0", "", "true", "si"]) assert.equal(creditoActivo({ [VARIABLE_CREDITO]: valor }), false, valor);
@@ -262,7 +262,8 @@ test("Apagado por defecto y sin usar: ninguna página, componente ni ruta lo usa
     for (const entrada of fs.readdirSync(path.join(raiz, dir), { withFileTypes: true })) {
       const relativo = path.join(dir, entrada.name);
       if (entrada.isDirectory()) recorrer(relativo);
-      else if (/\.(ts|tsx)$/.test(entrada.name) && relativo !== path.join("lib", "credito-harper.ts")) {
+      // lib/credito-persistencia.ts (Tarea 09) lo usa, y a ella no la usa nadie (tests/credito-persistencia.test.ts).
+      else if (/\.(ts|tsx)$/.test(entrada.name) && relativo !== path.join("lib", "credito-harper.ts") && relativo !== path.join("lib", "credito-persistencia.ts")) {
         const texto = fs.readFileSync(path.join(raiz, relativo), "utf8");
         if (/from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)credito-harper["']/.test(texto)) usos.push(relativo);
       }
