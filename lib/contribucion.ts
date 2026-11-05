@@ -1,3 +1,5 @@
+import { preciosConDescuentoDuo } from "./duo";
+
 /**
  * Motor de contribución comercial por pedido (Ale, 05/11/2026 · Tarea 01).
  *
@@ -175,13 +177,13 @@ function exigir(condicion: boolean, mensaje: string): asserts condicion {
 /** El margen que cuenta como «llega» (con un margen de redondeo: 21,9999… por la división no es «no llega»). */
 const llega = (margen: number, p: ParametrosContribucion) => margen >= p.contribucionMinima - 1e-9;
 
-/** El descuento Dúo: los ⌊n/2⌋ pares más baratos llevan `descuentoSegundo`. */
+/**
+ * El descuento Dúo: los ⌊n/2⌋ pares más baratos llevan `descuentoSegundo`.
+ * Elige los pares con la misma regla que el motor del sitio (lib/duo.ts); acá
+ * sin redondear, porque es el modelo financiero.
+ */
 export function descuentoDelSegundo(pares: number[], descuentoSegundo: number): number {
-  const conDescuento = Math.floor(pares.length / 2);
-  return [...pares]
-    .sort((a, b) => a - b)
-    .slice(0, conDescuento)
-    .reduce((total, precio) => total + precio * descuentoSegundo, 0);
+  return preciosConDescuentoDuo(pares).reduce((total, precio) => total + precio * descuentoSegundo, 0);
 }
 
 /**
