@@ -6,6 +6,8 @@ import FotoCruzada from "./FotoCruzada";
 import Cifras from "./Cifras";
 import { useDeslizar } from "./useDeslizar";
 import { useCarrito } from "./carrito/CarritoContexto";
+import BotonFavorito from "./suscriptores/BotonFavorito";
+import { esCategoriaDeAnteojos } from "@/lib/categorias";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
@@ -108,9 +110,16 @@ export default function ProductoCard({
       </Link>
 
       <div className="ficha__cuerpo">
-        <Link href={enlace} className="ficha__titulo">
-          <Cifras>{producto.nombre}</Cifras>
-        </Link>
+        {/* El corazón, solo en los anteojos y al lado del nombre (la foto de
+            estas tarjetas llena el cuadro): guarda el color que se está viendo. */}
+        <div className="ficha__titulo-fila">
+          <Link href={enlace} className="ficha__titulo">
+            <Cifras>{producto.nombre}</Cifras>
+          </Link>
+          {variante && esCategoriaDeAnteojos(producto.categoria) ? (
+            <BotonFavorito sku={variante.sku} modelo={producto.nombre} color={variante.color} className="favorito--tarjeta" />
+          ) : null}
+        </div>
 
         {rasgos ? (
           // Cada rasgo en su span: el punto medio lo pone el CSS solo cuando

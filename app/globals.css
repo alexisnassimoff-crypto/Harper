@@ -7596,3 +7596,320 @@ h3,
   text-decoration: underline;
   text-underline-offset: 0.22em;
 }
+
+/* ---------- «Mis favoritos» (Ale, 05/11/2026) ----------
+   El corazón de los anteojos: vacío, se guarda; lleno, está guardado. Sobre
+   la foto de las tarjetas, en un círculo blanco; en la ficha, al lado del
+   nombre. Un solo aviso abajo para todo el sitio. */
+.favorito {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--tinta);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--rapido) var(--curva), background var(--rapido) var(--curva);
+}
+.favorito svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  transition: fill var(--rapido) var(--curva);
+}
+.favorito[data-guardado] svg {
+  fill: currentColor;
+  animation: favorito-latido var(--medio) var(--curva);
+}
+.favorito:active {
+  transform: scale(0.9);
+}
+.favorito:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: 2px;
+}
+@keyframes favorito-latido {
+  40% {
+    transform: scale(1.22);
+  }
+}
+.tarjeta-inicio {
+  position: relative;
+}
+.favorito--foto {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: rgb(255 255 255 / 0.88);
+  box-shadow: var(--sombra-baja);
+}
+.favorito--foto svg {
+  width: 20px;
+  height: 20px;
+}
+.favorito--foto:hover {
+  background: #fff;
+}
+/* En las tarjetas de las categorías, al lado del nombre. */
+.ficha__titulo-fila {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+.ficha__titulo-fila .ficha__titulo {
+  min-width: 0;
+}
+.favorito--tarjeta {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: -0.55rem -0.6rem -0.4rem 0;
+}
+.favorito--tarjeta svg {
+  width: 20px;
+  height: 20px;
+}
+.ficha-producto__encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.favorito--ficha {
+  margin: -0.4rem -0.55rem 0 0;
+}
+.favorito--ficha svg {
+  width: 26px;
+  height: 26px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .favorito[data-guardado] svg {
+    animation: none;
+  }
+}
+
+/* El aviso de abajo: oscuro, corto, y por encima de la barra de compra. */
+.aviso-favoritos {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  padding-inline: var(--gutter);
+  pointer-events: none;
+}
+body[data-cta-fija] .aviso-favoritos {
+  bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+}
+.aviso-favoritos__caja {
+  position: relative;
+  width: min(100%, 26rem);
+  padding: 0.95rem 3rem 0.95rem 1.1rem;
+  border-radius: 2px;
+  background: var(--tinta);
+  color: #fff;
+  box-shadow: var(--sombra-alta);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  pointer-events: auto;
+  animation: aviso-favoritos-sube var(--medio) var(--curva);
+}
+.aviso-favoritos__texto p {
+  margin: 0;
+}
+.aviso-favoritos__texto--fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.9rem;
+}
+.aviso-favoritos__titulo {
+  margin-bottom: 0.25rem !important;
+  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.aviso-favoritos__boton {
+  margin-top: 0.8rem;
+  min-height: 2.75rem;
+  border-color: #fff;
+  background: #fff;
+  color: var(--tinta);
+}
+.aviso-favoritos__enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.aviso-favoritos__cerrar {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font-size: 1.375rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.aviso-favoritos__cerrar:focus-visible,
+.aviso-favoritos__enlace:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+@keyframes aviso-favoritos-sube {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aviso-favoritos__caja {
+    animation: none;
+  }
+}
+
+/* «Mis favoritos» en Mi cuenta: tarjetas chicas, como las de la portada. */
+.mis-favoritos {
+  margin-top: 2.75rem;
+  scroll-margin-top: 5.5rem;
+}
+.mis-favoritos__titulo {
+  font-size: clamp(1.5rem, 6vw, 2rem);
+}
+.mis-favoritos__bajada {
+  margin-top: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--texto-suave);
+}
+.mis-favoritos__lista {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem 0.875rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 48rem) {
+  .mis-favoritos__lista {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.75rem 1.25rem;
+  }
+}
+.favorito-guardado {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.favorito-guardado__foto {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.favorito-guardado__foto img {
+  padding: 8%;
+  object-fit: contain;
+  transition: transform var(--lento) var(--curva);
+}
+.favorito-guardado__foto:hover img {
+  transform: scale(1.04);
+}
+.favorito-guardado__agotado {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--radio-pill);
+  background: #fff;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.favorito-guardado__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-top: 0.75rem;
+}
+.favorito-guardado__encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.15rem 0.5rem;
+}
+.favorito-guardado__modelo {
+  margin: 0;
+  font-size: 1.0625rem;
+  letter-spacing: 0.03em;
+  line-height: 1.1;
+}
+.favorito-guardado__modelo a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.favorito-guardado__precio {
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.favorito-guardado__color {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+.favorito-guardado__quitar {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.favorito-guardado__quitar svg {
+  fill: currentColor;
+}
+.favorito-guardado__quitar:hover {
+  color: var(--tinta);
+}
+.cuenta-suscriptor__pendiente {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--borde);
+  background: var(--hueso-calido);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}

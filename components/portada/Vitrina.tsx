@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
+import BotonFavorito from "@/components/suscriptores/BotonFavorito";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { TEXTOS } from "@/lib/textos";
@@ -173,6 +174,7 @@ export default function Vitrina({
                     className="foto-multiplicada"
                   />
                 </Link>
+                <BotonFavorito sku={color.sku} modelo={m.nombre} color={color.color} className="favorito--foto" />
                 <div className="tarjeta-inicio__cuerpo">
                   {variasCategorias ? <p className="etiqueta-mono tarjeta-inicio__categoria">{m.categoria}</p> : null}
                   <div className="tarjeta-inicio__encabezado">

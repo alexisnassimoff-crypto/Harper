@@ -224,6 +224,21 @@ export const TEXTOS = {
     vieneBoton: "Ver lo que viene",
     cierre: "Anteojos para combinar. Buenos Aires, Argentina.",
   },
+  /** El corazón de los anteojos (Ale, 05/11/2026): se guardan en la cuenta Harper. `que` es «CITRINO Carey». */
+  favoritos: {
+    guardar: (que: string) => `Guardar ${que} en favoritos`,
+    quitar: (que: string) => `Quitar ${que} de favoritos`,
+    guardado: (que: string) => `Guardaste ${que} en tus favoritos.`,
+    quitado: (que: string) => `Quitaste ${que} de tus favoritos.`,
+    verMisFavoritos: "Ver mis favoritos",
+    entrarTitulo: "Guardá tus favoritos en tu cuenta Harper.",
+    entrarTexto: "Entrá con tu mail y los encontrás desde cualquier dispositivo.",
+    entrar: "Entrar y guardar",
+    cerrar: "Cerrar",
+    error: "No pudimos guardar tu favorito. Probá de nuevo en un rato.",
+    /** En «Mi cuenta», cuando llegó desde un corazón sin haber entrado. */
+    pendiente: (que: string) => `Entrá con tu mail y guardamos ${que} en tus favoritos.`,
+  },
   /**
    * Suscriptores Harper (Ale, 03/11/2026, lib/suscriptores.ts). Los montos,
    * el porcentaje, los días y las cuotas los pone el código; las cuotas, solo
@@ -368,6 +383,15 @@ export const TEXTOS = {
           cancelado: "Cancelado",
         },
         ayuda: "¿Necesitás algo de un pedido? Escribinos por WhatsApp con su número.",
+      },
+      /** «Mis favoritos» (Ale, 05/11/2026): los anteojos guardados con el corazón. */
+      favoritos: {
+        titulo: "Mis favoritos",
+        bajada: "Los anteojos que guardaste con el corazón.",
+        vacio: "Todavía no guardaste ninguno. Tocá el corazón en los anteojos que te gusten y aparecen acá.",
+        error: "No pudimos traer tus favoritos ahora. Probá de nuevo en un rato.",
+        agotado: "Sin stock",
+        quitar: "Quitar",
       },
       movimientos: "Movimientos",
       sinMovimientos: "Todavía no hay movimientos. Con tu primera compra empieza a volver el 10%.",

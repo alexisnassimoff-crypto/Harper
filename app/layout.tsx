@@ -13,6 +13,7 @@ import { DESCRIPCION_SITIO, TITULO_SITIO } from "@/lib/portada";
 import "./globals.css";
 import AvisoCookies from "@/components/AvisoCookies";
 import PanelCarrito from "@/components/carrito/PanelCarrito";
+import AvisoFavoritos from "@/components/suscriptores/AvisoFavoritos";
 import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import { anunciosDelHeader } from "@/lib/anuncios";
@@ -168,6 +169,7 @@ export default async function RootLayout({
           <WhatsApp numero={config.whatsapp} />
           <AvisoCookies />
           <PanelCarrito />
+          <AvisoFavoritos />
         </ProveedorCarrito>
       </body>
     </html>
