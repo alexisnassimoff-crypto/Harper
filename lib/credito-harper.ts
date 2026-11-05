@@ -1,5 +1,5 @@
 import { esCategoriaDeAnteojos, type Categoria } from "./categorias";
-import { fechaArgentina, sumarDias, type MovimientoSaldo } from "./suscriptores";
+import { fechaArgentina, sumarDias } from "./suscriptores";
 
 /**
  * Crédito Harper (Tarea 08, docs/plan-programa-harper.md §A.1 y §10): el
@@ -19,7 +19,9 @@ import { fechaArgentina, sumarDias, type MovimientoSaldo } from "./suscriptores"
  *    abiertas. Sin fecha de entrega, sigue pendiente.
  *  - Se respeta lo anterior: un pedido con las reglas de hoy (cashback del
  *    10 % de suscriptores) no genera crédito nuevo, y un pedido que ya tiene
- *    un crédito o un cashback anotado no genera otro.
+ *    un cashback o un Crédito Harper anotado (aunque esté anulado) no genera
+ *    otro. Ese chequeo es sobre lo que se le pasa: la exclusión entre
+ *    webhooks simultáneos la tiene que dar la persistencia (Tarea 09).
  *
  * Todo es puro: recibe los datos y devuelve qué correspondería. Si un dato no
  * tiene sentido (un monto negativo, una cantidad no entera), tira RangeError:
@@ -144,6 +146,23 @@ export type CreditoAAnotar =
     }
   | { accion: "nada"; numero: string; motivo: MotivoSinAnotar; calculo: CalculoCredito | null };
 
+/**
+ * Lo que ya está anotado para un pedido y cuenta como su crédito. Son dos
+ * clases (revisión del PR #66):
+ *  - "cashback-anterior": el cashback de hoy (tabla Saldos, tipo «Cashback»);
+ *  - "credito-harper": el Crédito Harper nuevo (su tipo en Saldos se define
+ *    en la Tarea 09, con autorización).
+ * Anulado o no, bloquea igual.
+ */
+export type CreditoYaAnotado = {
+  clase: "cashback-anterior" | "credito-harper";
+  /** El número del pedido del movimiento. */
+  pedido: string;
+  /** La clave del crédito (credito-harper:<pedido>), si el movimiento la guarda. */
+  clave?: string | null;
+  anulado?: boolean;
+};
+
 /** La clave única del crédito de un pedido. */
 export function claveDelCredito(numero: string): string {
   exigir(typeof numero === "string" && numero.trim().length > 0, "El pedido necesita un número");
@@ -154,18 +173,19 @@ export function claveDelCredito(numero: string): string {
  * Qué correspondería anotar cuando se acredita el pago de un pedido. No
  * anota nada: devuelve el plan.
  *
- * `anotados` son los movimientos de saldo que ya existen (tabla Saldos).
- * Si alguno es el cashback o el crédito de este mismo pedido, aunque esté
- * anulado, no se anota otro: así un webhook repetido, una reconciliación o
- * una devolución anterior nunca generan un crédito de más.
+ * `anotados` es lo que ya está anotado (CreditoYaAnotado): si hay un
+ * cashback anterior o un Crédito Harper de este mismo pedido (por número o
+ * por clave), aunque esté anulado, no se anota otro. Es un chequeo sobre esa
+ * lista: no reemplaza la exclusión entre webhooks simultáneos, que tiene que
+ * dar la persistencia (Tarea 09).
  */
-export function creditoAlAcreditarse(
-  pedido: PedidoParaCredito,
-  anotados: readonly Pick<MovimientoSaldo, "tipo" | "pedido">[]
-): CreditoAAnotar {
+export function creditoAlAcreditarse(pedido: PedidoParaCredito, anotados: readonly CreditoYaAnotado[]): CreditoAAnotar {
   const clave = claveDelCredito(pedido.numero);
   const numero = pedido.numero.trim();
-  if (anotados.some((m) => m.tipo === "Cashback" && m.pedido.trim() === numero)) {
+  const esDeEstePedido = (m: CreditoYaAnotado) =>
+    (m.clase === "cashback-anterior" || m.clase === "credito-harper") &&
+    ((typeof m.pedido === "string" && m.pedido.trim() === numero) || (typeof m.clave === "string" && m.clave.trim() === clave));
+  if (anotados.some(esDeEstePedido)) {
     return { accion: "nada", numero, motivo: "ya-registrado", calculo: null };
   }
   if (!pedido.pagado) return { accion: "nada", numero, motivo: "no-pagado", calculo: null };
@@ -189,6 +209,20 @@ export type EstadoDelCredito = {
  * ("2026-11-10"), pasaron 30 días desde esa fecha y no hay ninguna
  * devolución ni incidencia abierta (cambio, reclamo, contracargo).
  */
+/**
+ * Si «AAAA-MM-DD» es una fecha que existe: rechaza el 31 de febrero, el
+ * 29 de febrero de un año no bisiesto, el mes 13 o el día 0 (revisión del
+ * PR #66: `sumarDias` las corría a otro día sin avisar).
+ */
+export function esFechaValida(fecha: unknown): fecha is string {
+  if (typeof fecha !== "string") return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha);
+  if (!m) return false;
+  const [anio, mes, dia] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const real = new Date(Date.UTC(anio, mes - 1, dia));
+  return real.getUTCFullYear() === anio && real.getUTCMonth() === mes - 1 && real.getUTCDate() === dia;
+}
+
 export function estadoDelCredito(datos: {
   anulado: boolean;
   /** La fecha de entrega confirmada, "AAAA-MM-DD"; null si no hay una confiable. */
@@ -196,7 +230,9 @@ export function estadoDelCredito(datos: {
   incidenciaAbierta: boolean;
   hoy: Date | string;
 }): EstadoDelCredito {
-  if (datos.fechaEntrega !== null) exigir(/^\d{4}-\d{2}-\d{2}$/.test(datos.fechaEntrega), "La fecha de entrega va como AAAA-MM-DD");
+  if (datos.fechaEntrega !== null) exigir(esFechaValida(datos.fechaEntrega), "La fecha de entrega tiene que ser una fecha que exista, como AAAA-MM-DD");
+  if (typeof datos.hoy === "string") exigir(esFechaValida(datos.hoy), "La fecha de hoy tiene que ser una fecha que exista, como AAAA-MM-DD");
+  else exigir(Number.isFinite(datos.hoy.getTime()), "La fecha de hoy no es válida");
   const disponibleDesde = datos.fechaEntrega ? sumarDias(datos.fechaEntrega, DIAS_PARA_LIBERAR_CREDITO) : null;
   if (datos.anulado) return { estado: "anulado", disponibleDesde };
   const dia = typeof datos.hoy === "string" ? datos.hoy : fechaArgentina(datos.hoy);

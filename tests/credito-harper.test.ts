@@ -18,6 +18,7 @@ import {
   creditoActivo,
   creditoAlAcreditarse,
   creditoTrasDevolucion,
+  esFechaValida,
   estadoDelCredito,
   porcentajeDeCredito,
   VARIABLE_CREDITO,
@@ -167,13 +168,24 @@ test("Al acreditarse el pago: se anota pendiente una sola vez por pedido", () =>
   assert.equal(plan.clave, "credito-harper:HARPER-1001");
   assert.equal(plan.calculo.monto, 15_733);
 
-  // Ya anotado (un webhook repetido, una reconciliación): no se anota otro.
-  const anotados = [{ tipo: "Cashback" as const, pedido: "HARPER-1001" }];
-  assert.deepEqual(creditoAlAcreditarse(pedido, anotados), { accion: "nada", numero: "HARPER-1001", motivo: "ya-registrado", calculo: null });
-  // Aunque esté anulado (por una devolución): tampoco.
-  assert.equal(creditoAlAcreditarse(pedido, [{ tipo: "Cashback", pedido: " HARPER-1001 " }]).accion, "nada");
-  // Movimientos de otros pedidos o el uso de saldo de este no lo frenan.
-  assert.equal(creditoAlAcreditarse(pedido, [{ tipo: "Cashback", pedido: "HARPER-1002" }, { tipo: "Uso", pedido: "HARPER-1001" }]).accion, "anotar");
+  const yaRegistrado = { accion: "nada", numero: "HARPER-1001", motivo: "ya-registrado", calculo: null };
+  // Ya hay un cashback anterior de este pedido: no se anota otro.
+  assert.deepEqual(creditoAlAcreditarse(pedido, [{ clase: "cashback-anterior", pedido: "HARPER-1001" }]), yaRegistrado);
+  // Ya hay un Crédito Harper de este pedido (un webhook repetido, una reconciliación): tampoco (revisión del PR #66).
+  assert.deepEqual(creditoAlAcreditarse(pedido, [{ clase: "credito-harper", pedido: "HARPER-1001" }]), yaRegistrado);
+  // Aunque esté anulado (por una devolución), de cualquiera de las dos clases: tampoco.
+  assert.deepEqual(creditoAlAcreditarse(pedido, [{ clase: "credito-harper", pedido: " HARPER-1001 ", anulado: true }]), yaRegistrado);
+  assert.deepEqual(creditoAlAcreditarse(pedido, [{ clase: "cashback-anterior", pedido: "HARPER-1001", anulado: true }]), yaRegistrado);
+  // Reconocido también por la clave, aunque el número venga distinto.
+  assert.deepEqual(creditoAlAcreditarse(pedido, [{ clase: "credito-harper", pedido: "", clave: "credito-harper:HARPER-1001" }]), yaRegistrado);
+  // Los de otros pedidos no lo frenan.
+  assert.equal(
+    creditoAlAcreditarse(pedido, [
+      { clase: "cashback-anterior", pedido: "HARPER-1002" },
+      { clase: "credito-harper", pedido: "HARPER-10011", clave: "credito-harper:HARPER-10011" },
+    ]).accion,
+    "anotar"
+  );
   // Siempre la misma clave para el mismo pedido.
   assert.equal(claveDelCredito(" HARPER-1001 "), claveDelCredito("HARPER-1001"));
   assert.throws(() => claveDelCredito("  "), RangeError);
@@ -208,7 +220,7 @@ test("Disponible 30 días después de la entrega confirmada, sin incidencias; si
   assert.equal(estadoDelCredito({ ...base, incidenciaAbierta: true, fechaEntrega: "2026-11-10", hoy: "2027-01-10" }).estado, "pendiente");
   // Anulado es anulado.
   assert.equal(estadoDelCredito({ ...base, anulado: true, fechaEntrega: "2026-11-10", hoy: "2027-01-10" }).estado, "anulado");
-  // La fecha va como AAAA-MM-DD.
+  // La fecha va como AAAA-MM-DD, y tiene que existir (revisión del PR #66).
   assert.throws(() => estadoDelCredito({ ...base, fechaEntrega: "10/11/2026", hoy: "2026-12-10" }), RangeError);
   // Con un Date, cuenta el día en Buenos Aires (las 23:30 del 9/12 en Argentina todavía es el 9).
   assert.equal(estadoDelCredito({ ...base, fechaEntrega: "2026-11-10", hoy: new Date("2026-12-10T02:30:00Z") }).estado, "pendiente");
@@ -258,4 +270,21 @@ test("Apagado por defecto y sin usar: ninguna página, componente ni ruta lo usa
   };
   for (const dir of ["app", "components", "lib"]) recorrer(dir);
   assert.deepEqual(usos, [], "no acredita ni cambia ningún cobro");
+});
+
+test("Fechas imposibles: el 31 de febrero, el 29 de febrero de un año no bisiesto, el mes 13", () => {
+  for (const fecha of ["2026-02-31", "2026-02-30", "2026-02-29", "2100-02-29", "2026-04-31", "2026-06-31", "2026-13-01", "2026-00-10", "2026-01-00", "2026-01-32", "2026-1-5", "05/11/2026", "", "2026-11-10T00:00"]) {
+    assert.equal(esFechaValida(fecha), false, fecha);
+    assert.throws(() => estadoDelCredito({ anulado: false, incidenciaAbierta: false, fechaEntrega: fecha, hoy: "2026-12-31" }), RangeError, fecha);
+  }
+  // Los bisiestos sí: 2028 y 2000 (divisible por 400); y el último día de cada mes.
+  for (const fecha of ["2028-02-29", "2000-02-29", "2026-02-28", "2026-04-30", "2026-12-31", "2026-01-31"]) assert.equal(esFechaValida(fecha), true, fecha);
+  assert.deepEqual(estadoDelCredito({ anulado: false, incidenciaAbierta: false, fechaEntrega: "2028-02-29", hoy: "2028-03-30" }), {
+    estado: "disponible",
+    disponibleDesde: "2028-03-30",
+  });
+  // Tampoco un «hoy» imposible ni un Date inválido.
+  assert.throws(() => estadoDelCredito({ anulado: false, incidenciaAbierta: false, fechaEntrega: "2026-11-10", hoy: "2026-02-31" }), RangeError);
+  assert.throws(() => estadoDelCredito({ anulado: false, incidenciaAbierta: false, fechaEntrega: "2026-11-10", hoy: new Date("no") }), RangeError);
+  for (const raro of [null, undefined, 20261110, {}]) assert.equal(esFechaValida(raro), false);
 });
