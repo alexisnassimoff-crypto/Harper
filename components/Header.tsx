@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import Logo from "./Logo";
 import { useCarrito } from "./carrito/CarritoContexto";
+import { useSuscriptor } from "./suscriptores/useSuscriptor";
 
 /** Si todavía no hay catálogo (Airtable caído al armar la página), las de siempre. */
 const POR_DEFECTO = [
@@ -27,6 +28,11 @@ export default function Header({
     texto: c.nombre,
   }));
   const { unidades, listo, abrirPanel } = useCarrito();
+  // Mi cuenta (Ale, 05/11/2026): siempre a /suscriptores/mi-cuenta; con la
+  // sesión abierta lleva a la cuenta y, sin ella, ahí mismo se entra con el
+  // mail y el código. El punto dice que ya entró.
+  const { suscriptor } = useSuscriptor();
+  const conSesion = Boolean(suscriptor);
   const pathname = usePathname();
   const [anunciosPausados, setAnunciosPausados] = useState(false);
   // La portada va sin la barra de anuncios (Ale, 05/11/2026): las condiciones
@@ -107,6 +113,16 @@ export default function Header({
 
           <div className="cabecera__carrito">
             <Link
+              href="/suscriptores/mi-cuenta"
+              className="cuenta-enlace"
+              data-activo={pathname?.startsWith("/suscriptores/mi-cuenta") || undefined}
+              aria-label={conSesion ? "Mi cuenta" : "Entrar a mi cuenta"}
+              title={conSesion ? "Mi cuenta" : "Entrar a mi cuenta"}
+            >
+              <CuentaIcono />
+              {conSesion ? <span className="cuenta-punto" aria-hidden="true" /> : null}
+            </Link>
+            <Link
               href="/carrito"
               className="carrito-enlace"
               data-activo={pathname === "/carrito"}
@@ -133,6 +149,27 @@ export default function Header({
         </div>
       </header>
     </>
+  );
+}
+
+/** Mi cuenta: una persona, con el mismo trazo que el carrito. */
+function CuentaIcono() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M4.8 20.2c.9-3.7 3.7-5.9 7.2-5.9s6.3 2.2 7.2 5.9" />
+    </svg>
   );
 }
 

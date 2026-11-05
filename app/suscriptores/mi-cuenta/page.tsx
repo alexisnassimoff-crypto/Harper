@@ -4,11 +4,11 @@ import Link from "next/link";
 import { AccionesCuenta, EntrarACuenta } from "@/components/suscriptores/AccionesCuenta";
 import MisCompras from "@/components/suscriptores/MisCompras";
 import MisFavoritos from "@/components/suscriptores/MisFavoritos";
+import SeccionesCuenta from "@/components/suscriptores/SeccionesCuenta";
 import { getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { favoritosDelCatalogo, normalizarSku } from "@/lib/favoritos";
 import { comprasDeLaCuenta } from "@/lib/mis-compras";
-import { enlaceWhatsApp } from "@/lib/whatsapp";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK, fechaArgentina, fechaLegible, type MovimientoSaldo } from "@/lib/suscriptores";
 import { resumenDeLaCuenta, suscriptorDeLaSesion } from "@/lib/suscriptores-cuenta";
@@ -154,39 +154,55 @@ export default async function MiCuenta({ searchParams }: { searchParams: Promise
         {TEXTOS.suscriptores.elegir}
       </Link>
 
-      <MisFavoritos favoritos={favoritos} />
-
-      <MisCompras
-        compras={compras}
-        email={resumen.email}
-        whatsapp={enlaceWhatsApp(config?.whatsapp ?? null, "Hola, Harper. Quiero consultar por un pedido.")}
+      {/* Compras, favoritos y movimientos en pestañas (Ale, 05/11/2026): una a la vez. */}
+      <SeccionesCuenta
+        inicial={(compras?.length ?? 0) > 0 || (favoritos?.length ?? 0) === 0 ? "mis-compras" : "mis-favoritos"}
+        secciones={[
+          {
+            id: "mis-compras",
+            titulo: T.pestanas.compras,
+            cantidad: compras?.length ?? null,
+            contenido: <MisCompras compras={compras} email={resumen.email} whatsapp={config?.whatsapp ?? null} />,
+          },
+          {
+            id: "mis-favoritos",
+            titulo: T.pestanas.favoritos,
+            cantidad: favoritos?.length ?? null,
+            contenido: <MisFavoritos favoritos={favoritos} />,
+          },
+          {
+            id: "movimientos",
+            titulo: T.pestanas.movimientos,
+            contenido: (
+              <section id="movimientos" className="cuenta-suscriptor__movimientos" aria-labelledby="cuenta-movimientos-titulo">
+                <h2 id="cuenta-movimientos-titulo" className="label">
+                  {T.movimientos}
+                </h2>
+                {resumen.movimientos.length > 0 ? (
+                  <ul>
+                    {resumen.movimientos.map((m) => (
+                      <li key={m.id} className="cuenta-suscriptor__movimiento">
+                        <span className="cuenta-suscriptor__fecha">{diaDe(m.fecha)}</span>
+                        <span className="cuenta-suscriptor__concepto">
+                          {m.tipo === "Ajuste" ? T.movimiento.Ajuste : T.movimiento[m.tipo](m.pedido)}
+                          {m.tipo === "Cashback" && m.disponibleDesde && m.disponibleDesde > hoy ? (
+                            <small>{T.desde(fechaLegible(m.disponibleDesde))}</small>
+                          ) : null}
+                        </span>
+                        <span className="cuenta-suscriptor__importe" data-signo={m.monto < 0 ? "menos" : "mas"}>
+                          {conSigno(m.monto)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="apagado">{T.sinMovimientos}</p>
+                )}
+              </section>
+            ),
+          },
+        ]}
       />
-
-      <section className="cuenta-suscriptor__movimientos" aria-labelledby="cuenta-movimientos-titulo">
-        <h2 id="cuenta-movimientos-titulo" className="label">
-          {T.movimientos}
-        </h2>
-        {resumen.movimientos.length > 0 ? (
-          <ul>
-            {resumen.movimientos.map((m) => (
-              <li key={m.id} className="cuenta-suscriptor__movimiento">
-                <span className="cuenta-suscriptor__fecha">{diaDe(m.fecha)}</span>
-                <span className="cuenta-suscriptor__concepto">
-                  {m.tipo === "Ajuste" ? T.movimiento.Ajuste : T.movimiento[m.tipo](m.pedido)}
-                  {m.tipo === "Cashback" && m.disponibleDesde && m.disponibleDesde > hoy ? (
-                    <small>{T.desde(fechaLegible(m.disponibleDesde))}</small>
-                  ) : null}
-                </span>
-                <span className="cuenta-suscriptor__importe" data-signo={m.monto < 0 ? "menos" : "mas"}>
-                  {conSigno(m.monto)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="apagado">{T.sinMovimientos}</p>
-        )}
-      </section>
 
       <AccionesCuenta activo={resumen.activo} email={resumen.email} />
     </section>

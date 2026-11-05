@@ -471,7 +471,8 @@ export function comprasDePrueba(hoy: string = fechaArgentina(new Date())): { cli
   const ANA = "recCLIENTEANA0001";
   const OTRA = "recCLIENTEOTRA001";
   const pedidos = [
-    pedido("recPEDIDOANA00001", { Numero: "HARPER-PRUEBA2", Estado: "entregado", Cliente: [ANA], Fecha: `${sumarDias(hoy, -41)}T14:10:00.000Z`, Subtotal: 79900, Envio: 0, Total: 79900, MP_status: "approved", Tracking: "AND0001234567" }, [
+    // El seguimiento como enlace del operador: «Seguir mi envío» (datos de prueba).
+    pedido("recPEDIDOANA00001", { Numero: "HARPER-PRUEBA2", Estado: "entregado", Cliente: [ANA], Fecha: `${sumarDias(hoy, -41)}T14:10:00.000Z`, Subtotal: 79900, Envio: 0, Total: 79900, MP_status: "approved", Tracking: "https://www.andreani.com/envio/360000012345678" }, [
       item("citrino", "CITRINO", "Carey", "citrino-carey", 1, 79900),
     ]),
     pedido("recPEDIDOANA00002", { Numero: "HARPER-PRUEBA3", Estado: "enviado", Cliente: [ANA], Fecha: `${sumarDias(hoy, -9)}T19:45:00.000Z`, Subtotal: 179800, Envio: 0, Total: 179800, MP_status: "approved", Tracking: "CA123456789AR" }, [
@@ -480,6 +481,16 @@ export function comprasDePrueba(hoy: string = fechaArgentina(new Date())): { cli
     ]),
     pedido("recPEDIDOANA00003", { Numero: "HARPER-PRUEBA5", Estado: "pagado", Cliente: [ANA], Fecha: `${sumarDias(hoy, -1)}T11:20:00.000Z`, Subtotal: 89900, Envio: 6500, Total: 96400, MP_status: "approved" }, [
       item("cuarzo", "CUARZO", "Negro", "cuarzo-negro", 1, 89900),
+    ]),
+    // Cada estado que se ve en «Mis compras»: en preparación, pago en revisión y cancelado.
+    pedido("recPEDIDOANA00006", { Numero: "HARPER-PRUEBA8", Estado: "preparando", Cliente: [ANA], Fecha: `${sumarDias(hoy, -4)}T16:30:00.000Z`, Subtotal: 89900, Envio: 0, Total: 89900, MP_status: "approved" }, [
+      item("citrino", "CITRINO", "Negro", "citrino-negro", 1, 89900),
+    ]),
+    pedido("recPEDIDOANA00007", { Numero: "HARPER-PRUEBA9", Estado: "pendiente", Cliente: [ANA], Fecha: `${sumarDias(hoy, 0)}T09:15:00.000Z`, Subtotal: 89900, Envio: 0, Total: 89900, MP_status: "in_process" }, [
+      item("obsidiana", "OBSIDIANA", "Negro", "obsidiana-negro", 1, 89900),
+    ]),
+    pedido("recPEDIDOANA00008", { Numero: "HARPER-PRUEBA10", Estado: "cancelado", Cliente: [ANA], Fecha: `${sumarDias(hoy, -20)}T12:00:00.000Z`, Subtotal: 89900, Envio: 0, Total: 89900, MP_status: "refunded" }, [
+      item("amatista", "AMATISTA", "Negro", "amatista-negro", 1, 89900),
     ]),
     // No son compras: un checkout que no se pagó y un pago rechazado.
     pedido("recPEDIDOANA00004", { Numero: "HARPER-PRUEBA6", Estado: "pendiente", Cliente: [ANA], Fecha: `${sumarDias(hoy, -3)}T10:00:00.000Z`, Total: 89900 }, [

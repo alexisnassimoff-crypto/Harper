@@ -383,10 +383,25 @@ export const TEXTOS = {
         total: "Total",
         envio: (monto: string) => `Envío ${monto}`,
         envioSinCargo: "Envío sin cargo",
-        seguimiento: "Seguimiento",
+        seguimiento: "Número de seguimiento",
+        /** El recorrido de un pedido pagado, con los estados reales de Airtable (Ale, 05/11/2026). */
+        etapas: {
+          pagado: "Pago confirmado",
+          preparando: "En preparación",
+          enviado: "Enviado",
+          entregado: "Entregado",
+        },
+        revision: "Mercado Pago está revisando el pago. Cuando lo confirme, empezamos a prepararlo.",
+        cancelado: "Este pedido está cancelado.",
+        copiar: "Copiar",
+        copiado: "Copiado",
+        seguir: "Seguir mi envío",
+        consultar: "Consultar por WhatsApp",
+        /** El mensaje de WhatsApp de un pedido: «Hola, Harper. Quiero consultar por el pedido HARPER-12345AB.» */
+        consultarMensaje: (numero: string) => (numero ? `Hola, Harper. Quiero consultar por el pedido ${numero}.` : "Hola, Harper. Quiero consultar por un pedido."),
         estados: {
           "en-revision": "Pago en revisión",
-          pagado: "Confirmado",
+          pagado: "Pago confirmado",
           preparando: "En preparación",
           enviado: "Enviado",
           entregado: "Entregado",
@@ -404,6 +419,8 @@ export const TEXTOS = {
         quitar: "Quitar",
       },
       movimientos: "Movimientos",
+      /** Las pestañas de Mi cuenta (Ale, 05/11/2026). */
+      pestanas: { compras: "Compras", favoritos: "Favoritos", movimientos: "Movimientos" },
       sinMovimientos: "Todavía no hay movimientos. Con tu primera compra empieza a volver el 10%.",
       movimiento: {
         Cashback: (pedido: string) => (pedido ? `Cashback del pedido ${pedido}` : "Cashback"),

@@ -2078,6 +2078,8 @@ p {
 .cabecera__carrito {
   grid-area: carrito;
   justify-self: end;
+  display: flex;
+  align-items: center;
 }
 
 @media (max-width: 46rem) {
@@ -7577,16 +7579,6 @@ h3,
   text-transform: uppercase;
   color: var(--texto-suave);
 }
-.compra__seguimiento {
-  margin-top: 0.6rem;
-  font-size: 0.75rem;
-  color: var(--texto-suave);
-}
-.compra__seguimiento span {
-  font-weight: 500;
-  color: var(--tinta);
-  overflow-wrap: anywhere;
-}
 .mis-compras__ayuda {
   margin-top: 1rem;
   font-size: 0.8125rem;
@@ -7949,4 +7941,246 @@ body[data-cta-fija] .aviso-favoritos {
 .cuotas-compra--carrito .cuotas-suscriptor,
 .cuotas-compra--carrito .cuotas-condiciones {
   font-size: 0.75rem;
+}
+
+
+/* ---------- Mi cuenta en el encabezado (Ale, 05/11/2026) ----------
+   El mismo tamaño táctil y el mismo trazo que el carrito, a su izquierda. El
+   punto verde dice que ya entró. */
+.cuenta-enlace {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  color: var(--verde);
+  transition:
+    background var(--rapido) var(--curva),
+    transform var(--rapido) var(--curva);
+}
+.cuenta-enlace:hover,
+.cuenta-enlace:focus-visible,
+.cuenta-enlace[data-activo] {
+  background: color-mix(in srgb, var(--verde) 10%, transparent);
+}
+.cuenta-enlace:hover {
+  transform: translateY(-1px);
+}
+/* En los celulares más angostos (320 px), un poco menos de aire entre las
+   columnas: la cuenta y el carrito entran sin correr la marca del centro. */
+@media (max-width: 22.4375rem) {
+  .cabecera__barra {
+    column-gap: 0.5rem;
+  }
+}
+.cuenta-punto {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.6rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1.5px solid var(--fondo);
+  border-radius: 50%;
+  background: var(--verde);
+}
+
+/* ---------- Mi cuenta en pestañas (Ale, 05/11/2026) ---------- */
+.secciones-cuenta {
+  margin-top: 2.5rem;
+}
+.secciones-cuenta__lista {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  border-bottom: 1px solid var(--borde);
+  scroll-margin-top: 6rem;
+}
+.secciones-cuenta__pestana {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 3rem;
+  padding: 0 0.25rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--texto-suave);
+  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.secciones-cuenta__pestana[aria-selected="true"] {
+  border-bottom-color: var(--tinta);
+  color: var(--tinta);
+}
+.secciones-cuenta__pestana:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: -2px;
+}
+.secciones-cuenta__cantidad {
+  min-width: 1.25rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--radio-pill);
+  background: var(--hueso-calido);
+  color: var(--tinta);
+  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.secciones-cuenta__panel {
+  padding-top: 1.25rem;
+}
+/* Adentro de una pestaña, la sección no repite su título (lo dice la pestaña). */
+.secciones-cuenta__panel > section {
+  margin-top: 0;
+}
+.secciones-cuenta__panel > section > h2:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.secciones-cuenta__panel .mis-compras__bajada,
+.secciones-cuenta__panel .mis-favoritos__bajada {
+  margin-top: 0;
+}
+
+/* ---------- El seguimiento de cada pedido (Ale, 05/11/2026) ----------
+   Las cuatro etapas en una fila: las hechas en verde, la actual marcada y
+   las que faltan en gris. Sin fechas: solo el Estado de Airtable. */
+.compra__etapas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0.9rem 0 0.15rem;
+  padding: 0;
+  list-style: none;
+}
+.compra__etapa {
+  position: relative;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 0.4rem;
+  text-align: center;
+}
+/* La línea que une cada punto con el anterior. */
+.compra__etapa + .compra__etapa::before {
+  content: "";
+  position: absolute;
+  top: 0.4375rem;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--borde);
+}
+.compra__etapa[data-paso="hecha"] + .compra__etapa::before {
+  background: var(--verde);
+}
+.compra__punto {
+  position: relative;
+  z-index: 1;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--borde);
+  border-radius: 50%;
+  background: #fff;
+}
+.compra__etapa[data-paso="hecha"] .compra__punto {
+  border-color: var(--verde);
+  background: var(--verde);
+}
+.compra__etapa[data-paso="actual"] .compra__punto {
+  border-color: var(--verde);
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 5px var(--verde);
+}
+.compra__etapa-texto {
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--texto-suave);
+}
+.compra__etapa[data-paso="actual"] .compra__etapa-texto {
+  color: var(--tinta);
+  font-weight: 600;
+}
+.compra__nota {
+  margin: 0.85rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 2px;
+  background: #f6ecd6;
+  color: #6f5212;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.compra__nota[data-estado="cancelado"] {
+  background: var(--hueso-calido);
+  color: var(--texto-suave);
+}
+.compra__seguimiento {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+  padding-top: 0.8rem;
+  border-top: 1px dashed var(--borde);
+}
+.compra__tracking {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.6rem;
+  margin: 0;
+}
+.compra__tracking-etiqueta {
+  flex-basis: 100%;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.compra__tracking-numero {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.copiar {
+  min-height: 2.25rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-pill);
+  background: #fff;
+  color: var(--tinta);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.copiar[data-copiado] {
+  border-color: var(--verde);
+  color: var(--verde);
+}
+.compra__seguir {
+  justify-self: start;
+}
+.compra__consulta {
+  margin: 0.8rem 0 0;
+  font-size: 0.75rem;
+}
+.compra__consulta a {
+  color: var(--texto-suave);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.compra__consulta a:hover {
+  color: var(--tinta);
 }

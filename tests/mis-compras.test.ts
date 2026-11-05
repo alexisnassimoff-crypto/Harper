@@ -5,7 +5,7 @@ process.env.HARPER_FIXTURES = "1";
 
 import { createRecord, TABLAS } from "../lib/airtable";
 import { cumpleFormula } from "../lib/fixtures/formula";
-import { comprasDeLaCuenta, comprasDeLosClientes, compraDe, estadoDeCompra, itemsDeCompra, MAXIMO_DE_COMPRAS } from "../lib/mis-compras";
+import { comprasDeLaCuenta, comprasDeLosClientes, compraDe, estadoDeCompra, etapasDeCompra, itemsDeCompra, MAXIMO_DE_COMPRAS, seguimientoDe } from "../lib/mis-compras";
 
 /** «Mis compras» de Mi cuenta Harper (Ale, 05/11/2026). */
 
@@ -115,4 +115,31 @@ test("mis compras: la cuenta ve solo sus compras, por su mail verificado exacto"
   assert.deepEqual(await comprasDeLaCuenta(""), []);
   // Un texto que no es un mail no busca nada (ni con comillas para romper la fórmula).
   assert.deepEqual(await comprasDeLaCuenta("' OR TRUE() OR '"), []);
+});
+
+test("mis compras: el recorrido sale solo del Estado de Airtable, sin pasos inventados", () => {
+  const pasos = (e: Parameters<typeof etapasDeCompra>[0]) => etapasDeCompra(e)?.map((x) => `${x.etapa}:${x.paso}`) ?? null;
+  assert.deepEqual(pasos("pagado"), ["pagado:actual", "preparando:pendiente", "enviado:pendiente", "entregado:pendiente"]);
+  assert.deepEqual(pasos("preparando"), ["pagado:hecha", "preparando:actual", "enviado:pendiente", "entregado:pendiente"]);
+  assert.deepEqual(pasos("enviado"), ["pagado:hecha", "preparando:hecha", "enviado:actual", "entregado:pendiente"]);
+  assert.deepEqual(pasos("entregado"), ["pagado:hecha", "preparando:hecha", "enviado:hecha", "entregado:actual"]);
+  // El pago en revisión y la cancelación no tienen recorrido: se muestran con su aviso.
+  assert.equal(etapasDeCompra("en-revision"), null);
+  assert.equal(etapasDeCompra("cancelado"), null);
+});
+
+test("mis compras: el seguimiento es un número para copiar, y un enlace solo si es de un operador conocido", () => {
+  assert.deepEqual(seguimientoDe("CA123456789AR"), { numero: "CA123456789AR", enlace: null });
+  assert.deepEqual(seguimientoDe("  360000012345678 "), { numero: "360000012345678", enlace: null });
+  assert.deepEqual(seguimientoDe(null), { numero: null, enlace: null });
+  assert.deepEqual(seguimientoDe("   "), { numero: null, enlace: null });
+  // Enlaces de los operadores: «Seguir mi envío».
+  assert.equal(seguimientoDe("https://www.andreani.com/envio/360000012345678").enlace, "https://www.andreani.com/envio/360000012345678");
+  assert.equal(seguimientoDe("https://www.correoargentino.com.ar/formularios/e-commerce?id=CA1").enlace?.startsWith("https://www.correoargentino.com.ar/"), true);
+  // Nada que no sea https de un operador conocido se ofrece como enlace (ni se muestra como número).
+  assert.deepEqual(seguimientoDe("http://www.andreani.com/envio/1"), { numero: null, enlace: null });
+  assert.deepEqual(seguimientoDe("https://andreani.com.estafa.io/envio/1"), { numero: null, enlace: null });
+  assert.deepEqual(seguimientoDe("https://otro-sitio.com/seguimiento"), { numero: null, enlace: null });
+  assert.deepEqual(seguimientoDe("javascript:alert(1)"), { numero: null, enlace: null });
+  assert.deepEqual(seguimientoDe("<script>"), { numero: null, enlace: null });
 });
