@@ -78,8 +78,6 @@ export const TEXTOS = {
       etiqueta: "Suscriptores Harper · Es gratis",
       titulo: "Ser parte tiene sus ventajas.",
       bajada: "Unite gratis y descubrí los beneficios que preparamos para vos.",
-      /** El botón principal: lleva directo al formulario. */
-      cta: "Suscribirme gratis",
       /** El enlace secundario, a /suscriptores. */
       beneficios: "Conocé los beneficios y sus condiciones",
       /** La caja de la ficha. */

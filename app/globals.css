@@ -7179,10 +7179,6 @@ body[data-sin-flotantes] .wsp {
   line-height: 1.55;
   color: rgb(255 255 255 / 0.82);
 }
-.suscripcion-inicio .suscriptores-portada__cta {
-  align-self: flex-start;
-  margin-top: 0.25rem;
-}
 
 /* El enlace a los beneficios y sus condiciones, debajo del botón. */
 .suscripcion-inicio__mas {
