@@ -35,6 +35,16 @@ export default async function Privacidad() {
         reconocerte en el sitio, al entrar con tu mail guardamos en tu
         navegador una cookie de sesión por 90 días; no se usa para publicidad.
       </p>
+      <p>
+        Si elegís guardar en Mi cuenta tu teléfono, DNI, direcciones de entrega
+        o anteojos favoritos, utilizamos esa información para facilitar tus
+        próximas compras y personalizar tu experiencia en Harper. Podés
+        actualizar tus datos personales y administrar tus direcciones y
+        favoritos desde Mi cuenta. Los datos de compras anteriores se conservan
+        por separado. Para ejercer tus derechos sobre otros datos personales,
+        podés comunicarte con nosotros a través del correo de contacto indicado
+        en esta política.
+      </p>
 
       <p>
         Para saber cuántas personas visitan el sitio, qué páginas miran y qué

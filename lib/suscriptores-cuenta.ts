@@ -3,6 +3,7 @@ import { createRecord, ErrorAirtable, escaparFormula, getRecord, listRecords, TA
 import { cerrojoDesdeEntorno, soltarSinFallar, type Cerrojo } from "./cerrojo";
 import { yaCompro } from "./clientes";
 import { cambiarFavorito, escribirFavoritos, leerFavoritos } from "./favoritos";
+import { leerDirecciones, type DireccionGuardada } from "./mis-datos";
 import { VERSION_CONDICIONES_SUSCRIPTORES } from "./legales";
 import {
   beneficiosDeNotas,
@@ -46,6 +47,11 @@ export type FilaSuscriptor = {
   Notas?: string;
   /** «Mis favoritos» (Ale, 05/11/2026): un SKU por renglón, el más reciente primero (lib/favoritos.ts). */
   Favoritos?: string;
+  /** «Mis datos» (Ale, 05/11/2026): los escribe solo la sesión de la cuenta (lib/mis-datos-servidor.ts). */
+  Telefono?: string;
+  DNI?: string;
+  /** «Mis direcciones»: JSON, hasta cinco, la principal primero (lib/mis-datos.ts). */
+  Direcciones?: string;
 };
 
 export type FilaSaldo = {
@@ -78,6 +84,11 @@ export type CuentaSuscriptor = {
   baja: string | null;
   /** Los SKU que guardó con el corazón, el más reciente primero. */
   favoritos: string[];
+  /** «Mis datos»: vacíos si todavía no los cargó en la cuenta. */
+  telefono: string;
+  dni: string;
+  /** «Mis direcciones», la principal primero. */
+  direcciones: DireccionGuardada[];
 };
 
 function cuentaDe(registro: { id: string; fields: FilaSuscriptor }): CuentaSuscriptor {
@@ -93,6 +104,9 @@ function cuentaDe(registro: { id: string; fields: FilaSuscriptor }): CuentaSuscr
     cuponPedido: (f.Cupon_pedido ?? "").trim(),
     baja: f.Baja ? f.Baja : null,
     favoritos: leerFavoritos(f.Favoritos),
+    telefono: (f.Telefono ?? "").trim(),
+    dni: (f.DNI ?? "").replace(/\D/g, ""),
+    direcciones: leerDirecciones(f.Direcciones),
   };
 }
 

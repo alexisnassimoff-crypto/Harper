@@ -25,9 +25,11 @@ import type { DatosCliente, DestinoEnvio, EleccionEnvio } from "@/lib/tipos";
 import type { MedioPago } from "@/lib/dinero-mp";
 import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
 import type { DatosRecordados } from "@/lib/reconocer-cliente";
+import { direccionParaElCheckout, type DatosPersonales, type DireccionGuardada } from "@/lib/mis-datos";
 import BarraPagar, { TextoPagoSeguro } from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import CodigoDescuento from "./CodigoDescuento";
+import DireccionesGuardadas from "./DireccionesGuardadas";
 import { PROVINCIAS } from "./provincias";
 import ReconocerComprador from "./ReconocerComprador";
 import SuscriptorEnCheckout from "./SuscriptorEnCheckout";
@@ -397,6 +399,48 @@ export default function FormularioCheckout({
     if (emailSuscriptor) setForm((f) => (f.email.trim() ? f : { ...f, email: emailSuscriptor }));
   }, [emailSuscriptor]);
 
+  // «Mis datos» y «Mis direcciones» de su cuenta (Ale, 05/11/2026): solo con
+  // la sesión abierta (la ruta lee la cookie firmada, nunca un mail escrito).
+  const [deLaCuenta, setDeLaCuenta] = useState<{ email: string; datos: DatosPersonales; direcciones: DireccionGuardada[] } | null>(null);
+  useEffect(() => {
+    setDeLaCuenta(null);
+    if (!emailSuscriptor) return;
+    let vigente = true;
+    fetch("/api/suscriptores/datos", { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ datos?: DatosPersonales; direcciones?: DireccionGuardada[] }>) : null))
+      .then((d) => {
+        if (vigente && d?.datos) setDeLaCuenta({ email: emailSuscriptor, datos: d.datos, direcciones: d.direcciones ?? [] });
+      })
+      // Sin respuesta, el checkout sigue como siempre.
+      .catch(() => null);
+    return () => {
+      vigente = false;
+    };
+  }, [emailSuscriptor]);
+
+  // Al llegar, completa solo lo que está vacío: los datos si el bloque está
+  // en blanco (y es su mail), y la dirección principal si todavía no hay
+  // ninguna. Nunca pisa lo que la persona escribió o lo que el navegador recordó.
+  const cuentaAplicada = useRef<string | null>(null);
+  useEffect(() => {
+    if (!deLaCuenta || cuentaAplicada.current === deLaCuenta.email) return;
+    cuentaAplicada.current = deLaCuenta.email;
+    const mail = form.email.trim().toLowerCase();
+    const { nombre, telefono, dni } = deLaCuenta.datos;
+    if ((!mail || mail === deLaCuenta.email) && !form.nombre.trim() && !form.telefono.trim() && !form.dni.trim()) {
+      const nuevos = { email: mail || deLaCuenta.email, nombre, telefono, dni };
+      setForm((f) => ({ ...f, ...nuevos }));
+      if (bloquesCompletos({ ...form, ...nuevos }).datos) {
+        setEditandoDatos(false);
+        setRecordadoDe(nuevos.email);
+      }
+    }
+    const principal = deLaCuenta.direcciones[0];
+    if (principal && !elegida && !form.direccion.trim()) usarDireccionGuardada(principal);
+    // Una vez por cuenta: lo demás lo elige la persona.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deLaCuenta]);
+
   // InitiateCheckout: una vez por visita al checkout, con el carrito ya
   // resuelto (valor e ítems reales). Ni con carrito vacío ni al volver de un
   // pago rechazado, que no es un checkout nuevo.
@@ -506,6 +550,51 @@ export default function FormularioCheckout({
       cp: d.cp || f.cp,
     }));
     setErrores((e) => ({ ...e, domicilio: undefined, direccion: undefined, ciudad: undefined, provincia: undefined, cp: undefined }));
+  }
+
+  /**
+   * Una dirección de «Mis direcciones»: si vino del buscador, como elegida
+   * (sin buscarla ni pagar otra consulta), con su piso; si se cargó a mano, en
+   * los campos manuales. El bloque queda resumido, con «Cambiar».
+   */
+  function usarDireccionGuardada(d: DireccionGuardada) {
+    const uso = direccionParaElCheckout(d);
+    if (uso.modo === "buscador" && buscador) {
+      setModoDireccion("buscador");
+      aplicarDireccion(uso.elegida, uso.elegida.numero);
+      setPiso(uso.piso);
+    } else {
+      const manual =
+        uso.modo === "manual"
+          ? uso
+          : { direccion: componerDireccion(uso.elegida, uso.piso), ciudad: uso.elegida.localidad, provincia: uso.elegida.provincia, cp: uso.elegida.cp };
+      setElegida(null);
+      setNumero("");
+      setPiso("");
+      setModoDireccion("manual");
+      setForm((f) => ({ ...f, direccion: manual.direccion, ciudad: manual.ciudad, provincia: manual.provincia, cp: manual.cp }));
+      try {
+        window.localStorage.removeItem(CLAVE_DOMICILIO);
+      } catch {
+        // Sin almacenamiento no hay nada que borrar.
+      }
+    }
+    setErrores((e) => ({ ...e, domicilio: undefined, direccion: undefined, ciudad: undefined, provincia: undefined, cp: undefined }));
+    setEditandoDireccion(false);
+  }
+
+  /** La de «Mis direcciones» que está puesta en el formulario, si es una. */
+  function direccionGuardadaEnUso(): string | null {
+    for (const d of deLaCuenta?.direcciones ?? []) {
+      const uso = direccionParaElCheckout(d);
+      if (uso.modo === "buscador" && buscador) {
+        if (modoDireccion === "buscador" && elegida?.id === uso.elegida.id && piso.trim() === uso.piso) return d.id;
+      } else {
+        const esperada = uso.modo === "manual" ? uso.direccion : componerDireccion(uso.elegida, uso.piso);
+        if (modoDireccion === "manual" && form.direccion.trim() === esperada && form.cp.trim() === d.cp) return d.id;
+      }
+    }
+    return null;
   }
 
   /** El número que Google no trajo: solo cambia la calle y número del pedido. */
@@ -1027,6 +1116,9 @@ export default function FormularioCheckout({
           </h2>
           {editandoDireccion ? (
             <>
+            {deLaCuenta && deLaCuenta.direcciones.length > 0 ? (
+              <DireccionesGuardadas lista={deLaCuenta.direcciones} enUso={direccionGuardadaEnUso()} onUsar={usarDireccionGuardada} bloqueado={enviando} />
+            ) : null}
             {modoDireccion === "buscador" ? (
               <>
                 <CampoDireccion

@@ -402,6 +402,23 @@ export function suscriptoresIniciales(): RegistroFixture[] {
       Cupon_pedido: "HARPER-PRUEBA",
       // «Mis favoritos»: tres colores guardados, el más reciente primero.
       Favoritos: "CITRINO-CAREY\nAMATISTA-GRIS\nOBSIDIANA-NEGRO",
+      // «Mis datos» y «Mis direcciones»: una del buscador (la principal) y una cargada a mano.
+      Telefono: "11 5555 1234",
+      DNI: "30123456",
+      Direcciones: JSON.stringify([
+        {
+          id: "dcasa0001",
+          alias: "Casa",
+          principal: true,
+          direccion: "Av. Cabildo 1234",
+          piso: "5° B",
+          ciudad: "Buenos Aires",
+          provincia: "Ciudad Autónoma de Buenos Aires",
+          cp: "1426",
+          lugar: { id: "ChIJprueba-cabildo-1234", calle: "Av. Cabildo", numero: "1234", barrio: "Belgrano", partido: "", texto: "Av. Cabildo 1234, Belgrano, Buenos Aires, Argentina" },
+        },
+        { id: "dtrab0002", alias: "Trabajo", principal: false, direccion: "San Martín 450", piso: "", ciudad: "Rosario", provincia: "Santa Fe", cp: "2000" },
+      ]),
     }),
     suscriptor(SUSCRIPTOR_BETO, {
       Email: "beto@ejemplo.com",
