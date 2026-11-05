@@ -5,6 +5,10 @@ import { precio as formatearPrecio } from "@/lib/formato";
 import { desglosar } from "@/lib/resumen";
 import { TEXTOS } from "@/lib/textos";
 import OfertaCantidad from "@/components/producto/OfertaCantidad";
+import OfertaDuo from "@/components/producto/OfertaDuo";
+import { esCategoriaDeAnteojos } from "@/lib/categorias";
+import { mensajesDelDuo, notaEnvioGratisDelDuo } from "@/lib/promocion-anteojos";
+import FilasDescuento from "./FilasDescuento";
 import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 import { useCarritoResuelto } from "./useCarritoResuelto";
@@ -56,6 +60,15 @@ export default function VistaCarrito() {
   const envio = envioEnElCarrito(datos.subtotalSinCupon ?? datos.subtotal, resumen.envio, {
     amba: datos.envioGratisAmbaDesde ?? 0,
     nacional: datos.envioGratisDesde,
+  });
+
+  // Con el Dúo prendido (Tarea 07), lo que dice el servidor del Dúo; apagado, nada.
+  const duo = datos.duo ? mensajesDelDuo(datos.duo, "carrito") : null;
+  const notaDuo = notaEnvioGratisDelDuo({
+    base: datos.subtotalSinCupon ?? datos.subtotal,
+    items: datos.items,
+    umbral: resumen.envio === 0 ? datos.envioGratisDesde : (datos.envioGratisAmbaDesde ?? 0),
+    gratis: resumen.envio === 0 || envio.valor === "Gratis en AMBA",
   });
 
   // Unidades y descuento aplicado por categoría, para la línea del segundo par.
@@ -114,14 +127,7 @@ export default function VistaCarrito() {
         {/* La cuenta se lee de arriba abajo: lista − descuento + envío = total. */}
         <Fila etiqueta="Subtotal" valor={formatearPrecio(resumen.lista)} />
 
-        {resumen.descuento > 0 ? (
-          <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>
-              {datos.cupon?.estado === "aplicado" ? `Cupón ${datos.cupon.codigo}` : "Descuento"}
-            </span>
-            <span>−{formatearPrecio(resumen.descuento)}</span>
-          </div>
-        ) : null}
+        <FilasDescuento ahorro={resumen.descuento} items={datos.items} cupon={datos.cupon} />
         {/* El cupón de bienvenida del suscriptor, en su renglón (el saldo se elige en el checkout). */}
         {resumen.cupon > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
@@ -135,7 +141,9 @@ export default function VistaCarrito() {
 
         {/* Solo la promoción del segundo par, en una línea. Sin tabla de
             tramos: el descuento que corresponda ya se ve en la fila de arriba. */}
-        {[...porCategoria.entries()].map(([categoria, info]) => (
+        {/* Con el Dúo: su línea, y la del tramo solo si con otro par conviene el tramo. */}
+        {duo ? <OfertaDuo lineas={[duo.siguiente]} /> : null}
+        {[...porCategoria.entries()].filter(([categoria]) => !duo || duo.tramos || !esCategoriaDeAnteojos(categoria)).map(([categoria, info]) => (
           <OfertaCantidad
             key={categoria}
             tramos={datos.tramos}
@@ -151,6 +159,11 @@ export default function VistaCarrito() {
         {envio.nota || datos.suscriptor ? (
           <p className="apagado" style={{ fontSize: "0.8125rem" }}>
             {datos.suscriptor ? TEXTOS.suscriptores.envioGratis : envio.nota}
+          </p>
+        ) : null}
+        {notaDuo && !datos.suscriptor ? (
+          <p className="apagado" style={{ fontSize: "0.8125rem" }}>
+            {notaDuo}
           </p>
         ) : null}
 

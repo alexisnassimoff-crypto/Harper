@@ -21,7 +21,9 @@ import { getTramos } from "@/lib/descuentos";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
-import { paresDisponibles, totalesPosibles } from "@/lib/packs";
+import { CANTIDADES_PACK, paresDisponibles, totalesPosibles } from "@/lib/packs";
+import { packConDuo, porcentajeDelDuo } from "@/lib/pedidos";
+import type { PacksDuo } from "@/components/portada/CompraPortada";
 import {
   DESCRIPCION_SITIO,
   ESTUCHE_PORTADA,
@@ -114,12 +116,16 @@ async function PortadaEstrella({
   const opiniones = mercadoLibre?.opiniones ?? null;
   const reputacion = mercadoLibre?.reputacion ?? null;
 
+  // Con el Dúo prendido (Tarea 07): lo que cobra el servidor por cada pack de
+  // cada modelo, con y sin el estuche. Apagado, null y todo como siempre.
+  const packsDuo = porcentajeDelDuo() === null ? null : await packsConDuo(modelos, estuche);
+
   // Las cuotas de cada total que la compra puede mostrar (de cualquier
   // modelo), confirmadas una por una con Mercado Pago: el anuncio de cada
   // pack es cierto para ese monto.
   const totales = [
-    ...new Set(
-      modelos.flatMap((m) =>
+    ...new Set([
+      ...modelos.flatMap((m) =>
         totalesPosibles({
           precio: m.precio,
           tramos,
@@ -127,8 +133,11 @@ async function PortadaEstrella({
           cuponPorcentaje: HAY_CUPONES ? CUPON_BIENVENIDA.porcentaje : 0,
           extra: estuche ? { precio: estuche.precio, categoria: estuche.categoria } : null,
         })
-      )
-    ),
+      ),
+      ...Object.values(packsDuo ?? {}).flatMap((porCantidad) =>
+        Object.values(porCantidad).flatMap((p) => [p.sin?.total, p.con?.total].filter((t): t is number => typeof t === "number"))
+      ),
+    ]),
   ];
   const verificadas = await conEspera(
     Promise.all(totales.map(async (total) => [String(total), await verificarCuotas(total)] as const)),
@@ -180,6 +189,7 @@ async function PortadaEstrella({
         envioGratisDesde={config.envioGratisDesde}
         envioGratisAmbaDesde={config.envioGratisAmbaDesde}
         estuche={estuche}
+        packsDuo={packsDuo}
         calificacion={opiniones ? { promedio: opiniones.promedio, total: opiniones.total } : null}
         garantias={garantiasDePortada({
           diasArrepentimiento: DIAS_ARREPENTIMIENTO,
@@ -390,4 +400,25 @@ async function PortadaCatalogo({ productos, config }: { productos: Producto[]; c
       ) : null}
     </>
   );
+}
+
+/**
+ * Con el Dúo prendido (Tarea 07): cada pack de cada modelo (1, 2 y 4 pares),
+ * con y sin el estuche, como lo cobra el carrito del servidor. Así la
+ * portada no calcula el Dúo por su cuenta.
+ */
+async function packsConDuo(modelos: Producto[], estuche: Producto | null): Promise<PacksDuo> {
+  const varianteEstuche = estuche ? estuche.variantes[indiceVarianteInicial(estuche)] : null;
+  const extra = estuche && varianteEstuche && !varianteEstuche.agotada ? { productoSlug: estuche.slug, varianteId: varianteEstuche.id, cantidad: 1 } : null;
+  const filas = await Promise.all(
+    modelos.flatMap((m) =>
+      CANTIDADES_PACK.map(async (cantidad) => {
+        const [sin, con] = await Promise.all([packConDuo(m, cantidad), extra ? packConDuo(m, cantidad, extra) : Promise.resolve(null)]);
+        return { slug: m.slug, cantidad, sin, con };
+      })
+    )
+  );
+  const packs: PacksDuo = {};
+  for (const f of filas) (packs[f.slug] ??= {})[f.cantidad] = { sin: f.sin, con: f.con };
+  return packs;
 }

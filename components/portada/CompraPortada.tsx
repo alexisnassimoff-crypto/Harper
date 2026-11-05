@@ -31,7 +31,7 @@ import {
   type Pack,
 } from "@/lib/packs";
 import { trackAgregarVarios, trackPixel } from "@/lib/pixel";
-import type { Producto } from "@/lib/tipos";
+import type { PackDelServidor, Producto } from "@/lib/tipos";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Garantia } from "@/lib/portada";
 import Estrellas, { formatearPuntaje } from "./Estrellas";
@@ -47,6 +47,31 @@ import { Garantias } from "./SeccionesPortada";
  * carrito igual los vuelve a calcular en el servidor al cobrar. Las cuotas se
  * anuncian solo para un total que Mercado Pago confirmó (`cuotasPorTotal`).
  */
+/**
+ * Con el Dúo prendido (Tarea 07): lo que cobra el servidor por cada pack de
+ * cada modelo, con y sin el estuche. Null con el Dúo apagado.
+ */
+export type PacksDuo = Record<string, Record<number, { sin: PackDelServidor | null; con: PackDelServidor | null }>>;
+
+/** Un pack para mostrar: el de lib/packs.ts o el del servidor con el Dúo. */
+type PackMostrado = Pack & { duo?: PackDelServidor };
+
+/** El pack del servidor con la forma de los de lib/packs.ts (sin calcular nada). */
+function desdeServidor(p: PackDelServidor): PackMostrado {
+  return {
+    cantidad: p.cantidad,
+    porcentaje: 0,
+    conCupon: false,
+    precioUnitario: (p.total - (p.precioExtra ?? 0)) / p.cantidad,
+    precioExtra: p.precioExtra,
+    total: p.total,
+    lista: p.lista,
+    ahorro: p.ahorro,
+    totalParaEnvio: p.totalParaEnvio,
+    duo: p,
+  };
+}
+
 export default function CompraPortada({
   modelos,
   modeloInicial,
@@ -56,6 +81,7 @@ export default function CompraPortada({
   envioGratisDesde,
   envioGratisAmbaDesde = 0,
   estuche,
+  packsDuo = null,
   calificacion,
   garantias,
   whatsapp,
@@ -73,6 +99,8 @@ export default function CompraPortada({
   envioGratisAmbaDesde?: number;
   /** El estuche que se ofrece sumar, o null si no hay. */
   estuche: Producto | null;
+  /** Con el Dúo prendido, los packs como los cobra el servidor; null: los de siempre. */
+  packsDuo?: PacksDuo | null;
   /**
    * Las opiniones de todos los anteojos Harper (no solo de este modelo: así
    * se dice), resumidas; null si no hay. Salen de Mercado Libre, pero no se
@@ -116,10 +144,13 @@ export default function CompraPortada({
   // el carrito (el cupón o la promoción por cantidad, la que convenga).
   const cuponPorcentaje = buscarCupon(cupon)?.porcentaje ?? 0;
   const base = { precio: producto.precio, tramos, categoria: producto.categoria, cuponPorcentaje };
-  const packs = CANTIDADES_PACK.map((c) => armarPack({ ...base, cantidad: c }));
+  // Con el Dúo prendido, los del servidor (Tarea 07); si falta alguno, el de siempre.
+  const delServidor = packsDuo?.[producto.slug] ?? null;
+  const elegir = (p: PackDelServidor | null | undefined, deSiempre: () => Pack): PackMostrado => (p ? desdeServidor(p) : deSiempre());
+  const packs = CANTIDADES_PACK.map((c) => elegir(delServidor?.[c]?.sin, () => armarPack({ ...base, cantidad: c })));
   const extra = estuche ? { precio: estuche.precio, categoria: estuche.categoria } : null;
-  const conElEstuche = armarPack({ ...base, cantidad, extra });
-  const compra = conEstuche ? conElEstuche : armarPack({ ...base, cantidad });
+  const conElEstuche = elegir(delServidor?.[cantidad]?.con, () => armarPack({ ...base, cantidad, extra }));
+  const compra = conEstuche ? conElEstuche : elegir(delServidor?.[cantidad]?.sin, () => armarPack({ ...base, cantidad }));
 
   // "Mejor precio por par" solo si de verdad lo es: el único con el par más barato.
   const masBarato = Math.min(...packs.map((p) => p.precioUnitario));
@@ -127,7 +158,7 @@ export default function CompraPortada({
 
   const varianteEstuche = estuche?.variantes[colorEstuche] ?? null;
   const cuotas = cuotasPorTotal[String(compra.total)] ?? null;
-  const conDineroMP = conDescuento(compra.total, PORCENTAJE_DINERO_MP);
+  const conDineroMP = compra.duo?.totalDineroMP ?? conDescuento(compra.total, PORCENTAJE_DINERO_MP);
   // Gratis en todo el país, o al menos en AMBA (sin dirección, no se sabe dónde vive).
   const umbrales = { amba: envioGratisAmbaDesde, nacional: envioGratisDesde };
   const envioGratis = (pack: Pack) =>
@@ -359,11 +390,13 @@ export default function CompraPortada({
                   ? "Mejor precio por par"
                   : null;
             const descuento =
-              pack.porcentaje > 0
-                ? pack.conCupon
-                  ? `${pack.porcentaje}% OFF con ${CUPON_BIENVENIDA.codigo}`
-                  : `${pack.porcentaje}% OFF`
-                : null;
+              pack.duo && pack.duo.promocion === "duo"
+                ? `Dúo · ${pack.duo.duo.porcentaje}% OFF en ${pack.duo.duo.unidades === 1 ? "uno" : pack.duo.duo.unidades}`
+                : pack.porcentaje > 0
+                  ? pack.conCupon
+                    ? `${pack.porcentaje}% OFF con ${CUPON_BIENVENIDA.codigo}`
+                    : `${pack.porcentaje}% OFF`
+                  : null;
 
             return (
               <label
@@ -390,7 +423,8 @@ export default function CompraPortada({
                     {!disponible
                       ? "Sin stock para este pack"
                       : [
-                          pack.cantidad > 1 ? `${formatearPrecio(pack.precioUnitario)} c/u` : null,
+                          // Con el Dúo los pares no valen lo mismo: no hay «c/u».
+                          pack.cantidad > 1 && pack.duo?.promocion !== "duo" ? `${formatearPrecio(pack.precioUnitario)} c/u` : null,
                           descuento,
                           envioGratis(pack),
                         ]

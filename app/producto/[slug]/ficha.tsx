@@ -14,6 +14,8 @@ import type { ColorDeADos } from "@/components/HojaPack";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import { getProducto, getProductos } from "@/lib/catalogo";
+import { packConDuo, porcentajeDelDuo, type PackDelServidor } from "@/lib/pedidos";
+import type { DuoDeLaFicha } from "@/components/producto/FichaProducto";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
 import { cuotasDelPrecio, verificarCuotas } from "@/lib/cuotas-servidor";
@@ -78,7 +80,7 @@ export async function metadataFicha(slug: string, color?: string): Promise<Metad
  * colores de todos los modelos de la categoría para armar el pack. Null si la
  * categoría no tiene escala o no queda stock.
  */
-async function paresDeLaFicha(producto: Producto, tramos: Tramo[], delMismoTipo: Producto[]) {
+async function paresDeLaFicha(producto: Producto, tramos: Tramo[], delMismoTipo: Producto[], dosConDuo: PackDelServidor | null = null) {
   const escala = escalaDe(tramos, producto.categoria);
   if (escala.length === 0) return null;
 
@@ -99,19 +101,32 @@ async function paresDeLaFicha(producto: Producto, tramos: Tramo[], delMismoTipo:
   const packs = [1, ...escala.map((t) => t.desdeUnidades)].map((cantidad) =>
     armarPack({ precio: producto.precio, cantidad, tramos, categoria: producto.categoria }),
   );
+  // Con el Dúo prendido y si en 2 pares gana el Dúo (Tarea 07): la opción de
+  // 2 pares, con lo que cobra el servidor. La escala no tiene 2: con 3 y 5 el
+  // «llevá N, pagá M» le gana al Dúo y esas opciones quedan como siempre.
+  const conDos = dosConDuo?.promocion === "duo" && !packs.some((p) => p.cantidad === 2) ? dosConDuo : null;
+  if (conDos) packs.splice(1, 0, { ...packs[0], cantidad: 2, total: conDos.total, lista: conDos.lista, ahorro: conDos.ahorro, precioUnitario: conDos.total / 2 });
   const cuotas = await Promise.all(packs.map((p) => verificarCuotas(p.total)));
   const ultimo = escala[escala.length - 1];
 
   const opciones: OpcionPares[] = packs.map((p, i) => {
     const tramo = escala.find((t) => t.desdeUnidades === p.cantidad) ?? null;
     const cuota = cuotas[i];
+    const esDuo = conDos !== null && p.cantidad === 2;
     return {
       cantidad: p.cantidad,
-      titulo: tramo ? nombreDelTramo(tramo) : "1 par",
-      sello: tramo ? (tramo === ultimo ? "Mejor precio por par" : `Llevás ${enLetras(tramo.desdeUnidades - tramo.paga)} gratis`) : null,
+      titulo: tramo ? nombreDelTramo(tramo) : esDuo ? "2 pares" : "1 par",
+      sello: tramo
+        ? tramo === ultimo
+          ? "Mejor precio por par"
+          : `Llevás ${enLetras(tramo.desdeUnidades - tramo.paga)} gratis`
+        : esDuo
+          ? `Dúo · ${conDos.duo.porcentaje}% OFF en uno`
+          : null,
       total: formatearPrecio(p.total),
       tachado: p.lista > p.total ? formatearPrecio(p.lista) : null,
-      porPar: p.cantidad > 1 ? `Cada par ${formatearPrecio(p.precioUnitario)}` : null,
+      // Con el Dúo los dos pares no valen lo mismo: no hay un «cada par».
+      porPar: p.cantidad > 1 && !esDuo ? `Cada par ${formatearPrecio(p.precioUnitario)}` : null,
       cuota: cuota ? `${cuota.cuotas} cuotas sin interés de ${precioConCentavos(cuota.montoCuota)}` : null,
     };
   });
@@ -144,7 +159,19 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   // promedio general junto al nombre: ese promedio es de todo junto (anteojos,
   // estuches y paños) y no se muestra como si fuera del anteojo.
   const esAnteojo = esCategoriaDeAnteojos(producto.categoria);
-  const pares = await paresDeLaFicha(producto, tramos, delMismoTipo);
+  // Con el Dúo prendido (Tarea 07): lo que cobra el servidor por dos pares de
+  // este modelo. Apagado, null y la ficha queda exactamente como siempre.
+  const porcentajeDuo = esAnteojo ? porcentajeDelDuo() : null;
+  const dosConDuo = porcentajeDuo !== null ? await packConDuo(producto, 2) : null;
+  const duo: DuoDeLaFicha | null =
+    porcentajeDuo === null
+      ? null
+      : {
+          porcentaje: porcentajeDuo,
+          gana: dosConDuo?.promocion === "tramos" ? "tramos" : "duo",
+          dos: dosConDuo?.promocion === "duo" ? { total: dosConDuo.total, lista: dosConDuo.lista } : null,
+        };
+  const pares = await paresDeLaFicha(producto, tramos, delMismoTipo, dosConDuo);
 
   const otros = delMismoTipo.filter((p) => p.id !== producto.id);
   const varianteInicial = indiceVarianteInicial(producto, color);
@@ -232,6 +259,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         whatsapp={config.whatsapp || null}
         calificacion={opiniones && !esAnteojo ? { promedio: opiniones.promedio, total: opiniones.total } : null}
         pares={pares}
+        duo={duo}
       />
 
       {esAnteojo ? (

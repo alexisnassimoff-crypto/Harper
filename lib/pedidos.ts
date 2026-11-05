@@ -1,4 +1,4 @@
-import { categoriaDesdeTexto } from "./categorias";
+import { categoriaDesdeTexto, esCategoriaDeAnteojos } from "./categorias";
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { getProductos, getProductosParaCobrar } from "./catalogo";
 import {
@@ -32,7 +32,9 @@ import {
   tramosVigentes,
   type Tramo,
 } from "./descuentos";
-import { duoActivo, elegirPromocionAnteojos, notaDelDuo, registroDelDuo, subtotalAntesDelDuo } from "./duo";
+import { duoActivo, elegirPromocionAnteojos, notaDelDuo, PORCENTAJE_DUO, registroDelDuo, subtotalAntesDelDuo } from "./duo";
+import { coloresIniciales } from "./packs";
+import { indiceVarianteInicial } from "./variantes";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
 import {
@@ -46,13 +48,18 @@ import {
 import type {
   Categoria,
   DestinoEnvio,
+  DuoDelCarrito,
   EleccionEnvio,
   EnvioDelPedido,
   ItemCarrito,
   ItemResuelto,
   OpcionEnvio,
+  PackDelServidor,
   Paquete,
+  Producto,
 } from "./tipos";
+
+export type { PackDelServidor };
 
 export type CarritoResuelto = {
   items: ItemResuelto[];
@@ -109,6 +116,12 @@ export type CarritoResuelto = {
    * checkout cambie de uno a otro al instante. Null si el carrito está vacío.
    */
   dineroMP: PrecioDineroMP | null;
+  /**
+   * Con el Dúo prendido (Tarea 07): qué descontó y qué gana con un anteojo
+   * más, para que la tienda lo cuente con los importes del servidor. Con el
+   * Dúo apagado no existe: el carrito es exactamente el de siempre.
+   */
+  duo?: DuoDelCarrito;
 };
 
 /** Tope por variante: evita que un bug o un curioso pida 9999 unidades. */
@@ -186,7 +199,6 @@ export async function resolverCarrito(
   let items: ItemResuelto[] = [];
   const descartados: CarritoResuelto["descartados"] = [];
   const aEmpacar: ItemAEmpacar[] = [];
-  const porCategoria = new Map<Categoria, number>();
 
   for (const crudo of itemsCrudos) {
     const producto = productos.find((p) =>
@@ -229,10 +241,6 @@ export async function resolverCarrito(
     });
 
     aEmpacar.push({ envase: producto.envase, cantidad });
-    porCategoria.set(
-      producto.categoria,
-      (porCategoria.get(producto.categoria) ?? 0) + cantidad
-    );
   }
 
   // El descuento se calcula recién acá porque depende del TOTAL de unidades de
@@ -244,31 +252,12 @@ export async function resolverCarrito(
   // entre los renglones y el redondeo lo absorbe el más grande, como con dinero
   // en Mercado Pago; un unitario puede quedar con fracción de peso y a Mercado
   // Pago se le manda partido en pesos enteros (lib/mercadopago.ts).
-  let ahorro = 0;
-
   // Dúo (Tarea 04, lib/duo.ts): APAGADO salvo HARPER_DUO_ACTIVO="1". Apagado,
   // no se toca nada y el carrito cobra exactamente lo de siempre. Prendido,
   // se guardan los renglones a precio de lista para compararlo con los tramos.
   const deLista = duoActivo() ? items.map((i) => ({ ...i })) : null;
 
-  for (const [categoria, unidades] of porCategoria) {
-    const porcentaje = porcentajeParaCantidad(tramos, categoria, unidades);
-    if (porcentaje <= 0) continue;
-
-    const deLaCategoria = items.filter((i) => i.categoria === categoria);
-    const lista = deLaCategoria.reduce((total, i) => total + i.precioLista * i.cantidad, 0);
-    const total = totalConDescuento(lista, porcentaje);
-    const lineas = deLaCategoria.map((i) => totalConDescuento(i.precioLista * i.cantidad, porcentaje));
-    const mayor = deLaCategoria.reduce((m, i, n) => (i.precioLista * i.cantidad > deLaCategoria[m].precioLista * deLaCategoria[m].cantidad ? n : m), 0);
-    lineas[mayor] += total - lineas.reduce((suma, l) => suma + l, 0);
-
-    deLaCategoria.forEach((item, n) => {
-      item.descuento = porcentaje;
-      item.subtotal = lineas[n];
-      item.precioUnitario = lineas[n] / item.cantidad;
-    });
-    ahorro += lista - total;
-  }
+  let ahorro = aplicarTramos(items, tramos);
 
   // Con el Dúo prendido, en los anteojos queda el Dúo o el tramo de Airtable,
   // el que le deje al comprador el total más bajo; nunca los dos. Estuches y
@@ -330,6 +319,8 @@ export async function resolverCarrito(
     suscriptor: activo,
   });
   const dineroMP = items.length > 0 ? aplicarDineroMP(items) : null;
+  // Tarea 07: con el Dúo prendido, lo que la tienda necesita para contarlo.
+  const duo = deLista ? duoDelCarrito(items, deLista, tramos, promocion.cupon) : null;
 
   return {
     items,
@@ -365,6 +356,132 @@ export async function resolverCarrito(
           activo,
         }
       : null,
+    ...(duo ? { duo } : {}),
+  };
+}
+
+/**
+ * Los descuentos por cantidad de Airtable, sobre los renglones (los cambia).
+ * Devuelve lo que se ahorró. Es la misma cuenta de siempre, aparte para poder
+ * preguntar también «¿y con un anteojo más?» (Tarea 07).
+ *
+ * El descuento depende del TOTAL de unidades de la categoría: tres estuches de
+ * modelos distintos suman tres. Se redondea una sola vez, sobre el total de la
+ * categoría, y la diferencia la absorbe el renglón más grande.
+ */
+function aplicarTramos(items: ItemResuelto[], tramos: Tramo[]): number {
+  const porCategoria = new Map<Categoria, number>();
+  for (const item of items) porCategoria.set(item.categoria, (porCategoria.get(item.categoria) ?? 0) + item.cantidad);
+
+  let ahorro = 0;
+  for (const [categoria, unidades] of porCategoria) {
+    const porcentaje = porcentajeParaCantidad(tramos, categoria, unidades);
+    if (porcentaje <= 0) continue;
+
+    const deLaCategoria = items.filter((i) => i.categoria === categoria);
+    const lista = deLaCategoria.reduce((total, i) => total + i.precioLista * i.cantidad, 0);
+    const total = totalConDescuento(lista, porcentaje);
+    const lineas = deLaCategoria.map((i) => totalConDescuento(i.precioLista * i.cantidad, porcentaje));
+    const mayor = deLaCategoria.reduce((m, i, n) => (i.precioLista * i.cantidad > deLaCategoria[m].precioLista * deLaCategoria[m].cantidad ? n : m), 0);
+    lineas[mayor] += total - lineas.reduce((suma, l) => suma + l, 0);
+
+    deLaCategoria.forEach((item, n) => {
+      item.descuento = porcentaje;
+      item.subtotal = lineas[n];
+      item.precioUnitario = lineas[n] / item.cantidad;
+    });
+    ahorro += lista - total;
+  }
+  return ahorro;
+}
+
+/**
+ * El Dúo del carrito para la tienda (Tarea 07): cuánto descontó (de los
+ * renglones que se cobran) y qué gana con un anteojo más.
+ *
+ * «Un anteojo más» es otro del más barato del carrito: se arma ese carrito a
+ * precio de lista, se le aplican los tramos y se elige la promoción con la
+ * misma regla que al cobrar. Con un cupón aplicado no se anuncia nada.
+ */
+function duoDelCarrito(
+  cobrados: ItemResuelto[],
+  deLista: ItemResuelto[],
+  tramos: Tramo[],
+  cupon: CuponResuelto | null
+): DuoDelCarrito {
+  const conDuo = cobrados.filter((i) => i.duo);
+  const ahorro = conDuo.reduce((total, i) => total + (i.duo?.descuento ?? 0), 0);
+  const unidades = conDuo.reduce((total, i) => total + (i.duo?.unidades ?? 0), 0);
+  return {
+    porcentaje: PORCENTAJE_DUO,
+    ahorro,
+    unidades,
+    siguiente: cupon?.estado === "aplicado" ? null : conUnAnteojoMas(deLista, tramos, unidades),
+  };
+}
+
+function conUnAnteojoMas(deLista: ItemResuelto[], tramos: Tramo[], unidadesConDuo: number): DuoDelCarrito["siguiente"] {
+  const anteojos = deLista.map((i, n) => ({ i, n })).filter(({ i }) => esCategoriaDeAnteojos(i.categoria) && i.cantidad > 0);
+  if (anteojos.length === 0) return null;
+  const masBarato = anteojos.reduce((m, a) => (a.i.precioLista < m.i.precioLista ? a : m)).n;
+
+  const conUnoMas = deLista.map((i, n) => {
+    const cantidad = n === masBarato ? i.cantidad + 1 : i.cantidad;
+    return { ...i, cantidad, precioUnitario: i.precioLista, descuento: 0, subtotal: i.precioLista * cantidad };
+  });
+  const conTramos = conUnoMas.map((i) => ({ ...i }));
+  aplicarTramos(conTramos, tramos);
+  const elegida = elegirPromocionAnteojos(conUnoMas, conTramos);
+
+  if (elegida.promocion === "duo") return elegida.duo.duo.unidadesConDescuento > unidadesConDuo ? "duo" : null;
+  return elegida.items.some((i) => esCategoriaDeAnteojos(i.categoria) && i.descuento > 0) ? "tramos" : null;
+}
+
+/**
+ * El porcentaje del Dúo si está prendido; null si no (Tarea 07). Para que las
+ * páginas sepan si contarlo, sin calcular nada.
+ */
+export function porcentajeDelDuo(): number | null {
+  return duoActivo() ? PORCENTAJE_DUO : null;
+}
+
+/**
+ * Lo que cobra el carrito del servidor por `cantidad` pares de un modelo (con
+ * los colores que tienen stock, como los arma la tienda) y, si se pasa, un
+ * complemento. Para que la ficha y la portada muestren los importes del Dúo
+ * sin calcularlos aparte (Tarea 07).
+ *
+ * Null con el Dúo apagado (la tienda sigue exactamente como antes) o si no
+ * hay stock para esa cantidad.
+ */
+export async function packConDuo(
+  producto: Producto,
+  cantidad: number,
+  extra: ItemCarrito | null = null
+): Promise<PackDelServidor | null> {
+  if (!duoActivo() || cantidad < 1) return null;
+  const colores = coloresIniciales(producto.variantes, cantidad, indiceVarianteInicial(producto));
+  if (colores.some((c) => c < 0)) return null;
+  const porColor = new Map<number, number>();
+  for (const c of colores) porColor.set(c, (porColor.get(c) ?? 0) + 1);
+  const lineas: ItemCarrito[] = [...porColor].map(([c, n]) => ({ productoSlug: producto.slug, varianteId: producto.variantes[c].id, cantidad: n }));
+
+  const carrito = await resolverCarrito(extra ? [...lineas, extra] : lineas);
+  const pares = carrito.items.filter((i) => i.productoId === producto.id);
+  if (!carrito.duo || pares.reduce((n, i) => n + i.cantidad, 0) !== cantidad) return null;
+
+  const complementos = carrito.items.filter((i) => i.productoId !== producto.id);
+  const lista = carrito.items.reduce((total, i) => total + i.precioLista * i.cantidad, 0);
+  return {
+    cantidad,
+    total: carrito.subtotal,
+    totalDineroMP: carrito.dineroMP?.subtotal ?? null,
+    lista,
+    ahorro: lista - carrito.subtotal,
+    totalParaEnvio: carrito.subtotalSinCupon,
+    precioExtra: complementos.length > 0 ? complementos.reduce((total, i) => total + i.subtotal, 0) : null,
+    promocion: carrito.duo.ahorro > 0 ? "duo" : pares.some((i) => i.descuento > 0) ? "tramos" : "ninguna",
+    duo: carrito.duo,
   };
 }
 

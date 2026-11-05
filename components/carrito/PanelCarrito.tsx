@@ -6,6 +6,9 @@ import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import CodigoDescuento from "@/components/checkout/CodigoDescuento";
 import OfertaCantidad from "@/components/producto/OfertaCantidad";
+import OfertaDuo from "@/components/producto/OfertaDuo";
+import { esCategoriaDeAnteojos } from "@/lib/categorias";
+import { mensajesDelDuo, notaEnvioGratisDelDuo } from "@/lib/promocion-anteojos";
 import { buscarCupon } from "@/lib/cupones";
 import { envioEnElCarrito } from "@/lib/envio-gratis";
 import { precio as formatearPrecio } from "@/lib/formato";
@@ -17,6 +20,7 @@ import LineaCarrito from "./LineaCarrito";
 import { useCarritoResuelto } from "./useCarritoResuelto";
 import CuotasDelCarrito from "./CuotasDelCarrito";
 import { Fila } from "./VistaCarrito";
+import FilasDescuento from "./FilasDescuento";
 
 /**
  * El carrito como panel lateral, en escritorio: se abre al agregar un
@@ -207,6 +211,15 @@ function Resumen({
     nacional: datos.envioGratisDesde,
   });
 
+  // Con el Dúo prendido (Tarea 07), lo que dice el servidor del Dúo; apagado, nada.
+  const duo = datos.duo ? mensajesDelDuo(datos.duo, "carrito") : null;
+  const notaDuo = notaEnvioGratisDelDuo({
+    base: datos.subtotalSinCupon ?? datos.subtotal,
+    items: datos.items,
+    umbral: resumen.envio === 0 ? datos.envioGratisDesde : (datos.envioGratisAmbaDesde ?? 0),
+    gratis: resumen.envio === 0 || envio.valor === "Gratis en AMBA",
+  });
+
   const porCategoria = new Map<Categoria, { unidades: number; precioLista: number; descuento: number }>();
   for (const item of datos.items) {
     const actual = porCategoria.get(item.categoria) ?? { unidades: 0, precioLista: item.precioLista, descuento: 0 };
@@ -221,12 +234,7 @@ function Resumen({
       {conCupon ? <CodigoDescuento estado={datos.cupon ?? null} /> : null}
 
       <Fila etiqueta="Subtotal" valor={formatearPrecio(resumen.lista)} />
-      {resumen.descuento > 0 ? (
-        <div className="fila" style={{ color: "var(--verde)" }}>
-          <span>{datos.cupon?.estado === "aplicado" ? `Cupón ${datos.cupon.codigo}` : "Descuento"}</span>
-          <span>−{formatearPrecio(resumen.descuento)}</span>
-        </div>
-      ) : null}
+      <FilasDescuento ahorro={resumen.descuento} items={datos.items} cupon={datos.cupon} />
       {/* El cupón de bienvenida del suscriptor, en su renglón (el saldo se elige en el checkout). */}
       {resumen.cupon > 0 ? (
         <div className="fila" style={{ color: "var(--verde)" }}>
@@ -236,7 +244,9 @@ function Resumen({
       ) : null}
       <Fila etiqueta="Envío a domicilio" valor={envio.valor} />
 
-      {[...porCategoria.entries()].map(([categoria, info]) => (
+      {/* Con el Dúo: su línea, y la del tramo solo si con otro par conviene el tramo. */}
+      {duo ? <OfertaDuo lineas={[duo.siguiente]} /> : null}
+      {[...porCategoria.entries()].filter(([categoria]) => !duo || duo.tramos || !esCategoriaDeAnteojos(categoria)).map(([categoria, info]) => (
         <OfertaCantidad
           key={categoria}
           tramos={datos.tramos}
@@ -252,6 +262,11 @@ function Resumen({
       {envio.nota || datos.suscriptor ? (
         <p className="apagado" style={{ fontSize: "0.8125rem" }}>
           {datos.suscriptor ? TEXTOS.suscriptores.envioGratis : envio.nota}
+        </p>
+      ) : null}
+      {notaDuo && !datos.suscriptor ? (
+        <p className="apagado" style={{ fontSize: "0.8125rem" }}>
+          {notaDuo}
         </p>
       ) : null}
 

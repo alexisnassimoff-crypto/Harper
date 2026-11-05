@@ -73,7 +73,7 @@ export async function POST(request: Request) {
   const pideCuotas = cuotas === true && resuelto.items.length > 0 && resuelto.total > 0;
   const sinCuotas = { suyas: null, deSuscriptor: null };
   const [sugerencias, conEnvio, sinEnvio] = await Promise.all([
-    sugerirParaCarrito(resuelto.items, cuponAplicado).catch((error) => {
+    sugerirParaCarrito(resuelto.items, cuponAplicado, resuelto.duo ?? null).catch((error) => {
       console.error("[carrito] no se pudieron armar las sugerencias:", error);
       return [];
     }),
@@ -107,6 +107,8 @@ export async function POST(request: Request) {
       : null,
     sugerencias,
     suscriptor: resuelto.suscriptor,
+    // Solo con el Dúo prendido (Tarea 07); apagado, la respuesta es la de siempre.
+    ...(resuelto.duo ? { duo: resuelto.duo } : {}),
     cuotas: conEnvio.suyas ? { ...conEnvio.suyas, monto: resuelto.total } : null,
     cuotasSinEnvio: sinEnvio.suyas ? { ...sinEnvio.suyas, monto: resuelto.subtotal } : null,
     // Las de suscriptor para los mismos montos, solo a quien todavía no las tiene.

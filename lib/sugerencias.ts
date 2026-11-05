@@ -1,6 +1,6 @@
 import { getProductos } from "./catalogo";
 import { getTramos, ofertaDeEscala, ofertaPorCantidad, type Tramo } from "./descuentos";
-import type { Categoria, ItemResuelto, Producto } from "./tipos";
+import type { Categoria, DuoDelCarrito, ItemResuelto, Producto } from "./tipos";
 
 /**
  * Qué ofrecerle a alguien que ya tiene el carrito armado.
@@ -83,6 +83,12 @@ const REGLAS: Regla[] = [
   },
 ];
 
+/** El motivo del otro anteojo con el Dúo: solo promete el 25 % si el servidor dice que lo suma. */
+function motivoConDuo(duo: DuoDelCarrito, unidades: number): string {
+  if (duo.siguiente === "duo") return duo.unidades === 0 ? `Segundo par: ${duo.porcentaje}% OFF en el de menor precio` : `Sumá otro: ${duo.porcentaje}% OFF en otro par`;
+  return unidades >= 2 ? OTRO_MODELO : "Sumá un segundo par";
+}
+
 /** Rota una lista según el día, para que las sugerencias no se estanquen. */
 function rotar<T>(lista: T[], semilla: number): T[] {
   if (lista.length < 2) return lista;
@@ -96,7 +102,9 @@ export async function sugerirParaCarrito(
    * El porcentaje del cupón aplicado, si hay. Una promoción por cantidad que
    * no lo supera no se anuncia: no se suman, así que no le daría nada más.
    */
-  cuponPorcentaje = 0
+  cuponPorcentaje = 0,
+  /** El Dúo del carrito, del servidor (solo con el Dúo prendido; Tarea 07). */
+  duo: DuoDelCarrito | null = null
 ): Promise<Sugerencia[]> {
   if (items.length === 0) return [];
 
@@ -104,7 +112,7 @@ export async function sugerirParaCarrito(
   const anunciables = tramos.filter((t) => t.porcentaje > cuponPorcentaje);
 
   // Cambia cada día: una misma persona que vuelve mañana ve otra cosa.
-  return elegirSugerencias(items, productos, Math.floor(Date.now() / 86_400_000), anunciables);
+  return elegirSugerencias(items, productos, Math.floor(Date.now() / 86_400_000), anunciables, duo);
 }
 
 /** La decisión, sin Airtable de por medio, para poder probarla. */
@@ -112,7 +120,13 @@ export function elegirSugerencias(
   items: ItemResuelto[],
   productos: Producto[],
   semilla: number,
-  tramos: Tramo[] = []
+  tramos: Tramo[] = [],
+  /**
+   * Con el Dúo prendido (Tarea 07): si con otro anteojo suma otro par con el
+   * 25 %, el motivo lo dice; si ahí conviene un tramo, el del tramo, como
+   * siempre; si no gana nada, no se promete descuento. Null: lo de siempre.
+   */
+  duo: DuoDelCarrito | null = null
 ): Sugerencia[] {
   if (items.length === 0 || productos.length === 0) return [];
 
@@ -184,7 +198,8 @@ export function elegirSugerencias(
         ? OTRO_MODELO
         : null;
 
-    sumar(regla.entonces, regla.motivo({ unidades, segundoPar, escala }));
+    const conDuo = duo && regla.entonces === "Anteojos" && duo.siguiente !== "tramos" ? motivoConDuo(duo, unidades) : null;
+    sumar(regla.entonces, conDuo ?? regla.motivo({ unidades, segundoPar, escala }));
   }
 
   // 2. Si ya tiene de todo, se le ofrece más de lo mismo, sin prometer
