@@ -38,6 +38,11 @@ export type CarritoResueltoCliente = {
   /** Solo si se pidieron y hay envío: las mismas, para el total sin el envío. */
   cuotasSinEnvio?: (CuotasVerificadas & { monto: number }) | null;
   /**
+   * Solo si se pidieron y el comprador no es suscriptor: las cuotas que
+   * tendría siéndolo, para los mismos montos (con y sin envío), si son más.
+   */
+  cuotasSuscriptor?: (CuotasVerificadas & { monto: number })[];
+  /**
    * El suscriptor que entró con su mail: el cupón y el saldo aplicados, su
    * saldo, el cashback que le vuelve y su tope de cuotas (lib/suscriptores.ts).
    * Null si no hay sesión.

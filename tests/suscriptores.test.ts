@@ -175,8 +175,8 @@ test("el origen de la suscripción y el tope de cuotas por comprador", () => {
   assert.equal(normalizarOrigenSuscripcion(" Portada "), "Portada");
   assert.equal(normalizarOrigenSuscripcion("instagram"), "Otro");
   assert.equal(normalizarOrigenSuscripcion(undefined), "Otro");
-  // Ale, 04/11/2026: por ahora 6 para todos; las cuotas no son beneficio de suscriptor.
-  assert.deepEqual([cuotasMaximas(false), cuotasMaximas(true)], [6, 6]);
+  // Ale, 05/11/2026: hasta 3 para todos y hasta 6 para suscriptores.
+  assert.deepEqual([cuotasMaximas(false), cuotasMaximas(true)], [3, 6]);
 });
 
 test("los mails: el código, y la bienvenida con las cuotas solo si Mercado Pago las confirmó", async () => {

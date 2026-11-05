@@ -1,29 +1,44 @@
-import { cuotasAnunciables, evaluarCuotas, MARCAS_VERIFICADAS, resumirCuotasMP, type CuotasVerificadas } from "./cuotas";
+import { cuotasAnunciables, evaluarMejoresCuotas, MARCAS_VERIFICADAS, resumirCuotasMP, evaluarCuotas, type CuotasVerificadas } from "./cuotas";
 import { consultarCuotas, mercadoPagoConfigurado } from "./mercadopago";
-import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, CUOTAS_TODOS } from "./suscriptores";
+import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, CUOTAS_TODOS, cuotasMaximas } from "./suscriptores";
 
 /**
  * La consulta a Mercado Pago, solo en el servidor (usa el token de MP). La
  * decisión y los tipos están en lib/cuotas.ts, que también usa el navegador.
  */
 
-/**
- * Las cuotas sin interés confirmadas por Mercado Pago para un precio, o null.
- * `cuotas` es la cantidad que se quiere anunciar: 3 para todos (por
- * defecto), 6 para un suscriptor (lib/suscriptores.ts). Nunca más que el
- * tope de `NEXT_PUBLIC_CUOTAS`.
- */
-export async function verificarCuotas(monto: number, pedidas: number = CUOTAS_TODOS): Promise<CuotasVerificadas | null> {
-  const cuotas = cuotasAnunciables(pedidas);
-  if (!cuotas || !mercadoPagoConfigurado() || !(monto > 0)) return null;
-
+/** Lo que contesta Mercado Pago para este monto, una respuesta por marca; null si no se puede preguntar. */
+async function respuestasDeMercadoPago(monto: number): Promise<unknown[] | null> {
+  if (!mercadoPagoConfigurado() || !(monto > 0)) return null;
   try {
-    const respuestas = await Promise.all(MARCAS_VERIFICADAS.map((m) => consultarCuotas(monto, m)));
-    return evaluarCuotas(respuestas, cuotas, monto);
+    return await Promise.all(MARCAS_VERIFICADAS.map((m) => consultarCuotas(monto, m)));
   } catch (error) {
     console.warn("[cuotas] no se pudieron verificar con Mercado Pago:", error);
     return null;
   }
+}
+
+/**
+ * Para varios topes a la vez (3 y 6) con una sola consulta a Mercado Pago:
+ * para cada tope, las más cuotas sin interés confirmadas para `monto` sin
+ * pasarlo (lib/cuotas.ts, evaluarMejoresCuotas), o null.
+ */
+export async function verificarVarias(monto: number, topes: number[]): Promise<(CuotasVerificadas | null)[]> {
+  const anunciables = topes.map((t) => cuotasAnunciables(t));
+  if (anunciables.every((t) => t === null)) return topes.map(() => null);
+  const respuestas = await respuestasDeMercadoPago(monto);
+  return anunciables.map((t) => (t && respuestas ? evaluarMejoresCuotas(respuestas, t, monto) : null));
+}
+
+/**
+ * Las cuotas sin interés confirmadas por Mercado Pago para un monto, o null:
+ * las más que confirma sin pasar de `pedidas` (3 para cualquier comprador,
+ * por defecto; 6 para un suscriptor, lib/suscriptores.ts). Nunca más que el
+ * tope de `NEXT_PUBLIC_CUOTAS`.
+ */
+export async function verificarCuotas(monto: number, pedidas: number = CUOTAS_TODOS): Promise<CuotasVerificadas | null> {
+  const [verificadas] = await verificarVarias(monto, [pedidas]);
+  return verificadas;
 }
 
 /** Para los listados: se verifica con el precio más bajo de los productos mostrados. */
@@ -33,24 +48,48 @@ export async function verificarCuotasPara(precios: number[], pedidas: number = C
   return verificarCuotas(Math.min(...validos), pedidas);
 }
 
+/** Las de suscriptor van solo si son más que las de todos para ese monto: si no, no son un beneficio. */
+function soloSiSonMas(todos: CuotasVerificadas | null, suscriptores: CuotasVerificadas | null): CuotasVerificadas | null {
+  return suscriptores && (!todos || suscriptores.cuotas > todos.cuotas) ? suscriptores : null;
+}
+
 /**
  * Para anunciar las dos cantidades juntas (la barra, la portada, la ficha,
  * /suscriptores): las de cualquier comprador y las de suscriptor, cada una
- * confirmada aparte con Mercado Pago para el mismo precio (Ale, 03/11/2026).
- * Las de suscriptor van solo si son más que las de todos: con el tope de
- * `NEXT_PUBLIC_CUOTAS` en 3, serían las mismas, y mientras las cuotas no sean
- * un beneficio de suscriptor (lib/suscriptores.ts) ni se consultan. Si
- * Mercado Pago tarda más de `ms`, sin cuotas.
+ * confirmada con Mercado Pago para el mismo precio (Ale, 03/11/2026). Las de
+ * suscriptor van solo si son más que las de todos. Si Mercado Pago tarda más
+ * de `ms`, sin cuotas.
  */
 export async function cuotasDeTodosYSuscriptores(
   precios: number[],
   ms: number
 ): Promise<{ todos: CuotasVerificadas | null; suscriptores: CuotasVerificadas | null }> {
-  const [todos, suscriptores] = await Promise.all([
-    conEspera(verificarCuotasPara(precios, CUOTAS_TODOS), ms, null),
-    CUOTAS_SON_BENEFICIO ? conEspera(verificarCuotasPara(precios, CUOTAS_SUSCRIPTORES), ms, null) : Promise.resolve(null),
-  ]);
-  return { todos, suscriptores: suscriptores && (!todos || suscriptores.cuotas > todos.cuotas) ? suscriptores : null };
+  const validos = precios.filter((p) => p > 0);
+  if (validos.length === 0) return { todos: null, suscriptores: null };
+  return conEspera(cuotasDelPrecio(Math.min(...validos)), ms, { todos: null, suscriptores: null });
+}
+
+/** Las de todos y las de suscriptor para un mismo precio, con una sola consulta. */
+export async function cuotasDelPrecio(monto: number): Promise<{ todos: CuotasVerificadas | null; suscriptores: CuotasVerificadas | null }> {
+  const [todos, suscriptores] = await verificarVarias(monto, CUOTAS_SON_BENEFICIO ? [CUOTAS_TODOS, CUOTAS_SUSCRIPTORES] : [CUOTAS_TODOS]);
+  return { todos, suscriptores: soloSiSonMas(todos, suscriptores ?? null) };
+}
+
+/**
+ * Las de este comprador para un importe exacto (el del carrito o el
+ * checkout, ya con descuentos, cupón y saldo): `suyas`, con su tope (3, o 6
+ * si es suscriptor con sesión verificada); y a quien no lo es, `deSuscriptor`,
+ * las que tendría siéndolo, solo si son más.
+ */
+export async function cuotasParaComprador(
+  monto: number,
+  esSuscriptor: boolean
+): Promise<{ suyas: CuotasVerificadas | null; deSuscriptor: CuotasVerificadas | null }> {
+  if (esSuscriptor || !CUOTAS_SON_BENEFICIO) {
+    return { suyas: await verificarCuotas(monto, cuotasMaximas(esSuscriptor)), deSuscriptor: null };
+  }
+  const [suyas, deSuscriptor] = await verificarVarias(monto, [CUOTAS_TODOS, CUOTAS_SUSCRIPTORES]);
+  return { suyas, deSuscriptor: soloSiSonMas(suyas, deSuscriptor) };
 }
 
 /**

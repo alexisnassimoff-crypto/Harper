@@ -31,13 +31,16 @@ export const CASHBACK_PORCENTAJE = 10;
 /** Días desde el pago hasta que el cashback se puede usar: el plazo de devolución. */
 export const DIAS_PARA_USAR_CASHBACK = 30;
 /**
- * Cuotas sin interés para cualquier comprador (tope de la preferencia).
- * Ale, 04/11/2026: por ahora 6 para todos, como siempre; separar 3 para todos
- * y 6 para suscriptores «lo vemos más adelante». Para volver a separarlas
- * alcanza con bajar este número: la web vuelve a anunciar las de suscriptor.
+ * Cuotas sin interés para cualquier comprador: el tope de su preferencia de
+ * Mercado Pago. Ale, 05/11/2026 («decisión comercial definitiva»): hasta 3
+ * para todos y hasta 6 para los suscriptores con la sesión verificada y los
+ * beneficios activos. En Mercado Pago quedan habilitadas las 6; el tope de
+ * cada comprador lo pone la preferencia. Los montos mínimos los configura Ale
+ * en Mercado Pago: acá no se fija ninguno (lib/cuotas-servidor.ts los
+ * pregunta para cada importe).
  */
-export const CUOTAS_TODOS = 6;
-/** Cuotas sin interés para un suscriptor. */
+export const CUOTAS_TODOS = 3;
+/** Cuotas sin interés para un suscriptor con sesión verificada y beneficios activos. */
 export const CUOTAS_SUSCRIPTORES = 6;
 /**
  * Si las cuotas son un beneficio de suscriptor (más que las de todos). Falso
@@ -104,6 +107,22 @@ export type ResumenSuscriptor = {
 /** El tope de cuotas de la preferencia de Mercado Pago para este comprador. */
 export function cuotasMaximas(esSuscriptor: boolean): number {
   return esSuscriptor ? CUOTAS_SUSCRIPTORES : CUOTAS_TODOS;
+}
+
+/**
+ * Si este comprador tiene las cuotas de suscriptor (Ale, 05/11/2026). Solo
+ * con un suscriptor de la sesión verificada (la cookie firmada, releída de
+ * Airtable: lib/suscriptores-cuenta.ts), nunca por un mail escrito en el
+ * checkout, y con los beneficios activos: quien se dio de baja compra con
+ * las cuotas de todos.
+ */
+export function tieneCuotasDeSuscriptor(suscriptor: { activo?: boolean } | null | undefined): boolean {
+  return suscriptor != null && suscriptor.activo !== false;
+}
+
+/** El tope de cuotas de la preferencia para el suscriptor de la sesión (null = sin sesión). */
+export function cuotasDelComprador(suscriptor: { activo?: boolean } | null | undefined): number {
+  return cuotasMaximas(tieneCuotasDeSuscriptor(suscriptor));
 }
 
 /**

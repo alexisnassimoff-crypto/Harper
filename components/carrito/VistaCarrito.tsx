@@ -8,6 +8,7 @@ import OfertaCantidad from "@/components/producto/OfertaCantidad";
 import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 import { useCarritoResuelto } from "./useCarritoResuelto";
+import CuotasDelCarrito from "./CuotasDelCarrito";
 import LineaCarrito from "./LineaCarrito";
 import SugerenciasCarrito from "./SugerenciasCarrito";
 import CodigoDescuento from "@/components/checkout/CodigoDescuento";
@@ -16,7 +17,7 @@ import { envioEnElCarrito } from "@/lib/envio-gratis";
 
 export default function VistaCarrito() {
   const { items: guardados, cupon } = useCarrito();
-  const { datos, cargando, actualizando, error, recargar } = useCarritoResuelto();
+  const { datos, cargando, actualizando, error, recargar } = useCarritoResuelto({ cuotas: true });
 
   if (cargando && !datos) {
     return <p className="apagado">Cargando el carrito…</p>;
@@ -157,6 +158,8 @@ export default function VistaCarrito() {
           <span>{envio.total}</span>
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total - resumen.envio)}</strong>
         </div>
+        {/* Las cuotas para este total (Ale, 05/11/2026): hasta 3, o hasta 6 para suscriptores. */}
+        <CuotasDelCarrito datos={datos} monto={resumen.total - resumen.envio} />
 
         <Link href="/checkout" className="boton boton--bloque">
           Finalizar compra

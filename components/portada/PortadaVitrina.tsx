@@ -8,7 +8,7 @@ import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias"
 import type { ConfigTienda } from "@/lib/config";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, mensajesDeConfianza } from "@/lib/confianza";
 import { type CuotasVerificadas } from "@/lib/cuotas";
-import { conEspera, verificarCuotas } from "@/lib/cuotas-servidor";
+import { conEspera, cuotasDelPrecio } from "@/lib/cuotas-servidor";
 import { condicionesDeCompra } from "@/lib/ficha";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
@@ -77,12 +77,15 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const precios = [...new Set(destacadosProductos.map((p) => p.precio))];
   const precioPar = todos.length > 0 ? Math.min(...todos.map((m) => m.precio)) : null;
 
-  // Las cuotas de cada precio que se muestra, confirmadas con Mercado Pago.
+  // Las cuotas de cada precio que se muestra, confirmadas con Mercado Pago:
+  // las de todos (hasta 3) y las de suscriptor (hasta 6, Ale, 05/11/2026),
+  // que la tarjeta muestra solo a quien tiene la sesión abierta.
   const [verificadas, mercadoLibre] = await Promise.all([
-    conEspera(Promise.all(precios.map(async (p) => [p, await verificarCuotas(p)] as const)), ESPERA_CUOTAS_MS, []),
+    conEspera(Promise.all(precios.map(async (p) => [p, await cuotasDelPrecio(p)] as const)), ESPERA_CUOTAS_MS, []),
     conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, ultimoDeMercadoLibre()),
   ]);
-  const cuotasDe = (precio: number | null) => (precio === null ? null : (verificadas.find(([p]) => p === precio)?.[1] ?? null));
+  const cuotasDe = (precio: number | null) => (precio === null ? null : (verificadas.find(([p]) => p === precio)?.[1].todos ?? null));
+  const cuotasDeSuscriptorDe = (precio: number) => verificadas.find(([p]) => p === precio)?.[1].suscriptores ?? null;
   const cuotasAnteojos = cuotasDe(precioPar);
 
   // 2. Comprar: los destacados, cada uno con su color inicial, su fondo y sus cuotas.
@@ -97,6 +100,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
     inicial: iniciales[i],
     categoria: categorias.find((c) => c.nombre === m.categoria)?.titulo ?? m.categoria,
     cuota: textoCuota(cuotasDe(m.precio)),
+    cuotaSuscriptor: textoCuota(cuotasDeSuscriptorDe(m.precio)),
     colores: m.variantes.map((v, j) => ({
       id: v.id,
       sku: v.sku,

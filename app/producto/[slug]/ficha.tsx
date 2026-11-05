@@ -16,8 +16,7 @@ import type { Tramo } from "@/lib/descuentos";
 import { getProducto, getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
-import { verificarCuotas } from "@/lib/cuotas-servidor";
-import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES } from "@/lib/suscriptores";
+import { cuotasDelPrecio, verificarCuotas } from "@/lib/cuotas-servidor";
 import { netoDe } from "@/lib/impuestos";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import { esCategoriaDeAnteojos, rutaDeCategoria } from "@/lib/categorias";
@@ -128,14 +127,14 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   const producto = await getProducto(slug);
   if (!producto) notFound();
 
-  const [tramos, config, delMismoTipo, cuotas, cuotasSuscriptor, mercadoLibre] = await Promise.all([
+  const [tramos, config, delMismoTipo, { todos: cuotas, suscriptores: cuotasSuscriptor }, mercadoLibre] = await Promise.all([
     getTramos(),
     getConfig(),
     getProductos(producto.categoria),
-    verificarCuotas(producto.precio),
-    // Las de suscriptor (Ale, 03/11/2026), confirmadas aparte para el mismo
-    // precio, solo mientras sean un beneficio (lib/suscriptores.ts).
-    CUOTAS_SON_BENEFICIO ? verificarCuotas(producto.precio, CUOTAS_SUSCRIPTORES) : Promise.resolve(null),
+    // Las de todos (hasta 3) y las de suscriptor (hasta 6, Ale, 05/11/2026),
+    // confirmadas con Mercado Pago para este precio con una sola consulta.
+    // Las de suscriptor, solo si son más que las de todos.
+    cuotasDelPrecio(producto.precio),
     // Las opiniones de todos los productos Harper, de la copia que guarda la
     // portada: la ficha no le pregunta a Mercado Libre.
     datosGuardadosDeMercadoLibre(),
@@ -228,7 +227,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         varianteInicial={varianteInicial}
         confianza={mensajesDeConfianza(config, cuotas)}
         cuotas={cuotas}
-        cuotasSuscriptor={cuotasSuscriptor && (!cuotas || cuotasSuscriptor.cuotas > cuotas.cuotas) ? cuotasSuscriptor : null}
+        cuotasSuscriptor={cuotasSuscriptor}
         precioSinImpuestos={netoDe(config.impuestosNacionales, producto.categoria, producto.precio)}
         whatsapp={config.whatsapp || null}
         calificacion={opiniones && !esAnteojo ? { promedio: opiniones.promedio, total: opiniones.total } : null}

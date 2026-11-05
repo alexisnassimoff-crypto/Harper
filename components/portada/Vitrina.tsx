@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
 import BotonFavorito from "@/components/suscriptores/BotonFavorito";
+import { useSuscriptor } from "@/components/suscriptores/useSuscriptor";
+import { tieneCuotasDeSuscriptor } from "@/lib/suscriptores";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { TEXTOS } from "@/lib/textos";
@@ -62,8 +64,10 @@ export type CategoriaVitrina = {
 export type DestacadoVitrina = ModeloVitrina & {
   /** El nombre corto de su categoría; se muestra solo si hay más de una. */
   categoria: string;
-  /** "6 cuotas sin interés de $ 14.983,33", verificada para su precio; null si no. */
+  /** "3 cuotas sin interés de $ 29.966,67", verificada para su precio; null si no. */
   cuota: string | null;
+  /** Las de suscriptor (hasta 6), verificadas; solo para quien tiene la sesión abierta. Null si no son más. */
+  cuotaSuscriptor?: string | null;
 };
 
 export type DatosVitrina = {
@@ -95,6 +99,8 @@ export default function Vitrina({
   const [sumados, setSumados] = useState<Record<string, boolean>>({});
   const [aviso, setAviso] = useState("");
   const hayAlSol = destacados.some((m) => m.colores.some((c) => c.alSol));
+  // Al suscriptor con la sesión abierta, sus cuotas (Ale, 05/11/2026); al resto, las de todos.
+  const esSuscriptor = tieneCuotasDeSuscriptor(useSuscriptor().suscriptor);
   const variasCategorias = categorias.length > 1;
 
   function elegirColor(slug: string, indice: number) {
@@ -212,7 +218,9 @@ export default function Vitrina({
                     </div>
                   ) : null}
                   <p className="tarjeta-inicio__color">{color.color}</p>
-                  {m.cuota ? <p className="tarjeta-inicio__cuota">{m.cuota}</p> : null}
+                  {(esSuscriptor && m.cuotaSuscriptor) || m.cuota ? (
+                    <p className="tarjeta-inicio__cuota">{(esSuscriptor && m.cuotaSuscriptor) || m.cuota}</p>
+                  ) : null}
                   <button
                     type="button"
                     className="boton boton--bloque boton--chico tarjeta-inicio__sumar"

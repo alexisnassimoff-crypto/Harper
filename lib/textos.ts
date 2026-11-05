@@ -307,6 +307,16 @@ export const TEXTOS = {
     anuncio: (monto: string) => `Suscribite gratis y desbloqueá ${monto} de bienvenida y envío gratis siempre`,
     /** La cuota de suscriptor junto a la de todos (barra, ficha): «6 si sos suscriptor». */
     cuotasSuscriptor: (cuotas: number) => `${cuotas} si sos suscriptor`,
+    /**
+     * Las cuotas de suscriptor como beneficio exclusivo (Ale, 05/11/2026), en
+     * la ficha y el carrito, junto a las del comprador.
+     */
+    cuotasBeneficio: {
+      /** A quien no es suscriptor: «O 6 cuotas sin interés de $ 14.983,33, exclusivo para suscriptores Harper.» */
+      exclusivo: "exclusivo para suscriptores Harper",
+      /** Al suscriptor con la sesión abierta, junto a sus 6. */
+      tuyo: "Beneficio de suscriptor",
+    },
     condiciones: "Ver las condiciones",
     /** El formulario de suscripción (components/suscriptores/FormularioSuscripcion.tsx). */
     /** La sección de la portada (Ale, 04/11/2026): un botón que lleva al formulario y el registro separado de los beneficios. */
