@@ -1,5 +1,6 @@
 import { precio as formatearPrecio } from "./formato";
-import type { DuoDelCarrito, ItemResuelto } from "./tipos";
+import type { Pack } from "./packs";
+import type { DuoDelCarrito, ItemResuelto, PackDelServidor } from "./tipos";
 
 /**
  * Cómo se cuenta el Dúo en la tienda (Tarea 07): la ficha, los packs, el
@@ -112,6 +113,97 @@ export function ofertaDuoDeLaFicha(datos: { porcentaje: number; dos: { total: nu
       datos.dos && datos.dos.lista > datos.dos.total
         ? `Dos de este modelo: ${formatearPrecio(datos.dos.total)} (antes ${formatearPrecio(datos.dos.lista)}).`
         : null,
+  };
+}
+
+/**
+ * El Dúo en la ficha, armado en el servidor con lo que cobra por dos pares de
+ * ese modelo. Null con el Dúo apagado.
+ *  - `gana: "duo"` con `dos`: el servidor confirmó el pack de dos con el Dúo;
+ *  - `gana: "tramos"`: en dos pares conviene un tramo de Airtable;
+ *  - `gana: null`: el servidor no pudo resolver dos pares (por ejemplo, no hay
+ *    stock para dos). No se anuncia nada: ni el Dúo ni un tramo.
+ */
+export type DuoDeLaFicha = {
+  porcentaje: number;
+  gana: "duo" | "tramos" | null;
+  /** Lo que cobra el servidor por dos de este modelo; solo con `gana: "duo"`. */
+  dos: { total: number; lista: number } | null;
+};
+
+/** El Dúo de la ficha a partir del pack de dos que resolvió el servidor (null si no pudo). */
+export function duoDeLaFicha(porcentaje: number | null, dos: PackDelServidor | null): DuoDeLaFicha | null {
+  if (porcentaje === null) return null;
+  if (dos?.promocion === "duo") return { porcentaje, gana: "duo", dos: { total: dos.total, lista: dos.lista } };
+  if (dos?.promocion === "tramos") return { porcentaje, gana: "tramos", dos: null };
+  return { porcentaje, gana: null, dos: null };
+}
+
+/**
+ * Qué promoción cuenta la ficha de un anteojo: la línea del Dúo (si hay) y si
+ * además va la de los tramos de siempre (OfertaCantidad).
+ *  - Con anteojos en el carrito: lo que resolvió el servidor para ese carrito.
+ *  - Sin anteojos: el Dúo solo si el servidor confirmó el pack de dos; si ahí
+ *    gana un tramo, el tramo; si no pudo resolverlo, nada.
+ *  - Con el Dúo apagado (`duo` y `duoDelCarrito` null): la de siempre.
+ */
+export function ofertaEnLaFicha(datos: {
+  duo: DuoDeLaFicha | null;
+  duoDelCarrito: DuoDelCarrito | null;
+  anteojosEnCarrito: number;
+  esAnteojo: boolean;
+  cuponPorcentaje: number;
+}): { duo: { lineas: (string | null)[]; detalle: string | null } | null; conTramo: boolean } {
+  const { duo, duoDelCarrito } = datos;
+  if (!datos.esAnteojo || datos.cuponPorcentaje > 0) return { duo: null, conTramo: true };
+  if (duoDelCarrito && datos.anteojosEnCarrito > 0) {
+    const m = mensajesDelDuo(duoDelCarrito, "ficha");
+    return { duo: { lineas: [m.aplicado, m.siguiente], detalle: null }, conTramo: m.tramos };
+  }
+  if (!duo) return { duo: null, conTramo: true };
+  if (duo.gana === "duo" && duo.dos) {
+    const o = ofertaDuoDeLaFicha(duo);
+    return { duo: { lineas: [o.titulo], detalle: o.detalle }, conTramo: false };
+  }
+  return { duo: null, conTramo: duo.gana === "tramos" };
+}
+
+/** Un pack para mostrar: el de siempre (lib/packs.ts), el del servidor con el Dúo o uno sin precio. */
+export type PackMostrado = Pack & {
+  /** El pack como lo cobra el servidor (solo con el Dúo prendido). */
+  duo?: PackDelServidor;
+  /** Con el Dúo prendido, el servidor no dio un total para este pack: no se muestra ningún precio. */
+  sinPrecio?: boolean;
+};
+
+/**
+ * El pack que muestra la portada.
+ *  - Dúo apagado: el de siempre (`deSiempre`, lib/packs.ts), exactamente igual.
+ *  - Dúo prendido: el del servidor. Si el servidor no lo pudo resolver (sin
+ *    stock para esa cantidad), un pack «sin precio»: nunca un importe
+ *    calculado en el navegador.
+ */
+export function packParaMostrar(
+  conDuo: boolean,
+  delServidor: PackDelServidor | null | undefined,
+  cantidad: number,
+  deSiempre: () => Pack
+): PackMostrado {
+  if (!conDuo) return deSiempre();
+  if (!delServidor) {
+    return { cantidad, porcentaje: 0, conCupon: false, precioUnitario: 0, precioExtra: null, total: 0, lista: 0, ahorro: 0, totalParaEnvio: 0, sinPrecio: true };
+  }
+  return {
+    cantidad: delServidor.cantidad,
+    porcentaje: 0,
+    conCupon: false,
+    precioUnitario: (delServidor.total - (delServidor.precioExtra ?? 0)) / delServidor.cantidad,
+    precioExtra: delServidor.precioExtra,
+    total: delServidor.total,
+    lista: delServidor.lista,
+    ahorro: delServidor.ahorro,
+    totalParaEnvio: delServidor.totalParaEnvio,
+    duo: delServidor,
   };
 }
 

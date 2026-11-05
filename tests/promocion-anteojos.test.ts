@@ -12,7 +12,8 @@ delete process.env.HARPER_FIXTURES_ESCALA;
 delete process.env.VERCEL;
 delete process.env.HARPER_DUO_ACTIVO;
 
-import { listRecords, TABLAS, updateRecord } from "../lib/airtable";
+import { createRecord, listRecords, TABLAS, updateRecord } from "../lib/airtable";
+import { armarPack } from "../lib/packs";
 import { getProductos } from "../lib/catalogo";
 import { esCategoriaDeAnteojos } from "../lib/categorias";
 import { getTramos, ofertaDeEscala, porcentajeParaCantidad, proximoTramo, totalConDescuento } from "../lib/descuentos";
@@ -20,6 +21,9 @@ import { cotizacionParaComprador, envioEnElCarrito } from "../lib/envio-gratis";
 import { packConDuo, porcentajeDelDuo, resolverCarrito, type CarritoResuelto } from "../lib/pedidos";
 import {
   ahorroDelDuo,
+  duoDeLaFicha,
+  ofertaEnLaFicha,
+  packParaMostrar,
   filasDeDescuento,
   mensajesDelDuo,
   notaEnvioGratisDelDuo,
@@ -304,4 +308,82 @@ test("La ficha y los packs muestran lo que cobra el servidor por esa cantidad", 
 
   // Sin stock para esa cantidad: null (no se inventa un precio).
   assert.equal(await prendido(() => packConDuo(amatista, 200)), null);
+});
+
+// ---------- Revisión del PR #65: nada de precios ni promociones sin el servidor ----------
+
+/** Un anteojo con un solo par en stock, cargado en el Airtable de prueba. */
+async function anteojoConUnoSolo(): Promise<Producto> {
+  const producto = await createRecord(TABLAS.productos, { Activo: true, Nombre: "UNICO", Slug: "unico", Categoria: "Anteojos", Precio: 89_900, Orden: 98 });
+  await createRecord(TABLAS.variantes, { Activo: true, SKU: "UNICO-NEGRO", Producto: [producto.id], Color: "Negro", Color_hex: "#1D1D1B", Stock: 1, Orden: 1 });
+  return (await getProductos()).find((p) => p.slug === "unico")!;
+}
+
+test("Ficha con stock para un solo par: no anuncia el Dúo de dos (ni un tramo)", async () => {
+  const unico = await anteojoConUnoSolo();
+  assert.equal(unico.variantes.reduce((n, v) => n + v.stock, 0), 1);
+
+  // El servidor no puede armar dos pares de este modelo.
+  const dos = await prendido(() => packConDuo(unico, 2));
+  assert.equal(dos, null);
+  const duo = duoDeLaFicha(25, dos);
+  assert.deepEqual(duo, { porcentaje: 25, gana: null, dos: null });
+  // La ficha, sin anteojos en el carrito: ninguna línea de promoción.
+  assert.deepEqual(ofertaEnLaFicha({ duo, duoDelCarrito: null, anteojosEnCarrito: 0, esAnteojo: true, cuponPorcentaje: 0 }), { duo: null, conTramo: false });
+
+  // Con stock para dos, sí: con lo que cobra el servidor.
+  const { p } = await catalogo();
+  const conStock = duoDeLaFicha(25, await prendido(() => packConDuo(p("amatista"), 2)));
+  assert.equal(conStock?.gana, "duo");
+  const oferta = ofertaEnLaFicha({ duo: conStock, duoDelCarrito: null, anteojosEnCarrito: 0, esAnteojo: true, cuponPorcentaje: 0 });
+  assert.deepEqual(oferta.duo?.lineas, ["Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF."]);
+  assert.equal(oferta.duo?.detalle, "Dos de este modelo: $\u00a0157.325 (antes $\u00a0179.800).");
+  assert.equal(oferta.conTramo, false);
+
+  // Si en dos pares gana un tramo, la ficha cuenta el tramo y no el Dúo.
+  assert.deepEqual(ofertaEnLaFicha({ duo: { porcentaje: 25, gana: "tramos", dos: null }, duoDelCarrito: null, anteojosEnCarrito: 0, esAnteojo: true, cuponPorcentaje: 0 }), { duo: null, conTramo: true });
+
+  // Dúo apagado: la ficha de siempre (la línea de los tramos, sin Dúo).
+  assert.equal(duoDeLaFicha(null, null), null);
+  assert.equal(await apagado(() => packConDuo(unico, 2)), null);
+  assert.deepEqual(ofertaEnLaFicha({ duo: null, duoDelCarrito: null, anteojosEnCarrito: 0, esAnteojo: true, cuponPorcentaje: 0 }), { duo: null, conTramo: true });
+});
+
+test("Portada con el Dúo prendido: un pack sin total del servidor no muestra ningún precio", async () => {
+  const sinPack = () => {
+    throw new Error("con el Dúo prendido no se calcula en el navegador");
+  };
+
+  // Sin respuesta del servidor (por ejemplo, sin stock): sin precio, y nunca el cálculo del navegador.
+  const sinPrecio = packParaMostrar(true, null, 4, sinPack);
+  assert.equal(sinPrecio.sinPrecio, true);
+  assert.equal(sinPrecio.total, 0);
+  assert.equal(sinPrecio.precioExtra, null, "sin precio, el estuche no se ofrece");
+  assert.equal(packParaMostrar(true, undefined, 2, sinPack).sinPrecio, true);
+
+  // El anteojo con un solo par: el servidor no resuelve 2 ni 4.
+  const unico = (await getProductos()).find((p) => p.slug === "unico") ?? (await anteojoConUnoSolo());
+  for (const cantidad of [2, 4]) {
+    const delServidor = await prendido(() => packConDuo(unico, cantidad));
+    assert.equal(delServidor, null);
+    assert.equal(packParaMostrar(true, delServidor, cantidad, sinPack).sinPrecio, true);
+  }
+
+  // Con el total del servidor: ese total, sin calcular nada.
+  const { p } = await catalogo();
+  const dos = (await prendido(() => packConDuo(p("amatista"), 2)))!;
+  const mostrado = packParaMostrar(true, dos, 2, sinPack);
+  assert.equal(mostrado.sinPrecio, undefined);
+  assert.equal(mostrado.total, 157_325);
+  assert.equal(mostrado.lista, 179_800);
+  assert.equal(mostrado.totalParaEnvio, 179_800);
+  assert.equal(mostrado.duo, dos);
+
+  // Dúo apagado: exactamente el pack de siempre (lib/packs.ts).
+  const tramos = await getTramos();
+  for (const cantidad of [1, 2, 4]) {
+    const deSiempre = () => armarPack({ precio: 89_900, cantidad, tramos, categoria: "Anteojos", cuponPorcentaje: 0 });
+    assert.deepEqual(packParaMostrar(false, null, cantidad, deSiempre), deSiempre());
+    assert.deepEqual(packParaMostrar(false, dos, cantidad, deSiempre), deSiempre(), "apagado, se ignora cualquier dato del Dúo");
+  }
 });

@@ -14,7 +14,7 @@ import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import OfertaCantidad from "./OfertaCantidad";
 import OfertaDuo from "./OfertaDuo";
 import { esCategoriaDeAnteojos } from "@/lib/categorias";
-import { mensajesDelDuo, ofertaDuoDeLaFicha } from "@/lib/promocion-anteojos";
+import { ofertaEnLaFicha, type DuoDeLaFicha } from "@/lib/promocion-anteojos";
 import OpcionesPares, { type OpcionPares } from "./OpcionesPares";
 import HojaPack, { type ColorDeADos, type HojaPackControl } from "@/components/HojaPack";
 import { caracteristicasDe } from "@/lib/caracteristicas";
@@ -37,17 +37,7 @@ import { tieneCuotasDeSuscriptor } from "@/lib/suscriptores";
 import BotonFavorito from "@/components/suscriptores/BotonFavorito";
 import Cifras from "@/components/Cifras";
 
-/**
- * El Dúo en la ficha (Tarea 07), armado en el servidor: el porcentaje, qué
- * gana en 2 pares de este modelo (el Dúo o un tramo de Airtable) y lo que
- * cobra el servidor por esos 2 pares. Null con el Dúo apagado.
- */
-export type DuoDeLaFicha = {
-  porcentaje: number;
-  gana: "duo" | "tramos";
-  /** Lo que cobra el servidor por dos de este modelo; null si no hay stock para dos. */
-  dos: { total: number; lista: number } | null;
-};
+export type { DuoDeLaFicha };
 
 export default function FichaProducto({
   producto,
@@ -131,19 +121,13 @@ export default function FichaProducto({
   const anteojosEnCarrito = (carritoResuelto?.items ?? [])
     .filter((i) => esCategoriaDeAnteojos(i.categoria))
     .reduce((total, i) => total + i.cantidad, 0);
-  let lineasDuo: { lineas: (string | null)[]; detalle: string | null } | null = null;
-  let conTramo = true;
-  if (esCategoriaDeAnteojos(producto.categoria) && cuponPorcentaje === 0) {
-    if (duoDelCarrito && anteojosEnCarrito > 0) {
-      const m = mensajesDelDuo(duoDelCarrito, "ficha");
-      lineasDuo = { lineas: [m.aplicado, m.siguiente], detalle: null };
-      conTramo = m.tramos;
-    } else if (duo && duo.gana === "duo") {
-      const o = ofertaDuoDeLaFicha(duo);
-      lineasDuo = { lineas: [o.titulo], detalle: o.detalle };
-      conTramo = false;
-    }
-  }
+  const { duo: lineasDuo, conTramo } = ofertaEnLaFicha({
+    duo,
+    duoDelCarrito,
+    anteojosEnCarrito,
+    esAnteojo: esCategoriaDeAnteojos(producto.categoria),
+    cuponPorcentaje,
+  });
 
   // La foto de portada del color (al sol y adentro) va primera.
   const fotos = useMemo(() => fotosDeGaleria(variante), [variante]);

@@ -15,7 +15,7 @@ import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import { getProducto, getProductos } from "@/lib/catalogo";
 import { packConDuo, porcentajeDelDuo, type PackDelServidor } from "@/lib/pedidos";
-import type { DuoDeLaFicha } from "@/components/producto/FichaProducto";
+import { duoDeLaFicha } from "@/lib/promocion-anteojos";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
 import { cuotasDelPrecio, verificarCuotas } from "@/lib/cuotas-servidor";
@@ -163,14 +163,8 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   // este modelo. Apagado, null y la ficha queda exactamente como siempre.
   const porcentajeDuo = esAnteojo ? porcentajeDelDuo() : null;
   const dosConDuo = porcentajeDuo !== null ? await packConDuo(producto, 2) : null;
-  const duo: DuoDeLaFicha | null =
-    porcentajeDuo === null
-      ? null
-      : {
-          porcentaje: porcentajeDuo,
-          gana: dosConDuo?.promocion === "tramos" ? "tramos" : "duo",
-          dos: dosConDuo?.promocion === "duo" ? { total: dosConDuo.total, lista: dosConDuo.lista } : null,
-        };
+  // Sin un pack de dos confirmado por el servidor (sin stock para dos), no se anuncia nada.
+  const duo = duoDeLaFicha(porcentajeDuo, dosConDuo);
   const pares = await paresDeLaFicha(producto, tramos, delMismoTipo, dosConDuo);
 
   const otros = delMismoTipo.filter((p) => p.id !== producto.id);
