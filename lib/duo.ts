@@ -1,5 +1,6 @@
 import { esCategoriaDeAnteojos, type Categoria } from "./categorias";
 import { totalConDescuento } from "./descuentos";
+import { precio as formatearPrecio } from "./formato";
 import type { ItemResuelto } from "./tipos";
 
 /**
@@ -211,8 +212,100 @@ export function aplicarDuo(items: readonly ItemResuelto[], opciones: OpcionesDuo
     item.subtotal = r.subtotal;
     item.precioUnitario = r.subtotal / item.cantidad;
     item.descuento = (r.descuento / lista) * 100;
+    // Lo que queda guardado con el pedido (Tarea 05): qué unidades llevaron el Dúo y cuánto.
+    item.duo = { porcentaje: duo.porcentaje, unidades: r.unidadesConDescuento, descuento: r.descuento };
   });
   return { items: copias, aplicado: true, ahorro: duo.descuento, duo };
+}
+
+// ---------- Lo que queda registrado en el pedido (Tarea 05) ----------
+
+/** Un producto que recibió el Dúo, como queda en el pedido. */
+export type ProductoConDuo = {
+  sku: string;
+  nombre: string;
+  color: string;
+  /** Unidades del renglón. */
+  cantidad: number;
+  /** Cuántas de esas unidades llevaron el descuento. */
+  unidadesConDescuento: number;
+  /** Pesos que descontó el Dúo en ese renglón. */
+  descuento: number;
+};
+
+/** La promoción Dúo de un pedido: qué se aplicó, cuánto se descontó y en qué productos. */
+export type RegistroDuo = {
+  promocion: "Dúo";
+  porcentaje: number;
+  /** Pesos descontados por el Dúo en todo el pedido (enteros). */
+  descuento: number;
+  productos: ProductoConDuo[];
+};
+
+const esEnteroPositivo = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x > 0;
+const esPositivo = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x) && x > 0;
+
+/** El Dúo de un renglón, solo si está completo y tiene sentido (para leer pedidos guardados). */
+function duoDelRenglon(item: unknown): (ProductoConDuo & { porcentaje: number }) | null {
+  if (typeof item !== "object" || item === null) return null;
+  const i = item as Partial<ItemResuelto>;
+  const d = i.duo;
+  if (typeof d !== "object" || d === null) return null;
+  if (!esEnteroPositivo(d.unidades) || !esPositivo(d.descuento) || !(esPositivo(d.porcentaje) && d.porcentaje < 100)) return null;
+  if (!esEnteroPositivo(i.cantidad) || d.unidades > i.cantidad) return null;
+  return {
+    sku: String(i.sku ?? ""),
+    nombre: String(i.nombre ?? ""),
+    color: String(i.color ?? ""),
+    cantidad: i.cantidad,
+    unidadesConDescuento: d.unidades,
+    descuento: d.descuento,
+    porcentaje: d.porcentaje,
+  };
+}
+
+/**
+ * El registro del Dúo de un pedido, armado con los renglones que calculó el
+ * servidor (los mismos que se cobran y se guardan en el campo Items). Null si
+ * ningún renglón llevó el Dúo: con el Dúo apagado, siempre null.
+ */
+export function registroDelDuo(items: readonly unknown[]): RegistroDuo | null {
+  const conDuo = items.map(duoDelRenglon).filter((x): x is ProductoConDuo & { porcentaje: number } => x !== null);
+  if (conDuo.length === 0) return null;
+  return {
+    promocion: "Dúo",
+    porcentaje: conDuo[0].porcentaje,
+    descuento: conDuo.reduce((total, p) => total + p.descuento, 0),
+    productos: conDuo.map(({ porcentaje: _porcentaje, ...p }) => p),
+  };
+}
+
+/**
+ * Lo mismo, leído del campo Items de un pedido guardado. Los pedidos
+ * anteriores (sin Dúo), un JSON roto o cualquier otra cosa: null.
+ */
+export function leerRegistroDelDuo(itemsGuardados: unknown): RegistroDuo | null {
+  if (typeof itemsGuardados !== "string") return null;
+  try {
+    const items: unknown = JSON.parse(itemsGuardados);
+    return Array.isArray(items) ? registroDelDuo(items) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** El prefijo de la línea del Dúo en Notas: no choca con «Cupón: » ni «Suscriptor: ». */
+export const PREFIJO_NOTA_DUO = "Promoción: Dúo";
+
+/**
+ * La línea para Notas del pedido, para leerla en Airtable:
+ * «Promoción: Dúo 25 % · −$ 22.475 · AMATISTA Negro (1 de 1)». Null sin Dúo.
+ */
+export function notaDelDuo(registro: RegistroDuo | null): string | null {
+  if (!registro) return null;
+  const productos = registro.productos.map((p) => `${p.nombre} ${p.color} (${p.unidadesConDescuento} de ${p.cantidad})`.replace(/\s+/g, " ").trim());
+  const porcentaje = registro.porcentaje.toLocaleString("es-AR", { maximumFractionDigits: 2 });
+  return `${PREFIJO_NOTA_DUO} ${porcentaje} % · −${formatearPrecio(registro.descuento)} · ${productos.join(", ")}`;
 }
 
 export type PromocionAnteojos = "duo" | "tramos";
