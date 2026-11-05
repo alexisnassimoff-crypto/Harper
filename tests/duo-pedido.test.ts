@@ -15,7 +15,7 @@ import { categoriaDesdeTexto } from "../lib/categorias";
 import { aplicarMejorPromocion, cuponDeNotas, type Cupon } from "../lib/cupones";
 import { totalConDescuento } from "../lib/descuentos";
 import { esPedidoConDineroMP, NOTA_DINERO_MP } from "../lib/dinero-mp";
-import { calcularDuo, leerRegistroDelDuo, notaDelDuo, PREFIJO_NOTA_DUO, registroDelDuo, type RegistroDuo } from "../lib/duo";
+import { aplicarDuo, leerRegistroDelDuo, notaDelDuo, PREFIJO_NOTA_DUO, registroDelDuo, subtotalAntesDelDuo, type RegistroDuo } from "../lib/duo";
 import { esEnvioGratis } from "../lib/envio-gratis";
 import { ENCABEZADO_NOTAS, lineasDeNotas } from "../lib/facturacion";
 import { itemsDeCompra } from "../lib/mis-compras";
@@ -281,40 +281,42 @@ test("Los que leen el campo Items (Mis compras, gracias) ven el pedido con Dúo 
   assert.equal(publico?.total, 157_325 + carrito.envio);
 });
 
-// ---------- Caso de la revisión del PR #62: el Dúo que pierde el envío gratis ----------
+// ---------- Caso de la revisión del PR #62: el Dúo ya no pierde el envío gratis ----------
 
-test("Caso de la revisión: un Dúo que pierde el envío gratis termina pagando más (regla actual, a decidir)", async () => {
+test("Caso de la revisión: con la regla aprobada (Tarea 06) el Dúo ya no hace pagar más", async () => {
   // El ejemplo de la revisión: un par de $ 89.900 y otro de $ 69.900, envío
   // gratis desde $ 150.000 y una cotización de $ 20.000.
   const umbrales = { amba: 60_000, nacional: 150_000 };
-  const duo = calcularDuo([
-    { categoria: "Anteojos", precioLista: 89_900, cantidad: 1 },
-    { categoria: "Anteojos", precioLista: 69_900, cantidad: 1 },
-  ]);
-  assert.equal(duo.descuento, 17_475, "el 25 % va al más barato");
-  const sinDuo = 159_800;
-  const conDuo = sinDuo - duo.descuento;
-  assert.equal(conDuo, 142_325);
-  assert.equal(esEnvioGratis(sinDuo, "resto", umbrales), true);
-  assert.equal(esEnvioGratis(conDuo, "resto", umbrales), false);
-  const cotizacion = 20_000;
-  // HOY (umbral medido después del Dúo): paga $ 2.525 más que sin el Dúo.
-  assert.equal(conDuo + cotizacion, 162_325);
-  assert.equal(conDuo + cotizacion - sinDuo, 2_525);
-  // Con la alternativa recomendada (umbral medido antes del Dúo, como el
-  // cupón y el dinero en Mercado Pago), pagaría $ 142.325: NO está
-  // implementada, espera la aprobación de Ale.
-  assert.equal(esEnvioGratis(sinDuo, "resto", umbrales) ? conDuo : conDuo + cotizacion, 142_325);
+  const renglon = (precioLista: number, color: string): ItemResuelto => ({
+    productoId: `p-${precioLista}`,
+    productoSlug: `p-${precioLista}`,
+    nombre: "MODELO",
+    categoria: "Anteojos",
+    varianteId: `v-${precioLista}`,
+    sku: `SKU-${precioLista}`,
+    color,
+    foto: null,
+    precioLista,
+    precioUnitario: precioLista,
+    descuento: 0,
+    cantidad: 1,
+    subtotal: precioLista,
+    stockDisponible: 5,
+  });
+  const { items } = aplicarDuo([renglon(89_900, "Negro"), renglon(69_900, "Ámbar")]);
+  const conDuo = items.reduce((t, i) => t + i.subtotal, 0);
+  assert.equal(conDuo, 142_325, "el 25 % va al más barato");
 
-  // Con los precios de hoy no pasa: dos de $ 89.900 con el Dúo quedan en
-  // $ 157.325, arriba de los $ 150.000. En AMBA (desde $ 60.000), nunca.
-  assert.equal(esEnvioGratis(2 * 89_900 - 22_475, "resto", umbrales), true);
-  assert.equal(esEnvioGratis(2 * 89_900 - 22_475, "amba", umbrales), true);
+  // Antes (regla de la Tarea 04): el umbral sobre $ 142.325 → pagaba el envío: $ 162.325.
+  assert.equal(esEnvioGratis(conDuo, "resto", umbrales), false);
+  // Ahora: el umbral sobre lo de antes del 25 % → $ 159.800, envío gratis: paga $ 142.325.
+  assert.equal(subtotalAntesDelDuo(items), 159_800);
+  assert.equal(esEnvioGratis(subtotalAntesDelDuo(items), "resto", umbrales), true);
 });
 
-test("Caso de la revisión con el carrito del servidor: con un umbral de $ 160.000 y un envío de $ 25.000", async () => {
-  // Con la tarifa plana del Airtable de prueba ($ 10.100) el Dúo siempre
-  // conviene; para ver el caso se sube a $ 25.000 solo en esta prueba.
+test("Caso de la revisión con el carrito del servidor: umbral de $ 160.000 y envío de $ 25.000", async () => {
+  // Con la tarifa plana del Airtable de prueba ($ 10.100); se sube a
+  // $ 25.000 solo en esta prueba, como en la revisión.
   const config = await listRecords<{ Clave?: string; Valor?: string }>(TABLAS.config);
   const costo = config.find((f) => f.fields.Clave === "costo_envio")!;
   const antes = costo.fields.Valor;
@@ -329,13 +331,14 @@ test("Caso de la revisión con el carrito del servidor: con un umbral de $ 160.0
     assert.equal(sin.envio, 0);
     assert.equal(sin.total, 179_800);
 
-    // La regla actual: el umbral se mide después del Dúo y el Dúo se elige
-    // sin mirar el envío. Paga $ 2.525 más que sin el Dúo.
+    // Tarea 06: el umbral se mide antes del Dúo ($ 179.800): sigue gratis.
+    // Con la regla anterior pagaba $ 182.325.
     assert.equal(con.subtotal, 157_325);
-    assert.equal(con.subtotalSinCupon, 157_325);
-    assert.equal(con.envio, 25_000);
-    assert.equal(con.total, 182_325);
-    assert.equal(con.total - sin.total, 2_525);
+    assert.equal(con.subtotalSinCupon, 179_800);
+    assert.equal(con.envio, 0);
+    assert.equal(con.envioBonificado, true);
+    assert.equal(con.total, 157_325);
+    assert.ok(con.total < sin.total, "el Dúo nunca hace pagar más");
     // Y el pedido registra el Dúo tal como se cobró.
     assert.equal(registroDelDuo(con.items)?.descuento, 22_475);
   } finally {

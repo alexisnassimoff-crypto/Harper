@@ -17,6 +17,7 @@ import {
   elegirPromocionAnteojos,
   PORCENTAJE_DUO,
   preciosConDescuentoDuo,
+  subtotalAntesDelDuo,
   unidadesConDescuentoDuo,
   VARIABLE_DUO,
   type RenglonDuo,
@@ -327,6 +328,36 @@ test("Dúo en el carrito: va antes del cupón, del saldo y del dinero en Mercado
   assert.throws(() => aplicarDuo([item("Anteojos", 89_900, 2, { cupon: 10_000 })]));
   assert.throws(() => aplicarDuo([item("Anteojos", 89_900, 2, { saldo: 5_000 })]));
   assert.throws(() => aplicarDuo([item("Anteojos", 89_900, 2, { descuentoDineroMP: 10 })]));
+});
+
+test("Envío gratis con el Dúo (Tarea 06): la base es lo de antes del 25 %, anteojos a lista y complementos con su tramo", () => {
+  // Sin Dúo en ningún renglón, es la suma de siempre.
+  const sinDuo = [item("Anteojos", 89_900, 1), item("Estuches", 29_900, 2, { descuento: 5, precioUnitario: 28_405, subtotal: 56_810 })];
+  assert.equal(subtotalAntesDelDuo(sinDuo), 89_900 + 56_810);
+  assert.equal(subtotalAntesDelDuo([]), 0);
+
+  // El Dúo le gana a un tramo de anteojos del 5 %: la base son los anteojos a
+  // lista ($ 179.800, no los $ 170.810 del tramo) y el estuche con su tramo.
+  const deLista = [item("Anteojos", 89_900, 2), item("Estuches", 29_900, 2)];
+  const conTramos = [
+    item("Anteojos", 89_900, 2, { descuento: 5, precioUnitario: 85_405, subtotal: 170_810 }),
+    item("Estuches", 29_900, 2, { descuento: 5, precioUnitario: 28_405, subtotal: 56_810 }),
+  ];
+  const elegida = elegirPromocionAnteojos(deLista, conTramos);
+  assert.equal(elegida.promocion, "duo");
+  assert.equal(elegida.items.reduce((t, i) => t + i.subtotal, 0), 157_325 + 56_810);
+  assert.equal(subtotalAntesDelDuo(elegida.items), 179_800 + 56_810);
+
+  // Si ganan los tramos, la base es la de siempre (lo que se paga con el tramo).
+  const tramoMejor = [item("Anteojos", 89_900, 2, { descuento: 30, precioUnitario: 62_930, subtotal: 125_860 })];
+  const conTramo = elegirPromocionAnteojos([item("Anteojos", 89_900, 2)], tramoMejor);
+  assert.equal(conTramo.promocion, "tramos");
+  assert.equal(subtotalAntesDelDuo(conTramo.items), 125_860);
+
+  // Con precios distintos, solo el renglón con el Dúo vuelve a lista.
+  const distintos = aplicarDuo([item("Anteojos", 89_900, 1), item("Anteojos", 69_900, 1, { color: "Ámbar" })]);
+  assert.equal(distintos.items.reduce((t, i) => t + i.subtotal, 0), 142_325);
+  assert.equal(subtotalAntesDelDuo(distintos.items), 159_800);
 });
 
 test("Dúo en el carrito: cada renglón descontado lleva su detalle para el pedido, y solo esos", () => {

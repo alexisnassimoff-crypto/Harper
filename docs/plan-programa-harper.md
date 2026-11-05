@@ -867,11 +867,11 @@ Todo en 6 cuotas, con CAC de $ 20.000.
 - **Con 5 o más pares** se mantiene la regla de ⌊n/2⌋: los descuentos van a
   los pares de menor precio. **Definido.**
 - **El crédito** es del 10 % desde 2 anteojos y del 5 % con 1.
-- **Envío:** el umbral de $ 150.000 se mide después del Dúo. Por eso un Dúo
-  con un modelo más barato puede quedar debajo del umbral y pagar el envío
-  fuera de AMBA, como en el ejemplo de $ 142.325. Con una cotización alta,
-  ese pedido termina pagando más que sin el Dúo: está en §16.3, con la
-  alternativa recomendada, **a decidir**.
+- **Envío (definido, Ale, 05/11/2026):** con el Dúo, el mínimo para el envío
+  gratis se mide **antes del 25 %**: los anteojos a precio de lista y los
+  estuches y paños con sus tramos. Así el Dúo de $ 142.325 del ejemplo
+  ($ 159.800 a lista) mantiene el envío gratis. Antes se medía después del
+  Dúo y ese pedido podía pagar más que sin el Dúo (§16.3).
 
 ---
 
@@ -1393,7 +1393,7 @@ devuelto.
 | O8 | **Si el costo de USD 6,38 por anteojo incluye IVA** | La sección A lo toma sin IVA. Si lo incluye, hay que recalcular |
 | O9 | **El costo comercial real de cada recompra** (mail, CRM, plataforma, tiempo) | Hay que compararlo con los topes de A.5. No está medido, y $ 0 es solo una referencia |
 | O10 | **La recompra a 90 días de cada mes de primeras compras**, separando compra individual y Dúo | Es lo que dice si el crédito genera compras extra (A.8). Hoy no hay tasas reales, y las de A.8 son hipotéticas |
-| O11 | **Decidir si el Dúo puede hacer perder el envío gratis** | Con la regla actual, un Dúo que queda debajo del umbral puede pagar más en total que sin el Dúo. Hoy no pasa con ningún precio cargado. Alternativa recomendada en §16.3 |
+| O11 | **Seguir los pedidos con Dúo que tengan el envío gratis solo por la regla nueva** (definido: el envío gratis se mide antes del Dúo, Ale, 05/11/2026) | Dejan menos que la regla anterior: en el ejemplo de §16.3, $ 12.799 menos en 6 cuotas. Con los precios de hoy no hay ninguno |
 | O12 | **Una categoría de complemento antes de vender clips sueltos** | Un clip suelto cargado como «Anteojos» o «Clip-On» recibiría el Dúo. Hoy no hay ninguno (§16.4) |
 
 ### Debajo del piso del 22 % (a monitorear)
@@ -1448,7 +1448,7 @@ No es un lanzamiento: es el costo de respetar lo ya dado.
 
 ---
 
-## 16. Implementación del Dúo (Tareas 03 a 05)
+## 16. Implementación del Dúo (Tareas 03 a 06)
 
 ### 16.1 Estado
 
@@ -1464,7 +1464,7 @@ No es un lanzamiento: es el costo de respetar lo ya dado.
 **Antes de prenderlo hace falta:**
 
 1. registrar el Dúo en el pedido (hecho en la Tarea 05, §16.2);
-2. la decisión de §16.3;
+2. medir el envío gratis antes del Dúo (aprobado y hecho en la Tarea 06, §16.3);
 3. los textos del carrito y del checkout;
 4. las condiciones publicadas (§14, L2);
 5. la transición de los suscriptores (§11).
@@ -1499,64 +1499,91 @@ vuelve a calcular nada.
 - **El cupón de bienvenida del suscriptor, el saldo y el 10 % por dinero en
   Mercado Pago** se aplican después del Dúo y no borran el registro.
 
-### 16.3 El Dúo que pierde el envío gratis (revisión del PR #62, a decidir)
+### 16.3 El envío gratis se mide antes del Dúo (aprobado por Ale, 05/11/2026 · Tarea 06)
 
-**La regla actual (§5.3):** el umbral del envío gratis se mide después del
-Dúo, y el Dúo se elige sin mirar el envío. Entonces un Dúo puede quedar
-debajo del umbral y, con una cotización alta, pagar más en total que sin
-el Dúo.
+**La regla.** Cuando queda el Dúo, el mínimo del envío gratis se mide
+**antes del 25 %**:
 
-**El ejemplo de la revisión:** un par de $ 89.900 y uno de $ 69.900, envío
-gratis desde $ 150.000 y una cotización de $ 20.000.
+- los anteojos, a precio de lista;
+- los estuches y paños, con sus propios descuentos por cantidad.
+
+**Lo que no cambia:**
+
+- **Si en los anteojos ganan los tramos de Airtable, o el Dúo está apagado,**
+  se mide como siempre, sobre lo que se paga.
+- **El cupón, el saldo y el 10 % por dinero en Mercado Pago** siguen sin
+  cambiar quién tiene envío gratis.
+- **Los umbrales:** AMBA desde $ 60.000, todo el país desde $ 150.000.
+- **Lo que se le declara al transportista** sigue siendo lo que se vende,
+  con el Dúo.
+
+**Por qué.** Antes (Tareas 04 y 05) el mínimo se medía después del Dúo. Un
+Dúo podía quedar debajo del mínimo y pagar más en total que sin el Dúo
+(revisión del PR #62). El ejemplo: un par de $ 89.900 y uno de $ 69.900,
+envío gratis desde $ 150.000 y una cotización de $ 20.000.
 
 | | Productos | Envío | Total |
 |---|---|---|---|
 | Sin el Dúo | $ 159.800 | Gratis | $ 159.800 |
-| Con el Dúo, regla actual | $ 142.325 | $ 20.000 | **$ 162.325** (paga $ 2.525 más) |
-| Con el Dúo, alternativa A | $ 142.325 | Gratis | $ 142.325 |
+| Con el Dúo, regla anterior | $ 142.325 | $ 20.000 | $ 162.325 (pagaba $ 2.525 más) |
+| **Con el Dúo, regla nueva** | $ 142.325 | Gratis | **$ 142.325** |
 
-**Cuándo pasa:**
+**Cuándo cambia algo:**
 
-- **Con los precios de hoy y los previstos ($ 89.900 a $ 109.900) no pasa
-  nunca.** El Dúo más barato posible queda en $ 157.325, arriba de
-  $ 150.000. En AMBA, con el umbral de $ 60.000, tampoco.
-- **Pasaría si** entra un modelo más barato (por ejemplo, uno de entre
+- **Con los precios de hoy y los previstos ($ 89.900 a $ 109.900), nunca.**
+  El Dúo más barato posible queda en $ 157.325, arriba de $ 150.000. En
+  AMBA, con el umbral de $ 60.000, tampoco.
+- **Cambiaría si** entra un modelo más barato (por ejemplo, uno de entre
   $ 60.100 y $ 80.100 junto a uno de $ 89.900), o si el umbral nacional
   sube por encima de $ 157.325.
 
-**Las pruebas lo muestran con la regla actual** (`tests/duo-pedido.test.ts`):
+**Cuánto deja.** Calculado con el modelo (`lib/contribucion.ts`, parámetros
+de referencia). Supuestos: 6 cuotas, crédito del 10 %, publicidad de
+$ 20.000 y un envío de $ 20.000 con IVA.
 
-- con las cuentas del ejemplo;
-- con el carrito del servidor: umbral de $ 160.000 y un envío de $ 25.000,
-  el total pasa de $ 179.800 a $ 182.325.
+| El ejemplo, en 6 cuotas | Se cobra | Deja después de publicidad | Margen |
+|---|---|---|---|
+| Regla anterior: el comprador paga el envío | $ 162.325 | $ 34.450 | ✓ 25,7 % |
+| Regla nueva: envío gratis | $ 142.325 | $ 21.651 | ✗ 18,4 % (debajo del piso: se monitorea, no bloquea) |
 
-**Alternativas:**
+**Corrección de la versión anterior de esta sección:**
 
-- **A (recomendada): medir el umbral antes del Dúo.**
-  - Es como ya funcionan el cupón y el 10 % por dinero en Mercado Pago, que
-    «no cambian quién tiene envío gratis».
-  - El Dúo nunca hace pagar más y el carrito sigue siendo un solo cálculo.
-  - **Cuánto cuesta:** en esos pedidos Harper paga el envío. En el ejemplo
-    deja $ 20.000 menos que con la regla actual.
-  - Según §9, ese Dúo hipotético soporta un envío gratis de hasta
-    $ 14.886 para seguir en el 22 %. Con $ 20.000 queda debajo del piso: se
-    monitorea, no bloquea.
-  - **Con los precios de hoy cuesta $ 0:** ningún pedido cae en esa franja.
-- **B: elegir comparando el total con envío.** El comprador nunca paga más,
-  pero a veces se queda sin el Dúo aunque lleve dos pares. Además, el envío
-  depende de la dirección, que se conoce recién en el checkout, así que el
-  precio cambiaría entre el carrito y el checkout. **No la recomiendo.**
-- **C: dejar la regla y avisar en el carrito** («con el Dúo te faltan $ X
-  para el envío gratis»). El comprador igual puede terminar pagando más.
-  **No la recomiendo sola.**
+- **La diferencia es de $ 12.799 por pedido, no de $ 20.000.** Cuando el
+  comprador pagaba el envío, Harper igual pagaba, sobre ese importe, la
+  comisión de Mercado Pago, la financiación de las cuotas, IIBB y la
+  reserva por devoluciones.
+- **En 1 pago,** la regla nueva deja $ 36.310 (30,9 %) y la anterior
+  $ 51.169: $ 14.859 menos.
+- **Con los precios de hoy, la diferencia es $ 0:** ningún pedido cae en
+  esa franja.
 
-**Qué mostraría que A estaba mal:** pedidos con Dúo y envío bonificado
-debajo del umbral que, en el panel, dejen menos que el piso más de lo
-previsto.
+**Qué mostraría que la regla estaba mal:** pedidos con Dúo y envío gratis
+cuyo total quede debajo del mínimo y que, en el panel, dejen menos que el
+piso más de lo previsto (§14, O11). Se miden con la línea «Promoción: Dúo»
+de Notas y el envío bonificado del pedido.
 
-**No está implementada.** Espera la aprobación de Ale (§14, O11). Si se
-aprueba, se cambia una línea de `resolverCarrito`, y la prueba que hoy
-muestra la regla actual pasa a mostrar la nueva.
+**Un detalle para cuando vuelvan los tramos de anteojos.** Si el Dúo le gana
+a un tramo de anteojos de Airtable, la base son los anteojos a lista, no lo
+que costaban con el tramo (así lo pidió la revisión del PR #63). Hoy no hay
+tramos de anteojos: la lista es lo que pagaría sin el Dúo.
+
+**Cómo se probó:**
+
+- **Pruebas:** `tests/duo-envio.test.ts` cubre el envío de punta a punta:
+  - la cotización firmada y el checkout;
+  - el mínimo justo;
+  - los estuches con su tramo;
+  - AMBA;
+  - el suscriptor;
+  - el dinero en Mercado Pago.
+
+  También hay pruebas en `tests/duo.test.ts`, `tests/duo-carrito.test.ts`,
+  `tests/duo-carrito-escala.test.ts` y `tests/duo-pedido.test.ts`.
+- **Comparación con main** en 2.080 carritos (con y sin escala, con
+  umbral de $ 80.000 y de $ 160.000):
+  - con el Dúo apagado, idénticos;
+  - con el Dúo prendido, solo cambian la base y el envío de los carritos
+    con Dúo, y ninguno paga más que antes ni más que sin el Dúo.
 
 ### 16.4 Un clip suelto no recibe el Dúo (verificado el 05/11/2026)
 

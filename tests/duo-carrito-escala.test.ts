@@ -34,6 +34,9 @@ test("Con la escala de Airtable: 2 anteojos no llegan al 3x2, queda el Dúo", as
   const con = await carrito(2, true);
   assert.equal(con.subtotal, 157_325);
   assert.equal(con.ahorro, 22_475);
+  // Tarea 06: el envío gratis se mide antes del 25 %, con los anteojos a lista.
+  assert.equal(con.subtotalSinCupon, 179_800);
+  assert.equal(sin.subtotalSinCupon, 179_800);
 });
 
 test("Con la escala de Airtable: con 3 y 5 anteojos el «llevá N, pagá M» es mejor y queda; el Dúo no se suma", async () => {
@@ -45,5 +48,9 @@ test("Con la escala de Airtable: con 3 y 5 anteojos el «llevá N, pagá M» es 
     assert.equal(con.subtotal, esperado, `${cantidad} anteojos con Dúo: queda la escala`);
     assert.equal(con.ahorro, sin.ahorro);
     assert.deepEqual(con.items, sin.items, "los renglones quedan exactamente iguales");
+    // Si queda la escala, el envío gratis se mide como hoy: sobre lo que se paga.
+    assert.equal(con.subtotalSinCupon, sin.subtotalSinCupon);
+    assert.equal(con.subtotalSinCupon, esperado);
+    assert.equal(con.envio, sin.envio);
   }
 });

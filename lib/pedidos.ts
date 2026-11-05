@@ -32,7 +32,7 @@ import {
   tramosVigentes,
   type Tramo,
 } from "./descuentos";
-import { duoActivo, elegirPromocionAnteojos, notaDelDuo, registroDelDuo } from "./duo";
+import { duoActivo, elegirPromocionAnteojos, notaDelDuo, registroDelDuo, subtotalAntesDelDuo } from "./duo";
 import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
 import {
@@ -96,7 +96,12 @@ export type CarritoResuelto = {
   tramos: Tramo[];
   /** Qué pasó con el cupón que mandó el navegador; null si no mandó ninguno. */
   cupon: CuponResuelto | null;
-  /** El subtotal sin el cupón: la base del envío gratis, como siempre. */
+  /**
+   * La base del envío gratis: el subtotal sin el cupón, como siempre. Si
+   * quedó el Dúo, además, antes de su 25 % (Tarea 06): los anteojos a precio
+   * de lista y los estuches y paños con sus tramos. Con el Dúo apagado, o si
+   * ganaron los tramos, es el subtotal sin el cupón de siempre.
+   */
   subtotalSinCupon: number;
   /**
    * El mismo pedido pagado con dinero en Mercado Pago: el 10% adicional sobre la
@@ -268,7 +273,7 @@ export async function resolverCarrito(
   // Con el Dúo prendido, en los anteojos queda el Dúo o el tramo de Airtable,
   // el que le deje al comprador el total más bajo; nunca los dos. Estuches y
   // paños siguen con sus tramos. Va antes del cupón, del saldo y del dinero en
-  // Mercado Pago, y antes del envío: el envío gratis se mide después del Dúo.
+  // Mercado Pago, y antes del envío (que mide el envío gratis antes del Dúo).
   if (deLista) {
     const elegida = elegirPromocionAnteojos(deLista, items);
     items = elegida.items;
@@ -276,8 +281,14 @@ export async function resolverCarrito(
   }
 
   // El envío se calcula como siempre, con el subtotal sin el cupón: el cupón
-  // no cambia quién tiene envío gratis.
+  // no cambia quién tiene envío gratis. Es también el valor de los productos
+  // que se declara al transportista.
   const subtotalParaEnvio = items.reduce((total, i) => total + i.subtotal, 0);
+  // Tarea 06 (Ale, 05/11/2026): el Dúo tampoco cambia quién tiene envío
+  // gratis. Si quedó el Dúo, el mínimo se mide antes de su 25 %: los anteojos
+  // a precio de lista y los estuches y paños con sus tramos. Si no hay Dúo
+  // (apagado, o ganaron los tramos), es exactamente el subtotal de arriba.
+  const baseEnvioGratis = subtotalAntesDelDuo(items);
 
   // El cupón y los descuentos por cantidad no se suman: queda el que le deje
   // al comprador el total más bajo.
@@ -311,6 +322,7 @@ export async function resolverCarrito(
   const { envio, opcionesEnvio, envioCotizado, envioBonificado: bonificado, envioZona, envioDelPedido } = await resolverEnvio({
     items,
     subtotal: subtotalParaEnvio,
+    baseEnvioGratis,
     config,
     paquete,
     destino: opciones.destino,
@@ -335,7 +347,7 @@ export async function resolverCarrito(
     ahorro,
     tramos,
     cupon: promocion.cupon,
-    subtotalSinCupon: subtotalParaEnvio,
+    subtotalSinCupon: baseEnvioGratis,
     dineroMP,
     suscriptor: suscriptor
       ? {
@@ -375,13 +387,20 @@ export async function resolverCarrito(
  * Se ofrece UNA opción, sin nombre de transportista para el comprador: en
  * AMBA el reparto; en el resto del país, la más barata. Es gratis desde
  * `envio_gratis_amba_desde` en AMBA y desde `envio_gratis_desde` en todo el
- * país, sobre el subtotal sin el cupón; con envío gratis el comprador ve el
- * precio tachado. El pedido guarda igual el transportista y el costo real:
- * es lo que paga Harper.
+ * país, sobre el subtotal sin el cupón (y, si quedó el Dúo, antes de su
+ * 25 %: `baseEnvioGratis`); con envío gratis el comprador ve el precio
+ * tachado. El pedido guarda igual el transportista y el costo real: es lo
+ * que paga Harper.
  */
 async function resolverEnvio(datos: {
   items: ItemResuelto[];
+  /** El valor de los productos sin el cupón: se declara al transportista y firma la cotización. */
   subtotal: number;
+  /**
+   * Sobre qué se mide el envío gratis: el subtotal sin el cupón y, si quedó
+   * el Dúo, antes de su 25 % (Tarea 06). Sin Dúo es igual a `subtotal`.
+   */
+  baseEnvioGratis?: number;
   config: ConfigTienda;
   paquete: Paquete | null;
   destino?: Partial<DestinoEnvio>;
@@ -400,7 +419,8 @@ async function resolverEnvio(datos: {
   const umbrales = { amba: datos.config.envioGratisAmbaDesde, nacional: datos.config.envioGratisDesde };
   // Si compra un suscriptor, el envío es gratis siempre (lib/suscriptores.ts).
   const suscriptor = Boolean(datos.suscriptor);
-  const gratisEn = (zona: ZonaEnvio | null) => hayItems && (suscriptor || esEnvioGratis(datos.subtotal, zona, umbrales));
+  const base = datos.baseEnvioGratis ?? datos.subtotal;
+  const gratisEn = (zona: ZonaEnvio | null) => hayItems && (suscriptor || esEnvioGratis(base, zona, umbrales));
 
   const destino = destinoCompleto(datos.destino);
   const paquete = paqueteParaEnvia(datos.paquete, datos.config.envioPesoMinimoKg);
@@ -416,7 +436,7 @@ async function resolverEnvio(datos: {
   const sinComprobante = (zona: ZonaEnvio | null) => {
     const bonificado = gratisEn(zona);
     const reparto = hayItems && zona === "amba" ? repartoDelMapa : null;
-    const envio = !hayItems || bonificado ? 0 : reparto ? reparto.opcion.precio : calcularEnvio(datos.subtotal, datos.config);
+    const envio = !hayItems || bonificado ? 0 : reparto ? reparto.opcion.precio : calcularEnvio(base, datos.config);
     const envioDelPedido: EnvioDelPedido = reparto
       ? { origen: "tarifa", opcion: reparto.opcion, cobrado: envio, bonificado, cotizadoEn: null, cotizacion: { zona, opcion: reparto.detalle } }
       : { origen: "plano", opcion: null, cobrado: envio, bonificado, cotizadoEn: null, cotizacion: null };
