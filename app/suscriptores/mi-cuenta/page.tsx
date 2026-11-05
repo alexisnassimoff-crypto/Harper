@@ -3,12 +3,15 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { AccionesCuenta, EntrarACuenta } from "@/components/suscriptores/AccionesCuenta";
 import MisCompras from "@/components/suscriptores/MisCompras";
+import MisDatos from "@/components/suscriptores/MisDatos";
 import MisFavoritos from "@/components/suscriptores/MisFavoritos";
 import SeccionesCuenta from "@/components/suscriptores/SeccionesCuenta";
 import { getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
+import { direccionesDisponibles } from "@/lib/direcciones-servidor";
 import { favoritosDelCatalogo, normalizarSku } from "@/lib/favoritos";
 import { comprasDeLaCuenta } from "@/lib/mis-compras";
+import { misDatos } from "@/lib/mis-datos-servidor";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK, fechaArgentina, fechaLegible, type MovimientoSaldo } from "@/lib/suscriptores";
 import { resumenDeLaCuenta, suscriptorDeLaSesion } from "@/lib/suscriptores-cuenta";
@@ -21,7 +24,8 @@ import { TEXTOS } from "@/lib/textos";
  * cuándo lo puede usar), su cupón de bienvenida, sus favoritos (Ale,
  * 05/11/2026: «Mis favoritos», los anteojos guardados con el corazón,
  * lib/favoritos.ts), sus compras («Mis compras», solo las del mail
- * verificado de la cuenta, lib/mis-compras.ts) y sus movimientos. Todo se lee de nuevo de Airtable en
+ * verificado de la cuenta, lib/mis-compras.ts), sus movimientos y sus datos
+ * («Mis datos» y «Mis direcciones», lib/mis-datos.ts). Todo se lee de nuevo de Airtable en
  * cada visita (lib/suscriptores-cuenta.ts). Es a donde llevan los mails.
  */
 
@@ -74,7 +78,7 @@ export default async function MiCuenta({ searchParams }: { searchParams: Promise
   }
 
   // Las compras y los favoritos, en paralelo y por su lado: si no se pueden leer, el resto de la cuenta sigue.
-  const [resumen, compras, config, productos] = await Promise.all([
+  const [resumen, compras, config, productos, datos] = await Promise.all([
     resumenDeLaCuenta(cuenta),
     comprasDeLaCuenta(cuenta.email).catch((error) => {
       console.error("[mis-compras] no se pudieron leer:", error instanceof Error ? error.message : error);
@@ -82,6 +86,10 @@ export default async function MiCuenta({ searchParams }: { searchParams: Promise
     }),
     getConfig().catch(() => null),
     getProductos(),
+    misDatos(cuenta).catch((error) => {
+      console.error("[mis-datos] no se pudieron leer:", error instanceof Error ? error.message : error);
+      return null;
+    }),
   ]);
   // Sin catálogo no se pueden armar (getProductos devuelve [] si Airtable falla).
   const favoritos = cuenta.favoritos.length === 0 ? [] : productos.length > 0 ? favoritosDelCatalogo(cuenta.favoritos, productos) : null;
@@ -200,6 +208,11 @@ export default async function MiCuenta({ searchParams }: { searchParams: Promise
                 )}
               </section>
             ),
+          },
+          {
+            id: "mis-datos",
+            titulo: T.pestanas.datos,
+            contenido: <MisDatos vista={datos} buscador={direccionesDisponibles()} />,
           },
         ]}
       />
