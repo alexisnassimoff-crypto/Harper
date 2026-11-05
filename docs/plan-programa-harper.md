@@ -1,36 +1,65 @@
 # Programa Harper: reglas comerciales y transición (Tarea 02)
 
-**Estado:** borrador. No hay nada implementado. Este documento no cambia
+**Estado:** **programa aprobado por Ale el 05/11/2026** (cierre de la
+Tarea 02). Todavía no hay nada implementado. Este documento no cambia
 precios, descuentos, créditos, checkout, Airtable ni las condiciones
-publicadas. Reúne tres cosas:
-
-- las decisiones de Ale del 05/11/2026;
-- los ajustes de la revisión del PR #60;
-- el **ajuste estratégico en evaluación** (sección A).
+publicadas. La implementación va en tareas separadas.
 
 **Qué marca cada cosa:**
 
 - **Definido:** lo decidió Ale.
-- **Propuesta de trabajo:** se definió en la revisión del PR #60
-  (05/11/2026). Es la base del documento hasta la aprobación final.
-- **En evaluación:** el ajuste estratégico de la sección A. Ale lo pidió para
-  evaluarlo. No reemplaza lo definido hasta que lo apruebe.
 - **A validar:** necesita una revisión legal u operativa antes de activar el
   programa. Están todas juntas en §14.
-- **No apto para lanzar:** un caso evaluado que no llega al piso del 22 %.
-  No se lanza sin ajustar sus condiciones: precio, envío gratis o cuotas.
-- **No llega al objetivo:** un caso que deja menos de $ 24.000 por anteojo,
-  supere o no el piso.
+- **Debajo del piso:** un caso evaluado que deja menos del 22 %. El 22 % es
+  una referencia para monitorear. **No frena el lanzamiento ni bloquea el
+  checkout** (Ale, 05/11/2026).
+- **No llega a la meta:** un caso que deja menos de $ 24.000 por anteojo.
+  Es una meta, no una condición para lanzar.
+- **Hipótesis:** un escenario para pensar, no un resultado garantizado. Por
+  ejemplo, las tasas de recompra de A.8.
 
 **Hay dos análisis en el documento:**
 
-- **La sección A es la que vale para decidir.** Usa el costo de $ 10.208,
-  el 5 % de crédito en la compra individual y cuatro precios.
+- **La sección A tiene los números de la política aprobada.** Usa el costo
+  de $ 10.208, el 5 % de crédito en la compra individual y cuatro precios.
 - **Las secciones 0 a 13 conservan el análisis anterior.** Usan el costo de
-  $ 9.570, la compra individual sin crédito y el precio de $ 89.900.
+  $ 9.570, la compra individual sin crédito y el precio de $ 89.900. Sus
+  números quedan como referencia.
   - Sus reglas siguen valiendo: envío, cuotas, Dúo, transición,
     devoluciones y validaciones.
-  - La excepción es lo que cambia la sección A (ver A.10).
+  - La excepción es lo que cambia la sección A: la compra de un anteojo
+    genera 5 % (ver A.10).
+
+## Decisión final (Ale, 05/11/2026)
+
+**Precios:**
+
+- **Los modelos actuales mantienen sus precios publicados.** No se modifica
+  ninguno.
+- Los próximos modelos podrán lanzarse a precios más altos, que se definirán
+  cuando lleguen.
+- **El objetivo de USD 15 por anteojo ($ 24.000) es una meta,** no una
+  condición para frenar el lanzamiento.
+- **El 22 % es una referencia financiera para monitorear,** no un bloqueo
+  automático del checkout.
+
+**Programa Harper aprobado:**
+
+- **1 anteojo:** 5 % de Crédito Harper.
+- **2 o más anteojos:** 25 % de descuento sobre los pares elegibles de
+  menor precio (con 3 pares, uno; con 4, dos; con 5, dos; con 6, tres),
+  más 10 % de Crédito Harper.
+- **Las recompras** también tienen estos beneficios.
+- **Sin tope.**
+- **Base:** lo efectivamente pagado en anteojos. Se excluyen el crédito
+  usado, el envío, los estuches y los paños.
+- **Generación y liberación:** se crea pendiente al acreditarse el pago.
+  Se libera 30 días después de la entrega confirmada, sin devoluciones ni
+  incidencias pendientes.
+- **Cuotas:** hasta 6 sin interés para todos, cuando Mercado Pago las
+  confirma.
+- **Clientes anteriores:** se respetan los créditos, los cupones y las
+  condiciones anteriores.
 
 ---
 
@@ -46,7 +75,8 @@ y el peor envío de cada caso:
    - La compra individual con 5 % no llega ni al piso del 22 % cuando Harper
      paga el envío de GBA 2 y 3: deja $ 14.109 (19,0 %).
    - La segunda compra individual tampoco: 20,2 %.
-   - A ese precio, esos dos casos son **no aptos para lanzar**.
+   - Esos dos casos quedan **debajo del piso**: se lanzan igual y se
+     monitorean.
 2. **Los $ 24.000 por anteojo dependen sobre todo del precio y del CAC, no
    del crédito.**
    - Sin crédito, la compra individual de $ 89.900 deja $ 17.824.
@@ -63,32 +93,28 @@ y el peor envío de cada caso:
 5. **Las recompras que no cuestan otros $ 20.000 dejan mucho más.** Si traer
    una recompra cuesta $ 10.000, la recompra individual de $ 89.900 deja
    $ 25.022 por anteojo. El costo comercial real todavía no está medido.
-6. **El crédito se recupera si genera compras que no habrían pasado sin él.**
-   - **El 5 % individual** necesita que entre el 11 % y el 25 % de las veces
-     que se usa sea una compra de ese tipo.
-   - **El 10 % del Dúo** necesita entre el 22 % y el 35 %.
-   - El resto de las veces, el crédito es un descuento sobre una compra que
-     iba a ocurrir igual.
+6. **Hipótesis, no resultado garantizado: el crédito se recupera si genera
+   compras que no habrían pasado sin él.**
+   - **El 5 % individual** necesitaría que entre el 11 % y el 25 % de las
+     veces que se usa sea una compra de ese tipo.
+   - **El 10 % del Dúo** necesitaría entre el 22 % y el 35 %.
+   - Si no, el crédito es un descuento sobre una compra que iba a ocurrir
+     igual.
+   - No hay tasas reales de recompra. Se van a saber con la medición de
+     A.9.
 
-**Recomendación** (detalle en A.9):
+**Decisión** (Ale, 05/11/2026; detalle en A.9):
 
-1. **Aprobar la estructura de crédito para todos:** 5 % en la compra
-   individual y, en el Dúo, 25 % de descuento más 10 % de crédito. Es una
-   inversión acotada por pedido y se recupera con pocas compras extra.
-2. **No lanzar el 5 % individual a $ 89.900 sin ajustar condiciones.** A ese
-   precio, la compra individual con envío gratis caro rompe el piso. Qué
-   ajustar lo decide Ale:
-   - evaluar un precio más alto: con $ 104.900, la compra individual podría
-     vender hasta 38,9 % menos y dejar lo mismo en total;
-   - o lanzar el 5 % como prueba con fecha de fin.
-3. **Mantener el costo de cada recompra por debajo de los topes de A.5 y
-   medir cuántas recompras son extra.**
+- Se aprueba el programa con el 5 % individual y los precios actuales.
+- Los casos que quedan debajo del piso o de la meta se monitorean; no
+  frenan el lanzamiento.
+- Los próximos modelos podrán salir a precios más altos.
 
 ---
 
-## A. Ajuste estratégico: Crédito Harper para todos los compradores (en evaluación)
+## A. Crédito Harper para todos los compradores (aprobado)
 
-### A.1 La propuesta (Ale, 05/11/2026)
+### A.1 La política (Ale, 05/11/2026)
 
 **La prioridad** es una marca con clientes que vuelvan, no solo el margen de
 la primera compra. **El objetivo** es que nadie quede afuera de la
@@ -117,9 +143,9 @@ fidelización por llevar un solo anteojo.
 
 **Clientes anteriores:** se mantienen sus derechos y saldos (§11).
 
-**Qué cambia respecto de §1:** solo la compra de un anteojo. Antes no
-generaba crédito; ahora genera 5 %, también en las recompras. Lo demás queda
-igual.
+**Qué cambia respecto de la versión anterior:** solo la compra de un
+anteojo. Antes no generaba crédito; ahora genera 5 %, también en las
+recompras. Lo demás queda igual.
 
 ### A.2 El objetivo y cómo se mide
 
@@ -192,9 +218,10 @@ A-1 a A-4.
 |  | $ 104.900 | $ 165.217 | $ 16.522 | $ 51.982 | $ 25.991 | 34,3 % | ✓ | ✓ |
 |  | $ 109.900 | $ 173.092 | $ 17.309 | $ 57.072 | $ 28.536 | 35,9 % | ✓ | ✓ |
 
-**No aptos para lanzar.** La compra individual de $ 89.900, primera y
-segunda, con envío gratis de GBA 2 y 3: 19,0 % y 20,2 %. Superan el 22 % con
-el envío de CABA o cuando el cliente paga el envío (Anexo A-1 y A-3).
+**Debajo del piso (a monitorear).** La compra individual de $ 89.900,
+primera y segunda, con envío gratis de GBA 2 y 3: 19,0 % y 20,2 %. Superan
+el 22 % con el envío de CABA o cuando el cliente paga el envío (Anexo A-1 y
+A-3). Se lanzan igual: el 22 % es una referencia, no un bloqueo.
 
 **No llegan al objetivo de $ 24.000 por anteojo:**
 
@@ -333,7 +360,12 @@ que el espacio.**
   $ 500 (Dúo) para el objetivo.
 - **A $ 109.900:** entra en las dos metas.
 
-### A.8 Qué tiene que pasar para que el crédito se recupere
+### A.8 Qué tendría que pasar para que el crédito se recupere (hipótesis)
+
+**Todo este apartado es hipotético.** Muestra cuánta recompra extra haría
+falta, no cuánta va a haber. No hay tasas reales de recompra, y ningún número
+de acá es un resultado garantizado. Las tasas reales salen de la medición de
+A.9.
 
 **Cómo se calcula** (para la primera recompra):
 
@@ -410,63 +442,57 @@ a $ 10.000 y peor envío:
 - **Si todos los que lo usan iban a comprar igual,** cualquier crédito es
   solo costo.
 
-### A.9 Recomendación comercial
+### A.9 Decisión y qué se monitorea (Ale, 05/11/2026)
 
-**1. Aprobar la estructura de crédito para todos:** 5 % individual y, en el
-Dúo, 25 % de descuento más 10 % de crédito.
+**Decisión:**
 
-- **Dato:** el 5 % cuesta entre $ 3.715 y $ 4.541 por pedido. Se recupera si
-  entre el 11 % y el 25 % de sus usos son compras extra (A.8). El Dúo con
-  10 % supera el 22 % a los cuatro precios.
-- **Razonamiento:** es la forma más barata de que todos los compradores
-  tengan un motivo para volver. El riesgo está acotado por pedido.
-- **Qué mostraría que está mal:** que los compradores de un anteojo no
-  vuelvan más que antes del programa, o que casi todos los usos sean de
-  clientes que igual volvían.
-- **Cómo se mide:** recompra a 90 días de cada mes de primeras compras,
-  separando individual y Dúo, y comparando con los meses anteriores al
-  programa.
+- **Se aprueba el programa:** 5 % de crédito en la compra de un anteojo y,
+  en el Dúo, 25 % de descuento más 10 % de crédito.
+- **Los modelos actuales mantienen sus precios publicados.** Los próximos
+  podrán salir a precios más altos.
+- **El 22 % y los $ 24.000 por anteojo se monitorean.** No frenan el
+  lanzamiento ni bloquean el checkout.
 
-**2. No lanzar el 5 % individual a $ 89.900 sin ajustar condiciones.**
+**Qué se monitorea:**
 
-- **Dato:** a ese precio, la compra individual con envío gratis de GBA 2 y 3
-  queda en 19,0 % ($ 14.109). Ningún escenario llega a $ 24.000 por
-  anteojo.
-- **Razonamiento:** con CAC de $ 20.000, el objetivo depende del precio. El
-  crédito lo mueve poco.
-- **Opciones** (las elige Ale, este documento no cambia precios):
-  - evaluar un precio más alto. Con $ 104.900, la primera compra individual
-    deja $ 23.089 en el peor caso, y podría vender hasta 38,9 % menos que a
-    $ 89.900 y dejar lo mismo en total. El Dúo, hasta 30,8 % menos;
-  - o lanzar el 5 % a $ 89.900 como prueba con fecha de fin, sabiendo que
-    algunos pedidos quedan debajo del piso.
-- **Qué mostraría que está mal:** que a un precio más alto la conversión
-  caiga más que ese 38,9 %.
-- **Cómo se mide:** la conversión del embudo del panel antes y después,
-  separando la compra individual y el Dúo.
+1. **La contribución real por pedido y por anteojo,** contra el piso del
+   22 % y la meta de $ 24.000.
+   - **Dato:** con los precios actuales, la compra individual con envío
+     gratis de GBA 2 y 3 queda en 19,0 % ($ 14.109). Ningún escenario llega
+     a $ 24.000 (A.4).
+   - **Cómo se mide:** el margen del panel por pedido, separando la compra
+     individual y el Dúo, y por zona de envío.
+2. **La recompra que genera el crédito.**
+   - **Hipótesis (A.8):** el 5 % se recupera si entre el 11 % y el 25 % de
+     sus usos son compras extra.
+   - **Qué mostraría que no se cumple:** que los compradores de un anteojo
+     no vuelvan más que antes del programa, o que casi todos los usos sean
+     de clientes que igual volvían.
+   - **Cómo se mide:** la recompra a 90 días de cada mes de primeras
+     compras, separando individual y Dúo, contra los meses anteriores al
+     programa.
+3. **El costo de cada recompra.**
+   - **Dato:** a $ 89.900, la recompra individual llega al 22 % si cuesta
+     hasta $ 18.677, y a $ 24.000 por anteojo si cuesta hasta $ 11.022
+     (A.5).
+   - **Cómo se mide:** el costo mensual del mail o CRM dividido por las
+     recompras que trajeron esos mails.
 
-**3. Poner un tope al costo de cada recompra y medir las recompras extra.**
+### A.10 Qué cambia en el resto del documento
 
-- **Dato:** a $ 89.900, la recompra individual llega a $ 24.000 por anteojo
-  solo si cuesta hasta $ 11.022, y al 22 % hasta $ 18.677 (A.5).
-- **Razonamiento:** el cliente que vuelve es el que paga el programa, pero
-  solo si traerlo cuesta menos que uno nuevo.
-- **Qué mostraría que está mal:** que el costo real por recompra (mails,
-  plataforma, tiempo) supere esos topes.
-- **Cómo se mide:** el costo mensual del mail o CRM dividido por las
-  recompras atribuidas a esos mails.
-
-### A.10 Qué cambia en el resto del documento si se aprueba
-
-- **La compra de un anteojo genera 5 %.** Ya está marcado en §1, §3, §5.3,
-  §6, §10.1, §10.2, §10.5, §11, §13.1 y §13.2.
-- **Hay que recalcular con el costo de $ 10.208 y el precio que se elija:**
+- **La compra de un anteojo genera 5 %,** también en las recompras. Ya está
+  corregido en §1, §3, §5.3, §6, §10.1, §10.2, §10.5, §11, §13.1 y §13.2.
+- **Los números de las secciones 4 a 10 son del análisis anterior:** costo
+  de $ 9.570 y compra individual sin crédito. Los de la política aprobada
+  están en esta sección A.
+- **Para los casos que la sección A no recalculó** se mantiene la regla y
+  se recalcula al implementar cada parte, con el costo de $ 10.208:
   - el 10 % por dinero en Mercado Pago (§8);
   - el cupón ya dado (§7);
   - los pedidos de 3 o más pares y con precios distintos (§5.2);
   - las devoluciones (§13.2);
   - los topes de envío (§9).
-- **Se suman tres validaciones a §14:**
+- **Se sumaron tres validaciones a §14:**
   - si USD 6,38 incluye IVA;
   - el costo real de cada recompra;
   - la recompra a 90 días de cada mes de primeras compras.
@@ -540,8 +566,8 @@ de las evaluadas llegan, con estos supuestos. El piso depende de:
 - un par suelto barato;
 - un Dúo de dos pares baratos con envío gratis caro.
 
-Están en §5 y §14 marcados como **no aptos para lanzar** sin ajustar sus
-condiciones.
+Están en §5 y §14 marcados como **debajo del piso**: se monitorean y no
+frenan el lanzamiento.
 
 ### Hipótesis del modelo
 
@@ -563,27 +589,26 @@ No son datos medidos:
    **Definido.**
 2. **Las 6 cuotas son para todos los compradores**, sin obligar a
    suscribirse ni registrarse, en la primera compra y en las recompras,
-   siempre que Mercado Pago las confirme para el monto. **Definido** (que
-   sean para todos: **propuesta de trabajo**).
+   siempre que Mercado Pago las confirme para el monto. **Definido.**
 3. **Dúo.** Si suma un segundo anteojo, lleva **25 % de descuento en el de
    menor precio**. Se pueden combinar modelos y colores. **Definido.**
    - **Con 3 pares,** el 25 % va sobre uno de los más baratos.
    - **Con 4 pares,** sobre los dos más baratos.
    - **Con 5 o más pares,** sobre los ⌊n/2⌋ de menor precio: dos con 5 y
-     tres con 6. **Propuesta de trabajo.**
+     tres con 6. **Definido.**
    - La regla con precios distintos está en §5.3.
 4. **Crédito Harper:**
-   - **cada compra elegible de dos o más anteojos** genera **10 %** de
-     crédito, sin tope;
+   - **cada compra de dos o más anteojos** genera **10 %** de crédito, sin
+     tope;
+   - **cada compra de un solo anteojo** genera **5 %**, también en las
+     recompras (sección A);
    - se calcula sobre lo **efectivamente pagado en anteojos**, después de los
      descuentos y **sin contar el crédito usado**;
-   - **una compra de un solo anteojo no genera crédito nuevo**. **En
-     evaluación:** que genere 5 %, también en las recompras (sección A);
    - no se genera sobre estuches, paños ni envío.
 
    **Definido.**
 5. **Cuándo se genera y cuándo se puede usar son dos momentos distintos**
-   (§10.2). **Propuesta de trabajo.**
+   (§10.2). **Definido.**
    - **Generación:** el crédito se crea **pendiente** en cuanto se acredita
      el pago de un pedido con dos o más anteojos. No se espera 30 días para
      crearlo.
@@ -594,7 +619,7 @@ No son datos medidos:
    - **no paga el envío, ni estuches ni paños**;
    - **no vence**, por ahora.
 
-   **Definido.** Que no pague estuches ni paños es **propuesta de trabajo**.
+   **Definido.**
    La fecha de entrega queda **a validar**.
 7. **Envío:**
    - **gratis en AMBA desde $ 60.000**;
@@ -609,7 +634,7 @@ No son datos medidos:
    dados y las condiciones aceptadas. **El crédito ya ganado sigue con sus
    condiciones originales.** **Definido.**
    - El alcance del saldo antiguo **no se restringe**: sigue sirviendo en
-     cualquier producto. **Propuesta de trabajo.**
+     cualquier producto. **Definido.**
 10. **10 % por pagar con dinero en Mercado Pago:** se mantiene por ahora,
     mientras el modelo confirme que es rentable. En los casos evaluados lo
     confirma: ver §8. **Definido.**
@@ -708,13 +733,13 @@ Fuentes: Config, `lib/envio-gratis.ts` y `lib/rueddo.ts`.
 | Tema | Hoy | Política nueva | Estado |
 |---|---|---|---|
 | Quién recibe los beneficios | Solo quien se suscribe (mail y consentimiento para recibir mails) | Dúo y cuotas: cualquier comprador, sin suscribirse ni registrarse. Crédito: el comprador con su cuenta (mail verificado). Nada depende de aceptar publicidad | **Definido**. Implementación: **a validar** |
-| Primera compra de 1 par | Suscriptor: cupón de $ 10.000, cashback del 10 %, envío gratis y hasta 6 cuotas. Quien no se suscribe: hasta 3 cuotas | Precio de lista y hasta 6 cuotas sin interés. Sin crédito. Envío según las reglas | **Definido**. Que genere 5 % de crédito: **en evaluación** (sección A) |
-| Dos o más anteojos | Sin descuento | **Dúo:** 25 % en el de menor precio. Con 3 pares, en uno de los más baratos. Con 4, en los dos más baratos. Con 5 o más, en los ⌊n/2⌋ más baratos | **Definido**. Con 5 o más pares: **propuesta de trabajo** |
+| Primera compra de 1 par | Suscriptor: cupón de $ 10.000, cashback del 10 %, envío gratis y hasta 6 cuotas. Quien no se suscribe: hasta 3 cuotas | Precio de lista, hasta 6 cuotas sin interés y 5 % de crédito. Envío según las reglas | **Definido** |
+| Dos o más anteojos | Sin descuento | **Dúo:** 25 % en el de menor precio. Con 3 pares, en uno de los más baratos. Con 4, en los dos más baratos. Con 5 o más, en los ⌊n/2⌋ más baratos | **Definido** |
 | Cupón de bienvenida | $ 10.000 en la primera compra de cada suscriptor | Ya no se da en las altas nuevas. Los ya dados se respetan | **Definido** |
-| Crédito | 10 % en **cada** compra como suscriptor | 10 % en **cada compra de dos o más anteojos**, sobre lo pagado en anteojos sin el crédito usado y sin tope. Un anteojo solo no genera | **Definido**. Que un anteojo solo genere 5 %: **en evaluación** (sección A) |
-| Cuándo se genera y cuándo se puede usar | Se anota al acreditarse el pago y se puede usar 30 días después del pago | Se crea **pendiente** al acreditarse el pago. Pasa a **disponible** 30 días después de una entrega con fecha confiable, sin devoluciones ni incidencias pendientes. Lo ya ganado sigue a 30 días del pago | **Definido** y **propuesta de trabajo**. Fecha de entrega: **a validar** |
-| En qué se usa | En cualquier producto. Puede pagar la compra entera | El crédito nuevo, solo en anteojos, total o parcial. No paga el envío, ni estuches ni paños. No vence. El saldo antiguo conserva su alcance | **Definido** y **propuesta de trabajo** (§10.3) |
-| Cuotas | 3 para todos y 6 para suscriptores | Hasta 6 para todos los compradores, sin suscribirse ni registrarse, en primera compra y recompras, cuando Mercado Pago las confirma | **Definido** y **propuesta de trabajo** |
+| Crédito | 10 % en **cada** compra como suscriptor | 10 % en **cada compra de dos o más anteojos**, sobre lo pagado en anteojos sin el crédito usado y sin tope. Un anteojo solo genera 5 % | **Definido** |
+| Cuándo se genera y cuándo se puede usar | Se anota al acreditarse el pago y se puede usar 30 días después del pago | Se crea **pendiente** al acreditarse el pago. Pasa a **disponible** 30 días después de una entrega con fecha confiable, sin devoluciones ni incidencias pendientes. Lo ya ganado sigue a 30 días del pago | **Definido**. Fecha de entrega: **a validar** |
+| En qué se usa | En cualquier producto. Puede pagar la compra entera | El crédito nuevo, solo en anteojos, total o parcial. No paga el envío, ni estuches ni paños. No vence. El saldo antiguo conserva su alcance | **Definido** (§10.3) |
+| Cuotas | 3 para todos y 6 para suscriptores | Hasta 6 para todos los compradores, sin suscribirse ni registrarse, en primera compra y recompras, cuando Mercado Pago las confirma | **Definido** |
 | Envío | Suscriptor: siempre gratis. El resto: según los umbrales | Para todos: gratis en AMBA desde $ 60.000 y en el país desde $ 150.000. Si no, lo paga el cliente | **Definido** |
 | 10 % por dinero en Mercado Pago | Se suma a todo | Se mantiene igual | **Definido**. Llega al 22 % (§8) |
 | Baja de los mails | Corta los beneficios nuevos y conserva el saldo | Solo corta los mails de novedades. El crédito y la cuenta no cambian | **Definido** |
@@ -725,6 +750,10 @@ Fuentes: Config, `lib/envio-gratis.ts` y `lib/rueddo.ts`.
 ---
 
 ## 4. Cuánto deja cada caso, hoy y con la política nueva
+
+> **Números del análisis anterior:** costo de $ 9.570 y compra individual
+> sin crédito. Con la política aprobada (5 % en la compra individual y
+> costo de $ 10.208), los números están en la sección A.
 
 Todo en 6 cuotas, con CAC de $ 20.000.
 
@@ -767,20 +796,23 @@ Todo en 6 cuotas, con CAC de $ 20.000.
 
 ### 5.1 Un par (6 cuotas, sin crédito)
 
+> **Análisis anterior:** el par suelto sin crédito y con costo de $ 9.570.
+> Con el 5 % aprobado, ver A.4 y el Anexo A-1.
+
 | 1 par | Envío 1 | Envío 2 | Envío 3 | Envío máximo para llegar al 22 % |
 |---|---|---|---|---|
 | AMBA, envío gratis (CABA / GBA 1 / GBA 2 y 3) | ✓ 30,0 % · $ 22.253 | ✓ 27,7 % · $ 20.592 | ✓ 24,8 % · $ 18.462 | $ 11.636 |
 | Resto del país, el cliente paga lo cotizado más 10 % ($ 5.500 / $ 10.000 / $ 15.000) | ✓ 31,9 % · $ 25.289 | ✓ 29,7 % · $ 24.737 | ✓ 27,4 % · $ 24.125 | — |
 | Ídem, sin el recargo del 10 % | ✓ 31,6 % | ✓ 29,2 % | ✓ 26,7 % | — |
-| *Sensibilidad: un modelo hipotético de $ 69.900, AMBA. **No apto para lanzar*** | ✗ 16,4 % · $ 9.454 | ✗ 13,5 % · $ 7.793 | ✗ 9,8 % · $ 5.663 | $ 549 |
-| *Ídem, resto del país, el cliente paga el envío. **No apto para lanzar*** | ✗ 19,9 % · $ 12.490 | ✗ 17,9 % · $ 11.938 | ✗ 15,9 % · $ 11.326 | — |
+| *Sensibilidad: un modelo hipotético de $ 69.900, AMBA. **Debajo del piso*** | ✗ 16,4 % · $ 9.454 | ✗ 13,5 % · $ 7.793 | ✗ 9,8 % · $ 5.663 | $ 549 |
+| *Ídem, resto del país, el cliente paga el envío. **Debajo del piso*** | ✗ 19,9 % · $ 12.490 | ✗ 17,9 % · $ 11.938 | ✗ 15,9 % · $ 11.326 | — |
 
 - **El par de $ 89.900 llega en los casos evaluados.** En AMBA tiene margen
   hasta un envío de $ 11.636. Con las tarifas de `lib/rueddo.ts`, el más
   caro es $ 9.075; las vigentes se verifican al implementar.
 - **Un par mucho más barato no llega en 6 cuotas, ni siquiera cuando el
-  cliente paga el envío.** Es **no apto para lanzar** sin ajustar
-  condiciones.
+  cliente paga el envío.** Queda **debajo del piso**. Los próximos modelos
+  podrán salir a precios más altos (Ale, 05/11/2026).
   - Con el costo y el CAC de hoy, un par suelto en 6 cuotas necesita un
     precio de **$ 85.279 o más** para llegar con el envío de GBA 2 y 3.
   - Si se suma un modelo más barato, hay que recalcular antes de lanzarlo
@@ -794,8 +826,8 @@ Todo en 6 cuotas, con CAC de $ 20.000.
 | Ídem en AMBA (CABA / GBA 1 / GBA 2 y 3) | | | Gratis | ✓ 32,9 % · $ 42.830 | ✓ 31,7 % · $ 41.169 | ✓ 30,0 % · $ 39.039 | — |
 | *Dúo $ 89.900 + $ 69.900 (hipotético)* | $ 142.325 | $ 14.233 | AMBA gratis | ✓ 29,3 % · $ 34.470 | ✓ 27,9 % · $ 32.809 | ✓ 26,1 % · $ 30.679 | $ 14.886 |
 | *Ídem, resto del país* | | | No llega a $ 150.000: lo paga el cliente | ✓ 30,6 % · $ 37.506 | ✓ 29,2 % · $ 36.955 | ✓ 27,7 % · $ 36.342 | — |
-| *Dúo $ 69.900 + $ 69.900 (hipotético). **No apto para lanzar*** | $ 122.325 | $ 12.233 | AMBA gratis | ✓ 23,1 % · $ 23.324 | ✗ 21,4 % · $ 21.663 | ✗ 19,3 % · $ 19.533 | $ 5.799 |
-| *Ídem, resto del país. **No apto para lanzar*** | | | Lo paga el cliente | ✓ 24,8 % · $ 26.360 | ✓ 23,4 % · $ 25.808 | ✗ 22,0 % · $ 25.196 (apenas por debajo) | — |
+| *Dúo $ 69.900 + $ 69.900 (hipotético). **Debajo del piso*** | $ 122.325 | $ 12.233 | AMBA gratis | ✓ 23,1 % · $ 23.324 | ✗ 21,4 % · $ 21.663 | ✗ 19,3 % · $ 19.533 | $ 5.799 |
+| *Ídem, resto del país. **Debajo del piso*** | | | Lo paga el cliente | ✓ 24,8 % · $ 26.360 | ✓ 23,4 % · $ 25.808 | ✗ 22,0 % · $ 25.196 (apenas por debajo) | — |
 | 3 pares de $ 89.900 | $ 247.225 | $ 24.723 | Gratis ($ 5.500 / $ 10.000 / $ 15.000) | ✓ 40,4 % · $ 82.526 | ✓ 38,6 % · $ 78.807 | ✓ 36,5 % · $ 74.675 | $ 50.967 |
 | *3 pares: $ 89.900, $ 89.900 y $ 69.900* | $ 232.225 | $ 23.223 | Gratis | ✓ 38,6 % · $ 74.167 | ✓ 36,7 % · $ 70.448 | ✓ 34,6 % · $ 66.315 | $ 44.152 |
 | 4 pares de $ 89.900 | $ 314.650 | $ 31.465 | Gratis | ✓ 42,5 % · $ 110.534 | ✓ 41,1 % · $ 106.815 | ✓ 39,5 % · $ 102.682 | $ 70.023 |
@@ -810,8 +842,7 @@ Todo en 6 cuotas, con CAC de $ 20.000.
   - con envío gratis en GBA 1 (21,4 %) y en GBA 2 y 3 (19,3 %);
   - fuera de AMBA con un envío de $ 15.000 (22,0 %, apenas por debajo).
 
-  Es **no apto para lanzar** sin ajustar condiciones, igual que el par
-  suelto barato de §5.1.
+  Queda **debajo del piso**, igual que el par suelto barato de §5.1.
 
 ### 5.3 Cómo se aplica el Dúo con precios distintos (definido)
 
@@ -824,9 +855,9 @@ Todo en 6 cuotas, con CAC de $ 20.000.
 3. Si hay precios iguales, da lo mismo cuál se elige.
 4. Estuches y paños no cuentan para el Dúo.
 
-| Anteojos en el pedido | Llevan el 25 % | Ejemplo con precios distintos | Descuento | Paga | Crédito (10 %) |
+| Anteojos en el pedido | Llevan el 25 % | Ejemplo con precios distintos | Descuento | Paga | Crédito |
 |---|---|---|---|---|---|
-| 1 | Ninguno | $ 89.900 | — | $ 89.900 | No genera (en evaluación: 5 %, $ 4.495) |
+| 1 | Ninguno | $ 89.900 | — | $ 89.900 | 5 %: $ 4.495 |
 | 2 | El más barato | $ 89.900 + $ 69.900 | 25 % de $ 69.900 = $ 17.475 | $ 142.325 | $ 14.233 |
 | 3 | Uno de los más baratos | $ 89.900 + $ 89.900 + $ 69.900 | 25 % de $ 69.900 = $ 17.475 | $ 232.225 | $ 23.223 |
 | 4 | Los dos más baratos | $ 89.900 × 2 + $ 69.900 × 2 | 25 % de $ 69.900 × 2 = $ 34.950 | $ 284.650 | $ 28.465 |
@@ -834,7 +865,8 @@ Todo en 6 cuotas, con CAC de $ 20.000.
 | 6 | Los tres más baratos | 6 × $ 89.900 | 25 % de $ 89.900 × 3 = $ 67.425 | $ 471.975 | $ 47.198 |
 
 - **Con 5 o más pares** se mantiene la regla de ⌊n/2⌋: los descuentos van a
-  los pares de menor precio. **Propuesta de trabajo.**
+  los pares de menor precio. **Definido.**
+- **El crédito** es del 10 % desde 2 anteojos y del 5 % con 1.
 - **Envío:** el umbral de $ 150.000 se mide después del Dúo. Por eso un Dúo
   con un modelo más barato puede quedar debajo del umbral y pagar el envío
   fuera de AMBA, como en el ejemplo de $ 142.325.
@@ -852,10 +884,10 @@ rangos bajan y algunos casos no llegan (§5).
 | Dúo y hasta 6 cuotas | **Se combinan** (definido) | ✓ 26,3 % a 32,9 % |
 | Dúo y crédito del 10 %, en cada compra de dos o más anteojos | **Se combinan** (definido) | Igual que la fila anterior |
 | Dúo que usa crédito anterior y genera crédito nuevo | **Se combinan** (definido). El crédito nuevo va sobre lo pagado | ✓ 29,2 % a 35,3 % |
-| Par suelto y 6 cuotas, sin crédito nuevo (en evaluación: con 5 %, sección A) | **Definido** | AMBA ✓ 24,8 % a 30,0 %. Resto del país, paga el cliente: ✓ 27,4 % a 31,9 % |
-| Par suelto que usa crédito | **Se combinan** (definido). No genera crédito nuevo (en evaluación: genera 5 % sobre lo pagado) | Con $ 15.733: ✓ 28,3 % a 35,1 % |
+| Par suelto, 6 cuotas y 5 % de crédito | **Se combinan** (definido) | Con la política aprobada, ver A.4 (19,0 % a 32,9 % según precio y envío). Sin crédito, del análisis anterior: AMBA ✓ 24,8 % a 30,0 % y resto del país ✓ 27,4 % a 31,9 % |
+| Par suelto que usa crédito y genera 5 % sobre lo pagado | **Se combinan** (definido) | Con la política aprobada, ver A.4 y el Anexo A-3. Sin crédito nuevo, del análisis anterior: con $ 15.733, ✓ 28,3 % a 35,1 % |
 | Crédito y envío | **No**: el crédito no paga el envío (definido) | — |
-| Crédito nuevo y estuches o paños | **No**: no se genera sobre ellos (definido) ni se usa en ellos (propuesta de trabajo). El saldo antiguo sí, con su alcance original | — |
+| Crédito nuevo y estuches o paños | **No**: no se genera sobre ellos (definido) ni se usa en ellos (definido). El saldo antiguo sí, con su alcance original | — |
 | Dinero en Mercado Pago (1 pago) en el par suelto, el Dúo o la recompra | **Se combinan**: se mantiene (definido) | ✓ 31,5 % a 43,2 % (§8) |
 | Cupón de bienvenida en altas nuevas | **Se elimina** desde la vigencia (definido) | — |
 | Cupón ya dado y Dúo | **Se suman**, porque así lo dicen las condiciones aceptadas (punto 5). **A validar** | ✓ 23,5 % a 29,9 % (§7) |
@@ -966,27 +998,29 @@ seguir en el 22 %:
 
 | Compra | ¿Genera crédito? | Estado |
 |---|---|---|
-| Un solo anteojo, con o sin estuches o paños | **No** en lo definido. **5 %** en el ajuste en evaluación | **Definido**. El 5 %: **en evaluación** (sección A) |
+| Un solo anteojo, con o sin estuches o paños, sea la primera compra o una recompra | **Sí**: 5 % de lo pagado en el anteojo, sin tope | **Definido** |
 | Dos o más anteojos, sea la primera compra o una recompra | **Sí**: 10 % de lo pagado en anteojos, sin tope | **Definido** |
-| La parte de una compra que se paga con crédito | **No**: el 10 % va solo sobre lo pagado | **Definido** |
+| La parte de una compra que se paga con crédito | **No**: el 5 % o el 10 % va solo sobre lo pagado | **Definido** |
 | Estuches, paños y envío | **No** | **Definido** |
 | Quien no aceptó recibir publicidad o se dio de baja de los mails | **Sí**, igual que cualquier comprador: no depende de eso | **Definido** |
-| Suscriptor del programa anterior | **Sí**, en sus compras de dos o más anteojos, cuando ya rijan las reglas nuevas para él (§11) | **Definido** (lo ganado se respeta) |
+| Suscriptor del programa anterior | **Sí**, 5 % o 10 % según los anteojos, cuando ya rijan las reglas nuevas para él (§11) | **Definido** (lo ganado se respeta) |
 | Compra pagada entera con crédito | **No**: no se pagó nada en dinero | Sale de la regla |
 | Compra sin cuenta | El crédito tiene que quedar en una cuenta: la del mail de la compra, verificado con código | **A validar** (§14, O7) |
 
-**Qué es una compra elegible** (propuesta de trabajo): un pedido **pagado**
-con **dos o más anteojos**. Con eso alcanza para generar el crédito
-pendiente. La entrega y los 30 días no son parte de la elegibilidad: son
-condiciones para que el crédito esté **disponible** (§10.2).
+**Qué es una compra elegible** (definido): un pedido **pagado** con al menos
+un anteojo. Genera 5 % con un anteojo y 10 % con dos o más. Con eso alcanza
+para generar el crédito pendiente. La entrega y los 30 días no son parte de
+la elegibilidad: son condiciones para que el crédito esté **disponible**
+(§10.2).
 
-### 10.2 Generación y disponibilidad, separadas (propuesta de trabajo)
+### 10.2 Generación y disponibilidad, separadas (definido)
 
 **1. Generación: crédito pendiente.**
 
-- Se crea **en cuanto se acredita el pago** de un pedido con dos o más
-  anteojos. No se espera la entrega ni los 30 días.
-- El monto es el 10 % de lo pagado en anteojos, sin el crédito usado.
+- Se crea **en cuanto se acredita el pago** de un pedido con anteojos. No
+  se espera la entrega ni los 30 días.
+- El monto es el 5 % (un anteojo) o el 10 % (dos o más) de lo pagado en
+  anteojos, sin el crédito usado.
 - Se ve en la cuenta como **pendiente** y todavía no se puede usar.
 - Es como se anota hoy el cashback: «cuando se acredita el pago».
 
@@ -1004,10 +1038,8 @@ pendiente hasta que se resuelva.
 **3. Si se devuelve la compra.** Mientras el crédito está pendiente:
 
 - una devolución total lo anula;
-- una devolución parcial que deja menos de dos anteojos también lo anula.
-  Con el ajuste en evaluación (sección A), se recalcularía al 5 % de lo que
-  quede pagado;
-- si quedan dos o más anteojos, se recalcula sobre lo que queda pagado.
+- si queda un solo anteojo, se recalcula al 5 % de lo que quede pagado;
+- si quedan dos o más anteojos, se recalcula al 10 % de lo que quede pagado.
 
 Cómo se recalcula depende de la regla de reintegro, que todavía no está
 definida y necesita revisión legal (§13.2 y §14, L1).
@@ -1035,13 +1067,13 @@ pago, como se aceptó.
 - se usa en compras futuras, **solo en anteojos**, total o parcial
   (definido);
 - **no paga el envío** (definido);
-- **no paga estuches ni paños** (propuesta de trabajo);
+- **no paga estuches ni paños** (definido);
 - **no vence**, por ahora (definido). El modelo ya supone que se usa entero:
   no cuenta con que venza;
 - no se cambia por dinero ni se transfiere, como hoy.
 
 **El saldo ganado con las reglas de hoy conserva su alcance.** No se
-restringe en forma retroactiva (propuesta de trabajo):
+restringe en forma retroactiva (definido):
 
 - sigue sirviendo en cualquier producto, también estuches y paños;
 - puede pagar la compra entera, como dicen las condiciones aceptadas;
@@ -1049,6 +1081,9 @@ restringe en forma retroactiva (propuesta de trabajo):
   validación no puede achicar lo que ese saldo permite hoy.
 
 ### 10.4 Recompras con crédito y 6 cuotas: verificación pedido por pedido
+
+> **Análisis anterior:** la recompra individual sin crédito nuevo y costo de
+> $ 9.570. Con el 5 % aprobado, ver A.4, A.5 y el Anexo A-3 y A-4.
 
 Se pidió verificar que superen el 22 % con estas reglas y sin apoyarse en el
 acumulado del cliente. **Todas las recompras evaluadas en esta tabla
@@ -1123,11 +1158,10 @@ $ 157.325 − $ 14.302.
 
 **Por qué no crece sin control:**
 
-- solo generan crédito las compras de dos o más anteojos. El par suelto lo
-  usa, pero no genera. Con el ajuste en evaluación también genera 5 %; ese
-  recorrido está en A.6;
-- el crédito nuevo es el 10 % de lo pagado en dinero, nunca del crédito
-  usado. No hay crédito sobre crédito;
+- el Dúo genera 10 % y el par suelto 5 %. El recorrido del par suelto está
+  en A.6;
+- el crédito nuevo es un porcentaje de lo pagado en dinero, nunca del
+  crédito usado. No hay crédito sobre crédito;
 - no se genera sobre el envío, ni sobre estuches o paños;
 - se crea pendiente y recién pasa a disponible 30 días después de una
   entrega con fecha confiable, sin devoluciones ni incidencias pendientes;
@@ -1178,7 +1212,7 @@ queda en ✗ 21,5 % / ✗ 16,5 % / ✗ 10,9 % (6 cuotas).
 
 | Hoy, para el suscriptor | Después del aviso | Por qué |
 |---|---|---|
-| Cashback del 10 % en cada compra, también la de un par | Crédito del 10 % en las compras de dos o más anteojos. En evaluación: 5 % en la compra de un anteojo (sección A) | El de hoy no llega al 22 % (§4) |
+| Cashback del 10 % en cada compra, también la de un par | Crédito del 10 % en las compras de dos o más anteojos y del 5 % en la de un anteojo | El de hoy no llega al 22 % (§4) |
 | Envío gratis siempre | Las reglas de envío de todos | El par suelto con envío gratis caro no llega al 22 % |
 | Hasta 6 cuotas | Hasta 6 cuotas, igual que hoy | Sin cambio |
 | Beneficios atados a recibir mails | Cuenta y crédito independientes de los mails | Decisión de Ale |
@@ -1236,11 +1270,11 @@ Están en §5.2 (cuánto deja cada uno) y §5.3 (cómo se aplica el Dúo con
 precios distintos).
 
 - **Resumen:**
-  - con 1 par, sin descuento ni crédito (en evaluación: 5 % de crédito);
+  - con 1 par, sin descuento y con 5 % de crédito;
   - con 2, el 25 % al más barato;
   - con 3, a uno de los más baratos;
   - con 4, a los dos más baratos;
-  - con 5 o más, a los ⌊n/2⌋ más baratos (propuesta de trabajo).
+  - con 5 o más, a los ⌊n/2⌋ más baratos (definido).
 - **En todos los casos** el crédito es el 10 % de lo pagado en anteojos.
 - **Estuches y paños:** no cuentan para el Dúo ni generan crédito, y siguen
   con sus propios descuentos.
@@ -1267,9 +1301,8 @@ eso también rige para el crédito nuevo (§14, L5).
 - Ejemplo con un par A de $ 89.900 y un par B de $ 69.900 (hipotético).
 - El 25 % va a B ($ 17.475): el cliente paga $ 142.325 y genera $ 14.233
   de crédito.
-- Si se queda con un solo anteojo, ese pedido ya no genera crédito. Con el
-  ajuste en evaluación, generaría 5 % de lo que quede pagado. Cómo se anula
-  o recalcula también entra en la revisión legal.
+- Si se queda con un solo anteojo, el crédito pasa al 5 % de lo que quede
+  pagado. Cómo se recalcula también entra en la revisión legal.
 
 La tabla muestra cuánto deja lo que queda en 6 cuotas. Supone que Harper
 pagó el envío, que es lo más exigente, y no cuenta el retiro del par
@@ -1359,13 +1392,15 @@ devuelto.
 | O9 | **El costo comercial real de cada recompra** (mail, CRM, plataforma, tiempo) | Hay que compararlo con los topes de A.5. No está medido, y $ 0 es solo una referencia |
 | O10 | **La recompra a 90 días de cada mes de primeras compras**, separando compra individual y Dúo | Es lo que dice si el crédito genera compras extra (A.8). Hoy no hay tasas reales, y las de A.8 son hipotéticas |
 
-### No aptos para lanzar sin ajustar condiciones
+### Debajo del piso del 22 % (a monitorear)
 
-Son casos evaluados que no llegan al 22 %. No se lanzan sin cambiar el
-precio, el envío gratis o las cuotas, y sin volver a calcular:
+Son casos evaluados que dejan menos del 22 %. Por decisión de Ale
+(05/11/2026), el 22 % es una referencia para monitorear: **no frena el
+lanzamiento ni bloquea el checkout.** Se siguen con el margen del panel.
 
 | Caso | Por qué no llega | Dónde |
 |---|---|---|
+| Compra individual de $ 89.900 con 5 %, envío gratis de GBA 2 y 3 (precio actual) | 19,0 % la primera compra y 20,2 % la segunda | A.4 |
 | Par suelto de $ 69.900 (hipotético), 6 cuotas | No llega en ningún envío, ni siquiera cuando el cliente paga el envío (9,8 % a 19,9 %). Hace falta un precio de $ 85.279 o más | §5.1 |
 | Dúo de dos pares de $ 69.900 (hipotético) con crédito, 6 cuotas | No llega con envío gratis en GBA 1 (21,4 %) y en GBA 2 y 3 (19,3 %), ni fuera de AMBA con un envío de $ 15.000 (22,0 %, apenas por debajo) | §5.2 |
 | Cualquier combinación fuera de los supuestos de §0 | Otro precio, otro costo de envío o un CAC mayor que el tope | §0 y §10.4 |
@@ -1373,7 +1408,7 @@ precio, el envío gratis o las cuotas, y sin volver a calcular:
 El cupón ya dado en un par suelto con envío gratis caro (§7) tampoco llega.
 No es un lanzamiento: es el costo de respetar lo ya dado.
 
-### Definido en la revisión del PR #60 (propuesta de trabajo)
+### Definido en la revisión del PR #60 y aprobado por Ale (05/11/2026)
 
 - Hasta **6 cuotas para todos los compradores**, sin obligar a suscribirse
   ni registrarse, solo cuando Mercado Pago las confirma para el monto.
@@ -1409,7 +1444,7 @@ No es un lanzamiento: es el costo de respetar lo ya dado.
 
 ---
 
-## Anexo A. Tablas completas del ajuste estratégico
+## Anexo A. Tablas completas de la sección A
 
 Salen de `lib/contribucion.ts` con los supuestos de A.3: costo de $ 10.208, CAC de $ 20.000 por pedido, 6 cuotas y las reglas de envío de hoy. «Cobrado» es lo que se cobra con IVA, con el envío si lo paga el cliente y sin el crédito usado. «Por anteojo» es la contribución del pedido dividida por los anteojos del pedido. «$ 24.000» marca si llega al objetivo por anteojo.
 
