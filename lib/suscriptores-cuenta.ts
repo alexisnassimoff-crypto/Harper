@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createRecord, ErrorAirtable, escaparFormula, getRecord, listRecords, TABLAS, updateRecord, type AirtableRecord } from "./airtable";
 import { cerrojoDesdeEntorno, soltarSinFallar, type Cerrojo } from "./cerrojo";
 import { yaCompro } from "./clientes";
+import { cambiarFavorito, escribirFavoritos, leerFavoritos } from "./favoritos";
 import { VERSION_CONDICIONES_SUSCRIPTORES } from "./legales";
 import {
   beneficiosDeNotas,
@@ -43,6 +44,8 @@ export type FilaSuscriptor = {
   Baja?: string | null;
   Version_condiciones?: string;
   Notas?: string;
+  /** «Mis favoritos» (Ale, 05/11/2026): un SKU por renglón, el más reciente primero (lib/favoritos.ts). */
+  Favoritos?: string;
 };
 
 export type FilaSaldo = {
@@ -73,6 +76,8 @@ export type CuentaSuscriptor = {
   cuponPedido: string;
   /** ISO de la baja, o null si sigue suscripto. */
   baja: string | null;
+  /** Los SKU que guardó con el corazón, el más reciente primero. */
+  favoritos: string[];
 };
 
 function cuentaDe(registro: { id: string; fields: FilaSuscriptor }): CuentaSuscriptor {
@@ -87,6 +92,7 @@ function cuentaDe(registro: { id: string; fields: FilaSuscriptor }): CuentaSuscr
     cupon: f.Cupon === "Disponible" || f.Cupon === "Usado" ? f.Cupon : "",
     cuponPedido: (f.Cupon_pedido ?? "").trim(),
     baja: f.Baja ? f.Baja : null,
+    favoritos: leerFavoritos(f.Favoritos),
   };
 }
 
@@ -530,3 +536,17 @@ export async function resumenDeLaCuenta(cuenta: CuentaSuscriptor, ahora = new Da
 
 /** El cerrojo de un suscriptor: el webhook y el pedido en $ 0 no tocan su cupón y su saldo a la vez. */
 export const claveSuscriptor = (suscriptorId: string) => `harper:suscriptor:${suscriptorId}`;
+
+/**
+ * Suma o saca un favorito de la cuenta (Ale, 05/11/2026). `cuenta` es la fila
+ * recién leída (la de la sesión, suscriptorDeLaPeticion), así que la lista
+ * parte de lo que de verdad está guardado; si no cambia nada, no se escribe.
+ * Devuelve la lista como quedó. Solo toca el campo «Favoritos».
+ */
+export async function guardarFavorito(cuenta: CuentaSuscriptor, sku: string, quiere: boolean): Promise<string[]> {
+  const nueva = cambiarFavorito(cuenta.favoritos, sku, quiere);
+  const igual = nueva.length === cuenta.favoritos.length && nueva.every((s, i) => s === cuenta.favoritos[i]);
+  if (igual) return nueva;
+  await updateRecord<FilaSuscriptor>(TABLAS.suscriptores, cuenta.id, { Favoritos: escribirFavoritos(nueva) });
+  return nueva;
+}

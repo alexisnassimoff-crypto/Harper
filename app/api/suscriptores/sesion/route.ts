@@ -12,7 +12,10 @@ const sinCache = { "Cache-Control": "private, no-store" };
  * de suscripción le dice a un suscriptor que ya lo es, en vez de invitarlo.
  *
  *   GET /api/suscriptores/sesion
- *     → 200 { suscriptor: { email, nombre, cupon, saldoDisponible } | null }
+ *     → 200 { suscriptor: { email, nombre, cupon, saldoDisponible, activo, favoritos } | null }
+ *
+ * `favoritos` son los SKU guardados con el corazón (lib/favoritos.ts): así
+ * cada corazón de la página sabe si ya está lleno.
  *
  * Solo lee la cookie de este navegador (httpOnly, firmada): nunca dice nada
  * de otro mail. Sin cookie no toca Airtable. Si Airtable falla, null: la
@@ -35,6 +38,7 @@ export async function GET(request: Request) {
         cupon: vigente ? "Disponible" : "Usado",
         saldoDisponible,
         activo: estaActivo(cuenta),
+        favoritos: cuenta.favoritos,
       },
     },
     { headers: sinCache }

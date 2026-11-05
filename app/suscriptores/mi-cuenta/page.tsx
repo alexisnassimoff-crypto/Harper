@@ -3,7 +3,10 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { AccionesCuenta, EntrarACuenta } from "@/components/suscriptores/AccionesCuenta";
 import MisCompras from "@/components/suscriptores/MisCompras";
+import MisFavoritos from "@/components/suscriptores/MisFavoritos";
+import { getProductos } from "@/lib/catalogo";
 import { getConfig } from "@/lib/config";
+import { favoritosDelCatalogo, normalizarSku } from "@/lib/favoritos";
 import { comprasDeLaCuenta } from "@/lib/mis-compras";
 import { enlaceWhatsApp } from "@/lib/whatsapp";
 import { precio as formatearPrecio } from "@/lib/formato";
@@ -15,9 +18,10 @@ import { TEXTOS } from "@/lib/textos";
 /**
  * «Mi cuenta» de Suscriptores Harper (Ale, 03/11/2026): entra con su mail y
  * el código que le llega, y ve su saldo, lo que tiene en camino (y desde
- * cuándo lo puede usar), su cupón de bienvenida, sus compras (Ale,
- * 05/11/2026: «Mis compras», solo las del mail verificado de la cuenta,
- * lib/mis-compras.ts) y sus movimientos. Todo se lee de nuevo de Airtable en
+ * cuándo lo puede usar), su cupón de bienvenida, sus favoritos (Ale,
+ * 05/11/2026: «Mis favoritos», los anteojos guardados con el corazón,
+ * lib/favoritos.ts), sus compras («Mis compras», solo las del mail
+ * verificado de la cuenta, lib/mis-compras.ts) y sus movimientos. Todo se lee de nuevo de Airtable en
  * cada visita (lib/suscriptores-cuenta.ts). Es a donde llevan los mails.
  */
 
@@ -37,7 +41,7 @@ const diaDe = (iso: string) => {
 };
 const conSigno = (monto: number) => `${monto < 0 ? "−" : "+"}${formatearPrecio(Math.abs(monto))}`;
 
-export default async function MiCuenta() {
+export default async function MiCuenta({ searchParams }: { searchParams: Promise<{ guardar?: string | string[] }> }) {
   const valor = (await cookies()).get(COOKIE_SUSCRIPTOR)?.value ?? null;
   const cuenta = await suscriptorDeLaSesion(valor).catch((error) => {
     console.error("[suscriptores] no se pudo leer la sesión:", error instanceof Error ? error.message : error);
@@ -45,6 +49,10 @@ export default async function MiCuenta() {
   });
 
   if (!cuenta) {
+    // Llegó desde un corazón sin haber entrado: al entrar, se guarda ese color.
+    const pedido = (await searchParams).guardar;
+    const sku = normalizarSku(typeof pedido === "string" ? pedido : null);
+    const pendiente = sku ? (favoritosDelCatalogo([sku], await getProductos())[0] ?? null) : null;
     return (
       <section className="contenedor seccion cuenta-suscriptor" aria-labelledby="cuenta-titulo">
         <p className="etiqueta-mono">{TEXTOS.suscriptores.etiqueta}</p>
@@ -52,8 +60,11 @@ export default async function MiCuenta() {
           {T.entrarTitulo}
         </h1>
         <p className="apagado cuenta-suscriptor__bajada">{T.entrarBajada}</p>
+        {pendiente ? (
+          <p className="cuenta-suscriptor__pendiente">{TEXTOS.favoritos.pendiente(`${pendiente.modelo} ${pendiente.color}`)}</p>
+        ) : null}
         <div className="cuenta-suscriptor__entrar">
-          <EntrarACuenta />
+          <EntrarACuenta guardar={pendiente?.sku ?? null} />
         </div>
         <p className="cuenta-suscriptor__pie">
           {T.noSuscripto} <Link href="/suscriptores">{T.verBeneficios}</Link>
@@ -62,15 +73,18 @@ export default async function MiCuenta() {
     );
   }
 
-  // Las compras, en paralelo y por su lado: si no se pueden leer, el resto de la cuenta sigue.
-  const [resumen, compras, config] = await Promise.all([
+  // Las compras y los favoritos, en paralelo y por su lado: si no se pueden leer, el resto de la cuenta sigue.
+  const [resumen, compras, config, productos] = await Promise.all([
     resumenDeLaCuenta(cuenta),
     comprasDeLaCuenta(cuenta.email).catch((error) => {
       console.error("[mis-compras] no se pudieron leer:", error instanceof Error ? error.message : error);
       return null;
     }),
     getConfig().catch(() => null),
+    getProductos(),
   ]);
+  // Sin catálogo no se pueden armar (getProductos devuelve [] si Airtable falla).
+  const favoritos = cuenta.favoritos.length === 0 ? [] : productos.length > 0 ? favoritosDelCatalogo(cuenta.favoritos, productos) : null;
   const hoy = fechaArgentina(new Date());
   // Lo que está en camino, cada cashback con el día desde el que se usa (el más cercano primero).
   const enCamino = resumen.movimientos
@@ -139,6 +153,8 @@ export default async function MiCuenta() {
       <Link href="/#los-modelos" className="boton cuenta-suscriptor__comprar">
         {TEXTOS.suscriptores.elegir}
       </Link>
+
+      <MisFavoritos favoritos={favoritos} />
 
       <MisCompras
         compras={compras}

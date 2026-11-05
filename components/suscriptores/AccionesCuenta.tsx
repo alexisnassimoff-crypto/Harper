@@ -8,9 +8,29 @@ import { refrescarSuscriptor } from "./useSuscriptor";
 
 const { cuenta: T } = TEXTOS.suscriptores;
 
-/** Entrar a «mi cuenta» con el mail y el código: al confirmar, la página se vuelve a armar con la sesión. */
-export function EntrarACuenta() {
+/**
+ * Entrar a «mi cuenta» con el mail y el código: al confirmar, la página se
+ * vuelve a armar con la sesión. Si llegó desde un corazón sin haber entrado
+ * (`guardar`, el SKU), primero guarda ese favorito y abre «Mis favoritos».
+ */
+export function EntrarACuenta({ guardar = null }: { guardar?: string | null }) {
   const router = useRouter();
+
+  async function alEntrar() {
+    if (!guardar) {
+      router.refresh();
+      return;
+    }
+    await fetch("/api/suscriptores/favoritos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sku: guardar, favorito: true }),
+    }).catch(() => null);
+    // La sesión, con el favorito ya guardado, para los corazones de esta pestaña.
+    await refrescarSuscriptor();
+    router.replace("/suscriptores/mi-cuenta#mis-favoritos");
+  }
+
   // Sin «quiero suscribirme»: debajo está el enlace a los beneficios, y si el
   // mail no está suscripto, el mismo formulario le pide la casilla.
   return (
@@ -19,7 +39,7 @@ export function EntrarACuenta() {
       modoInicial="entrar"
       mostrarListo={false}
       conCambioDeModo={false}
-      alListo={() => router.refresh()}
+      alListo={() => void alEntrar()}
     />
   );
 }

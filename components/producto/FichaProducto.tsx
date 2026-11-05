@@ -29,6 +29,7 @@ import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import Estrellas, { formatearPuntaje } from "@/components/portada/Estrellas";
 import SuscriptoresEnLaFicha from "@/components/suscriptores/SuscriptoresEnLaFicha";
+import BotonFavorito from "@/components/suscriptores/BotonFavorito";
 import Cifras from "@/components/Cifras";
 
 export default function FichaProducto({
@@ -287,9 +288,15 @@ export default function FichaProducto({
             </a>
           ) : null}
           <span className="label">{producto.categoria}</span>
-          <h1 className="ficha-producto__nombre">
-            <Cifras>{producto.nombre}</Cifras>
-          </h1>
+          {/* El corazón de los anteojos, al lado del nombre: guarda el color elegido. */}
+          <div className="ficha-producto__encabezado">
+            <h1 className="ficha-producto__nombre">
+              <Cifras>{producto.nombre}</Cifras>
+            </h1>
+            {conTalle ? (
+              <BotonFavorito sku={variante.sku} modelo={producto.nombre} color={variante.color} className="favorito--ficha" />
+            ) : null}
+          </div>
 
           <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem" }}>
             <span style={{ fontSize: "1.375rem" }}>

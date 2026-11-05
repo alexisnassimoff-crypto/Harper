@@ -373,7 +373,8 @@ export const PEDIDOS: RegistroFixture[] = [
  * Suscriptores Harper (Ale, 03/11/2026), para probar la cuenta, el carrito y
  * el checkout sin tocar la base real (lib/suscriptores-cuenta.ts):
  *  - Ana: ya compró (cupón usado), con saldo para usar, cashback en camino y
- *    uno anulado. Le alcanza para pagar un par entero con saldo.
+ *    uno anulado. Le alcanza para pagar un par entero con saldo. Tiene tres
+ *    anteojos en «Mis favoritos».
  *  - Beto: recién suscripto, con el cupón de bienvenida y sin saldo.
  *  - Carla: se dio de baja; su sesión no vale y no tiene beneficios.
  * Las fechas se arman con el día de hoy, para que «en camino» siga siéndolo.
@@ -399,6 +400,8 @@ export function suscriptoresIniciales(): RegistroFixture[] {
       Origen: "Portada",
       Cupon: "Usado",
       Cupon_pedido: "HARPER-PRUEBA",
+      // «Mis favoritos»: tres colores guardados, el más reciente primero.
+      Favoritos: "CITRINO-CAREY\nAMATISTA-GRIS\nOBSIDIANA-NEGRO",
     }),
     suscriptor(SUSCRIPTOR_BETO, {
       Email: "beto@ejemplo.com",
