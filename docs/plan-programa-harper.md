@@ -1058,8 +1058,8 @@ pago, como se aceptó.
 
 - El pedido tiene un estado «entregado» (`lib/mis-compras.ts`). Lo pone
   Harper a mano y no guarda la fecha.
-- La propuesta es un campo «Fecha_entrega» en Pedidos que se completa solo
-  al marcar «entregado» (§18, para aprobar).
+- Aprobado (Ale, 05/11/2026): un campo «Fecha_entrega» en Pedidos que se
+  completa solo al marcar «entregado» (§18).
 - Mientras no haya fecha confiable, el crédito sigue pendiente (§14, O1).
 - No cambia lo que deja el pedido.
 
@@ -1384,7 +1384,7 @@ devuelto.
 
 | # | Qué | Por qué |
 |---|---|---|
-| O1 | **Una fecha de entrega confiable** para cada pedido | El crédito pendiente pasa a disponible 30 días después de esa fecha. Sin ella, sigue pendiente. Hoy «entregado» no guarda la fecha. Propuesta para aprobar en §18: un campo en Pedidos que se completa al marcar «entregado» |
+| O1 | **Una fecha de entrega confiable** para cada pedido | El crédito pendiente pasa a disponible 30 días después de esa fecha. Sin ella, sigue pendiente. Hoy «entregado» no guarda la fecha. Aprobado en §18 (05/11/2026): un campo en Pedidos que se completa al marcar «entregado». Sin fecha, el crédito nunca se libera solo |
 | O2 | **El costo real del envío por provincia** fuera de AMBA | El Dúo con envío gratis a todo el país llega mientras el envío no pase de $ 21.701 (§9) |
 | O3 | **Verificar las tarifas de envío vigentes en la tienda (Config)** al implementar, y revisar las de AMBA cada vez que Rueddo las ajuste | El par suelto en 6 cuotas llega mientras el envío de AMBA no pase de $ 11.636. Con las tarifas de `lib/rueddo.ts`, el máximo es $ 9.075 |
 | O4 | **Recalcular antes de lanzar un modelo más barato** | Con el costo y el CAC de hoy, un par suelto en 6 cuotas necesita un precio de $ 85.279 o más. Un Dúo de dos pares baratos queda justo (§5) |
@@ -1659,6 +1659,12 @@ página calcula el descuento por su cuenta.
   - el lector de pagos y pedidos (Tarea 11, `lib/credito-pagos.ts`, §17.9).
 
   No las usa el webhook, ni el checkout, ni ninguna página.
+- **En producción, el Crédito Harper no hace nada.** No está conectado al
+  webhook de Mercado Pago ni al checkout, y `HARPER_CREDITO_ACTIVO` está
+  apagado. Cuando este documento dice qué pasa ante un aviso de pago, un
+  reembolso o una entrega, describe la lógica preparada y probada, no algo
+  que ya funcione con pedidos reales. Conectarla requiere autorización
+  (§17.9).
 - **El adaptador no escribe en la tabla real** mientras
   `HARPER_CREDITO_ACTIVO` esté apagado: solo en el Airtable de prueba.
 - Las pruebas corren contra una tabla y un cerrojo en memoria
@@ -1792,8 +1798,9 @@ está definida (§14, L1).
 
    Falta conectarla: los cambios concretos están en §17.9 para autorizar.
    Con `HARPER_CREDITO_ACTIVO` apagado, no hace nada.
-4. De dónde sale la fecha de entrega (§14, O1). Propuesta para aprobar en
-   §18.
+4. De dónde sale la fecha de entrega (§14, O1). Aprobado en §18: primero
+   el campo y la automatización de Airtable; lo que la lee desde el código
+   va al conectar el crédito.
 5. La liberación diaria.
 6. **Mostrarlo en Mi cuenta y usarlo en el checkout.** Usarlo necesita
    descontar o reservar el crédito sin descontarlo dos veces. «Disponible» es
@@ -1806,6 +1813,9 @@ está definida (§14, L1).
 Mercado Pago puede avisar dos veces, avisar tarde o avisar en otro orden. La
 regla: **adentro del cerrojo se lee el estado de verdad** (el pago en
 Mercado Pago, el pedido en Pedidos), no el aviso que llegó.
+
+La tabla es la lógica preparada y probada. Todavía no corre con pedidos
+reales: el crédito no está conectado al webhook (§17.1).
 
 | Caso | Qué pasa |
 |---|---|
@@ -1937,7 +1947,7 @@ Ante el aviso de un pago:
 
 **Falta decidir antes de conectar:**
 
-- la fuente de la fecha de entrega (§14, O1; propuesta en §18);
+- ~~la fuente de la fecha de entrega~~: decidida en §18 (05/11/2026);
 - el aviso a los suscriptores (§11);
 - cómo se usa el crédito en el checkout (§17.7, punto 6).
 
@@ -2040,6 +2050,10 @@ fuera de Vercel y con una base que no sea la real (`puedeEscribirCreditos`).
 
 ### 17.11 El cashback de hoy ante pagos repetidos (Tarea 12)
 
+**Esta sección es del cashback de hoy (tabla Saldos), que sí está en
+producción** desde el PR #70. No es el Crédito Harper, que sigue sin
+conectar (§17.1).
+
 **El error que había.**
 
 - El webhook anulaba el cashback cuando se reembolsaba el pago registrado
@@ -2136,11 +2150,22 @@ nunca vuelve a crear un cashback anulado.
 
 ---
 
-## 18. Fecha de entrega confiable (Tarea 14, propuesta para aprobar)
+## 18. Fecha de entrega confiable (Tarea 14, aprobada por Ale el 05/11/2026)
 
-**Nada de esta sección está hecho ni activado.** Es la propuesta para §14,
-O1. El crédito pendiente pasa a disponible 30 días después de esta fecha
-(§10.2).
+**Aprobada con condiciones (§18.5).** Resuelve §14, O1. El crédito
+pendiente pasa a disponible 30 días después de esta fecha (§10.2).
+
+**Qué se implementa ahora y qué no:**
+
+- **Ahora:** solo el campo «Fecha_entrega» en Pedidos y la automatización
+  de Airtable que lo completa, con una prueba controlada.
+- **Después, cada parte con su autorización:** lo que lee la fecha desde el
+  código. Eso es la ruta diaria, los avisos de los 10 días y la incidencia
+  por arrepentimiento.
+- **El Crédito Harper sigue sin conectar.** El webhook, el checkout y Mi
+  cuenta no lo usan, y `HARPER_CREDITO_ACTIVO` está apagado. Las tablas de
+  esta sección dicen cómo va a funcionar cuando se conecte, no lo que pasa
+  hoy en producción.
 
 ### 18.1 Lo que ya existe
 
@@ -2167,10 +2192,10 @@ O1. El crédito pendiente pasa a disponible 30 días después de esta fecha
 - No hay fechas viejas que recuperar: el campo nacería vacío y serviría
   desde el primer envío.
 
-### 18.2 La propuesta
+### 18.2 La solución aprobada
 
-**Fuente de la fecha: Harper, al marcar «entregado».** Por ahora no viene
-del transportista.
+**Fuente de la fecha: Harper, al marcar «entregado»** (confirmación
+manual). Por ahora no viene del transportista.
 
 Por qué:
 
@@ -2179,15 +2204,19 @@ Por qué:
   envíos elegidos son de Rueddo, que no tiene integración;
 - con tan pocos pedidos, una integración cuesta más de lo que resuelve.
 
-**Cambio mínimo en Airtable (necesita aprobación):**
+**Cambio en Airtable (aprobado):**
 
 1. **Un campo nuevo en Pedidos: «Fecha_entrega»** (Fecha, sin hora).
 2. **Una automatización nueva, «Fecha de entrega»**, como la de despacho:
-   - se dispara cuando el pedido queda en «entregado» y Fecha_entrega está
-     vacía;
+   - registra la fecha **solo cuando el pedido pasa a «entregado» y el
+     campo está vacío**;
    - pone la fecha del día, en hora de Argentina;
-   - no llama a harper.ar, no usa secretos y no cambia el Estado;
-   - nunca pisa una fecha cargada.
+   - **nunca sobrescribe una fecha cargada**;
+   - no llama a harper.ar, no usa secretos, no manda mails y no cambia el
+     Estado.
+
+   Antes de dejarla andando con pedidos reales, se hace una prueba
+   controlada que no dispara mails ni toca pedidos reales.
 3. **Harper puede corregir la fecha** a la del seguimiento del transportista
    si marcó «entregado» días después:
    - una fecha más tardía que la real es segura: el crédito se libera
@@ -2198,8 +2227,8 @@ Por qué:
 vez que se toca el Estado, por ejemplo si después se cancela, y se perdería
 la fecha.
 
-**Cambio mínimo en el código.** Va al conectar el crédito, con
-`HARPER_CREDITO_ACTIVO=1`, y cada punto se autoriza:
+**Cambio mínimo en el código (no está hecho).** Va al conectar el crédito,
+con `HARPER_CREDITO_ACTIVO=1`, y cada punto se autoriza:
 
 1. **Al anotar el crédito, leer Fecha_entrega del pedido.** Hoy se pasa
    vacía (`lib/credito-pagos.ts`).
@@ -2210,34 +2239,67 @@ la fecha.
      la entrega, no de cuando se leyó.
    - **Antes de liberar, volver a leer el pedido.** Si ya no está
      «entregado» o la fecha cambió, no se libera y se avisa a Harper.
-   - **Avisar a Harper** en el mail diario de la conciliación (§18.3).
+   - **Avisar a Harper** en el mail diario de la conciliación (abajo).
 3. **Validar la fecha:** no puede ser futura ni anterior a la compra. Si no
    es válida, no se usa y se avisa.
+4. **La incidencia por arrepentimiento**, solo con el pedido verificado
+   (abajo).
 
-El aviso de pedidos sin entrega solo lee Pedidos. Puede mandarse aunque el
-crédito siga apagado.
+**El aviso de los 10 días separa dos casos** (Ale, 05/11/2026):
+
+| Lista | Qué pedidos | Qué tiene que hacer Harper |
+|---|---|---|
+| **Cobrados sin despachar** | Estado «pagado» o «preparando», con más de 10 días desde la compra | Despachar o avisar al cliente |
+| **Enviados sin entrega confirmada** | Estado «enviado», sin Fecha_entrega, con más de 10 días desde la compra | Mirar el seguimiento y marcar «entregado», o reclamar al transportista |
+
+- **Quedan afuera:** los pendientes de pago, los cancelados y los
+  rechazados.
+- **Control aparte:** un pedido «entregado» sin Fecha_entrega no debería
+  existir. Si aparece, se avisa sin esperar los 10 días: quiere decir que
+  la automatización falló.
+- El aviso solo lee Pedidos. Puede mandarse aunque el crédito siga apagado.
+
+**La incidencia por arrepentimiento se abre sola solo si el pedido está
+verificado** (Ale, 05/11/2026). Tienen que cumplirse las cuatro cosas:
+
+1. la solicitud trae un número de pedido que existe en Pedidos;
+2. el mail de la solicitud es el del cliente de ese pedido;
+3. el pedido está confirmado: pagado, preparando, enviado o entregado;
+4. el pedido tiene un Crédito Harper.
+
+- **Si falta cualquiera, no se toca nada.** Queda para revisión manual: el
+  mail de la solicitud le avisa a Harper que no se pudo vincular con
+  seguridad.
+- **Abrir la incidencia solo frena la liberación.** No anula el crédito ni
+  cambia el monto. Cerrarla es siempre de Harper.
+- El formulario no verifica el mail. Por eso hace falta que coincidan el
+  número y el mail del pedido. Aun así, una incidencia abierta por error
+  solo atrasa la liberación hasta que Harper la cierre.
 
 ### 18.3 Cuando falta la confirmación, llega tarde o hay una devolución
 
+Así va a funcionar **cuando el crédito se conecte**. Hoy el Crédito Harper
+no está conectado y no hace nada en producción.
+
 | Caso | Qué pasa |
 |---|---|
-| Nadie confirma la entrega | El crédito sigue pendiente. A los 10 días de la compra sin Fecha_entrega, el mail diario lo avisa a Harper con el pedido y el Tracking, hasta que se resuelva |
+| Nadie confirma la entrega | El crédito sigue pendiente y **nunca se libera solo**. A los 10 días de la compra, el mail diario lo avisa a Harper en la lista que corresponde (cobrado sin despachar, o enviado sin entrega confirmada), hasta que se resuelva |
 | Harper consulta y el paquete llegó | Marca «entregado» y, si hace falta, corrige la fecha a la del seguimiento |
-| El paquete se perdió o volvió al remitente | Nunca queda «entregado»: el crédito no se libera. Si se reembolsa, el webhook ya lo anula (§17.9) |
+| El paquete se perdió o volvió al remitente | Nunca queda «entregado»: el crédito no se libera. Si se reembolsa, el crédito se anula con el aviso del reembolso, cuando esté conectado al webhook (§17.9, para autorizar) |
 | Harper marca «entregado» días después | La automatización pone la fecha del día. Harper la corrige a la real si la sabe. Si no, queda la tardía: el crédito se libera después, nunca antes |
 | La fecha se corrige cuando el crédito ya la leyó | El crédito no cambia solo (`confirmarEntrega` devuelve «distinta»). El mail diario avisa la diferencia y Harper decide |
 | Se marcó «entregado» por error | Harper vuelve el Estado atrás. Antes de liberar se relee el pedido: no se libera y se avisa. Hay 30 días para darse cuenta |
-| La entrega se confirma antes que el aviso del pago | El crédito nace con esa fecha (ya funciona así, §17.8) |
-| Arrepentimiento (10 días) | El crédito sigue pendiente, porque se libera a los 30 días. La solicitud abre la incidencia (§18.5, punto 4). Con la devolución hecha, se anula o se recalcula (§17.5) |
+| La entrega se confirma antes que el aviso del pago | El crédito nace con esa fecha. La lógica ya lo contempla y está probada (§17.8), pero no está conectada |
+| Arrepentimiento (10 días) | El crédito sigue pendiente, porque se libera a los 30 días. La solicitud abre la incidencia solo si el pedido está verificado; si no, Harper la revisa a mano (§18.2). Con la devolución hecha, se anula o se recalcula (§17.5) |
 | Cambio (30 días) | Harper marca «Incidencia_abierta» en Créditos. No se libera hasta cerrarla. Si ya estaba disponible, queda «A revisar» |
-| Devolución con reembolso por Mercado Pago | El webhook ya anula el crédito cuando el pedido queda sin cobro (§17.9) |
+| Devolución con reembolso por Mercado Pago | El crédito se anula cuando el pedido queda sin cobro, con la lectura de §17.9, una vez conectado al webhook |
 | El cambio se manda en un segundo envío | Vale la primera fecha de entrega. La incidencia abierta frena la liberación hasta cerrarla |
 
 **No se presume la entrega.** Sin fecha, el crédito no se libera solo,
 aunque pasen meses. Presumirla podría liberarlo antes de que terminen los
 plazos de devolución.
 
-### 18.4 Fase 2: el seguimiento del transportista (solo si hace falta)
+### 18.4 Segunda etapa: el seguimiento del transportista (no se hace ahora)
 
 - **Correo Argentino:** Harper ya carga esos envíos en MiCorreo y guarda
   Correo_envio_id. El paso mínimo sería que la ruta diaria lea el
@@ -2258,21 +2320,29 @@ plazos de devolución.
 - una vez por mes, comparar 5 fechas cargadas con el seguimiento del
   transportista.
 
-### 18.5 Decisiones para Ale
+### 18.5 Decisiones de Ale (05/11/2026, revisión del PR #71)
 
-1. **La fuente:** la marca de Harper, corregida con el seguimiento cuando
-   haga falta. Sin integración de transportista por ahora.
-2. **Crear en Pedidos el campo «Fecha_entrega» y la automatización «Fecha
-   de entrega».** Recomiendo encenderla apenas se cree: registra la fecha
-   desde el primer envío, aunque el crédito siga apagado.
-3. **Sin confirmación:**
-   - el crédito sigue pendiente, sin plazo máximo y sin presumir la entrega;
-   - el aviso a Harper sale a los 10 días de la compra.
-4. **La solicitud de arrepentimiento abre sola la incidencia del crédito**
-   cuando trae un número de pedido de ese mail. Si no lo trae, Harper la
-   abre a mano en Créditos.
-5. **El seguimiento de Correo Argentino queda para la fase 2**, con el
-   criterio de §18.4.
+1. **Confirmación manual de la entrega**, sin integrar transportistas por
+   ahora.
+2. **Se crean el campo «Fecha_entrega» en Pedidos y la automatización.**
+   - Registra la fecha solo cuando el pedido pasa a «entregado» y el campo
+     está vacío.
+   - No sobrescribe fechas existentes.
+   - Primero, una prueba controlada que no dispare mails ni afecte pedidos
+     reales.
+3. **Sin fecha confirmada, el Crédito Harper sigue pendiente y nunca se
+   libera automáticamente.** No se presume la entrega.
+4. **El aviso de los 10 días separa** los pedidos cobrados que todavía no
+   se despacharon de los enviados cuya entrega no se confirmó. Deja afuera
+   los cancelados y los pendientes de pago (§18.2).
+5. **La solicitud de arrepentimiento abre sola una incidencia solo si se
+   verifica que corresponde al pedido correcto.** Si no se puede validar,
+   queda para revisión manual (§18.2).
+6. **El seguimiento automático de transportistas queda para una segunda
+   etapa** (§18.4).
+
+**No cambia:** los pagos, el cashback de hoy, los precios, el Dúo ni
+ninguna otra función.
 
 ---
 
