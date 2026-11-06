@@ -752,7 +752,12 @@ test("Fuera de sus archivos, solo el webhook y el checkout usan el crédito (pas
     }
   };
   for (const dir of ["app", "components", "lib"]) recorrer(dir);
-  assert.deepEqual(usos, [path.join("app", "api", "checkout", "route.ts"), path.join("lib", "webhook-proceso.ts")]);
+  assert.deepEqual(usos, [path.join("app", "api", "checkout", "route.ts"), path.join("lib", "credito-diario.ts"), path.join("lib", "webhook-proceso.ts")]);
+  // El control diario (paso 2) solo lo usa su ruta, detrás del cron y del interruptor, y no tiene cron todavía.
+  const ruta = fs.readFileSync(path.join(raiz, "app", "api", "credito", "diario", "route.ts"), "utf8");
+  assert.match(ruta, /if \(!cronAutorizado\(request\.headers\.get\("authorization"\)\)\) \{/);
+  assert.match(ruta, /if \(!controlDiarioActivo\(\)\) \{/);
+  assert.doesNotMatch(fs.readFileSync(path.join(raiz, "vercel.json"), "utf8"), /credito/, "sin cron del crédito hasta el corte");
   // El checkout solo marca el régimen en las Notas (apagado, idénticas).
   const checkout = fs.readFileSync(path.join(raiz, "app", "api", "checkout", "route.ts"), "utf8");
   assert.match(checkout, /import \{ notasConRegimen \} from "@\/lib\/credito-pagos";/);

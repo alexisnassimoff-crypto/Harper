@@ -1663,7 +1663,9 @@ página calcula el descuento por su cuenta.
   implementación (06/11/2026) la generación está conectada al webhook de
   Mercado Pago y a la marca del checkout (§17.9, puntos 1 y 2), pero solo
   corre con `HARPER_CREDITO_ACTIVO=1`, que sigue apagado: apagado, el
-  webhook y el checkout son los de siempre. Cuando este documento dice qué pasa ante un aviso de pago, un
+  webhook y el checkout son los de siempre. Desde el paso 2 (06/11/2026)
+  existe la ruta diaria que libera el crédito a los 30 días de la entrega
+  (§17.9, punto 3), también detrás del interruptor y **sin cron**. Cuando este documento dice qué pasa ante un aviso de pago, un
   reembolso o una entrega, describe la lógica preparada y probada, no algo
   que ya funcione con pedidos reales. Conectarla requiere autorización
   (§17.9).
@@ -1916,8 +1918,8 @@ Ante el aviso de un pago:
 - **En todos esos casos:** quien llame contesta 503 y Mercado Pago reintenta.
 
 **Cambios concretos al flujo de pagos.** Los puntos 1 y 2 están hechos
-(paso 1, 06/11/2026), detrás de `HARPER_CREDITO_ACTIVO` apagado; el 3 es el
-paso 2. Un error del crédito que reintentar no arregla (datos del pedido que
+(paso 1, 06/11/2026) y el 3 también (paso 2, 06/11/2026), todo detrás de
+`HARPER_CREDITO_ACTIVO` apagado; la ruta diaria no tiene cron todavía. Un error del crédito que reintentar no arregla (datos del pedido que
 no sirven, Airtable que rechaza la escritura) contesta 200 y manda un mail
 interno «REVISAR Crédito Harper», para que Mercado Pago no reintente para
 siempre. Si ese mail no sale (`enviarMail` devuelve falso o falla), contesta
@@ -1946,7 +1948,28 @@ anterior siguen igual:
      hoy salen por la rama «duplicado».
    - Con el interruptor apagado, el webhook queda idéntico.
 3. **Una ruta diaria nueva, `/api/credito/diario`** (cron de Vercel,
-   protegida):
+   protegida). **Hecha en el paso 2** (`lib/credito-diario.ts`, con
+   `tests/credito-diario.test.ts`), sin cron en `vercel.json`:
+   - solo entra el cron de Vercel con `CRON_SECRET` (no acepta
+     `SYNC_TOKEN`); apagado el interruptor, no lee ni escribe nada; una
+     corrida a la vez (`harper:credito:diario` en Redis), además del
+     cerrojo de cada crédito;
+   - por cada crédito pendiente lee su pedido y Fecha_entrega (§18.2):
+     anota la entrega con `confirmarEntrega` y libera con `liberarCredito`
+     solo si el pedido sigue «entregado» con la misma fecha y Mercado Pago
+     lo muestra cobrado entero, sin reclamos ni contracargos. Todo eso se
+     relee adentro del cerrojo, justo antes de escribir;
+   - lo que no cierra (sin cobro, reembolso parcial, reclamo, pedido
+     cancelado, fecha inválida, futura o anterior a la compra, «entregado»
+     sin fecha, fecha cambiada) queda pendiente, sin anular ni liberar, y va
+     a «requieren atención» en el mail diario a Harper. Un error pasajero no
+     frena a los demás y se reintenta al día siguiente (respuesta 500);
+   - solo escribe en Créditos: no toca Pedidos, Saldos, el cashback de hoy
+     ni Mercado Pago (solo GET);
+   - **no hace todavía:** el aviso de los 10 días (§18.2) ni la lista de
+     pagos repetidos sin devolver.
+
+   Lo que se propuso para esta ruta:
    - libera los créditos que cumplieron los 30 días;
    - hace una conciliación que manda un mail a Harper: créditos duplicados,
      créditos pendientes cuyo pedido ya no está cobrado y pagos repetidos sin
@@ -2240,7 +2263,10 @@ Por qué:
 vez que se toca el Estado, por ejemplo si después se cancela, y se perdería
 la fecha.
 
-**Cambio mínimo en el código (no está hecho).** Va al conectar el crédito,
+**Cambio mínimo en el código.** Los puntos 2 y 3 están hechos (paso 2,
+06/11/2026, §17.9, punto 3), sin cron. El 1 no hace falta: la ruta diaria
+toma la fecha al día siguiente y el plazo cuenta desde la entrega. El 4
+falta. Va al conectar el crédito,
 con `HARPER_CREDITO_ACTIVO=1`, y cada punto se autoriza:
 
 1. **Al anotar el crédito, leer Fecha_entrega del pedido.** Hoy se pasa
@@ -2431,7 +2457,8 @@ la fecha de la Argentina y la UTC coinciden. El cambio de día (23:30 y
 
 **Lo que falta, cada parte con su autorización:**
 
-- lo que lee la fecha desde el código (§18.2): la ruta diaria, los avisos
+- lo que lee la fecha desde el código (§18.2): la ruta diaria (hecha en el
+  paso 2, sin cron), los avisos
   de los 10 días y la incidencia por arrepentimiento;
 - conectar el Crédito Harper (§17.9).
 

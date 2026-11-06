@@ -341,27 +341,58 @@ export async function confirmarEntrega(numero: string, fechaEntrega: string, dep
 
 // ---------- 3. Liberar los que ya cumplieron los 30 días ----------
 
+export type ResultadoLiberacion =
+  | { estado: "liberado"; fila: FilaCredito }
+  /** Sigue pendiente: sin entrega, sin los 30 días o con una incidencia abierta. */
+  | { estado: "todavia-no"; fila: FilaCredito }
+  /** Ya no es la fila pendiente de su pedido: se liberó, se anuló, se marcó o era un duplicado. */
+  | { estado: "ya-no-pendiente"; fila: FilaCredito | null }
+  /** Cumple en la tabla, pero la verificación de afuera (el pedido, Mercado Pago) dice que no. */
+  | { estado: "retenido"; fila: FilaCredito; motivo: string }
+  | Ocupado;
+
+/** Lo que se comprueba afuera de la tabla justo antes de liberar, adentro del cerrojo. */
+export type VerificacionLiberacion = { liberar: true; nota?: string } | { liberar: false; motivo: string };
+
 /**
- * Pasa a Disponible cada crédito Pendiente con entrega confirmada, 30 días
- * cumplidos y sin incidencias abiertas (para una tarea diaria). Cada uno con
- * su cerrojo; uno ocupado queda para la próxima vuelta. Sin Redis no corre.
+ * Pasa a Disponible un crédito Pendiente con entrega confirmada, 30 días
+ * cumplidos (en Buenos Aires) y sin incidencias abiertas. Todo se vuelve a
+ * leer adentro del cerrojo del pedido; `verificar` corre ahí mismo, después
+ * de esos controles y antes de escribir (la ruta diaria relee el pedido y
+ * Mercado Pago, §17.9 y §18.2). Sin Redis tira `ErrorCerrojo`.
+ */
+export async function liberarCredito(
+  candidata: FilaCredito,
+  deps: DependenciasCredito,
+  opciones: { verificar?: (fila: FilaCredito) => Promise<VerificacionLiberacion> } = {}
+): Promise<ResultadoLiberacion> {
+  return conCerrojo(candidata.pedido, deps, async (d): Promise<ResultadoLiberacion> => {
+    // Se vuelve a leer adentro del cerrojo: pudo cambiar (una devolución) o ser un duplicado.
+    const fila = vigente((await leerDepurado(candidata.pedido, d)).filas);
+    if (!fila || fila.id !== candidata.id || fila.estado !== "Pendiente") return { estado: "ya-no-pendiente", fila };
+    const { estado } = estadoDelCredito({ anulado: false, fechaEntrega: fila.fechaEntrega, incidenciaAbierta: fila.incidenciaAbierta, hoy: d.ahora() });
+    if (estado !== "disponible") return { estado: "todavia-no", fila };
+    const control: VerificacionLiberacion = opciones.verificar ? await opciones.verificar(fila) : { liberar: true };
+    if (!control.liberar) return { estado: "retenido", fila, motivo: control.motivo };
+    const nueva = await d.almacen.actualizar(fila.id, { estado: "Disponible", notas: conNota(fila, d, control.nota ?? "Disponible.") });
+    return { estado: "liberado", fila: nueva };
+  });
+}
+
+/**
+ * Pasa a Disponible cada crédito Pendiente que cumple (`liberarCredito`, sin
+ * verificación de afuera). Cada uno con su cerrojo; uno ocupado queda para la
+ * próxima vuelta. Sin Redis no corre. La ruta diaria usa `liberarCredito`
+ * con la verificación del pedido y de Mercado Pago (lib/credito-diario.ts).
  */
 export async function liberarDisponibles(deps: DependenciasCredito): Promise<{ liberados: string[]; ocupados: string[] }> {
   exigirCerrojo(deps);
   const liberados: string[] = [];
   const ocupados: string[] = [];
   for (const candidata of await deps.almacen.pendientes()) {
-    const r = await conCerrojo(candidata.pedido, deps, async (d) => {
-      // Se vuelve a leer adentro del cerrojo: pudo cambiar (una devolución) o ser un duplicado.
-      const fila = vigente((await leerDepurado(candidata.pedido, d)).filas);
-      if (!fila || fila.id !== candidata.id || fila.estado !== "Pendiente") return false;
-      const { estado } = estadoDelCredito({ anulado: false, fechaEntrega: fila.fechaEntrega, incidenciaAbierta: fila.incidenciaAbierta, hoy: d.ahora() });
-      if (estado !== "disponible") return false;
-      await d.almacen.actualizar(fila.id, { estado: "Disponible", notas: conNota(fila, d, "Disponible.") });
-      return true;
-    });
-    if (r === true) liberados.push(candidata.pedido);
-    else if (r !== false) ocupados.push(candidata.pedido);
+    const r = await liberarCredito(candidata, deps);
+    if (r.estado === "liberado") liberados.push(candidata.pedido);
+    else if (r.estado === "ocupado") ocupados.push(candidata.pedido);
   }
   return { liberados, ocupados };
 }

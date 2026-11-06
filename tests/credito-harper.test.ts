@@ -275,7 +275,8 @@ test("Apagado por defecto: fuera de sus módulos, solo el webhook lo mira, para 
     }
   };
   for (const dir of ["app", "components", "lib"]) recorrer(dir);
-  assert.deepEqual(usos, [path.join("lib", "webhook-proceso.ts")], "nadie más acredita ni cambia ningún cobro");
+  // Y el control diario del paso 2 (lib/credito-diario.ts), detrás del mismo interruptor.
+  assert.deepEqual(usos, [path.join("lib", "credito-diario.ts"), path.join("lib", "webhook-proceso.ts")], "nadie más acredita ni cambia ningún cobro");
 });
 
 test("Fechas imposibles: el 31 de febrero, el 29 de febrero de un año no bisiesto, el mes 13", () => {
