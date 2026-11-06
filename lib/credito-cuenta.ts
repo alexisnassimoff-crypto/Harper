@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { creditosPorEmail } from "./credito-airtable";
+import { almacenUsosAirtable, leerSaldoDeCredito, lectorPedidosDeUsosAirtable, type AlmacenUsos, type FilaUso, type LectorPedidosDeUsos } from "./credito-uso";
 import { creditoActivo } from "./credito-harper";
 import { laDelPedido, saldosDeLaCuenta, type FilaCredito } from "./credito-persistencia";
 import { codigoCorrecto, normalizarEmail } from "./reconocer-cliente";
@@ -12,6 +12,7 @@ import {
   COOKIE_SUSCRIPTOR,
   crearSesionCuenta,
   crearSesionSuscriptor,
+  leerCookie,
   leerSesionCuenta,
 } from "./suscriptores-sesion";
 
@@ -60,6 +61,38 @@ export async function visitaDeLaCuenta(
   const clave = claveDeSesionCuenta();
   const sesion = clave ? leerSesionCuenta(clave, cookies.cuenta ?? null, ahora.getTime()) : null;
   return sesion ? { tipo: "comprador", email: sesion.email } : null;
+}
+
+/** La cuenta de una petición a la API (el checkout y el carrito, paso 4), por sus cookies. */
+export function visitaDeLaPeticion(request: Request, opciones: { abierta?: boolean; ahora?: Date } = {}): Promise<VisitaCuenta | null> {
+  const cookie = request.headers.get("cookie");
+  return visitaDeLaCuenta({ suscriptor: leerCookie(cookie, COOKIE_SUSCRIPTOR), cuenta: leerCookie(cookie, COOKIE_CUENTA) }, opciones);
+}
+
+/**
+ * Paso 4: lo que el carrito y la cotización del envío necesitan para mostrar
+ * el Crédito Harper (solo lectura: no reserva nada; reservar es del checkout,
+ * con la cuenta tomada). Null si está apagado, no hay cuenta verificada, no
+ * tiene crédito para usar o Airtable no contesta: el carrito sigue sin él.
+ * `usarCredito`: true para todo lo que se pueda, un monto, o nada (0).
+ */
+export async function creditoParaElCarrito(request: Request, usarCredito: unknown): Promise<{ usable: number; pedido: number | null } | null> {
+  if (!cuentaConCredito()) return null;
+  try {
+    const visita = await visitaDeLaPeticion(request);
+    if (!visita) return null;
+    const saldo = await leerSaldoDeCredito(visita.email, {
+      almacen: almacenUsosAirtable,
+      pedidos: lectorPedidosDeUsosAirtable,
+      reloj: { ahora: () => Date.now(), dormir: async () => {} },
+    });
+    if (saldo.usable <= 0) return null;
+    const pedido = usarCredito === true ? null : typeof usarCredito === "number" && usarCredito > 0 ? Math.floor(usarCredito) : 0;
+    return { usable: saldo.usable, pedido };
+  } catch (error) {
+    console.error("[credito] no se pudo leer el crédito para el carrito:", error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 // ---------- Entrar con el código, sin darse de alta ----------
@@ -171,26 +204,30 @@ export async function atenderEntrada(
 
 // ---------- La billetera ----------
 
-export type EstadoMovimientoCredito = "disponible" | "pendiente" | "en-revision" | "anulado";
+export type EstadoMovimientoCredito = "disponible" | "pendiente" | "en-revision" | "anulado" | "usado" | "reservado";
 
 export type MovimientoCredito = {
+  /** «ganado»: el crédito de una compra. «uso»: lo que se usó en una compra (paso 4). */
+  tipo: "ganado" | "uso";
   pedido: string;
   monto: number;
+  /** 0 en un uso. */
   porcentaje: number;
   estado: EstadoMovimientoCredito;
   /** El día en Buenos Aires en que se anotó ("AAAA-MM-DD"). */
   fecha: string;
   /** Desde qué día se puede usar ("AAAA-MM-DD"), si ya hay entrega confirmada. */
   disponibleDesde: string | null;
-  /** Pendiente con una devolución, reclamo o contracargo abierto. */
+  /** Pendiente con una devolución, reclamo o contracargo abierto; en un uso, en revisión por un reembolso. */
   conGestionAbierta: boolean;
 };
 
 export type BilleteraCredito = {
+  /** Lo que se puede usar ahora: lo ganado disponible menos lo usado y lo apartado por compras en curso. */
   disponible: number;
   pendiente: number;
   enRevision: number;
-  /** Un movimiento por pedido, el más reciente primero. */
+  /** Un movimiento por pedido (lo ganado y lo usado), el más reciente primero. */
   movimientos: MovimientoCredito[];
 };
 
@@ -201,47 +238,76 @@ const ESTADOS: Record<FilaCredito["estado"], EstadoMovimientoCredito> = {
   Anulado: "anulado",
 };
 
+const diaDe = (iso: string) => {
+  const fecha = new Date(iso);
+  return Number.isNaN(fecha.getTime()) ? "" : fechaArgentina(fecha);
+};
+
 /**
- * La billetera de un mail con sus filas de Créditos. Los totales son los de
- * `saldosDeLaCuenta` (un pedido con dos filas cuenta una vez; lo anulado no
- * suma). Las filas de otro mail o sin monto (las que solo bloquean un pedido)
- * no se muestran. No mira Saldos: el saldo de Suscriptores va aparte.
+ * La billetera de un mail con sus filas de Créditos. Los totales de lo ganado
+ * son los de `saldosDeLaCuenta` (un pedido con dos filas cuenta una vez; lo
+ * anulado no suma). Con `uso` (paso 4), lo disponible es lo que se puede usar
+ * (lib/credito-uso.ts) y se suman los usos: «usado» y «reservado» (una compra
+ * en curso); lo liberado o devuelto no se muestra. Las filas de otro mail o
+ * sin monto no se muestran. No mira Saldos: el saldo de Suscriptores va aparte.
  */
-export function billeteraDeCredito(filas: readonly FilaCredito[], email: string, hoy: Date | string = new Date()): BilleteraCredito {
+export function billeteraDeCredito(
+  filas: readonly FilaCredito[],
+  email: string,
+  hoy: Date | string = new Date(),
+  uso?: { usos: readonly FilaUso[]; usable: number; vencidas?: readonly FilaUso[] }
+): BilleteraCredito {
   const mail = email.trim().toLowerCase();
   const propias = filas.filter((f) => f.email === mail && f.monto > 0);
   const { credito } = saldosDeLaCuenta([], propias, hoy);
   const porPedido = new Map<string, FilaCredito[]>();
   for (const f of propias) porPedido.set(f.clave, [...(porPedido.get(f.clave) ?? []), f]);
-  const movimientos = [...porPedido.values()]
+  const ganados = [...porPedido.values()]
     .map((grupo) => laDelPedido(grupo))
     .filter((f): f is FilaCredito => f !== null)
-    .map((f) => {
-      const generado = new Date(f.generadoEl);
-      return {
-        pedido: f.pedido,
-        monto: f.monto,
-        porcentaje: f.porcentaje,
-        estado: ESTADOS[f.estado],
-        fecha: Number.isNaN(generado.getTime()) ? "" : fechaArgentina(generado),
-        disponibleDesde: f.disponibleDesde,
-        conGestionAbierta: f.estado === "Pendiente" && f.incidenciaAbierta,
-        orden: f.generadoEl,
-      };
-    })
-    .sort((a, b) => b.orden.localeCompare(a.orden))
-    .map(({ orden: _orden, ...m }) => m);
-  return { disponible: credito.disponible, pendiente: credito.pendiente, enRevision: credito.aRevisar, movimientos };
+    .map((f) => ({
+      tipo: "ganado" as const,
+      pedido: f.pedido,
+      monto: f.monto,
+      porcentaje: f.porcentaje,
+      estado: ESTADOS[f.estado],
+      fecha: diaDe(f.generadoEl),
+      disponibleDesde: f.disponibleDesde,
+      conGestionAbierta: f.estado === "Pendiente" && f.incidenciaAbierta,
+      orden: f.generadoEl,
+    }));
+  const vencidas = new Set((uso?.vencidas ?? []).map((u) => u.id));
+  const usados = (uso?.usos ?? [])
+    .filter((u) => u.email === mail && u.monto > 0 && !vencidas.has(u.id) && (u.estado === "Usado" || u.estado === "A revisar" || u.estado === "Reservado"))
+    .map((u) => ({
+      tipo: "uso" as const,
+      pedido: u.pedido,
+      monto: u.monto,
+      porcentaje: 0,
+      estado: (u.estado === "Reservado" ? "reservado" : "usado") as EstadoMovimientoCredito,
+      fecha: diaDe(u.generadoEl),
+      disponibleDesde: null,
+      conGestionAbierta: u.estado === "A revisar",
+      orden: u.generadoEl,
+    }));
+  const movimientos = [...ganados, ...usados].sort((a, b) => b.orden.localeCompare(a.orden)).map(({ orden: _orden, ...m }) => m);
+  return { disponible: uso ? uso.usable : credito.disponible, pendiente: credito.pendiente, enRevision: credito.aRevisar, movimientos };
 }
 
 /**
- * La billetera de la cuenta, leída de Airtable por el mail de la sesión. Si
- * Airtable no contesta, tira: la página muestra el error, nunca un $ 0.
+ * La billetera de la cuenta, leída de Airtable por el mail de la sesión: lo
+ * ganado y lo usado (lib/credito-uso.ts). Solo lee. Si Airtable no contesta,
+ * tira: la página muestra el error, nunca un $ 0.
  */
 export async function billeteraDeLaCuenta(
   visita: VisitaCuenta,
-  leer: (email: string) => Promise<FilaCredito[]> = creditosPorEmail,
-  hoy: Date = new Date()
+  opciones: { hoy?: Date; almacen?: AlmacenUsos; pedidos?: LectorPedidosDeUsos } = {}
 ): Promise<BilleteraCredito> {
-  return billeteraDeCredito(await leer(visita.email), visita.email, hoy);
+  const hoy = opciones.hoy ?? new Date();
+  const leido = await leerSaldoDeCredito(visita.email, {
+    almacen: opciones.almacen ?? almacenUsosAirtable,
+    pedidos: opciones.pedidos ?? lectorPedidosDeUsosAirtable,
+    reloj: { ahora: () => hoy.getTime(), dormir: async () => {} },
+  });
+  return billeteraDeCredito(leido.creditos, visita.email, hoy, { usos: leido.usos, usable: leido.usable, vencidas: leido.vencidas });
 }

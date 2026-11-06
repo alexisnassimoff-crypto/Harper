@@ -157,6 +157,8 @@ export type ItemResuelto = {
   cupon?: number;
   /** Los pesos de este renglón pagados con el saldo del suscriptor. */
   saldo?: number;
+  /** Los pesos de este renglón pagados con Crédito Harper (solo anteojos, lib/credito-uso.ts). */
+  credito?: number;
   /**
    * El descuento Dúo de este renglón (lib/duo.ts), calculado en el servidor:
    * el porcentaje, cuántas unidades lo llevan y cuántos pesos descuenta. Solo

@@ -757,6 +757,8 @@ test("Fuera de sus archivos, solo el webhook y el checkout usan el crédito (pas
     // La billetera de Mi Cuenta (paso 3): solo lee Créditos por el mail de la sesión.
     path.join("lib", "credito-cuenta.ts"),
     path.join("lib", "credito-diario.ts"),
+    // El uso en el checkout (paso 4): reservas y usos en Créditos, detrás del interruptor.
+    path.join("lib", "credito-uso.ts"),
     path.join("lib", "webhook-proceso.ts"),
   ]);
   // El control diario (paso 2) solo lo usa su ruta, detrás del cron y del interruptor, y no tiene cron todavía.

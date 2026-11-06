@@ -11,6 +11,7 @@ import { marcarCompra } from "./clientes";
 import { getConfig } from "./config";
 import { CreditoApagado, dependenciasCredito } from "./credito-airtable";
 import { creditoActivo } from "./credito-harper";
+import { procesarUsoDelPago, usoHayQueReintentar } from "./credito-uso";
 import {
   dependenciasPagoCredito,
   hayQueReintentar,
@@ -482,14 +483,35 @@ function resumenDelCredito(r: ResultadoPagoCredito) {
 async function conCreditoHarper(pagoId: string, hoy: Resultado, credito: DependenciasPagoCredito, deps: Dependencias): Promise<Resultado> {
   try {
     const r = await procesarPagoParaCredito(pagoId, credito);
-    if (hayQueReintentar(r)) {
+    // Paso 4: el crédito USADO en el pedido, con el mismo pago (lib/credito-uso.ts).
+    const uso = !hayQueReintentar(r) && credito.uso ? await procesarUsoDelPago(pagoId, { uso: credito.uso, mp: credito.mp }) : null;
+    if (hayQueReintentar(r) || (uso && usoHayQueReintentar(uso))) {
       console.warn(`[webhook] el crédito del pago ${pagoId} está en manos de otra instancia: se pide reintento`);
       return {
         status: 503,
         cuerpo: { ...hoy.cuerpo, ok: false, credito: { ocupado: true }, detalle: "el crédito del pedido está en manos de otra instancia; reintentar" },
       };
     }
-    return { status: 200, cuerpo: { ...hoy.cuerpo, credito: resumenDelCredito(r) } };
+    const alerta = uso && "alerta" in uso ? uso.alerta : null;
+    if (uso && alerta) {
+      const avisado = await avisarAHarper(deps, async () =>
+        mailAlertaInterna({ config: await getConfig(), asunto: `REVISAR Crédito Harper usado — pedido ${uso.numero}`, lineas: [alerta] })
+      );
+      if (!avisado) {
+        return {
+          status: 503,
+          cuerpo: { ...hoy.cuerpo, ok: false, credito: { revisar: true, avisoEnviado: false }, detalle: "el crédito usado necesita revisión y no salió el aviso; reintentar" },
+        };
+      }
+    }
+    return {
+      status: 200,
+      cuerpo: {
+        ...hoy.cuerpo,
+        credito: resumenDelCredito(r),
+        ...(uso && uso.accion !== "nada" ? { creditoUsado: { accion: uso.accion, ...("resultado" in uso ? { estado: uso.resultado.estado } : {}) } } : {}),
+      },
+    };
   } catch (error) {
     if (!creditoSinArregloPorReintento(error)) {
       console.error(`[webhook] falló el Crédito Harper del pago ${pagoId}; el pago ya quedó registrado y se pide reintento:`, error);

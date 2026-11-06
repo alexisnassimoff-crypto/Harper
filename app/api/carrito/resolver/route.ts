@@ -5,6 +5,7 @@ import { buscarCupon } from "@/lib/cupones";
 import { cuotasParaComprador } from "@/lib/cuotas-servidor";
 import { tieneCuotasDeSuscriptor } from "@/lib/suscriptores";
 import { suscriptorDelCarritoDeLaPeticion } from "@/lib/suscriptores-cuenta";
+import { creditoParaElCarrito } from "@/lib/credito-cuenta";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +35,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
-  const { items, cupon, cuotas, usarSaldo, usarCupon } = (cuerpo ?? {}) as {
+  const { items, cupon, cuotas, usarSaldo, usarCupon, usarCredito } = (cuerpo ?? {}) as {
     items?: unknown;
     cupon?: unknown;
     cuotas?: unknown;
     usarSaldo?: unknown;
     usarCupon?: unknown;
+    /** Crédito Harper (paso 4, solo con HARPER_CREDITO_ACTIVO=1). */
+    usarCredito?: unknown;
   };
 
   if (!Array.isArray(items)) {
@@ -50,12 +53,13 @@ export async function POST(request: Request) {
   // comprueba el checkout, que es donde se sabe quién compra.
   // El suscriptor que entró con su mail (su cookie): su cupón de bienvenida,
   // envío gratis y, si lo pide, su saldo. Los montos los pone el servidor.
-  const suscriptor = await suscriptorDelCarritoDeLaPeticion(request);
+  const [suscriptor, creditoHarper] = await Promise.all([suscriptorDelCarritoDeLaPeticion(request), creditoParaElCarrito(request, usarCredito)]);
   const resuelto = await resolverCarrito(limpiarItems(items), {
     cupon,
     suscriptor,
     usarSaldo: usarSaldo === true,
     usarCupon: usarCupon !== false,
+    creditoHarper,
   });
   // Hasta 3 cuotas sin interés para todos, hasta 6 para un suscriptor de la
   // sesión verificada con los beneficios activos (Ale, 05/11/2026).
@@ -109,6 +113,8 @@ export async function POST(request: Request) {
     suscriptor: resuelto.suscriptor,
     // Solo con el Dúo prendido (Tarea 07); apagado, la respuesta es la de siempre.
     ...(resuelto.duo ? { duo: resuelto.duo } : {}),
+    // Solo con el Crédito Harper prendido y una cuenta con crédito para usar (paso 4).
+    ...(resuelto.creditoHarper ? { creditoHarper: resuelto.creditoHarper } : {}),
     cuotas: conEnvio.suyas ? { ...conEnvio.suyas, monto: resuelto.total } : null,
     cuotasSinEnvio: sinEnvio.suyas ? { ...sinEnvio.suyas, monto: resuelto.subtotal } : null,
     // Las de suscriptor para los mismos montos, solo a quien todavía no las tiene.

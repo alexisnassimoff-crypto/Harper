@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cuotasDelComprador } from "@/lib/suscriptores";
 import { suscriptorDelCarritoDeLaPeticion } from "@/lib/suscriptores-cuenta";
+import { creditoParaElCarrito } from "@/lib/credito-cuenta";
 import { claveDeIp, consumirCuota } from "@/lib/cuota";
 import { verificarCuotas } from "@/lib/cuotas-servidor";
 import { cotizacionParaComprador, type CotizacionEnvio } from "@/lib/envio-gratis";
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Origen no permitido" }, { status: 403, headers: sinCache });
   }
 
-  let cuerpo: { items?: unknown; destino?: unknown; cupon?: unknown; usarSaldo?: unknown; usarCupon?: unknown };
+  let cuerpo: { items?: unknown; destino?: unknown; cupon?: unknown; usarSaldo?: unknown; usarCupon?: unknown; usarCredito?: unknown };
 
   try {
     cuerpo = await request.json();
@@ -89,13 +90,15 @@ export async function POST(request: Request) {
   try {
     // El suscriptor que entró con su mail: envío gratis, su cupón y su saldo
     // (lib/suscriptores-cuenta.ts), para cotizar el mismo total que va a pagar.
-    const suscriptor = await suscriptorDelCarritoDeLaPeticion(request);
+    // Y el Crédito Harper (paso 4, solo con el interruptor), para las cuotas del mismo total.
+    const [suscriptor, creditoHarper] = await Promise.all([suscriptorDelCarritoDeLaPeticion(request), creditoParaElCarrito(request, cuerpo.usarCredito)]);
     const carrito = await resolverCarrito(items, {
       destino,
       cupon: cuerpo.cupon,
       suscriptor,
       usarSaldo: cuerpo.usarSaldo === true,
       usarCupon: cuerpo.usarCupon !== false,
+      creditoHarper,
     });
     const envio = cotizacionParaComprador(carrito, {
       amba: carrito.config.envioGratisAmbaDesde,
