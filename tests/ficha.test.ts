@@ -27,7 +27,7 @@ test("ficha: las medidas se muestran solo si están cargadas, en el orden de la 
 });
 
 test("ficha: los números de la patilla, solo con los tres", () => {
-  assert.equal(numerosDeLaPatilla({ ...vacias, calibreMm: 52, puenteMm: 18, patillaMm: 140 }), "52□18-140");
+  assert.equal(numerosDeLaPatilla({ ...vacias, calibreMm: 52, puenteMm: 18, patillaMm: 140 }), "52-18-140");
   assert.equal(numerosDeLaPatilla({ ...vacias, calibreMm: 52, puenteMm: 18 }), null);
   assert.equal(numerosDeLaPatilla(null), null);
 });

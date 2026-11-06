@@ -33,10 +33,10 @@ export function medidasDeLaFicha(medidas: Medidas | null): FilaDeMedida[] {
   return filas.filter((f): f is FilaDeMedida => f !== null);
 }
 
-/** Los tres números de la patilla, como vienen grabados: «52□18-140». Null si falta alguno. */
+/** Los tres números de la patilla, separados por guiones (Ale, 06/11/2026): «52-18-140». Null si falta alguno. */
 export function numerosDeLaPatilla(medidas: Medidas | null): string | null {
   if (!medidas?.calibreMm || !medidas.puenteMm || !medidas.patillaMm) return null;
-  return `${medidas.calibreMm}□${medidas.puenteMm}-${medidas.patillaMm}`;
+  return `${medidas.calibreMm}-${medidas.puenteMm}-${medidas.patillaMm}`;
 }
 
 export type Talle = "Chico" | "Mediano" | "Grande";
