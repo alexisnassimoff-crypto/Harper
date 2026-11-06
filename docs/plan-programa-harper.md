@@ -2344,6 +2344,84 @@ plazos de devolución.
 **No cambia:** los pagos, el cashback de hoy, los precios, el Dúo ni
 ninguna otra función.
 
+### 18.6 Lo implementado (05/11/2026)
+
+**1. El campo «Fecha_entrega» en Pedidos** (`fld04ZWywkyXDEXUW`).
+
+- Es de tipo Fecha, sin hora, y se muestra como día/mes/año (igual que en
+  Créditos).
+- Nació vacío en los 27 pedidos. No se cargó ninguna fecha a mano.
+- Ningún código lo lee ni lo escribe todavía.
+- El sitio actualiza Pedidos campo por campo, sin reemplazar la fila
+  entera, así que no lo borra.
+
+**2. La automatización «Fecha de entrega»** (`wflZ8rV3CNx6ugq3D`).
+
+- **Cuándo corre:** cuando el Estado pasa de pendiente, pagado, preparando,
+  enviado, cancelado o rechazado a «entregado». No corre al crear un pedido
+  ni con ningún otro cambio. Así gasta una sola corrida por entrega.
+- **Qué hace:**
+  1. vuelve a leer el pedido;
+  2. si sigue «entregado» y Fecha_entrega está vacía, escribe la fecha del
+     día según la hora de Buenos Aires;
+  3. en cualquier otro caso no escribe nada;
+  4. deja en el historial: «fecha-registrada», «ya-tenia-fecha»,
+     «no-entregado» o «sin-pedido».
+- **Qué no hace:** no manda mails, no llama a harper.ar ni a otro servicio,
+  no usa secretos, no cambia el Estado y no toca otro campo ni otro pedido.
+- **Si se agrega un Estado nuevo en Pedidos,** hay que sumarlo a la lista
+  «desde» del disparador. Si no, ese paso a «entregado» no anota la fecha.
+  El control de «entregado sin fecha» (§18.2) lo detectaría.
+- **Está creada y apagada.** Airtable no deja encenderla desde la API: la
+  enciende Ale desde la página de la automatización.
+
+**3. El script, en el repositorio**
+(`airtable/automatizaciones/fecha-de-entrega.js`).
+
+- Es una copia exacta del que corre en Airtable.
+- `tests/airtable-fecha-entrega.test.ts` lo corre con un Airtable simulado
+  y un reloj fijo. Son 10 pruebas:
+  - pone la fecha con el campo vacío;
+  - usa la fecha de la Argentina, no la UTC (23:30 y 00:30);
+  - no sobrescribe una fecha;
+  - no escribe si el pedido ya no está entregado o no existe;
+  - deja la primera fecha si se vuelve atrás y se marca otra vez;
+  - solo toca el pedido que disparó la automatización;
+  - no llama a ningún servicio.
+- Se comprobó que las pruebas fallan si se rompe el script: sin la
+  protección de no sobrescribir, con la fecha en UTC o sin revisar el
+  Estado.
+
+**4. La prueba controlada en la base real** (se corre apenas Ale enciende la
+automatización).
+
+1. Se crean dos pedidos de prueba, «PRUEBA-FECHA-ENTREGA-A» y «-B». No
+   tienen cliente, ni productos, ni Tracking, ni total. B tiene
+   Fecha_entrega 01/11/2026.
+2. A pasa de «pendiente» a «entregado»: tiene que quedar la fecha del día.
+3. B pasa a «entregado»: tiene que seguir el 01/11/2026.
+4. A pasa a «preparando» y otra vez a «entregado»: tiene que quedar la
+   primera fecha.
+5. Se revisa el historial de la automatización: tres corridas, una
+   «fecha-registrada» y dos «ya-tenia-fecha».
+6. Se borran los dos pedidos de prueba. Se comprueba que siguen los 27
+   pedidos reales, todos con Fecha_entrega vacía.
+
+**Por qué no puede mandar mails:**
+
+- los pedidos de prueba nunca pasan por «enviado» ni tienen Tracking, que
+  es lo único que dispara «Aviso de despacho» (además, está apagada);
+- no tienen cliente ni mail;
+- harper.ar no reacciona a cambios en Airtable;
+- el script no llama a nada.
+
+**Lo que falta, cada parte con su autorización:**
+
+- encender la automatización y correr la prueba controlada;
+- lo que lee la fecha desde el código (§18.2): la ruta diaria, los avisos
+  de los 10 días y la incidencia por arrepentimiento;
+- conectar el Crédito Harper (§17.9).
+
 ---
 
 ## Anexo A. Tablas completas de la sección A
