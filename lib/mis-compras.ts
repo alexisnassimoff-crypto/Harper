@@ -1,4 +1,5 @@
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
+import { esMarcaDeReclamo, MARCA_REVISAR } from "./webhook-decision";
 
 /**
  * «Mis compras» de Mi cuenta Harper (Ale, 05/11/2026): los pedidos del
@@ -13,9 +14,11 @@ import { escaparFormula, listRecords, TABLAS } from "./airtable";
  * dirección), y de cada pedido se muestra solo lo de la compra: nada de la
  * dirección, el teléfono ni los datos de facturación.
  *
- * No se muestran los checkouts que no llegaron a pagarse ni los pagos
- * rechazados: no son compras. Un pago que Mercado Pago está revisando sí,
- * como «Pago en revisión».
+ * No se muestran los checkouts que no llegaron a pagarse, los pagos
+ * rechazados ni los pedidos cancelados que nunca tuvieron un pago: no son
+ * compras. Un pago que Mercado Pago está revisando sí, como «Pago en
+ * revisión», y un pedido cancelado que se cobró también, aunque se haya
+ * devuelto la plata (ver cancelacionConPago).
  */
 
 export type EstadoDeCompra = "en-revision" | "pagado" | "preparando" | "enviado" | "entregado" | "cancelado";
@@ -56,6 +59,7 @@ export type FilaPedidoDeCompra = {
   Envio?: number;
   Fecha?: string;
   MP_status?: string;
+  MP_payment_id?: string;
   Tracking?: string;
 };
 
@@ -75,6 +79,31 @@ export function estadoDeCompra(estado: unknown, mpStatus: unknown): EstadoDeComp
   if (e === "pagado" || e === "preparando" || e === "enviado" || e === "entregado" || e === "cancelado") return e;
   if (e === "pendiente" && PAGO_EN_REVISION.has(String(mpStatus ?? "").trim())) return "en-revision";
   return null;
+}
+
+/** Los estados de Mercado Pago a los que un pago llega solo después de aprobarse. */
+const PAGO_YA_APROBADO = new Set(["approved", "refunded", "charged_back", "in_mediation"]);
+
+/**
+ * ¿Este pedido cancelado tuvo un pago? (Ale, 06/11/2026: un cancelado que
+ * nunca se pagó no es una compra; uno que se cobró sí, aunque después se haya
+ * devuelto la plata.) Cuenta cualquier rastro que deja un cobro:
+ *  - el MP_payment_id, que el webhook escribe al aprobar un pago, junto con el
+ *    Estado «pagado» (lib/webhook-proceso.ts);
+ *  - un estado de Mercado Pago al que solo se llega después de aprobar;
+ *  - el pago con saldo, sin Mercado Pago («pagado con saldo…», del checkout);
+ *  - una marca del webhook sobre un pago («revisar:…» o «procesando…»).
+ * Ante la duda, el pedido queda a la vista: con un MP_payment_id se muestra
+ * aunque el último MP_status no sea «approved», porque ese campo se puede
+ * pisar (a mano, o entre notificaciones) y no prueba que el pago nunca se
+ * aprobó. Se oculta solo el cancelado sin ningún rastro de pago, como el que
+ * el checkout anula «sin preferencia de pago» o un carrito abandonado.
+ */
+export function cancelacionConPago(fila: Pick<FilaPedidoDeCompra, "MP_status" | "MP_payment_id">): boolean {
+  if (texto(fila.MP_payment_id)) return true;
+  const mp = String(fila.MP_status ?? "").trim();
+  const estadoMP = mp.split(/[\s(,]/)[0].toLowerCase();
+  return PAGO_YA_APROBADO.has(estadoMP) || mp.startsWith("pagado con saldo") || mp.startsWith(MARCA_REVISAR) || esMarcaDeReclamo(mp);
 }
 
 const numero = (valor: unknown) => (typeof valor === "number" && Number.isFinite(valor) ? valor : Number(valor));
@@ -132,6 +161,8 @@ export function itemsDeCompra(json: unknown): ItemDeCompra[] {
 export function compraDe(fila: { id: string; createdTime?: string; fields: FilaPedidoDeCompra }): Compra | null {
   const estado = estadoDeCompra(fila.fields.Estado, fila.fields.MP_status);
   if (!estado) return null;
+  // Un pedido cancelado que nunca se pagó no es una compra.
+  if (estado === "cancelado" && !cancelacionConPago(fila.fields)) return null;
   const total = numero(fila.fields.Total);
   const envio = numero(fila.fields.Envio);
   return {

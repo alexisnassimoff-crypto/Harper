@@ -5,7 +5,19 @@ process.env.HARPER_FIXTURES = "1";
 
 import { createRecord, TABLAS } from "../lib/airtable";
 import { cumpleFormula } from "../lib/fixtures/formula";
-import { comprasDeLaCuenta, comprasDeLosClientes, compraDe, estadoDeCompra, etapasDeCompra, itemsDeCompra, MAXIMO_DE_COMPRAS, seguimientoDe } from "../lib/mis-compras";
+import {
+  cancelacionConPago,
+  comprasDeLaCuenta,
+  comprasDeLosClientes,
+  compraDe,
+  estadoDeCompra,
+  etapasDeCompra,
+  itemsDeCompra,
+  MAXIMO_DE_COMPRAS,
+  seguimientoDe,
+  type FilaPedidoDeCompra,
+} from "../lib/mis-compras";
+import { marcaDeReclamo } from "../lib/webhook-decision";
 
 /** «Mis compras» de Mi cuenta Harper (Ale, 05/11/2026). */
 
@@ -115,6 +127,82 @@ test("mis compras: la cuenta ve solo sus compras, por su mail verificado exacto"
   assert.deepEqual(await comprasDeLaCuenta(""), []);
   // Un texto que no es un mail no busca nada (ni con comillas para romper la fórmula).
   assert.deepEqual(await comprasDeLaCuenta("' OR TRUE() OR '"), []);
+});
+
+// ---- Cancelados (Ale, 06/11/2026): sin ningún pago no son compras; cobrados, sí ----
+
+/** Lo que ve el cliente de un pedido con esos campos: su estado, o null si no aparece. */
+const verComo = (campos: FilaPedidoDeCompra) => compraDe({ id: "recPRUEBACOMPRA01", fields: { Numero: "X", Total: 100, ...campos } })?.estado ?? null;
+
+test("mis compras: un cancelado que nunca tuvo un pago no aparece", () => {
+  for (const campos of [
+    { MP_status: "sin preferencia de pago" }, // el checkout lo anuló antes de cobrar
+    { MP_status: "carrito abandonado, nunca se pago" }, // nota a mano, sin pago registrado
+    { MP_status: "pagando con saldo, sin Mercado Pago" }, // el pago con saldo no llegó a confirmarse
+    { MP_status: "cancelled" },
+    { MP_status: "rejected (cc_rejected_other_reason)" },
+    { MP_status: "" },
+    {},
+  ]) {
+    assert.equal(verComo({ Estado: "cancelado", ...campos }), null, JSON.stringify(campos));
+    assert.equal(cancelacionConPago(campos), false, JSON.stringify(campos));
+  }
+});
+
+test("mis compras: un cancelado que se cobró sigue apareciendo, aunque se haya devuelto la plata", () => {
+  for (const campos of [
+    { MP_payment_id: "100000000001", MP_status: "approved" },
+    // La nota que se escribió a mano en un pedido cobrado y devuelto: manda el pago registrado.
+    { MP_payment_id: "100000000002", MP_status: "prueba interna de cobro (approved, devolver los $100)" },
+    // El webhook puede dejar el MP_status vacío (o en un estado intermedio) en un pedido ya cobrado.
+    { MP_payment_id: "100000000003", MP_status: "" },
+    { MP_payment_id: "100000000004", MP_status: "in_process" },
+    // Estados a los que Mercado Pago llega solo después de aprobar el pago.
+    { MP_status: "refunded" },
+    { MP_status: "charged_back" },
+    { MP_status: "in_mediation" },
+    // Pagado con saldo, sin Mercado Pago.
+    { MP_status: "pagado con saldo, sin Mercado Pago" },
+    // Marcas del webhook sobre un pago: las mira una persona.
+    { MP_status: "revisar: se cobró 1000 y el pedido dice 900" },
+    { MP_status: marcaDeReclamo({ pagoId: "100000000005", nonce: "abc", desde: 1, pasos: [] }) },
+  ]) {
+    assert.equal(verComo({ Estado: "cancelado", ...campos }), "cancelado", JSON.stringify(campos));
+    assert.equal(cancelacionConPago(campos), true, JSON.stringify(campos));
+  }
+});
+
+test("mis compras: los pagos en revisión y los demás estados no cambian", () => {
+  assert.equal(verComo({ Estado: "pendiente", MP_status: "in_process" }), "en-revision");
+  assert.equal(verComo({ Estado: "pendiente", MP_status: "pending", MP_payment_id: "100000000006" }), "en-revision");
+  assert.equal(verComo({ Estado: "pendiente", MP_status: "in_mediation" }), "en-revision");
+  // Pagado, preparando, enviado y entregado se muestran por su Estado, haya o no datos de pago.
+  for (const estado of ["pagado", "preparando", "enviado", "entregado"]) assert.equal(verComo({ Estado: estado }), estado);
+  // Sin pagar y rechazado siguen afuera, aunque tengan un pago registrado.
+  assert.equal(verComo({ Estado: "pendiente", MP_payment_id: "100000000007" }), null);
+  assert.equal(verComo({ Estado: "rechazado", MP_status: "rejected", MP_payment_id: "100000000008" }), null);
+});
+
+test("mis compras: con los pedidos de prueba de Ale (06/11/2026) se ven los 2 pagados y los 2 cancelados que se cobraron", () => {
+  const CLIENTE = "recCLIENTEPRUEBA1";
+  const fila = (id: string, numero: string, estado: string, fecha: string, mp: string, pago?: string) => ({
+    id,
+    fields: { Numero: numero, Estado: estado, Cliente: [CLIENTE], Fecha: fecha, Total: 100, MP_status: mp, ...(pago ? { MP_payment_id: pago } : {}) },
+  });
+  const filas = [
+    fila("recPRUEBACOMPRA02", "HARPER-39296U9", "pagado", "2026-10-30T05:48:16.316Z", "approved", "100000000011"),
+    fila("recPRUEBACOMPRA03", "HARPER-24513SP", "pagado", "2026-08-25T02:21:53.142Z", "approved", "100000000012"),
+    fila("recPRUEBACOMPRA04", "HARPER-2436778", "cancelado", "2026-08-25T02:19:27.073Z", "carrito abandonado de la prueba, no se pago"),
+    fila("recPRUEBACOMPRA05", "HARPER-956523Y", "cancelado", "2026-08-24T18:20:52.514Z", "prueba interna de mails (approved, devolver los $100)", "100000000013"),
+    fila("recPRUEBACOMPRA06", "HARPER-89105UU", "cancelado", "2026-08-24T16:31:45.918Z", "carrito abandonado, nunca se pago"),
+    fila("recPRUEBACOMPRA07", "HARPER-8812049", "cancelado", "2026-08-24T16:15:20.846Z", "prueba interna de cobro (approved, devolver los $100)", "100000000014"),
+    fila("recPRUEBACOMPRA08", "HARPER-877652V", "cancelado", "2026-08-24T16:09:25.543Z", "prueba interna, nunca se pago"),
+    fila("recPRUEBACOMPRA09", "HARPER-52334PH", "pendiente", "2026-11-05T04:18:54.663Z", ""),
+  ];
+  assert.deepEqual(
+    comprasDeLosClientes(new Set([CLIENTE]), filas).map((c) => `${c.numero} ${c.estado}`),
+    ["HARPER-39296U9 pagado", "HARPER-24513SP pagado", "HARPER-956523Y cancelado", "HARPER-8812049 cancelado"],
+  );
 });
 
 test("mis compras: el recorrido sale solo del Estado de Airtable, sin pasos inventados", () => {
