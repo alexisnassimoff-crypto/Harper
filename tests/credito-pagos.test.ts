@@ -198,7 +198,11 @@ test("Los renglones salen de Items; un pedido ilegible no se acredita", () => {
   for (const malo of ["", "{", "{}", JSON.stringify([{ categoria: "Anteojos" }])]) assert.throws(() => renglonesDeItems(malo), RangeError, malo);
   const fila = (fields: FilaPedidoCredito): AirtableRecord<FilaPedidoCredito> => ({ id: "recP", createdTime: "", fields });
   assert.throws(() => pedidoDesdeFila(fila({ Total: 1, Items: "[]" }), null), RangeError, "sin número");
-  assert.throws(() => pedidoDesdeFila(fila({ Numero: "H-1", Items: "[]" }), null), RangeError, "sin total");
+  assert.throws(() => pedidoDesdeFila(fila({ Numero: "H-1", Items: "[]", Notas: MARCA_REGIMEN_NUEVO }), null), RangeError, "sin total");
+  assert.throws(() => pedidoDesdeFila(fila({ Numero: "H-1", Total: 5, Items: "{", Notas: MARCA_REGIMEN_NUEVO }), null), RangeError, "Items ilegibles");
+  // Con las reglas de hoy no se le exigen los datos del crédito (paso 1): no genera crédito nuevo.
+  const deHoy = pedidoDesdeFila(fila({ Numero: "H-2", Items: "{" }), null);
+  assert.deepEqual([deHoy.regimen.regimen, deHoy.renglones, deHoy.total], ["anterior", [], 0]);
   assert.equal(pedidoDesdeFila(fila({ Numero: " H-1 ", Total: 5, Items: "[]" }), " A@B.com ").email, "a@b.com");
   assert.throws(() => pagoDe({ status: "approved" }), ErrorLecturaMP);
 });
@@ -561,7 +565,7 @@ test("Cinco avisos del mismo pago a la vez: uno anota, los ocupados piden reinte
 
 // ---------- Sin conectar ----------
 
-test("Sin conectar: sin MP_ACCESS_TOKEN no hay lector; el módulo no escribe en Airtable ni le pide nada a Mercado Pago que no sea leer", () => {
+test("Sin MP_ACCESS_TOKEN no hay lector; el módulo no escribe en Airtable ni le pide nada a Mercado Pago que no sea leer; el webhook lo usa solo con el interruptor", () => {
   assert.equal(dependenciasPagoCredito({ ...dependenciasCredito() }), null);
   const raiz = path.resolve(__dirname, "..", "..");
   // El crédito y la lectura de Mercado Pago (lib/mp-cobro.ts, Tarea 12) solo leen.
@@ -573,6 +577,11 @@ test("Sin conectar: sin MP_ACCESS_TOKEN no hay lector; el módulo no escribe en 
   }
   // lib/mp-cobro.ts no sabe nada del crédito: el webhook lo usa para el cashback de hoy sin traer el crédito.
   assert.doesNotMatch(fs.readFileSync(path.join(raiz, "lib", "mp-cobro.ts"), "utf8"), /from\s+["']\.\/credito-/);
+  // El webhook (paso 1, §17.9) arma el crédito solo con HARPER_CREDITO_ACTIVO=1 y
+  // lo corre solo después de que el flujo de siempre contestó 200. No toca la
+  // persistencia directo: pasa por el lector de pagos.
   const webhook = fs.readFileSync(path.join(raiz, "lib", "webhook-proceso.ts"), "utf8");
-  assert.doesNotMatch(webhook, /credito-/, "el webhook de producción no usa el crédito");
+  assert.match(webhook, /if \(!creditoActivo\(\)\) return null;/, "el webhook arma el crédito solo con el interruptor");
+  assert.match(webhook, /if \(!deps\.credito \|\| resultado\.status !== 200\) return resultado;/, "y solo después del flujo de siempre");
+  assert.doesNotMatch(webhook, /from\s+["']\.\/credito-persistencia["']/);
 });

@@ -9,6 +9,15 @@ import {
 } from "./cerrojo";
 import { marcarCompra } from "./clientes";
 import { getConfig } from "./config";
+import { CreditoApagado, dependenciasCredito } from "./credito-airtable";
+import { creditoActivo } from "./credito-harper";
+import {
+  dependenciasPagoCredito,
+  hayQueReintentar,
+  procesarPagoParaCredito,
+  type DependenciasPagoCredito,
+  type ResultadoPagoCredito,
+} from "./credito-pagos";
 import { cuponDeNotas } from "./cupones";
 import { facturacionDeFila, lineasDeNotas } from "./facturacion";
 import {
@@ -183,6 +192,12 @@ export type Dependencias = {
   alConfirmar?: (venta: VentaConfirmada) => Promise<void>;
   /** Para las pruebas: se llama antes de verificar la marca en cada paso con efecto. */
   antesDelPaso?: (paso: string) => Promise<void> | void;
+  /**
+   * Crédito Harper (docs/plan-programa-harper.md §17.9): lo pone
+   * `dependenciasReales` SOLO con HARPER_CREDITO_ACTIVO=1. Sin él (null o
+   * ausente), el webhook es exactamente el de siempre.
+   */
+  credito?: DependenciasPagoCredito | null;
 };
 
 export type Resultado = {
@@ -202,8 +217,17 @@ export function dependenciasReales(sitio: string, extra: Partial<Dependencias> =
     esperaReclamoMs: ESPERA_RECLAMO_MS,
     esperaOcupadoMs: ESPERA_OCUPADO_MS,
     sitio,
+    credito: creditoDesdeEntorno(),
     ...extra,
   };
+}
+
+/** Las dependencias del Crédito Harper, solo con HARPER_CREDITO_ACTIVO=1 (apagado: null, el webhook de siempre). */
+function creditoDesdeEntorno(): DependenciasPagoCredito | null {
+  if (!creditoActivo()) return null;
+  const credito = dependenciasPagoCredito(dependenciasCredito());
+  if (!credito) console.error("[webhook] HARPER_CREDITO_ACTIVO=1 pero falta MP_ACCESS_TOKEN: el Crédito Harper no se procesa");
+  return credito;
 }
 
 /** Otra instancia nos pisó la marca entre dos pasos: nos retiramos. */
@@ -344,6 +368,81 @@ function mpStatusTrasPisar(estado: string, pago: PagoMP, mismoPago: boolean) {
 }
 
 export async function procesarNotificacion(dataId: string, deps: Dependencias): Promise<Resultado> {
+  const resultado = await procesarElPago(dataId, deps);
+  // Crédito Harper (§17.9): solo con HARPER_CREDITO_ACTIVO=1, y solo cuando el
+  // flujo de siempre ya contestó 200 y soltó el cerrojo del pedido (el del
+  // crédito es otra llave). Si contestó otra cosa, Mercado Pago reintenta y el
+  // crédito se procesa en ese reintento.
+  if (!deps.credito || resultado.status !== 200) return resultado;
+  return conCreditoHarper(dataId, resultado, deps.credito, deps);
+}
+
+/**
+ * Un error del crédito que reintentar no arregla: datos del pedido que no
+ * sirven para calcularlo (RangeError), Airtable que rechaza la escritura (4xx)
+ * o la tabla cerrada. Todo lo demás (Mercado Pago o Airtable que no contestan,
+ * Redis, un cobro que no se puede certificar) se reintenta.
+ */
+function creditoSinArregloPorReintento(error: unknown): boolean {
+  return error instanceof RangeError || error instanceof CreditoApagado || esErrorPermanente(error);
+}
+
+/** Lo que el crédito agrega a la respuesta: qué hizo, sin datos de la persona. */
+function resumenDelCredito(r: ResultadoPagoCredito) {
+  return r.accion === "nada" ? { accion: r.accion, motivo: r.motivo } : { accion: r.accion, estado: r.resultado.estado };
+}
+
+/**
+ * El Crédito Harper del aviso, después del flujo de siempre. El pago ya quedó
+ * resuelto (pedido, stock, beneficios y mails): esto no lo toca.
+ *  - Bien: 200, con el resumen del crédito.
+ *  - Otra instancia tiene el crédito del pedido, o un error pasajero: 503, y
+ *    Mercado Pago reintenta. En el reintento, el flujo de siempre ve un
+ *    duplicado (sus pasos ya están hechos) y el crédito vuelve a intentarse:
+ *    la persistencia no anota dos veces.
+ *  - Un error que reintentar no arregla: 200 (para no reintentar para siempre)
+ *    y un mail interno para revisarlo a mano.
+ */
+async function conCreditoHarper(pagoId: string, hoy: Resultado, credito: DependenciasPagoCredito, deps: Dependencias): Promise<Resultado> {
+  try {
+    const r = await procesarPagoParaCredito(pagoId, credito);
+    if (hayQueReintentar(r)) {
+      console.warn(`[webhook] el crédito del pago ${pagoId} está en manos de otra instancia: se pide reintento`);
+      return {
+        status: 503,
+        cuerpo: { ...hoy.cuerpo, ok: false, credito: { ocupado: true }, detalle: "el crédito del pedido está en manos de otra instancia; reintentar" },
+      };
+    }
+    return { status: 200, cuerpo: { ...hoy.cuerpo, credito: resumenDelCredito(r) } };
+  } catch (error) {
+    if (!creditoSinArregloPorReintento(error)) {
+      console.error(`[webhook] falló el Crédito Harper del pago ${pagoId}; el pago ya quedó registrado y se pide reintento:`, error);
+      return {
+        status: 503,
+        cuerpo: { ...hoy.cuerpo, ok: false, credito: { reintentar: true }, detalle: "no se pudo procesar el Crédito Harper; reintentar (el pago ya quedó registrado)" },
+      };
+    }
+    console.error(`[webhook] el Crédito Harper del pago ${pagoId} necesita revisión a mano:`, error);
+    try {
+      await deps.enviarMail(
+        mailAlertaInterna({
+          config: await getConfig(),
+          asunto: `REVISAR Crédito Harper — pago ${pagoId}: no se pudo anotar`,
+          lineas: [
+            `El pago ${pagoId} quedó procesado como siempre (pedido, stock y mails), pero su Crédito Harper no se pudo procesar: ${describir(error)}.`,
+            "Reintentar no lo arregla. Revisá el pedido y, si corresponde, anotá el crédito a mano en la tabla Créditos.",
+          ],
+        })
+      );
+    } catch (otro) {
+      console.error("[webhook] no salió el aviso del crédito a revisar", otro);
+    }
+    return { status: 200, cuerpo: { ...hoy.cuerpo, credito: { revisar: true, detalle: describir(error) } } };
+  }
+}
+
+/** El flujo de siempre: el pedido, el stock, los beneficios del suscriptor y los mails. */
+async function procesarElPago(dataId: string, deps: Dependencias): Promise<Resultado> {
   // El estado real se pregunta a Mercado Pago; nunca se toma del cuerpo.
   const pago = await deps.obtenerPago(dataId);
   const pedidoId = pago.external_reference;

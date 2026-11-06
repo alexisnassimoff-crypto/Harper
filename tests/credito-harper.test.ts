@@ -249,7 +249,7 @@ test("Devoluciones con el crédito pendiente: se anula o se recalcula, nunca sub
 
 // ---------- Sin activar ----------
 
-test("Apagado por defecto y sin usar: ninguna página, componente ni ruta lo usa todavía (solo la persistencia sin conectar)", () => {
+test("Apagado por defecto: fuera de sus módulos, solo el webhook lo mira, para saber si el interruptor está prendido", () => {
   assert.equal(VARIABLE_CREDITO, "HARPER_CREDITO_ACTIVO");
   assert.equal(creditoActivo({}), false);
   for (const valor of ["0", "", "true", "si"]) assert.equal(creditoActivo({ [VARIABLE_CREDITO]: valor }), false, valor);
@@ -262,8 +262,9 @@ test("Apagado por defecto y sin usar: ninguna página, componente ni ruta lo usa
     for (const entrada of fs.readdirSync(path.join(raiz, dir), { withFileTypes: true })) {
       const relativo = path.join(dir, entrada.name);
       if (entrada.isDirectory()) recorrer(relativo);
-      // Lo usan la persistencia (Tarea 09) y el adaptador de Airtable (Tarea 10),
-      // y a esos dos no los usa nadie (tests/credito-persistencia.test.ts).
+      // Lo usan la persistencia (Tarea 09), el adaptador de Airtable (Tarea 10) y
+      // el lector de pagos (Tarea 11). Afuera, solo el webhook (paso 1, §17.9),
+      // para leer HARPER_CREDITO_ACTIVO (tests/credito-webhook.test.ts).
       else if (
         /\.(ts|tsx)$/.test(entrada.name) &&
         !["credito-harper.ts", "credito-persistencia.ts", "credito-airtable.ts", "credito-pagos.ts"].some((n) => relativo === path.join("lib", n))
@@ -274,7 +275,7 @@ test("Apagado por defecto y sin usar: ninguna página, componente ni ruta lo usa
     }
   };
   for (const dir of ["app", "components", "lib"]) recorrer(dir);
-  assert.deepEqual(usos, [], "no acredita ni cambia ningún cobro");
+  assert.deepEqual(usos, [path.join("lib", "webhook-proceso.ts")], "nadie más acredita ni cambia ningún cobro");
 });
 
 test("Fechas imposibles: el 31 de febrero, el 29 de febrero de un año no bisiesto, el mes 13", () => {

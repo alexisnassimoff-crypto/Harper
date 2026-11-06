@@ -737,7 +737,7 @@ test("Leer el pedido adentro del cerrojo: si falla o trae otro pedido, no se esc
 
 // ---------- Sin conectar ----------
 
-test("Sin conectar: ninguna página, ruta ni el webhook usa el crédito; solo sus tres archivos se usan entre sí", () => {
+test("Fuera de sus archivos, solo el webhook y el checkout usan el crédito (paso 1, §17.9); ninguna página ni componente", () => {
   const raiz = path.resolve(__dirname, "..", "..");
   const propios = ["credito-harper", "credito-persistencia", "credito-airtable", "credito-pagos"].map((n) => path.join("lib", `${n}.ts`));
   const usos: string[] = [];
@@ -752,7 +752,11 @@ test("Sin conectar: ninguna página, ruta ni el webhook usa el crédito; solo su
     }
   };
   for (const dir of ["app", "components", "lib"]) recorrer(dir);
-  assert.deepEqual(usos, []);
+  assert.deepEqual(usos, [path.join("app", "api", "checkout", "route.ts"), path.join("lib", "webhook-proceso.ts")]);
+  // El checkout solo marca el régimen en las Notas (apagado, idénticas).
+  const checkout = fs.readFileSync(path.join(raiz, "app", "api", "checkout", "route.ts"), "utf8");
+  assert.match(checkout, /import \{ notasConRegimen \} from "@\/lib\/credito-pagos";/);
+  assert.doesNotMatch(checkout, /from\s+["']@\/lib\/credito-(?:persistencia|airtable|harper)["']/);
 
   // La persistencia no sabe de Airtable: eso es del adaptador.
   const persistencia = fs.readFileSync(path.join(raiz, "lib", "credito-persistencia.ts"), "utf8");
