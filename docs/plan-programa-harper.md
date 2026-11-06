@@ -1837,7 +1837,14 @@ Ante el aviso de un pago:
      Airtable.
    - Lee también **todos los pagos del pedido**, cada uno por su ID: la
      búsqueda de Mercado Pago puede venir atrasada.
+   - **Siempre suma el pago que el webhook registró en Pedidos**
+     (`MP_payment_id`) y el del aviso, aunque la búsqueda no los traiga
+     (revisión del PR #69).
 2. **Del pedido lee:**
+   - el Estado: **solo un pedido confirmado** (pagado, preparando, enviado o
+     entregado) genera crédito. Uno cancelado, rechazado o sin confirmar no,
+     aunque el pago esté aprobado. Se vuelve a leer adentro del cerrojo
+     (revisión del PR #69);
    - el número;
    - lo cobrado en cada renglón (Items);
    - el total;
@@ -1862,6 +1869,17 @@ Ante el aviso de un pago:
 5. **Anular exige leer si el pedido quedó sin cobro.** Es obligatorio por
    código (revisión del PR #68). Una anulación a mano de Harper lo tiene que
    decir explícitamente.
+6. **Si no se puede certificar el cobro, no se decide nada** (revisión del
+   PR #69). No se escribe nada y se reintenta (`CobroIncierto`) cuando:
+   - un pago tiene un estado de Mercado Pago que no se conoce: nunca se lo
+     toma como «sin cobro»;
+   - la búsqueda dice que hay más pagos de los que trajo, o más de 200:
+     no se corta en silencio;
+   - con «sin cobro», la búsqueda todavía no trae el pago del aviso o el
+     registrado: puede faltar otro pago vigente.
+
+   Un contracargo con un detalle que no se conoce cuenta como en curso: la
+   plata sigue vigente y la incidencia, abierta.
 
 **El régimen** sale de las Notas del pedido:
 

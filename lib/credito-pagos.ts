@@ -1,5 +1,6 @@
 import { ErrorAirtable, getRecord, TABLAS, type AirtableRecord } from "./airtable";
 import type { RenglonCobrado } from "./credito-harper";
+import { ESTADOS_CONFIRMADOS } from "./webhook-decision";
 import {
   anularPorPedido,
   marcarIncidencia,
@@ -65,6 +66,22 @@ export class ErrorLecturaMP extends Error {
   }
 }
 
+/**
+ * No se puede certificar el cobro del pedido (revisión del PR #69): la
+ * búsqueda vino incompleta o atrasada, o un pago tiene un estado que no se
+ * conoce. No se escribe nada y se reintenta; nunca se interpreta como «sin
+ * cobro».
+ */
+export class CobroIncierto extends Error {
+  constructor(motivo: string) {
+    super(`No se puede certificar el cobro: ${motivo}. No se escribe nada; se reintenta`);
+    this.name = "CobroIncierto";
+  }
+}
+
+/** Más pagos que esto para un pedido es un error de datos: no se trunca, se para. */
+export const MAXIMO_PAGOS_POR_PEDIDO = 200;
+
 const numero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 /** De la respuesta de Mercado Pago a `PagoLeido`. */
@@ -104,13 +121,19 @@ export function lectorMercadoPago(config: { token: string; api?: string; fetch?:
       return pagoDe(await leer(`/v1/payments/${encodeURIComponent(id)}`, `el pago ${id}`));
     },
     async pagosDelPedido(pedidoId) {
+      // Todas las páginas, sin cortar en silencio: si la búsqueda dice que hay
+      // más de los que trajo, o más de los razonables, no se certifica nada.
       const ids: string[] = [];
-      for (let desde = 0; desde < 500; desde += 50) {
+      for (let desde = 0; ; desde += 50) {
         const query = new URLSearchParams({ external_reference: pedidoId, sort: "date_created", criteria: "asc", limit: "50", offset: String(desde) });
-        const r = (await leer(`/v1/payments/search?${query}`, `los pagos del pedido ${pedidoId}`)) as { results?: { id?: unknown }[]; paging?: { total?: number } };
+        const r = (await leer(`/v1/payments/search?${query}`, `los pagos del pedido ${pedidoId}`)) as { results?: { id?: unknown }[]; paging?: { total?: unknown } };
+        const total = r.paging?.total;
+        if (typeof total !== "number" || !Number.isInteger(total) || total < 0) throw new CobroIncierto(`la búsqueda de los pagos de ${pedidoId} no dice cuántos hay`);
+        if (total > MAXIMO_PAGOS_POR_PEDIDO) throw new CobroIncierto(`el pedido ${pedidoId} tiene ${total} pagos en Mercado Pago`);
         const pagina = (r.results ?? []).map((p) => String(p.id ?? "")).filter(Boolean);
         ids.push(...pagina);
-        if (pagina.length < 50 || ids.length >= (r.paging?.total ?? 0)) break;
+        if (ids.length >= total) break;
+        if (pagina.length === 0) throw new CobroIncierto(`la búsqueda trajo ${ids.length} de ${total} pagos de ${pedidoId}`);
       }
       // Cada uno por su ID: la búsqueda puede traer un estado viejo.
       const pagos = await Promise.all([...new Set(ids)].map((id) => lector.pago(id)));
@@ -143,10 +166,14 @@ export type EstadoDeCobro =
   /** Todavía no hay nada aprobado, pero hay un pago en curso. */
   | "pendiente"
   /** Nunca se cobró: solo pagos rechazados o cancelados, o ninguno. */
-  | "sin-pago";
+  | "sin-pago"
+  /** Un pago tiene un estado que no se conoce: no se decide nada (revisión del PR #69). */
+  | "indeterminado";
 
 export type CobroDelPedido = {
   estado: EstadoDeCobro;
+  /** Los estados de Mercado Pago que no se conocen (con «indeterminado»). */
+  desconocidos: string[];
   /** Lo vigente: lo aprobado menos lo reembolsado. */
   neto: number;
   /** Pagos vigentes de más (el cliente pagó dos veces): hay que devolver uno. */
@@ -159,8 +186,14 @@ export type CobroDelPedido = {
   vigentes: string[];
 };
 
-/** Cuánto sigue vigente de un pago, y si tiene una incidencia abierta. */
-function vigenteDe(p: PagoLeido): { neto: number; incidencia: boolean; huboCobro: boolean; pendiente: boolean; perdido: boolean } {
+type Vigencia = { neto: number; incidencia: boolean; huboCobro: boolean; pendiente: boolean; perdido: boolean };
+
+/**
+ * Cuánto sigue vigente de un pago, y si tiene una incidencia abierta. Solo
+ * los estados de la API de pagos de Mercado Pago; cualquier otro devuelve
+ * null («indeterminado»): nunca se lo toma como un pago sin plata.
+ */
+function vigenteDe(p: PagoLeido): Vigencia | null {
   const neto = Math.max(0, p.monto - p.reembolsado);
   switch (p.status) {
     case "approved":
@@ -169,7 +202,9 @@ function vigenteDe(p: PagoLeido): { neto: number; incidencia: boolean; huboCobro
     case "in_mediation":
       return { neto, incidencia: true, huboCobro: true, pendiente: false, perdido: false };
     case "charged_back":
-      // reimbursed: Harper ganó el contracargo. settled: lo perdió. Otro: en curso.
+      // reimbursed: Harper ganó el contracargo. settled: lo perdió. in_process
+      // o cualquier otro detalle: en curso, con la plata contada como vigente
+      // (nunca se anula por un detalle que no se conoce).
       if (p.statusDetail === "reimbursed") return { neto, incidencia: false, huboCobro: true, pendiente: false, perdido: false };
       if (p.statusDetail === "settled") return { neto: 0, incidencia: false, huboCobro: true, pendiente: false, perdido: true };
       return { neto, incidencia: true, huboCobro: true, pendiente: false, perdido: false };
@@ -179,9 +214,11 @@ function vigenteDe(p: PagoLeido): { neto: number; incidencia: boolean; huboCobro
     case "in_process":
     case "authorized":
       return { neto: 0, incidencia: false, huboCobro: false, pendiente: true, perdido: false };
-    default:
-      // rejected, cancelled y cualquier estado nuevo: no cobra.
+    case "rejected":
+    case "cancelled":
       return { neto: 0, incidencia: false, huboCobro: false, pendiente: false, perdido: false };
+    default:
+      return null;
   }
 }
 
@@ -192,7 +229,11 @@ function vigenteDe(p: PagoLeido): { neto: number; incidencia: boolean; huboCobro
  */
 export function cobroDelPedido(pagos: readonly PagoLeido[], total: number): CobroDelPedido {
   if (!Number.isFinite(total) || total < 0) throw new RangeError("El total del pedido tiene que ser un número de 0 o más");
-  const leidos = pagos.map((p) => ({ p, v: vigenteDe(p) }));
+  const desconocidos = pagos.filter((p) => vigenteDe(p) === null).map((p) => `${p.id}: ${p.status}`);
+  if (desconocidos.length > 0) {
+    return { estado: "indeterminado", desconocidos, neto: 0, repetidos: 0, incidenciaAbierta: false, contracargoPerdido: false, vigentes: [] };
+  }
+  const leidos = pagos.map((p) => ({ p, v: vigenteDe(p) as Vigencia }));
   const conPlata = leidos.filter((x) => x.v.neto > 0);
   const neto = conPlata.reduce((t, x) => t + x.v.neto, 0);
   const incidenciaAbierta = leidos.some((x) => x.v.incidencia);
@@ -218,6 +259,7 @@ export function cobroDelPedido(pagos: readonly PagoLeido[], total: number): Cobr
             : "sin-pago";
   return {
     estado,
+    desconocidos: [],
     neto,
     repetidos: estado === "cobrado" ? Math.max(0, conPlata.length - Math.max(1, necesarios)) : 0,
     incidenciaAbierta,
@@ -263,17 +305,27 @@ export type FilaPedidoCredito = {
   Items?: string;
   Total?: number;
   Notas?: string;
+  /** El pago que el webhook de hoy registró para el pedido. */
+  MP_payment_id?: string;
 };
 
 export type PedidoHarper = {
   id: string;
   numero: string;
+  /** El Estado de Pedidos: el crédito nace solo con un pedido confirmado (pagado, preparando, enviado, entregado). */
   estado: string;
   total: number;
   renglones: RenglonCobrado[];
   email: string | null;
   regimen: Regimen;
+  /** MP_payment_id: siempre se suma a la comprobación de los pagos (revisión del PR #69). */
+  pagoRegistrado: string | null;
 };
+
+/** Si el Estado del pedido es uno confirmado por el flujo de pagos de hoy (lib/webhook-decision.ts). */
+export function pedidoConfirmado(pedido: Pick<PedidoHarper, "estado">): boolean {
+  return ESTADOS_CONFIRMADOS.has(pedido.estado);
+}
 
 /** Los renglones cobrados, del JSON de Items (lib/pedidos.ts, itemsDelPedido). */
 export function renglonesDeItems(items: unknown): RenglonCobrado[] {
@@ -312,6 +364,7 @@ export function pedidoDesdeFila(r: AirtableRecord<FilaPedidoCredito>, email: str
     renglones: renglonesDeItems(r.fields.Items),
     email: email?.trim().toLowerCase() || null,
     regimen: regimenDelPedido(r.fields.Notas),
+    pagoRegistrado: r.fields.MP_payment_id?.trim() || null,
   };
 }
 
@@ -345,25 +398,46 @@ export type DependenciasPagoCredito = {
 };
 
 export type ResultadoPagoCredito =
-  | { accion: "nada"; motivo: "pago-sin-pedido" | "pedido-inexistente" | "regimen-anterior" | "sin-pago" | "pendiente" | "parcial-sin-credito"; numero?: string; regimen?: Regimen }
+  | {
+      accion: "nada";
+      motivo: "pago-sin-pedido" | "pedido-inexistente" | "regimen-anterior" | "pedido-no-confirmado" | "sin-pago" | "pendiente" | "parcial-sin-credito";
+      numero?: string;
+      regimen?: Regimen;
+      /** Con «pedido-no-confirmado»: el Estado del pedido en Harper. */
+      estadoPedido?: string;
+    }
   | { accion: "registrar"; numero: string; cobro: CobroDelPedido; resultado: ResultadoRegistro; incidencia: ResultadoCambio | null }
   | { accion: "anular"; numero: string; cobro: CobroDelPedido; resultado: ResultadoCambio }
   | { accion: "incidencia"; numero: string; cobro: CobroDelPedido; resultado: ResultadoCambio };
 
 /**
- * El estado del pedido y su cobro, leído de las dos fuentes. El pago del aviso
- * se suma aunque la búsqueda de Mercado Pago todavía no lo traiga (leído de
- * nuevo por su ID).
+ * El estado del pedido y su cobro, leído de las dos fuentes (revisión del
+ * PR #69):
+ *  - los pagos son los de la búsqueda MÁS el del aviso y el que el webhook
+ *    registró en Pedidos (MP_payment_id), cada uno leído por su ID aunque la
+ *    búsqueda todavía no lo traiga;
+ *  - un estado de pago que no se conoce no se decide: `CobroIncierto`;
+ *  - «sin cobro» solo con una búsqueda al día: si no trae el pago del aviso
+ *    o el registrado, puede faltar otro pago vigente, y tampoco se decide.
+ * `CobroIncierto` no escribe nada: se reintenta.
  */
 async function leerTodo(pedidoId: string, pagoId: string, deps: DependenciasPagoCredito): Promise<{ pedido: PedidoHarper; cobro: CobroDelPedido } | null> {
   const pedido = await deps.pedidos.leer(pedidoId);
   if (!pedido) return null;
   const pagos = await deps.mp.pagosDelPedido(pedidoId);
-  if (!pagos.some((p) => p.id === pagoId)) {
-    const delAviso = await deps.mp.pago(pagoId);
-    if (delAviso.pedidoId === pedidoId) pagos.push(delAviso);
+  const buscados = new Set(pagos.map((p) => p.id));
+  const conocidos = [...new Set([pagoId, pedido.pagoRegistrado].filter((id): id is string => Boolean(id)))];
+  for (const id of conocidos) {
+    if (buscados.has(id)) continue;
+    const pago = await deps.mp.pago(id);
+    if (pago.pedidoId === pedidoId) pagos.push(pago);
   }
-  return { pedido, cobro: cobroDelPedido(pagos, pedido.total) };
+  const cobro = cobroDelPedido(pagos, pedido.total);
+  if (cobro.estado === "indeterminado") throw new CobroIncierto(`estado de Mercado Pago que no se conoce (${cobro.desconocidos.join(", ")})`);
+  if (cobro.estado === "sin-cobro" && conocidos.some((id) => !buscados.has(id))) {
+    throw new CobroIncierto(`la búsqueda de Mercado Pago todavía no trae todos los pagos del pedido ${pedido.numero}`);
+  }
+  return { pedido, cobro };
 }
 
 /** Lo mismo, adentro del cerrojo: si el pedido desapareció o cambió de número, no se escribe. */
@@ -396,6 +470,9 @@ export async function procesarPagoParaCredito(pagoId: string, deps: Dependencias
   if (pedido.regimen.regimen === "anterior") return { accion: "nada", motivo: "regimen-anterior", numero: n, regimen: pedido.regimen };
 
   if (cobro.estado === "cobrado") {
+    // El pago solo no alcanza: el pedido tiene que estar confirmado por el
+    // flujo de hoy. Uno cancelado, rechazado o sin confirmar no genera crédito.
+    if (!pedidoConfirmado(pedido)) return { accion: "nada", motivo: "pedido-no-confirmado", numero: n, estadoPedido: pedido.estado };
     const resultado = await registrarCredito(
       {
         numero: n,
@@ -404,7 +481,8 @@ export async function procesarPagoParaCredito(pagoId: string, deps: Dependencias
           return {
             numero: ahora.pedido.numero,
             renglones: ahora.pedido.renglones,
-            pagado: ahora.cobro.estado === "cobrado",
+            // Releído adentro del cerrojo: si lo cancelaron en el medio, no hay crédito.
+            pagado: ahora.cobro.estado === "cobrado" && pedidoConfirmado(ahora.pedido),
             regimen: ahora.pedido.regimen.regimen,
             email: ahora.pedido.email ?? "",
             incidenciaAbierta: ahora.cobro.incidenciaAbierta,
@@ -450,6 +528,8 @@ export async function procesarPagoParaCredito(pagoId: string, deps: Dependencias
     return { accion: "incidencia", numero: n, cobro, resultado };
   }
 
+  // leerTodo ya tiró con «indeterminado»; esto queda por si alguien lo cambia.
+  if (cobro.estado === "indeterminado") throw new CobroIncierto("estado de Mercado Pago que no se conoce");
   return { accion: "nada", motivo: cobro.estado, numero: n };
 }
 

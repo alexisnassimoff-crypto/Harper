@@ -12,10 +12,11 @@ delete process.env.HARPER_DUO_ACTIVO;
 delete process.env.HARPER_CREDITO_ACTIVO;
 for (const v of ["KV_REST_API_URL", "KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "MP_ACCESS_TOKEN"]) delete process.env[v];
 
-import { createRecord, listRecords, TABLAS, type AirtableRecord } from "../lib/airtable";
+import { createRecord, listRecords, TABLAS, updateRecord, type AirtableRecord } from "../lib/airtable";
 import { cerrojoRedis, ErrorCerrojo } from "../lib/cerrojo";
 import { dependenciasCredito, type CamposCredito } from "../lib/credito-airtable";
 import {
+  CobroIncierto,
   cobroDelPedido,
   dependenciasPagoCredito,
   ErrorLecturaMP,
@@ -23,6 +24,7 @@ import {
   lectorMercadoPago,
   lectorPedidosAirtable,
   MARCA_REGIMEN_NUEVO,
+  MAXIMO_PAGOS_POR_PEDIDO,
   pagoDe,
   pedidoDesdeFila,
   procesarPagoParaCredito,
@@ -47,6 +49,8 @@ class MercadoPagoFalso {
   estadoViejoEnBusqueda = new Map<string, string>();
   llamadas: { metodo: string; ruta: string }[] = [];
   falla: ((ruta: string) => number | null) | null = null;
+  /** Suma al total que informa la búsqueda (para simular una búsqueda incompleta). */
+  totalDeMas = 0;
 
   poner(p: PagoCrudo) {
     this.pagos.set(String(p.id), { ...p });
@@ -66,7 +70,9 @@ class MercadoPagoFalso {
       const results = [...this.pagos.values()]
         .filter((p) => p.external_reference === referencia && !this.ocultos.has(String(p.id)))
         .map((p) => ({ ...p, status: this.estadoViejoEnBusqueda.get(String(p.id)) ?? p.status }));
-      return Response.json({ results, paging: { total: results.length } });
+      const desde = Number(u.searchParams.get("offset") ?? 0);
+      const hasta = desde + Number(u.searchParams.get("limit") ?? 50);
+      return Response.json({ results: results.slice(desde, hasta), paging: { total: results.length + this.totalDeMas } });
     }
     const m = /^\/v1\/payments\/(\d+)$/.exec(u.pathname);
     const pago = m ? this.pagos.get(m[1]) : undefined;
@@ -79,14 +85,14 @@ class MercadoPagoFalso {
 let ahora = new Date("2026-11-20T15:00:00.000Z");
 let mp: MercadoPagoFalso;
 /** Se llama cuando alguien toma el cerrojo del crédito (para cambiar el estado justo ahí). */
-let alTomarCerrojo: () => void = () => {};
+let alTomarCerrojo: () => void | Promise<void> = () => {};
 
 function deps(): DependenciasPagoCredito {
   let n = 0;
   const redis = fetchRedisFalso({ ahora: () => ahora.getTime() });
   const conGancho = (async (url: string | URL | Request, init?: RequestInit) => {
     const comando = JSON.parse(String(init?.body)) as string[];
-    if (comando[0] === "SET" && String(comando[1]).startsWith("harper:credito:")) alTomarCerrojo();
+    if (comando[0] === "SET" && String(comando[1]).startsWith("harper:credito:")) await alTomarCerrojo();
     return redis(url, init);
   }) as typeof fetch;
   return {
@@ -112,14 +118,17 @@ const ITEMS_DUO = [
 ];
 
 /** Un pedido de prueba en el Airtable en memoria, con su cliente. Devuelve el ID (external_reference). */
-async function pedido(opciones: { notas?: string; total?: number; items?: unknown[]; email?: string } = {}): Promise<{ id: string; numero: string; total: number }> {
+async function pedido(
+  opciones: { notas?: string; total?: number; items?: unknown[]; email?: string; estado?: string; mpPaymentId?: string } = {}
+): Promise<{ id: string; numero: string; total: number }> {
   const numero = `HARPER-T11-${++secuencia}`;
   const cliente = await createRecord(TABLAS.clientes, { Email: opciones.email ?? "Cliente@Ejemplo.com" });
   const total = opciones.total ?? 167_225;
   const fila = await createRecord(TABLAS.pedidos, {
     Numero: numero,
-    Estado: "pagado",
+    Estado: opciones.estado ?? "pagado",
     Cliente: [cliente.id],
+    ...(opciones.mpPaymentId ? { MP_payment_id: opciones.mpPaymentId } : {}),
     Items: JSON.stringify(opciones.items ?? ITEMS_DUO),
     Total: total,
     Notas: opciones.notas ?? MARCA_REGIMEN_NUEVO,
@@ -157,7 +166,9 @@ test("El cobro del pedido se mide con todos sus pagos, no con el del aviso", () 
     ["en curso", [leido("a", "in_process", T)], "pendiente", {}],
     ["rechazado y cancelado", [leido("a", "rejected", T), leido("b", "cancelled", T)], "sin-pago", {}],
     ["sin pagos", [], "sin-pago", {}],
-    ["un estado que no se conoce", [leido("a", "estado_nuevo", T)], "sin-pago", {}],
+    ["un estado que no se conoce (revisión del PR #69)", [leido("a", "estado_nuevo", T)], "indeterminado", { desconocidos: ["a: estado_nuevo"] }],
+    ["uno aprobado y otro desconocido: tampoco se decide", [leido("a", "approved", T), leido("b", "estado_nuevo", T)], "indeterminado", {}],
+    ["contracargo con un detalle que no se conoce: en curso, nunca sin cobro", [leido("a", "charged_back", T, { statusDetail: "detalle_nuevo" })], "cobrado", { incidenciaAbierta: true }],
   ];
   for (const [que, pagos, estado, extra] of casos) {
     const c = cobroDelPedido(pagos, T);
@@ -385,6 +396,114 @@ test("La búsqueda de Mercado Pago todavía no trae el pago del aviso: se suma i
   mp.ocultos.add(String(a.id));
   const r = await procesarPagoParaCredito(String(a.id), deps());
   assert.equal(r.accion === "registrar" && r.resultado.estado, "creado");
+});
+
+// ---------- Revisión del PR #69 ----------
+
+test("1. El pago registrado en Pedidos siempre cuenta: si la búsqueda solo trae el repetido reembolsado, no se anula", async () => {
+  const principal = pagoAprobado("", 0);
+  const p = await pedido({ mpPaymentId: String(principal.id) });
+  mp.poner({ ...principal, external_reference: p.id, transaction_amount: p.total });
+  const repetido = pagoAprobado(p.id, p.total);
+  mp.poner(repetido);
+  const d = deps();
+  await procesarPagoParaCredito(String(repetido.id), d);
+  assert.equal((await filasDe(p.numero))[0].fields.Estado, "Pendiente");
+
+  // La búsqueda de Mercado Pago todavía no trae el principal; se reembolsa el repetido.
+  mp.ocultos.add(String(principal.id));
+  mp.cambiar(repetido.id, { status: "refunded", transaction_amount_refunded: p.total });
+  const r = await procesarPagoParaCredito(String(repetido.id), d);
+  assert.equal(r.accion, "registrar", "el principal (MP_payment_id) sigue aprobado: el pedido está cobrado");
+  assert.ok(mp.llamadas.some((l) => l.ruta === `/v1/payments/${principal.id}`), "se leyó el pago registrado por su ID");
+  const [fila] = await filasDe(p.numero);
+  assert.equal(fila.fields.Estado, "Pendiente");
+  assert.equal(fila.fields.Monto, 15_733);
+});
+
+test("1. «Sin cobro» con una búsqueda atrasada no se decide: no anula ni bloquea, y se reintenta", async () => {
+  const unico = pagoAprobado("", 0);
+  const p = await pedido({ mpPaymentId: String(unico.id) });
+  mp.poner({ ...unico, external_reference: p.id, transaction_amount: p.total, status: "refunded", transaction_amount_refunded: p.total });
+  mp.ocultos.add(String(unico.id));
+  const d = deps();
+  await assert.rejects(procesarPagoParaCredito(String(unico.id), d), CobroIncierto);
+  assert.deepEqual(await filasDe(p.numero), [], "ni una fila de bloqueo");
+
+  // Cuando la búsqueda se pone al día, el reintento decide.
+  mp.ocultos.clear();
+  const r = await procesarPagoParaCredito(String(unico.id), d);
+  assert.equal(r.accion === "anular" && r.resultado.estado, "anulado-antes");
+});
+
+test("1. Una búsqueda incompleta o con demasiados pagos no se trunca en silencio: CobroIncierto y nada escrito", async () => {
+  const p = await pedido();
+  const a = pagoAprobado(p.id, p.total, { status: "refunded", transaction_amount_refunded: p.total });
+  mp.poner(a);
+  const lector = lectorMercadoPago({ token: "TOKEN-PRUEBA", api: "https://mp.de.prueba", fetch: mp.fetch });
+  // Dice que hay 3 y trae 1.
+  mp.totalDeMas = 2;
+  await assert.rejects(lector.pagosDelPedido(p.id), CobroIncierto);
+  await assert.rejects(procesarPagoParaCredito(String(a.id), deps()), CobroIncierto);
+  // Más de los razonables.
+  mp.totalDeMas = MAXIMO_PAGOS_POR_PEDIDO;
+  await assert.rejects(lector.pagosDelPedido(p.id), CobroIncierto);
+  assert.deepEqual(await filasDe(p.numero), []);
+  // Más de una página, completa: se leen todas.
+  mp.totalDeMas = 0;
+  for (let i = 0; i < 60; i++) mp.poner(pagoAprobado(p.id, 1, { status: "rejected" }));
+  assert.equal((await lector.pagosDelPedido(p.id)).length, 61);
+});
+
+test("2. Solo un pedido confirmado genera crédito: cancelado, rechazado o sin confirmar, aunque el pago esté aprobado, no", async () => {
+  const d = deps();
+  for (const estado of ["cancelado", "rechazado", "pendiente", ""]) {
+    const p = await pedido({ estado });
+    const a = pagoAprobado(p.id, p.total);
+    mp.poner(a);
+    const r = await procesarPagoParaCredito(String(a.id), d);
+    assert.deepEqual(r, { accion: "nada", motivo: "pedido-no-confirmado", numero: p.numero, estadoPedido: estado }, estado);
+    assert.deepEqual(await filasDe(p.numero), [], estado);
+  }
+  for (const estado of ["preparando", "enviado", "entregado"]) {
+    const p = await pedido({ estado });
+    const a = pagoAprobado(p.id, p.total);
+    mp.poner(a);
+    const r = await procesarPagoParaCredito(String(a.id), d);
+    assert.equal(r.accion === "registrar" && r.resultado.estado, "creado", estado);
+  }
+});
+
+test("2. Si el pedido se cancela entre el aviso y el cerrojo, se relee adentro y no nace el crédito", async () => {
+  const p = await pedido();
+  const a = pagoAprobado(p.id, p.total);
+  mp.poner(a);
+  alTomarCerrojo = async () => {
+    await updateRecord(TABLAS.pedidos, p.id, { Estado: "cancelado" });
+  };
+  const r = await procesarPagoParaCredito(String(a.id), deps());
+  assert.equal(r.accion === "registrar" && r.resultado.estado, "nada");
+  assert.deepEqual(await filasDe(p.numero), []);
+});
+
+test("3. Un estado de Mercado Pago que no se conoce no es «sin cobro»: no anula, no crea, y se reintenta", async () => {
+  const p = await pedido();
+  const a = pagoAprobado(p.id, p.total);
+  mp.poner(a);
+  const d = deps();
+  await procesarPagoParaCredito(String(a.id), d);
+  // Mercado Pago estrena un estado: el crédito queda como estaba.
+  mp.cambiar(a.id, { status: "estado_nuevo_de_mp" });
+  await assert.rejects(procesarPagoParaCredito(String(a.id), d), CobroIncierto);
+  const [fila] = await filasDe(p.numero);
+  assert.equal(fila.fields.Estado, "Pendiente");
+
+  // Un pedido sin crédito con ese estado: tampoco deja una fila de bloqueo.
+  const q = await pedido();
+  const b = pagoAprobado(q.id, q.total, { status: "estado_nuevo_de_mp" });
+  mp.poner(b);
+  await assert.rejects(procesarPagoParaCredito(String(b.id), d), CobroIncierto);
+  assert.deepEqual(await filasDe(q.numero), []);
 });
 
 // ---------- Fallas y reintentos ----------
