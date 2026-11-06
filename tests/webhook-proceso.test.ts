@@ -1301,7 +1301,7 @@ test("Tarea 12, pago único: reembolso o contracargo perdido anulan; contracargo
   const enCurso = await como("A", () => procesarNotificacion("111", c.deps));
   assert.equal(enCurso.status, 200);
   assert.equal(await c.anulado(), false, "todavía no se sabe si se pierde");
-  assert.deepEqual(c.asuntos(antes), ["REVISAR HARPER-T12F — contracargo en Mercado Pago: cashback sin anular"]);
+  assert.deepEqual(c.asuntos(antes), ["REVISAR HARPER-T12F — disputa abierta en Mercado Pago: cashback sin anular"]);
   c.pagos["111"] = { ...c.pagos["111"], status: "charged_back", status_detail: "settled" };
   await como("A", () => procesarNotificacion("111", c.deps));
   assert.equal(await c.anulado(), true);
@@ -1312,6 +1312,91 @@ test("Tarea 12, pago único: reembolso o contracargo perdido anulan; contracargo
   g.pagos["111"] = { ...g.pagos["111"], status: "charged_back", status_detail: "reimbursed" };
   await como("A", () => procesarNotificacion("111", g.deps));
   assert.equal(await g.anulado(), false);
+});
+
+test("Revisión del PR #70, las cuatro disputas con un pago único: in_mediation, charged_back/in_process, /settled y /reimbursed", async () => {
+  const casos: { numero: string; status: string; detalle?: string; anulado: boolean; asunto: string | null }[] = [
+    { numero: "HARPER-D1", status: "in_mediation", anulado: false, asunto: "REVISAR HARPER-D1 — disputa abierta en Mercado Pago: cashback sin anular" },
+    { numero: "HARPER-D2", status: "charged_back", detalle: "in_process", anulado: false, asunto: "REVISAR HARPER-D2 — disputa abierta en Mercado Pago: cashback sin anular" },
+    { numero: "HARPER-D3", status: "charged_back", detalle: "settled", anulado: true, asunto: "REVISAR HARPER-D3 — contracargo en Mercado Pago: cashback anulado" },
+    { numero: "HARPER-D4", status: "charged_back", detalle: "reimbursed", anulado: false, asunto: null },
+  ];
+  for (const caso of casos) {
+    const p = await pedidoCobrado(caso.numero, false);
+    const antes = p.mails.length;
+    p.pagos["111"] = { ...p.pagos["111"], status: caso.status, ...(caso.detalle ? { status_detail: caso.detalle } : {}) };
+    const r = await como("A", () => procesarNotificacion("111", p.deps));
+    assert.equal(r.status, 200, caso.numero);
+    assert.equal(await p.anulado(), caso.anulado, `${caso.numero}: anulado`);
+    assert.deepEqual(p.asuntos(antes), caso.asunto ? [caso.asunto] : [], `${caso.numero}: aviso`);
+    if (!caso.anulado && caso.asunto) {
+      // La disputa abierta: el aviso dice que no se anuló, el riesgo de Saldos y cómo bloquearlo.
+      const texto = p.mails.at(-1)!.mail.texto;
+      assert.match(texto, /disputa abierta/);
+      assert.match(texto, /NO se anuló/);
+      assert.match(texto, /Saldos no tiene un estado de suspensión/);
+      assert.match(texto, new RegExp(`marcá Anulado el Cashback de ${caso.numero}`));
+    }
+  }
+});
+
+test("Revisión del PR #70: una disputa abierta termina; perdida y sin cobro anula, ganada conserva", async () => {
+  // El cliente gana el reclamo: Mercado Pago le devuelve la plata (refunded). Sin cobro: se anula.
+  const perdida = await pedidoCobrado("HARPER-D5", false);
+  perdida.pagos["111"] = { ...perdida.pagos["111"], status: "in_mediation" };
+  await como("A", () => procesarNotificacion("111", perdida.deps));
+  assert.equal(await perdida.anulado(), false, "mientras está abierta, no se anula");
+  perdida.pagos["111"] = devueltoDe(perdida.pagos["111"]);
+  await como("A", () => procesarNotificacion("111", perdida.deps));
+  assert.equal(await perdida.anulado(), true);
+
+  // Harper gana: el pago vuelve a aprobado. El cashback queda como estaba y no hay otro aviso.
+  const ganada = await pedidoCobrado("HARPER-D6", false);
+  ganada.pagos["111"] = { ...ganada.pagos["111"], status: "in_mediation" };
+  await como("A", () => procesarNotificacion("111", ganada.deps));
+  const antes = ganada.mails.length;
+  ganada.pagos["111"] = { ...ganada.pagos["111"], status: "approved" };
+  const r = await como("A", () => procesarNotificacion("111", ganada.deps));
+  assert.equal(r.status, 200);
+  assert.equal(await ganada.anulado(), false);
+  assert.equal(ganada.mails.length, antes);
+});
+
+test("Revisión del PR #70: disputa sobre un pago cuando otro pago válido cubre el pedido: se avisa sin riesgo y se conserva, aunque se pierda", async () => {
+  // El original (111) en disputa; el repetido (222) sigue aprobado.
+  const p = await pedidoCobrado("HARPER-D7", true);
+  const antes = p.mails.length;
+  p.pagos["111"] = { ...p.pagos["111"], status: "in_mediation" };
+  assert.equal((await como("A", () => procesarNotificacion("111", p.deps))).status, 200);
+  assert.equal(await p.anulado(), false);
+  assert.deepEqual(p.asuntos(antes), ["REVISAR HARPER-D7 — disputa abierta en Mercado Pago: cashback sin anular"]);
+  assert.match(p.mails.at(-1)!.mail.texto, /Otro pago válido cubre el pedido/);
+  assert.doesNotMatch(p.mails.at(-1)!.mail.texto, /marcá Anulado/, "no hace falta bloquear nada");
+  // Se pierde: el pedido sigue cobrado por el 222. Se conserva.
+  p.pagos["111"] = { ...p.pagos["111"], status: "charged_back", status_detail: "settled" };
+  await como("A", () => procesarNotificacion("111", p.deps));
+  assert.equal(await p.anulado(), false);
+
+  // La disputa es sobre el repetido (rama «ignorar»): también se avisa y se conserva.
+  const q = await pedidoCobrado("HARPER-D8", true);
+  const antesQ = q.mails.length;
+  q.pagos["222"] = { ...q.pagos["222"], status: "in_mediation" };
+  assert.equal((await como("A", () => procesarNotificacion("222", q.deps))).status, 200);
+  assert.equal(await q.anulado(), false);
+  assert.deepEqual(q.asuntos(antesQ), ["REVISAR HARPER-D8 — disputa abierta en Mercado Pago: cashback sin anular"]);
+});
+
+test("Revisión del PR #70: una disputa sin certeza (Mercado Pago no contesta) no avisa ni anula: 503 y reintento", async () => {
+  const p = await pedidoCobrado("HARPER-D9", false);
+  const antes = p.mails.length;
+  p.pagos["111"] = { ...p.pagos["111"], status: "in_mediation" };
+  const caido: LectorMercadoPago = { pago: async () => { throw new Error("Mercado Pago 503"); }, pagosDelPedido: async () => { throw new Error("Mercado Pago 503"); } };
+  const r = await como("A", () => procesarNotificacion("111", { ...p.deps, lectorPagos: caido }));
+  assert.equal(r.status, 503);
+  assert.equal(await p.anulado(), false);
+  assert.equal(p.mails.length, antes);
+  assert.equal((await como("A", () => procesarNotificacion("111", p.deps))).status, 200);
+  assert.equal(p.asuntos(antes).length, 1, "el reintento manda el aviso");
 });
 
 test("Tarea 12, fuera de orden: avisos viejos cuando ya está todo devuelto, y una búsqueda atrasada", async () => {

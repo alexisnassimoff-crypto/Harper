@@ -1994,20 +1994,30 @@ fuera de Vercel y con una base que no sea la real (`puedeEscribirCreditos`).
   siguiera cobrado.
 - Al revés, si después se devolvía el repetido, no lo anulaba nunca.
 
-**Cómo queda.** Ante un reembolso o un contracargo de **cualquier** pago del
-pedido, el webhook mira todos los pagos en Mercado Pago, con la misma
-lectura del crédito (`lib/mp-cobro.ts`, solo lectura).
+**Cómo queda.** Ante un reembolso, un contracargo o una disputa de
+**cualquier** pago del pedido, el webhook mira todos los pagos en Mercado
+Pago, con la misma lectura del crédito (`lib/mp-cobro.ts`, solo lectura).
+
+**Una disputa abierta** (revisión del PR #70) puede ser de dos tipos:
+
+- `in_mediation`: el cliente abrió un reclamo en Mercado Pago;
+- `charged_back` en curso: el banco inició un contracargo.
+
+Se trata igual que un contracargo en curso. **No se anula el cashback solo
+porque haya una disputa sin resolver.**
 
 | Lo que dicen los pagos | Cashback |
 |---|---|
-| Pago único reembolsado, o contracargo perdido | Se anula y se avisa, como siempre |
+| Pago único reembolsado, o contracargo perdido (`charged_back/settled`) | Se anula y se avisa, como siempre |
 | Se devolvió el repetido y el original sigue cobrado | No se anula |
 | Se devolvió el original y el repetido sigue cobrado | No se anula (antes sí) |
 | Se devolvieron los dos, en cualquier orden | Se anula una sola vez, al quedar sin cobro |
-| Contracargo en curso | No se anula todavía: se avisa a Harper. Si se pierde, el aviso de Mercado Pago lo anula |
-| Contracargo ganado | No se anula |
+| Disputa abierta (`in_mediation` o `charged_back/in_process`) | No se anula todavía. Mail «REVISAR … disputa abierta en Mercado Pago: cashback sin anular»: dice si otro pago válido cubre el pedido y, si no, cómo bloquearlo |
+| La disputa termina perdida y el pedido queda sin cobro (reembolsado o contracargo perdido) | Se anula |
+| La disputa termina perdida, pero otro pago válido cubre el pedido | No se anula |
+| La disputa termina ganada (`charged_back/reimbursed`, o el pago vuelve a aprobado) | No se anula |
 | Quedó cobrado en parte | No se anula: se avisa a Harper, que decide |
-| Mercado Pago no contesta, la búsqueda viene incompleta o atrasada, o un estado no se conoce | No se anula por suposición: 503 y Mercado Pago reintenta |
+| Mercado Pago no contesta, la búsqueda viene incompleta o atrasada, o un estado no se conoce | No se anula ni se avisa por suposición: 503 y Mercado Pago reintenta |
 
 **Qué pagos se miran:**
 
@@ -2018,9 +2028,12 @@ lectura del crédito (`lib/mp-cobro.ts`, solo lectura).
 
 Cada uno se lee por su ID.
 
-**Lo único que cambia sin pagos repetidos: el contracargo.** Antes se anulaba
-apenas empezaba. Ahora espera a saber si se pierde, y mientras tanto avisa a
-Harper.
+**Lo único que cambia sin pagos repetidos: las disputas.**
+
+- **El contracargo:** antes se anulaba apenas empezaba. Ahora espera a saber
+  si se pierde, y mientras tanto avisa a Harper.
+- **El reclamo (`in_mediation`):** antes no hacía nada ni avisaba. Ahora
+  avisa.
 
 **Lo que no cambia:**
 
@@ -2028,6 +2041,46 @@ Harper.
 - los pedidos sin cashback, que ni siquiera leen los pagos;
 - los mails de siempre;
 - el Crédito Harper y el Dúo, que siguen apagados.
+
+**Riesgo: Saldos no tiene un estado de suspensión.**
+
+- Durante una disputa abierta, el cashback sigue contando para el saldo del
+  cliente.
+- El riesgo existe solo si se cumplen las dos condiciones:
+  - el cashback ya está disponible (30 días después del pago);
+  - ningún otro pago válido cubre el pedido.
+- Si el cliente lo gasta y después pierde la disputa, el webhook lo anula y
+  su saldo queda en negativo hasta el próximo cashback. Es lo mismo que pasa
+  hoy con un reembolso después de los 30 días.
+- El aviso a Harper no evita que se use.
+
+**Cómo bloquearlo hoy, a mano, sin cambiar la tabla.** El mail de la disputa
+lo explica:
+
+1. En Saldos, marcar «Anulado» el Cashback de ese pedido.
+2. Anotar en Notas «suspendido por disputa del pago X».
+3. Si la disputa se gana, desmarcarlo. Si se pierde, el webhook ya lo
+   encuentra anulado y no vuelve a avisar.
+
+Marcarlo es reversible y el saldo deja de contarlo en el acto. El webhook
+nunca vuelve a crear un cashback anulado.
+
+**Propuesta para bloquearlo solo (PARA AUTORIZAR, no está hecha):**
+
+- **Un campo nuevo en Saldos:** «Suspendido» (casilla).
+  - **Quién lo escribe:** el webhook.
+    - Lo marca en el Cashback del pedido al abrirse una disputa que no está
+      cubierta por otro pago.
+    - Lo desmarca si la disputa se gana.
+    - Si se pierde, anula como hoy.
+  - **Qué cambia en el saldo:** `saldoDe` (lib/suscriptores.ts) no cuenta lo
+    suspendido. El checkout y Mi cuenta usan ese cálculo, así que el bloqueo
+    llega solo.
+  - **Qué toca:** un campo nuevo y escrituras solo sobre la fila Cashback del
+    pedido en disputa. No cambia ninguna fila existente.
+- **Descartado:** consultar las disputas en Mercado Pago en cada checkout.
+  Es lento, depende de que Mercado Pago conteste y no cubre Mi cuenta.
+
 
 ---
 

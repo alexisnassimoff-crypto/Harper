@@ -156,8 +156,13 @@ export type CobroDelPedido = {
   neto: number;
   /** Pagos vigentes de más (el cliente pagó dos veces): hay que devolver uno. */
   repetidos: number;
-  /** Un reclamo o un contracargo en curso: el crédito no se libera. */
+  /** Un reclamo (in_mediation) o un contracargo en curso: el crédito no se libera. */
   incidenciaAbierta: boolean;
+  /**
+   * Si el pedido queda cubierto aun sin los pagos en disputa (Tarea 12): con
+   * otro pago válido que alcanza, perder la disputa no lo deja sin cobro.
+   */
+  cubiertoSinDisputa: boolean;
   /** Se perdió un contracargo. */
   contracargoPerdido: boolean;
   /** Los pagos con plata vigente. */
@@ -209,12 +214,14 @@ export function cobroDelPedido(pagos: readonly PagoLeido[], total: number): Cobr
   if (!Number.isFinite(total) || total < 0) throw new RangeError("El total del pedido tiene que ser un número de 0 o más");
   const desconocidos = pagos.filter((p) => vigenteDe(p) === null).map((p) => `${p.id}: ${p.status}`);
   if (desconocidos.length > 0) {
-    return { estado: "indeterminado", desconocidos, neto: 0, repetidos: 0, incidenciaAbierta: false, contracargoPerdido: false, vigentes: [] };
+    return { estado: "indeterminado", desconocidos, neto: 0, repetidos: 0, incidenciaAbierta: false, cubiertoSinDisputa: false, contracargoPerdido: false, vigentes: [] };
   }
   const leidos = pagos.map((p) => ({ p, v: vigenteDe(p) as Vigencia }));
   const conPlata = leidos.filter((x) => x.v.neto > 0);
   const neto = conPlata.reduce((t, x) => t + x.v.neto, 0);
   const incidenciaAbierta = leidos.some((x) => x.v.incidencia);
+  const netoSinDisputa = conPlata.filter((x) => !x.v.incidencia).reduce((t, x) => t + x.v.neto, 0);
+  const cubiertoSinDisputa = netoSinDisputa >= total - TOLERANCIA_COBRO && (total === 0 || netoSinDisputa > 0);
   const contracargoPerdido = leidos.some((x) => x.v.perdido);
   const huboCobro = leidos.some((x) => x.v.huboCobro);
   // Repetidos: cuántos pagos vigentes sobran para cubrir el total.
@@ -241,6 +248,7 @@ export function cobroDelPedido(pagos: readonly PagoLeido[], total: number): Cobr
     neto,
     repetidos: estado === "cobrado" ? Math.max(0, conPlata.length - Math.max(1, necesarios)) : 0,
     incidenciaAbierta,
+    cubiertoSinDisputa,
     contracargoPerdido,
     vigentes: conPlata.map((x) => x.p.id),
   };

@@ -428,8 +428,19 @@ async function rechazarSinCerrojo(pago: PagoMP, pedidoId: string, deps: Dependen
   };
 }
 
-/** Un pago que Mercado Pago devolvió: reembolso desde el panel o contracargo de la tarjeta. */
-const ESTADOS_REEMBOLSO = new Set(["refunded", "charged_back"]);
+/**
+ * Un pago que Mercado Pago devolvió o que está en disputa: reembolso desde el
+ * panel, contracargo de la tarjeta, o un reclamo abierto (`in_mediation`: una
+ * disputa de Mercado Pago, revisión del PR #70).
+ */
+const ESTADOS_QUE_REVISAN_CASHBACK = new Set(["refunded", "charged_back", "in_mediation"]);
+
+/** Qué le pasó al pago, para los avisos: con su artículo. */
+function queLePaso(pago: PagoMP): { que: "reembolso" | "contracargo" | "disputa"; conArticulo: string } {
+  if (pago.status === "in_mediation") return { que: "disputa", conArticulo: "una disputa (reclamo)" };
+  if (pago.status === "charged_back") return { que: "contracargo", conArticulo: "un contracargo" };
+  return { que: "reembolso", conArticulo: "un reembolso" };
+}
 
 /**
  * El cashback de un pedido cuyo pago se devolvió queda Anulado en Saldos,
@@ -441,7 +452,7 @@ async function anularCashbackPorReembolso(pedido: AirtableRecord<FilaPedido>, pa
   const beneficios = beneficiosDeNotas(pedido.fields.Notas);
   if (!beneficios || beneficios.cashback <= 0) return;
   const numero = pedido.fields.Numero ?? pedido.id;
-  const que = pago.status === "charged_back" ? "contracargo" : "reembolso";
+  const { que, conArticulo } = queLePaso(pago);
   const ahora = new Date(deps.reloj.ahora());
   const r = await anularCashbackPendiente(numero, `Anulado: ${que} del pago ${pago.id} en Mercado Pago (${ahora.toISOString().slice(0, 10)}).`, ahora, {
     aunqueDisponible: true,
@@ -454,7 +465,7 @@ async function anularCashbackPorReembolso(pedido: AirtableRecord<FilaPedido>, pa
       config,
       asunto: `REVISAR ${numero} — ${que} en Mercado Pago: cashback anulado`,
       lineas: [
-        `Mercado Pago avisó un ${que} del pago ${pago.id}. El cashback de ${formatearPrecio(r.monto)} de ${beneficios.email} quedó Anulado en Saldos${
+        `Mercado Pago avisó ${conArticulo} del pago ${pago.id}. El cashback de ${formatearPrecio(r.monto)} de ${beneficios.email} quedó Anulado en Saldos${
           r.estado === "anulado-disponible" ? " (ya se podía usar: si lo usó, su saldo queda en negativo hasta el próximo cashback)" : ""
         }.`,
         ...(beneficios.saldoUsado > 0
@@ -485,14 +496,17 @@ const REINTENTAR_CASHBACK: Resultado = {
 };
 
 /**
- * Un reembolso o un contracargo de CUALQUIER pago del pedido (Tarea 12):
- * antes de anular el cashback se mira, con todos los pagos en Mercado Pago
- * (lib/mp-cobro.ts), si el pedido sigue cobrado.
+ * Un reembolso, un contracargo o una disputa de CUALQUIER pago del pedido
+ * (Tarea 12): antes de anular el cashback se mira, con todos los pagos en
+ * Mercado Pago (lib/mp-cobro.ts), si el pedido sigue cobrado.
  *  - Sin cobro (todo devuelto, contracargo perdido): se anula, como siempre.
  *  - Sigue cobrado por otro pago (se devolvió un pago repetido, o el
  *    original y queda el repetido): no se anula.
- *  - Contracargo en curso: todavía no se sabe si se pierde; no se anula y se
- *    avisa a Harper. Si se pierde, el aviso de Mercado Pago lo anula.
+ *  - Disputa abierta (`in_mediation` o contracargo en curso): todavía no se
+ *    sabe si se pierde; no se anula y se avisa a Harper, diciendo si otro
+ *    pago válido cubre el pedido. Saldos no tiene un estado de suspensión: el
+ *    aviso explica cómo bloquearlo a mano (docs §17.11). Si se pierde y el
+ *    pedido queda sin cobro, el aviso de Mercado Pago lo anula.
  *  - Cobrado en parte: no se anula y se avisa a Harper, que decide.
  *  - Si Mercado Pago no contesta, la búsqueda viene incompleta o atrasada, o
  *    un estado no se conoce: no se anula por suposición. Devuelve un 503 para
@@ -500,7 +514,7 @@ const REINTENTAR_CASHBACK: Resultado = {
  * Devuelve null cuando quedó resuelto.
  */
 async function revisarCashbackPorReembolso(pedido: AirtableRecord<FilaPedido>, pago: PagoMP, deps: Dependencias): Promise<Resultado | null> {
-  if (!ESTADOS_REEMBOLSO.has(pago.status)) return null;
+  if (!ESTADOS_QUE_REVISAN_CASHBACK.has(pago.status)) return null;
   const beneficios = beneficiosDeNotas(pedido.fields.Notas);
   if (!beneficios || beneficios.cashback <= 0) return null;
   const numero = pedido.fields.Numero ?? pedido.id;
@@ -514,27 +528,45 @@ async function revisarCashbackPorReembolso(pedido: AirtableRecord<FilaPedido>, p
       return null;
     }
 
-    const que = pago.status === "charged_back" ? "contracargo" : "reembolso";
+    const { que, conArticulo } = queLePaso(pago);
     if (cobro.estado === "cobrado" && !cobro.incidenciaAbierta) {
-      console.info(`[webhook] ${que} del pago ${pago.id}: el pedido ${numero} sigue cobrado por otro pago; el cashback no se anula`);
+      console.info(`[webhook] ${que} del pago ${pago.id}: el pedido ${numero} sigue cobrado; el cashback no se anula`);
       return null;
     }
+    if (cobro.estado !== "cobrado" && cobro.estado !== "parcial") return null;
 
-    // Contracargo en curso o cobrado en parte: no se anula y se avisa.
-    const motivo =
+    const cashback = `El cashback de ${formatearPrecio(beneficios.cashback)} de ${beneficios.email}`;
+    const estadoMP = `${pago.status}${pago.status_detail ? `/${pago.status_detail}` : ""}`;
+    const bloquear = [
+      "Ojo: Saldos no tiene un estado de suspensión. Si el cashback ya está disponible (30 días después del pago), el cliente lo puede usar mientras dure la disputa.",
+      `Para bloquearlo ya: en Saldos, marcá Anulado el Cashback de ${numero} y anotá en Notas «suspendido por disputa del pago ${pago.id}». Si la disputa se gana, desmarcalo.`,
+    ];
+    const aviso =
       cobro.estado === "cobrado"
-        ? "hay un contracargo o un reclamo en curso: todavía no se sabe si se pierde"
-        : `el pedido quedó cobrado en parte (${formatearPrecio(cobro.neto)} de ${formatearPrecio(pedido.fields.Total ?? 0)})`;
-    console.warn(`[webhook] ${que} del pago ${pago.id} sobre el pedido ${numero}: ${motivo}; el cashback no se anula`);
+        ? {
+            asunto: `REVISAR ${numero} — disputa abierta en Mercado Pago: cashback sin anular`,
+            lineas: [
+              `Mercado Pago avisó ${conArticulo} del pago ${pago.id} (${estadoMP}). Hay una disputa abierta (reclamo o contracargo) que todavía no está resuelta.`,
+              ...(cobro.cubiertoSinDisputa
+                ? [`Otro pago válido cubre el pedido: aunque la disputa se pierda, el pedido sigue cobrado. ${cashback} se conserva.`]
+                : [`${cashback} NO se anuló: si la disputa se pierde y el pedido queda sin cobro, el webhook lo anula solo.`, ...bloquear]),
+            ],
+          }
+        : {
+            asunto: `REVISAR ${numero} — ${que} en Mercado Pago: pedido cobrado en parte, cashback sin anular`,
+            lineas: [
+              `Mercado Pago avisó ${conArticulo} del pago ${pago.id} (${estadoMP}), y el pedido quedó cobrado en parte (${formatearPrecio(cobro.neto)} de ${formatearPrecio(pedido.fields.Total ?? 0)}).`,
+              `${cashback} NO se anuló. Si corresponde, anulalo a mano en Saldos.`,
+              ...(cobro.incidenciaAbierta ? bloquear : []),
+            ],
+          };
+    console.warn(`[webhook] ${aviso.asunto}`);
     const config = await getConfig();
     await deps.enviarMail(
       mailAlertaInterna({
         config,
-        asunto: `REVISAR ${numero} — ${que} en Mercado Pago: cashback sin anular`,
-        lineas: [
-          `Mercado Pago avisó un ${que} del pago ${pago.id}, pero ${motivo}.`,
-          `El cashback de ${formatearPrecio(beneficios.cashback)} de ${beneficios.email} NO se anuló. Si corresponde, anulalo a mano en Saldos.`,
-        ],
+        asunto: aviso.asunto,
+        lineas: aviso.lineas,
         enlace: `https://airtable.com/${process.env.AIRTABLE_BASE_ID}/${TABLAS.pedidos}/${pedido.id}`,
       })
     );
