@@ -5304,6 +5304,20 @@ p {
 .cuenta-suscriptor__importe[data-signo="mas"] {
   color: var(--verde);
 }
+/* Crédito Harper (paso 3): aparte del saldo de Suscriptores Harper. */
+.cuenta-suscriptor__importe[data-signo="anulado"] {
+  color: var(--texto-suave);
+  font-weight: 400;
+}
+.cuenta-suscriptor__credito .cuenta-suscriptor__numeros {
+  margin-top: 1.25rem;
+}
+.cuenta-suscriptor__saldo-anterior {
+  margin: 2rem 0 0;
+}
+.cuenta-suscriptor__saldo-anterior + .cuenta-suscriptor__numeros {
+  margin-top: 0.75rem;
+}
 .cuenta-suscriptor__salir {
   display: block;
   margin: 2rem 0 0;

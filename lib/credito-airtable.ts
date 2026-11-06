@@ -157,6 +157,18 @@ export const almacenAirtable: AlmacenCreditos = {
   },
 };
 
+/**
+ * Los créditos de un mail (Mi Cuenta, paso 3): solo lectura y sin cache. El
+ * mail es el de la sesión verificada, nunca uno que mande el navegador. Se
+ * vuelve a filtrar acá por si la fórmula trajera de más.
+ */
+export async function creditosPorEmail(email: string): Promise<FilaCredito[]> {
+  const mail = email.trim().toLowerCase();
+  if (!mail.includes("@")) return [];
+  const filas = await listRecords<CamposCredito>(tabla(), { filterByFormula: `LOWER({Email}) = '${escaparFormula(mail)}'`, revalidate: 0 });
+  return filas.map(filaDelRegistro).filter((f) => f.email === mail);
+}
+
 /** Si el pedido ya tiene el cashback de hoy en Saldos (anulado o no). Solo lectura. */
 export async function cashbackAnteriorDelPedido(pedido: string): Promise<{ anulado: boolean } | null> {
   const filas = await listRecords<{ Anulado?: boolean }>(TABLAS.saldos, {

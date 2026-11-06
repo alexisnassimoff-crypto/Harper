@@ -168,7 +168,7 @@ function vigente(filas: readonly FilaCredito[]): FilaCredito | null {
 }
 
 /** La vigente o, si todas están anuladas, la última anulada. */
-function laDelPedido(filas: readonly FilaCredito[]): FilaCredito | null {
+export function laDelPedido(filas: readonly FilaCredito[]): FilaCredito | null {
   return vigente(filas) ?? [...filas].sort(masViejaPrimero).at(-1) ?? null;
 }
 

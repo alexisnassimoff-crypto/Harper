@@ -48,6 +48,8 @@ export default function FormularioSuscripcion({
   textoBoton,
   conCambioDeModo = true,
   anidado = false,
+  soloCuenta = false,
+  alEntrar,
 }: {
   origen: OrigenSuscripcion;
   modoInicial?: Modo;
@@ -68,6 +70,14 @@ export default function FormularioSuscripcion({
    * mandar el formulario de afuera.
    */
   anidado?: boolean;
+  /**
+   * Entrar a Mi Cuenta sin suscribirse (Crédito Harper, paso 3, solo con
+   * HARPER_CREDITO_ACTIVO=1): el código abre la cuenta con /api/cuenta/entrar,
+   * que nunca da de alta ni pide la casilla de las novedades.
+   */
+  soloCuenta?: boolean;
+  /** Con `soloCuenta`: entró. */
+  alEntrar?: () => void;
 }) {
   const id = useId();
   const [modo, setModo] = useState<Modo>(modoInicial);
@@ -115,6 +125,24 @@ export default function FormularioSuscripcion({
     if (suscribe && !acepta) return setError(T.faltaAcepto);
     const nombreAEnviar = nombre.trim() || (nombreDado ?? "").trim();
     setOcupado(true);
+    if (soloCuenta) {
+      try {
+        const r = await fetch("/api/cuenta/entrar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, codigo: codigo.trim(), desafio }),
+        });
+        const cuerpo = (await r.json().catch(() => ({}))) as { estado?: string; error?: string };
+        if (!r.ok || !cuerpo.estado) throw new Error(cuerpo.error ?? "No pudimos confirmar tu mail. Probá de nuevo.");
+        void refrescarSuscriptor();
+        alEntrar?.();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No pudimos confirmar tu mail.");
+      } finally {
+        setOcupado(false);
+      }
+      return;
+    }
     try {
       const r = await fetch("/api/suscriptores/confirmar", {
         method: "POST",
