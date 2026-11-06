@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { almacenUsosAirtable, leerSaldoDeCredito, lectorPedidosDeUsosAirtable, type AlmacenUsos, type FilaUso, type LectorPedidosDeUsos } from "./credito-uso";
 import { creditoActivo } from "./credito-harper";
-import { laDelPedido, saldosDeLaCuenta, type FilaCredito } from "./credito-persistencia";
+import { creditoRetenido, laDelPedido, saldosDeLaCuenta, type FilaCredito } from "./credito-persistencia";
 import { codigoCorrecto, normalizarEmail } from "./reconocer-cliente";
 import { fechaArgentina } from "./suscriptores";
 import { estaActivo, suscriptorDeLaSesion, suscriptorPorEmail, type CuentaSuscriptor } from "./suscriptores-cuenta";
@@ -270,10 +270,11 @@ export function billeteraDeCredito(
       pedido: f.pedido,
       monto: f.monto,
       porcentaje: f.porcentaje,
-      estado: ESTADOS[f.estado],
+      // Disponible con una incidencia abierta (paso 5): retenido, se ve en revisión.
+      estado: creditoRetenido(f) ? ("en-revision" as const) : ESTADOS[f.estado],
       fecha: diaDe(f.generadoEl),
       disponibleDesde: f.disponibleDesde,
-      conGestionAbierta: f.estado === "Pendiente" && f.incidenciaAbierta,
+      conGestionAbierta: (f.estado === "Pendiente" || f.estado === "Disponible") && f.incidenciaAbierta,
       orden: f.generadoEl,
     }));
   const vencidas = new Set((uso?.vencidas ?? []).map((u) => u.id));

@@ -757,6 +757,8 @@ test("Fuera de sus archivos, solo el webhook y el checkout usan el crédito (pas
     // La billetera de Mi Cuenta (paso 3): solo lee Créditos por el mail de la sesión.
     path.join("lib", "credito-cuenta.ts"),
     path.join("lib", "credito-diario.ts"),
+    // Las incidencias del paso 5: el arrepentimiento verificado abre la incidencia, detrás del interruptor.
+    path.join("lib", "credito-incidencias.ts"),
     // El uso en el checkout (paso 4): reservas y usos en Créditos, detrás del interruptor.
     path.join("lib", "credito-uso.ts"),
     path.join("lib", "webhook-proceso.ts"),

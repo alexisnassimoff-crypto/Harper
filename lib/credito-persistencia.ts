@@ -523,12 +523,21 @@ export async function marcarIncidencia(
 // ---------- 5. Junto con el saldo de hoy, sin mezclarlos ----------
 
 /**
+ * Un crédito «Disponible» con una incidencia abierta (un cambio o un reclamo
+ * que Harper marcó a mano en Incidencia_abierta, paso 5): queda retenido. No
+ * se puede usar y se cuenta como en revisión hasta que Harper la cierre.
+ */
+export const creditoRetenido = (f: Pick<FilaCredito, "estado" | "incidenciaAbierta">) => f.estado === "Disponible" && f.incidenciaAbierta;
+
+/**
  * Lo que tiene una cuenta, en dos bolsillos separados (§10.3):
  *  - `anterior`: el saldo de hoy (Saldos: cashback, uso, ajustes), con sus
  *    reglas de siempre. Exactamente lo que da `saldoDe`: sirve en cualquier
  *    producto y no cambia por los créditos nuevos;
  *  - `credito`: el Crédito Harper, solo para anteojos. Suma lo Disponible;
- *    lo Pendiente va aparte y no se puede usar; lo «A revisar» tampoco.
+ *    lo Pendiente va aparte y no se puede usar; lo «A revisar» tampoco, ni lo
+ *    Disponible con una incidencia abierta (`creditoRetenido`: va con lo
+ *    «A revisar»).
  * Si un pedido tuviera dos filas vigentes, cuenta una sola (la más vieja).
  * Usar el crédito (descontarlo en una compra) es otra tarea: esto es lo que
  * se ganó, no lo que queda después de usarlo.
@@ -541,10 +550,14 @@ export function saldosDeLaCuenta(
   const porPedido = new Map<string, FilaCredito[]>();
   for (const c of creditos) porPedido.set(c.clave, [...(porPedido.get(c.clave) ?? []), c]);
   const vigentes = [...porPedido.values()].map(vigente).filter((c): c is FilaCredito => c !== null);
-  const suma = (estado: EstadoGuardado) =>
-    vigentes.filter((c) => c.estado === estado).reduce((t, c) => t + (Number.isFinite(c.monto) ? Math.max(0, c.monto) : 0), 0);
+  const suma = (cuales: (c: FilaCredito) => boolean) =>
+    vigentes.filter(cuales).reduce((t, c) => t + (Number.isFinite(c.monto) ? Math.max(0, c.monto) : 0), 0);
   return {
     anterior: saldoDe(movimientos, hoy),
-    credito: { disponible: suma("Disponible"), pendiente: suma("Pendiente"), aRevisar: suma("A revisar") },
+    credito: {
+      disponible: suma((c) => c.estado === "Disponible" && !creditoRetenido(c)),
+      pendiente: suma((c) => c.estado === "Pendiente"),
+      aRevisar: suma((c) => c.estado === "A revisar" || creditoRetenido(c)),
+    },
   };
 }

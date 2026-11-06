@@ -4,6 +4,7 @@ import { fechaDeRecepcion, generarCodigo, pedidoParaMostrar, type SolicitudArrep
 import { precio as formatearPrecio } from "./formato";
 import { beneficiosDeNotas } from "./suscriptores";
 import { anularCashbackPendiente } from "./suscriptores-cuenta";
+import { incidenciaPorArrepentimiento } from "./credito-incidencias";
 import {
   enviarMailConDetalle,
   mailArrepentimientoComprador,
@@ -64,6 +65,8 @@ export async function registrarArrepentimiento(
     actualizar?: (id: string, campos: Partial<FilaArrepentimiento>) => Promise<unknown>;
     /** El cashback pendiente del pedido (ver `anularCashbackDelPedido`): devuelve la nota para Harper. */
     cashback?: (solicitud: SolicitudArrepentimiento, codigo: string, ahora: Date) => Promise<string | null>;
+    /** El Crédito Harper del pedido (paso 5, lib/credito-incidencias.ts): abre la incidencia y devuelve la nota. */
+    credito?: (solicitud: SolicitudArrepentimiento, codigo: string) => Promise<string | null>;
   }
 ): Promise<ResultadoArrepentimiento> {
   const enviar = deps.enviar ?? enviarMailConDetalle;
@@ -105,8 +108,19 @@ export async function registrarArrepentimiento(
     notaSaldo = "No se pudo revisar si el pedido tiene cashback de suscriptor: si lo tiene, marcá Anulado en Saldos.";
   }
 
+  // El Crédito Harper del pedido (paso 5, solo con HARPER_CREDITO_ACTIVO=1):
+  // la incidencia lo retiene si el pedido se verifica. Apagado devuelve null
+  // y el aviso es el de siempre. Nunca frena el arrepentimiento.
+  let notaCredito: string | null = null;
+  try {
+    notaCredito = await (deps.credito ?? incidenciaPorArrepentimiento)(solicitud, codigo);
+  } catch (error) {
+    console.error(`[arrepentimiento] ${codigo}: no se pudo revisar el Crédito Harper del pedido:`, mensaje(error));
+    notaCredito = "No se pudo revisar el Crédito Harper del pedido: si lo tiene, marcá Incidencia_abierta en Créditos.";
+  }
+
   // 2. El aviso a Harper.
-  const aviso = mailArrepentimientoInterno({ ...datos, errorRegistro, notaSaldo });
+  const aviso = mailArrepentimientoInterno({ ...datos, errorRegistro, notaSaldo: [notaSaldo, notaCredito].filter(Boolean).join(" ") || null });
   let avisado = await enviar(aviso);
   if (!avisado.ok) avisado = await enviar(aviso);
   if (!avisado.ok) errores.push(`Aviso a Harper: ${avisado.error}`);

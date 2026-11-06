@@ -1673,7 +1673,10 @@ página calcula el descuento por su cuenta.
   filas en Suscriptores, cupones ni cashback, y el saldo de Suscriptores
   Harper va aparte. Desde el paso 4 (06/11/2026) el checkout puede usar el
   crédito disponible en anteojos, con reserva, confirmación por el pago
-  real y liberación (§17.12). Todo detrás del mismo interruptor. Cuando este documento dice qué pasa ante un aviso de pago, un
+  real y liberación (§17.12). Desde el paso 5 (06/11/2026), una solicitud
+  de arrepentimiento verificada retiene el crédito del pedido y un cambio o
+  reclamo que Harper marca a mano lo retiene igual (§17.13). Todo detrás del
+  mismo interruptor. Cuando este documento dice qué pasa ante un aviso de pago, un
   reembolso o una entrega, describe la lógica preparada y probada, no algo
   que ya funcione con pedidos reales. Conectarla requiere autorización
   (§17.9).
@@ -2231,10 +2234,41 @@ siquiera lo pide hasta que el servidor lo ofrece).
   la cuenta queda con más usado que ganado, se avisa. Reembolso parcial: no
   cambia y se avisa (la regla está pendiente, §14 L1). Lo que Harper ya
   decidió («A revisar», «Devuelto») no lo pisa ningún pago.
-- **Antes del corte (con aprobación de Ale):** agregar a «Estado» de
-  Créditos las opciones Reservado, Usado, Liberado y Devuelto. Hoy la
-  selección única solo tiene Pendiente, Disponible, Anulado y A revisar.
-  No se cambió nada en la base real.
+- **Antes del corte:** agregar a «Estado» de Créditos las opciones
+  Reservado, Usado, Liberado y Devuelto (aprobado por Ale el 06/11/2026).
+  Hoy la selección única solo tiene Pendiente, Disponible, Anulado y
+  A revisar. La API de Airtable no agrega opciones a una selección sin
+  escribir un registro, así que Harper las agrega a mano en el campo y
+  después se verifica el esquema. Ningún registro se toca.
+
+### 17.13 Devoluciones e incidencias (paso 5, apagado)
+
+Código: `lib/credito-incidencias.ts`. Solo con `HARPER_CREDITO_ACTIVO=1`.
+Reutiliza la tabla Arrepentimientos, el campo Incidencia_abierta de
+Créditos y `marcarIncidencia` (§17.3). No define ninguna regla de L1–L5.
+
+| Qué | Cómo |
+|---|---|
+| **Detección** | La solicitud de arrepentimiento abre sola la incidencia del crédito del pedido solo si se cumplen las cuatro condiciones de §18.2: el número es de un solo pedido, el mail es el del cliente de ese pedido, el pedido está confirmado y tiene Crédito Harper no anulado. Si falta algo, no se toca nada y el aviso a Harper dice por qué |
+| **Cambios y reclamos internos** | Harper marca Incidencia_abierta en Créditos, como hoy (§18.3) |
+| **Retención** | Pendiente con incidencia: no se libera (la ruta diaria lo frena). Disponible con incidencia: no se puede usar y se ve «en revisión» (`creditoRetenido`). Si la abrió el arrepentimiento, queda «A revisar» |
+| **Trazabilidad** | Una línea en las Notas de la fila («Incidencia abierta: arrepentimiento ARR-…») y una nota en el aviso del arrepentimiento a Harper |
+| **Resolución** | Siempre de Harper: destildar Incidencia_abierta (el pendiente se libera a su tiempo, con los controles de la ruta diaria) o decidir el «A revisar» (Disponible o Anulado) |
+
+**Bloqueado para revisión hasta que haya política (L1–L5):**
+
+- **La devolución parcial:** no se recalcula sola. `aplicarDevolucion` no
+  se usa desde ningún circuito; el reembolso parcial de Mercado Pago abre
+  la incidencia y la ruta diaria lo retiene.
+- **El crédito ya gastado de un pedido que se devuelve:** no se recupera.
+  La cuenta queda con más usado que ganado, no puede usar más crédito y se
+  avisa a Harper. Nunca queda en negativo.
+- **El crédito usado en el pedido que se devuelve:** no vuelve solo. Queda
+  descontado y se avisa. Si corresponde, Harper marca «Devuelto» su uso.
+
+Nunca frena el arrepentimiento: si algo falla (Redis, Airtable), el
+arrepentimiento se registra igual y la nota pide marcar la incidencia a
+mano. Apagado, no se lee ni se escribe nada y el aviso es el de siempre.
 
 ---
 
