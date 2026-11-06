@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 process.env.HARPER_FIXTURES = "1";
 
 import { createRecord, TABLAS } from "../lib/airtable";
+import { calcularContribucion, CASHBACK_PRINCIPAL, PARAMETROS_REFERENCIA, PRECIO_REFERENCIA, type PedidoModelo } from "../lib/contribucion";
 import { fetchRedisFalso, reiniciarRedis } from "../lib/fixtures/redis";
 import { canalDeCampana, canalDeLaVisita, canalDelOrigen, canalDeReferencia } from "../lib/canales";
 import { direccionParaMedir, esEventoMedido, leerCuerpoDeMedicion, rutaSinMedir } from "../lib/medir";
@@ -403,32 +404,104 @@ test("panel: ventas del período solo con pedidos confirmados, comparadas con el
   assert.equal(v.ultimos.length, 4);
 });
 
-test("panel: cuánto dejó cada venta, sin IVA, con costo, packaging, envío y cashback (sin Mercado Pago)", () => {
+// Tarea 15: «Cuánto dejó» con el motor de contribución (lib/contribucion.ts).
+const cerca = (real: number, esperado: number, que: string) => assert.ok(Math.abs(real - esperado) < 0.01, `${que}: ${real} ≠ ${esperado}`);
+
+test("panel: cuánto dejó, con el motor de contribución: del pedido, estimado con tasas de referencia y pendiente sin restar", () => {
   const costoDe = (id: string) => (id === "recVARIANTE00001" ? { costo: 20_000, packaging: 1_000 } : null);
   const m = margenDe(
     [
-      pedido("A", { cashback: 10_000 }),
-      // Sin envío cotizado: se estima con la tarifa plana.
+      // Promete $ 12.100 de crédito para la próxima compra. Pagó con tarjeta: no se sabe en cuántas cuotas.
+      pedido("A", { cashback: 12_100 }),
+      // Sin envío cotizado: se estima con la tarifa plana, y se dice.
       pedido("B", { envioCostoReal: null }),
       // A un producto le falta el costo: queda afuera, y se avisa.
       pedido("C", { items: [{ varianteId: "recSINCOSTO00001", nombre: "X", color: "", categoria: "Anteojos", cantidad: 1, subtotal: 1 }] }),
       pedido("D", { estado: "cancelado" }),
+      // Usa $ 12.100 de saldo (ya provisionado cuando se prometió) y paga con dinero en Mercado Pago: un solo pago.
+      pedido("E", { total: 108_900, saldoUsado: 12_100, dineroMP: true }),
     ],
     { tasa: 21, costoDe, envioPorDefecto: 24_200 }
   )!;
-  assert.equal(m.pedidos, 2);
+  assert.equal(m.pedidos, 3);
   assert.equal(m.sinCosto, 1);
   assert.equal(m.enviosEstimados, 1);
-  assert.equal(Math.round(m.ventasNetas), 200_000); // 2 × 121.000 / 1,21
-  assert.equal(m.productos, 40_000);
-  assert.equal(m.packaging, 2_000);
-  assert.equal(Math.round(m.envios), 30_000); // 12.100 / 1,21 + 24.200 / 1,21
-  assert.equal(m.cashback, 10_000);
-  assert.equal(Math.round(m.contribucion), 118_000);
-  assert.equal(Math.round(m.porPedido!), 59_000);
-  assert.equal(Math.round(m.porcentaje!), 59);
+
+  // Ventas sin IVA antes del saldo: E cuenta 121.000 / 1,21, no 108.900 / 1,21 (el crédito no se resta dos veces).
+  cerca(m.ventasNetas, 300_000, "ventas");
+  // Del pedido.
+  assert.equal(m.productos, 60_000);
+  assert.equal(m.packaging, 3_000);
+  cerca(m.envios, 40_000, "envíos"); // 12.100 / 1,21 + 24.200 / 1,21 + 12.100 / 1,21
+  cerca(m.cashback, 10_000, "cashback sin IVA"); // 12.100 / 1,21
+  assert.equal(m.cuotas, 0, "dinero en Mercado Pago: un pago, sin costo de cuotas");
+  // Estimados con las tasas de referencia: Mercado Pago sobre lo cobrado (E cobró 108.900), IIBB sobre lo facturado, devoluciones sobre la venta.
+  cerca(m.mercadoPago, (121_000 + 121_000 + 108_900) * 0.0339, "Mercado Pago");
+  cerca(m.iibb, (100_000 + 100_000 + 90_000) * 0.03, "IIBB");
+  cerca(m.devoluciones, 300_000 * 0.03, "devoluciones");
+  assert.deepEqual(m.tasas, { mercadoPago: 0.0339, iibb: 0.03, devoluciones: 0.03, seisCuotas: 0.103 });
+
+  cerca(m.contribucion, 300_000 - 60_000 - 3_000 - 40_000 - 10_000 - 11_895.51 - 8_700 - 9_000, "contribución estimada");
+  cerca(m.porPedido!, m.contribucion / 3, "por pedido");
+  cerca(m.porcentaje!, (m.contribucion / 300_000) * 100, "porcentaje");
+
+  // Pendiente: no se resta.
+  assert.equal(m.pendientes.cuotasSinDato, 2, "A y B pagaron con tarjeta");
+  cerca(m.pendientes.cuotasHasta, 2 * 121_000 * 0.103, "cuotas si fueran 6");
+  assert.equal(m.pendientes.preparacionDeReferencia, 2_000);
+  assert.equal(m.pendientes.publicidadDeReferencia, 20_000);
+
+  // Ganancia neta final: no hay, y dice qué falta.
+  assert.deepEqual(m.faltaParaLaGanancia, [
+    "el gasto en publicidad de la tienda web del período (no está cargado en ninguna tabla)",
+    "el costo de armar y despachar cada pedido (no está cargado)",
+    "las cuotas que eligió el comprador en 2 pedidos con tarjeta (Mercado Pago lo sabe, el pedido no lo guarda)",
+    "la comisión real de Mercado Pago de cada pago (se estimó con el 3,39 %)",
+    "la alícuota real de IIBB y las devoluciones reales (se estimaron con el 3 % y el 3 %)",
+    "el envío cotizado de 1 pedido (se usó la tarifa plana de Config)",
+    "el costo en Costos ML de algún producto de 1 pedido, que queda afuera de la cuenta",
+  ]);
 
   assert.equal(margenDe([pedido("A")], { tasa: null, costoDe, envioPorDefecto: 0 }), null, "sin la tasa no se inventa un margen");
+});
+
+test("panel: «Cuánto dejó» da lo mismo que el motor de contribución para el mismo pedido (sin la preparación ni la publicidad, que quedan pendientes)", () => {
+  const costoDe = (id: string) => (id === "recVARIANTE00001" ? { costo: PARAMETROS_REFERENCIA.costoUnitarioNeto, packaging: 0 } : null);
+  const casos: { nombre: string; modelo: PedidoModelo; total: number; saldo: number }[] = [
+    { nombre: "un par a precio completo", modelo: { pares: [PRECIO_REFERENCIA], descuentoSegundo: 0, cuotas: 1, costoEnvio: 5_500 }, total: PRECIO_REFERENCIA, saldo: 0 },
+    {
+      nombre: "una recompra con saldo que promete su cashback",
+      modelo: { pares: [PRECIO_REFERENCIA], descuentoSegundo: 0, saldoAplicado: 15_733, cashback: CASHBACK_PRINCIPAL, cuotas: 1, costoEnvio: 10_000 },
+      total: PRECIO_REFERENCIA - 15_733,
+      saldo: 15_733,
+    },
+  ];
+  for (const c of casos) {
+    const motor = calcularContribucion(c.modelo);
+    const m = margenDe(
+      [pedido(c.nombre, { total: c.total, saldoUsado: c.saldo, cashback: motor.bruto.cashbackComprometido, dineroMP: true, envioCostoReal: c.modelo.costoEnvio })],
+      { tasa: 21, costoDe, envioPorDefecto: 0 }
+    )!;
+    cerca(m.ventasNetas, motor.ventaNeta, `${c.nombre}: venta neta`);
+    cerca(m.mercadoPago, motor.costos.mercadoPago, `${c.nombre}: Mercado Pago`);
+    cerca(m.iibb, motor.costos.iibb, `${c.nombre}: IIBB`);
+    cerca(m.devoluciones, motor.costos.devoluciones, `${c.nombre}: devoluciones`);
+    cerca(m.cashback, motor.costos.cashback, `${c.nombre}: cashback`);
+    cerca(m.envios, motor.costos.envio, `${c.nombre}: envío`);
+    cerca(m.contribucion, motor.contribucionAntesDePublicidad + motor.costos.preparacion, `${c.nombre}: contribución`);
+  }
+});
+
+test("panel: sin pedidos confirmados, la contribución es cero y la ganancia neta igual dice qué falta", () => {
+  const m = margenDe([pedido("P", { estado: "pendiente" })], { tasa: 21, costoDe: () => ({ costo: 1, packaging: 0 }), envioPorDefecto: 0 })!;
+  assert.equal(m.pedidos, 0);
+  assert.equal(m.contribucion, 0);
+  assert.equal(m.porPedido, null);
+  assert.equal(m.porcentaje, null);
+  assert.deepEqual(m.faltaParaLaGanancia, [
+    "el gasto en publicidad de la tienda web del período (no está cargado en ninguna tabla)",
+    "el costo de armar y despachar cada pedido (no está cargado)",
+  ]);
 });
 
 test("panel: el embudo usa solo los días con visitas contadas", () => {

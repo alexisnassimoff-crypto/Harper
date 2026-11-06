@@ -39,6 +39,8 @@ const numeroAR = (n: number, decimales = 0) =>
 const pct = (n: number | null, decimales = 1) => (n === null ? "—" : `${numeroAR(n, decimales)} %`);
 const pesos = (n: number | null) => (n === null ? "—" : precio(Math.round(n)));
 const conSigno = (n: number) => `${n < 0 ? "−" : ""}${precio(Math.round(Math.abs(n)))}`;
+/** Una tasa sobre 1, en %, sin ceros de más: 0,0339 → «3,39 %»; 0,03 → «3 %». */
+const tasa = (x: number) => `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(x * 100)} %`;
 
 /** «+12 % vs. los 30 días anteriores», o nada si antes no hubo ventas. */
 function cambio(actual: number, anterior: number, dias: number): string | null {
@@ -206,11 +208,11 @@ export default async function Panel({ searchParams }: { searchParams: Promise<Pa
             <Cifra titulo="Ticket promedio" valor={pesos(v.ticket)} />
             <Cifra titulo="Unidades" valor={numeroAR(v.unidades)} />
             <Cifra
-              titulo="Ganancia estimada"
+              titulo="Contribución estimada"
               valor={d.margen ? conSigno(d.margen.contribucion) : "—"}
               detalle={
                 d.margen
-                  ? `${pesos(d.margen.porPedido)} por pedido · ${pct(d.margen.porcentaje)} de las ventas sin IVA`
+                  ? `${pesos(d.margen.porPedido)} por pedido · ${pct(d.margen.porcentaje)} de las ventas sin IVA · antes de publicidad`
                   : d.sinMargen
               }
             />
@@ -365,46 +367,101 @@ export default async function Panel({ searchParams }: { searchParams: Promise<Pa
 
       <Seccion
         titulo="Cuánto dejó"
-        nota={`Estimado, de los pedidos pagados del período: ventas y envíos sin IVA (${numeroAR(d.iva.tasa, 1)} %${
+        nota={`De los pedidos pagados del período, con el motor de contribución (lib/contribucion.ts). Ventas y envíos sin IVA (${numeroAR(d.iva.tasa, 1)} %${
           d.iva.deConfig ? ", de Config" : ", el mismo del resumen semanal de Mercado Libre"
-        }), costo de la tabla Costos ML y el cashback que se dio. No incluye la comisión de Mercado Pago, que no queda en el pedido.`}
+        }). Lo «estimado» usa una tasa de referencia, no lo que se cobró de verdad. Lo pendiente no se resta.`}
       >
         {d.margen ? (
           <>
             <dl className="panel-cuenta">
               <div>
-                <dt>Ventas sin IVA</dt>
+                <dt>Ventas sin IVA (antes del saldo usado)</dt>
                 <dd>{pesos(d.margen.ventasNetas)}</dd>
               </div>
               <div>
-                <dt>− Costo de los productos</dt>
+                <dt>− Productos (Costos ML)</dt>
                 <dd>{pesos(d.margen.productos)}</dd>
               </div>
               <div>
-                <dt>− Packaging</dt>
+                <dt>− Packaging (Costos ML)</dt>
                 <dd>{pesos(d.margen.packaging)}</dd>
               </div>
               <div>
-                <dt>− Envíos</dt>
+                <dt>
+                  − Envíos
+                  {d.margen.enviosEstimados > 0
+                    ? ` (${d.margen.enviosEstimados} ${d.margen.enviosEstimados === 1 ? "pedido" : "pedidos"} con la tarifa plana de Config)`
+                    : " (cotizados)"}
+                </dt>
                 <dd>{pesos(d.margen.envios)}</dd>
               </div>
               <div>
-                <dt>− Cashback a suscriptores</dt>
+                <dt>− Cashback prometido, sin IVA</dt>
                 <dd>{pesos(d.margen.cashback)}</dd>
               </div>
+              {d.margen.cuotas > 0 ? (
+                <div>
+                  <dt>− Cuotas (pagos con dinero en Mercado Pago)</dt>
+                  <dd>{pesos(d.margen.cuotas)}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>− Mercado Pago (estimado, {tasa(d.margen.tasas.mercadoPago)} de lo cobrado)</dt>
+                <dd>{pesos(d.margen.mercadoPago)}</dd>
+              </div>
+              <div>
+                <dt>− IIBB (estimado, {tasa(d.margen.tasas.iibb)} de lo facturado sin IVA)</dt>
+                <dd>{pesos(d.margen.iibb)}</dd>
+              </div>
+              <div>
+                <dt>− Devoluciones (reserva estimada, {tasa(d.margen.tasas.devoluciones)})</dt>
+                <dd>{pesos(d.margen.devoluciones)}</dd>
+              </div>
               <div className="panel-cuenta__total">
-                <dt>Queda (antes de Mercado Pago)</dt>
+                <dt>Contribución estimada</dt>
                 <dd>{conSigno(d.margen.contribucion)}</dd>
               </div>
             </dl>
+            <p className="panel-seccion__nota">
+              {pesos(d.margen.porPedido)} por pedido · {pct(d.margen.porcentaje)} de las ventas sin IVA. Antes de lo pendiente: cuotas sin dato, preparación y
+              publicidad.
+            </p>
+
+            <dl className="panel-cuenta">
+              <div className="panel-cuenta__total">
+                <dt>Pendiente de conocer</dt>
+                <dd>no se resta</dd>
+              </div>
+              {d.margen.pendientes.cuotasSinDato > 0 ? (
+                <div>
+                  <dt>
+                    Cuotas de {d.margen.pendientes.cuotasSinDato} {d.margen.pendientes.cuotasSinDato === 1 ? "pedido" : "pedidos"} con tarjeta (si todas fueran de 6,{" "}
+                    {tasa(d.margen.tasas.seisCuotas)} de lo cobrado)
+                  </dt>
+                  <dd>hasta {pesos(d.margen.pendientes.cuotasHasta)}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>Preparación: armar y despachar (el motor supone {pesos(d.margen.pendientes.preparacionDeReferencia)} por pedido, como hipótesis)</dt>
+                <dd>sin dato</dd>
+              </div>
+              <div>
+                <dt>Publicidad de la tienda web (el motor supone {pesos(d.margen.pendientes.publicidadDeReferencia)} por pedido, como hipótesis)</dt>
+                <dd>sin dato</dd>
+              </div>
+            </dl>
+
+            <dl className="panel-cuenta">
+              <div className="panel-cuenta__total">
+                <dt>Ganancia neta final</dt>
+                <dd>—</dd>
+              </div>
+            </dl>
+            <p className="panel-seccion__nota">No se puede calcular todavía. Falta {d.margen.faltaParaLaGanancia.join("; ")}.</p>
+
             {d.margen.sinCosto > 0 ? (
               <p className="panel-aviso">
                 {d.margen.sinCosto} {d.margen.sinCosto === 1 ? "pedido queda afuera" : "pedidos quedan afuera"}: a algún producto le falta el costo en Costos ML.
-              </p>
-            ) : null}
-            {d.margen.enviosEstimados > 0 ? (
-              <p className="panel-seccion__nota">
-                En {d.margen.enviosEstimados} {d.margen.enviosEstimados === 1 ? "pedido" : "pedidos"} sin envío cotizado se usó la tarifa plana de Config.
               </p>
             ) : null}
           </>
