@@ -96,9 +96,12 @@ Header: x-sync-token: <SYNC_TOKEN>
 
 ```
 POST https://harper.ar/api/pedidos/notificar-envio
-Header: x-sync-token: <SYNC_TOKEN>
+Header: x-sync-token: <AVISO_DESPACHO_TOKEN>
 Body:   { "pedidoId": "<Record ID>" }
 ```
+
+`AVISO_DESPACHO_TOKEN` sirve solo para esta ruta (las demás no lo aceptan).
+Esta ruta también sigue aceptando `SYNC_TOKEN` y `CRON_SECRET`.
 
 Además hay un cron diario a las 06:00 UTC que espeja lo que haya quedado
 pendiente, por si una automation falla.

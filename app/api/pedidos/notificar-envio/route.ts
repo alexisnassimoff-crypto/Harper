@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ErrorAirtable } from "@/lib/airtable";
 import { avisarDespacho, type MotivoSinAviso } from "@/lib/aviso-despacho";
 import { ErrorCerrojo } from "@/lib/cerrojo";
-import { tokenValido } from "@/lib/media";
+import { tokenAvisoDespachoValido } from "@/lib/media";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,8 @@ const DETALLE: Record<MotivoSinAviso, string> = {
  * mail «Tu pedido está en camino». La lógica está en lib/aviso-despacho.ts.
  *
  *   POST /api/pedidos/notificar-envio   { pedidoId: "rec…" }
- *   con el token en el encabezado x-sync-token (o en ?token=)
+ *   con el token en el encabezado x-sync-token (o en ?token=): AVISO_DESPACHO_TOKEN,
+ *   el secreto propio de esta ruta, o los de siempre (SYNC_TOKEN, CRON_SECRET)
  *     → 200 { enviado: true }              salió el mail (una sola vez por pedido)
  *     → 200 { enviado: false, motivo }     no corresponde: no está «enviado»,
  *                                          falta el Tracking o ya se avisó
@@ -33,7 +34,7 @@ const DETALLE: Record<MotivoSinAviso, string> = {
 export async function POST(request: Request) {
   const token = request.headers.get("x-sync-token") ?? new URL(request.url).searchParams.get("token");
 
-  if (!tokenValido(token)) {
+  if (!tokenAvisoDespachoValido(token)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
