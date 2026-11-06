@@ -495,7 +495,8 @@ export async function POST(request: Request) {
         // Liberar es idempotente: si ya lo hizo confirmarPedidoSinPago, no cambia nada.
         if (tomada && reservaCredito) await tomada.liberar(numero, "el pedido en $ 0 no se pudo completar", { tambienUsado: true }).catch(() => {});
         reservaCredito = null;
-        return NextResponse.json({ error: resultado.error }, { status: resultado.status });
+        // Si el crédito no se confirmó, el comprador vuelve a ver el total (sin crédito o con el nuevo).
+        return NextResponse.json({ error: resultado.error, ...(resultado.creditoCambio ? { creditoCambio: true } : {}) }, { status: resultado.status });
       }
       reservaCredito = null;
       return NextResponse.json({ numero, initPoint: `/gracias?pedido=${encodeURIComponent(numero)}` });

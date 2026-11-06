@@ -28,6 +28,7 @@ import {
   claveDelUso,
   CreditoInsuficiente,
   leerSaldoDeCredito,
+  type CuentaTomada,
   lectorPedidosDeUsosAirtable,
   procesarUsoDelPago,
   reservaVigente,
@@ -42,7 +43,8 @@ import { interceptar, reiniciar } from "../lib/fixtures/servidor";
 import type { PagoMP } from "../lib/mercadopago";
 import { itemsDelPedido, resolverCarrito } from "../lib/pedidos";
 import type { SuscriptorDelCarrito } from "../lib/suscriptores";
-import { confirmarPedidoSinPago } from "../lib/suscriptores-sin-pago";
+import { confirmarPedidoSinPago, problemaDeLaConfirmacion } from "../lib/suscriptores-sin-pago";
+import { TEXTOS } from "../lib/textos";
 import type { DatosCliente, ItemCarrito } from "../lib/tipos";
 import { procesarNotificacion, type Dependencias, type FilaPedido } from "../lib/webhook-proceso";
 
@@ -500,6 +502,142 @@ test("Pedido en $ 0 pagado con crédito, sin suscripción: se confirma sin Merca
   const z2 = (await listRecords<{ Estado?: string }>(TABLAS.pedidos, { filterByFormula: "{Numero} = 'HARPER-Z2'" }))[0];
   assert.equal(z2.fields.Estado, "cancelado");
   assert.equal((await leerSaldoDeCredito(MAIL, deps)).usable, 200_000 - carrito.creditoHarper!.usado);
+});
+
+test("Confirmación del crédito en $ 0: solo vale «Usado», de ese pedido, por lo reservado y sin sobregiro", () => {
+  const uso = { pedido: "HARPER-V1", monto: 5_000, estado: "Usado" };
+  assert.equal(problemaDeLaConfirmacion({ estado: "confirmado", uso, sobregiro: 0 }, "HARPER-V1", 5_000), null);
+  assert.equal(problemaDeLaConfirmacion({ estado: "ya", uso, sobregiro: 0 }, "HARPER-V1", 5_000), null);
+  const malos: [unknown, RegExp][] = [
+    [{ estado: "sin-uso" }, /sin-uso/],
+    [{ estado: "decidido", uso: { ...uso, estado: "A revisar" } }, /decidido/],
+    [{ estado: "ocupado" }, /ocupado/],
+    [{ estado: "confirmado", uso: { ...uso, pedido: "HARPER-OTRO" }, sobregiro: 0 }, /HARPER-OTRO/],
+    [{ estado: "confirmado", uso: { ...uso, monto: 4_000 }, sobregiro: 0 }, /\$ 4000/],
+    [{ estado: "confirmado", uso: { ...uso, estado: "Reservado" }, sobregiro: 0 }, /Reservado/],
+    [{ estado: "confirmado", uso, sobregiro: 1_000 }, /más usado que ganado/],
+    [{ estado: "confirmado", uso }, /más usado que ganado/],
+    [{ estado: "confirmado", sobregiro: 0 }, /no devolvió el uso/],
+    [undefined, /ningún resultado/],
+    [null, /ningún resultado/],
+  ];
+  for (const [resultado, motivo] of malos) assert.match(problemaDeLaConfirmacion(resultado, "HARPER-V1", 5_000) ?? "", motivo, JSON.stringify(resultado));
+});
+
+test("Pedido en $ 0: si el crédito no se confirma como se reservó, no hay compra gratis (ni pagado, ni stock, ni mail al cliente) y se avisa", async () => {
+  const { deps } = armarUso();
+  const credito = await ganado(MAIL, { Monto: 200_000 });
+  const linea = await lineas();
+  const carrito = await resolverCarrito([linea("amatista")], { paraCobrar: true, creditoHarper: { usable: 200_000, pedido: null } });
+  const monto = carrito.creditoHarper!.usado;
+  assert.ok(monto > 0);
+  assert.equal(carrito.total, 0);
+  const variante = carrito.items[0].varianteId;
+  const stockDe = async () => (await getRecord<{ Stock?: number; Stock_pedidos?: string }>(TABLAS.variantes, variante)).fields;
+  const stockAntes = (await stockDe()).Stock;
+
+  type Confirmar = (cuenta: CuentaTomada, numero: string) => Promise<unknown>;
+  const intentar = async (numero: string, confirmar: Confirmar) => {
+    const abierta = await abrirCuentaDeCredito(MAIL, deps);
+    if ("estado" in abierta) throw new Error("ocupado");
+    const mails: { para: string; asunto: string }[] = [];
+    let pagado = false;
+    try {
+      await abierta.cuenta.reservar(numero, monto);
+      const resultado = await confirmarPedidoSinPago({
+        suscriptor: null,
+        credito: { monto, confirmar: () => confirmar(abierta.cuenta, numero), liberar: () => abierta.cuenta.liberar(numero, "prueba", { tambienUsado: true }) },
+        numero,
+        cupon: 0,
+        saldoUsado: 0,
+        clienteId: "recFIXCLIENTE0001",
+        crearPedido: () => createRecord(TABLAS.pedidos, { Numero: numero, Estado: "pendiente", Total: 0, Items: JSON.stringify(carrito.items) }),
+        marcarPagado: async (id) => {
+          pagado = true;
+          await updateRecord(TABLAS.pedidos, id, { Estado: "pagado" });
+        },
+        anularPedido: async (id) => {
+          await updateRecord(TABLAS.pedidos, id, { Estado: "cancelado" });
+        },
+        datosMail: { numero, items: carrito.items, subtotal: 0, envio: 0, total: 0, cliente: CLIENTE, config: await getConfig(), sitio: "https://harper.ar" },
+        cerrojo: cerrojoEnMemoria(),
+        enviarMail: async (envio) => {
+          mails.push({ para: envio.para, asunto: envio.asunto });
+          return true;
+        },
+      });
+      const fila = (await listRecords<{ Estado?: string }>(TABLAS.pedidos, { filterByFormula: `{Numero} = '${numero}'` }))[0];
+      return { resultado, pagado, estado: fila.fields.Estado, mails, uso: await usoDe(numero) };
+    } finally {
+      await abierta.cerrar();
+    }
+  };
+  const sinCompraGratis = async (numero: string, r: Awaited<ReturnType<typeof intentar>>, estadoDelUso: string) => {
+    assert.deepEqual(r.resultado, { ok: false, status: 409, error: TEXTOS.suscriptores.cuenta.credito.cambio, creditoCambio: true }, numero);
+    assert.equal(r.pagado, false, `${numero}: no se marca pagado`);
+    assert.equal(r.estado, "cancelado", `${numero}: el pedido queda anulado`);
+    assert.equal(r.uso.estado, estadoDelUso, `${numero}: el uso`);
+    assert.deepEqual(
+      r.mails.map((m) => m.asunto),
+      [`REVISAR Crédito Harper — pedido ${numero} en $ 0 sin confirmar`],
+      `${numero}: solo el aviso a Harper, ni confirmación al cliente ni aviso de pedido`
+    );
+    const stock = await stockDe();
+    assert.equal(stock.Stock, stockAntes, `${numero}: no se descuenta stock`);
+    assert.doesNotMatch(stock.Stock_pedidos ?? "", new RegExp(numero));
+  };
+
+  // Lo que devuelve la cuenta de verdad sin ningún uso para el pedido: «sin-uso».
+  await sinCompraGratis("HARPER-F1", await intentar("HARPER-F1", (cuenta) => cuenta.confirmar("HARPER-F1-OTRO")), "Liberado");
+  // Harper ya lo había decidido («A revisar»): «decidido». No se toca su decisión.
+  await sinCompraGratis(
+    "HARPER-F2",
+    await intentar("HARPER-F2", async (cuenta, numero) => {
+      await updateRecord(TABLAS.creditos, (await usoDe(numero)).id, { Estado: "A revisar" });
+      return cuenta.confirmar(numero);
+    }),
+    "A revisar"
+  );
+  // La cuenta estaba ocupada, otro monto, otro pedido, nada, o la confirmación tiró.
+  const falsos: [string, Confirmar][] = [
+    ["HARPER-F3", async () => ({ estado: "ocupado" })],
+    ["HARPER-F4", async (_c, numero) => ({ estado: "confirmado", uso: { pedido: numero, monto: monto - 1, estado: "Usado" }, sobregiro: 0 })],
+    ["HARPER-F5", async () => ({ estado: "confirmado", uso: { pedido: "HARPER-OTRO", monto, estado: "Usado" }, sobregiro: 0 })],
+    ["HARPER-F6", async () => undefined],
+    [
+      "HARPER-F7",
+      async () => {
+        throw new Error("Airtable caído");
+      },
+    ],
+  ];
+  for (const [numero, confirmar] of falsos) await sinCompraGratis(numero, await intentar(numero, confirmar), "Liberado");
+  // El crédito ganado se anuló mientras tanto: confirmar dejaría la cuenta en negativo. El «Usado» se deshace.
+  await sinCompraGratis(
+    "HARPER-F8",
+    await intentar("HARPER-F8", async (cuenta, numero) => {
+      await updateRecord(TABLAS.creditos, credito.id, { Estado: "Anulado" });
+      const r = await cuenta.confirmar(numero);
+      await updateRecord(TABLAS.creditos, credito.id, { Estado: "Disponible" });
+      return r;
+    }),
+    "Liberado"
+  );
+  // Nada quedó usado: el crédito sigue entero (salvo el «A revisar», que Harper decide).
+  assert.equal((await leerSaldoDeCredito(MAIL, deps)).usable, 200_000 - monto);
+
+  // Y la confirmación correcta sí sale: pagado, «Usado», mails de siempre y sin aviso.
+  const ok = await intentar("HARPER-F9", (cuenta, numero) => cuenta.confirmar(numero));
+  assert.deepEqual(ok.resultado, { ok: true });
+  assert.equal(ok.pagado, true);
+  assert.equal(ok.estado, "pagado");
+  assert.equal(ok.uso.estado, "Usado");
+  assert.ok(ok.mails.length > 0 && ok.mails.every((m) => !m.asunto.startsWith("REVISAR")));
+});
+
+test("El checkout le pasa al comprador el «creditoCambio» del pedido en $ 0 que no se confirmó", () => {
+  const ruta = fs.readFileSync(path.resolve(__dirname, "..", "..", "app", "api", "checkout", "route.ts"), "utf8");
+  assert.match(ruta, /\.\.\.\(resultado\.creditoCambio \? \{ creditoCambio: true \} : \{\}\)/);
 });
 
 // ---------- El webhook ----------
