@@ -6,7 +6,6 @@ process.env.HARPER_FIXTURES = "1";
 import { createRecord, TABLAS } from "../lib/airtable";
 import { cumpleFormula } from "../lib/fixtures/formula";
 import {
-  cancelacionConPago,
   comprasDeLaCuenta,
   comprasDeLosClientes,
   compraDe,
@@ -14,6 +13,7 @@ import {
   etapasDeCompra,
   itemsDeCompra,
   MAXIMO_DE_COMPRAS,
+  pagoDeUnCancelado,
   seguimientoDe,
   type FilaPedidoDeCompra,
 } from "../lib/mis-compras";
@@ -129,46 +129,70 @@ test("mis compras: la cuenta ve solo sus compras, por su mail verificado exacto"
   assert.deepEqual(await comprasDeLaCuenta("' OR TRUE() OR '"), []);
 });
 
-// ---- Cancelados (Ale, 06/11/2026): sin ningún pago no son compras; cobrados, sí ----
+// ---- Cancelados (Ale, 06/11/2026): sin pago se ocultan; cobrados o dudosos, se ven ----
 
 /** Lo que ve el cliente de un pedido con esos campos: su estado, o null si no aparece. */
 const verComo = (campos: FilaPedidoDeCompra) => compraDe({ id: "recPRUEBACOMPRA01", fields: { Numero: "X", Total: 100, ...campos } })?.estado ?? null;
 
-test("mis compras: un cancelado que nunca tuvo un pago no aparece", () => {
+test("mis compras: un cancelado que se sabe que nunca se pagó no aparece", () => {
   for (const campos of [
+    // Sin ningún rastro de pago.
     { MP_status: "sin preferencia de pago" }, // el checkout lo anuló antes de cobrar
     { MP_status: "carrito abandonado, nunca se pago" }, // nota a mano, sin pago registrado
-    { MP_status: "pagando con saldo, sin Mercado Pago" }, // el pago con saldo no llegó a confirmarse
-    { MP_status: "cancelled" },
-    { MP_status: "rejected (cc_rejected_other_reason)" },
     { MP_status: "" },
     {},
+    // El intento registrado terminó sin cobrarse, aunque tenga MP_payment_id: el
+    // bloque de rechazo del webhook lo anota junto con el «rejected».
+    { MP_payment_id: "100000000001", MP_status: "rejected (cc_rejected_other_reason)" },
+    { MP_payment_id: "100000000002", MP_status: "rejected" },
+    { MP_payment_id: "100000000003", MP_status: "cancelled (expired)" },
+    { MP_status: "rejected" },
+    { MP_status: "cancelled" },
   ]) {
+    assert.equal(pagoDeUnCancelado(campos), "sin-pago", JSON.stringify(campos));
     assert.equal(verComo({ Estado: "cancelado", ...campos }), null, JSON.stringify(campos));
-    assert.equal(cancelacionConPago(campos), false, JSON.stringify(campos));
   }
 });
 
 test("mis compras: un cancelado que se cobró sigue apareciendo, aunque se haya devuelto la plata", () => {
   for (const campos of [
-    { MP_payment_id: "100000000001", MP_status: "approved" },
-    // La nota que se escribió a mano en un pedido cobrado y devuelto: manda el pago registrado.
-    { MP_payment_id: "100000000002", MP_status: "prueba interna de cobro (approved, devolver los $100)" },
-    // El webhook puede dejar el MP_status vacío (o en un estado intermedio) en un pedido ya cobrado.
-    { MP_payment_id: "100000000003", MP_status: "" },
-    { MP_payment_id: "100000000004", MP_status: "in_process" },
-    // Estados a los que Mercado Pago llega solo después de aprobar el pago.
+    { MP_payment_id: "100000000004", MP_status: "approved" },
+    { MP_payment_id: "100000000005", MP_status: "refunded" },
+    { MP_payment_id: "100000000006", MP_status: "charged_back" },
     { MP_status: "refunded" },
-    { MP_status: "charged_back" },
-    { MP_status: "in_mediation" },
     // Pagado con saldo, sin Mercado Pago.
     { MP_status: "pagado con saldo, sin Mercado Pago" },
+  ]) {
+    assert.equal(pagoDeUnCancelado(campos), "cobrado", JSON.stringify(campos));
+    assert.equal(verComo({ Estado: "cancelado", ...campos }), "cancelado", JSON.stringify(campos));
+  }
+});
+
+test("mis compras: un cancelado dudoso no se oculta, ni se muestra como cobrado", () => {
+  for (const campos of [
+    // Un intento registrado que no dice si se cobró: MP_payment_id solo no prueba un cobro.
+    { MP_payment_id: "100000000007", MP_status: "in_process" },
+    { MP_payment_id: "100000000008", MP_status: "pending" },
+    { MP_payment_id: "100000000009", MP_status: "authorized" },
+    { MP_payment_id: "100000000010", MP_status: "" }, // el webhook puede dejarlo vacío
+    // La nota que se escribió a mano en un pedido con pago registrado (los de prueba de Ale).
+    { MP_payment_id: "100000000011", MP_status: "prueba interna de cobro (approved, devolver los $100)" },
+    // Una disputa abierta no prueba por sí sola un cobro aprobado.
+    { MP_payment_id: "100000000012", MP_status: "in_mediation" },
+    { MP_status: "in_mediation" },
+    { MP_status: "in_process" },
+    // El pago con saldo que no llegó a confirmarse: el saldo pudo haberse usado.
+    { MP_status: "pagando con saldo, sin Mercado Pago" },
     // Marcas del webhook sobre un pago: las mira una persona.
     { MP_status: "revisar: se cobró 1000 y el pedido dice 900" },
-    { MP_status: marcaDeReclamo({ pagoId: "100000000005", nonce: "abc", desde: 1, pasos: [] }) },
+    { MP_status: 'revisar: falló el paso "rechazo" del pago 100000000013: error' },
+    { MP_status: marcaDeReclamo({ pagoId: "100000000014", nonce: "abc", desde: 1, pasos: [] }) },
   ]) {
-    assert.equal(verComo({ Estado: "cancelado", ...campos }), "cancelado", JSON.stringify(campos));
-    assert.equal(cancelacionConPago(campos), true, JSON.stringify(campos));
+    assert.equal(pagoDeUnCancelado(campos), "dudoso", JSON.stringify(campos));
+    // Se ve como «Cancelado», sin el recorrido de «Pago confirmado».
+    const compra = compraDe({ id: "recPRUEBACOMPRA01", fields: { Numero: "X", Total: 100, Estado: "cancelado", ...campos } });
+    assert.equal(compra?.estado, "cancelado", JSON.stringify(campos));
+    assert.equal(etapasDeCompra(compra!.estado), null);
   }
 });
 
@@ -183,7 +207,7 @@ test("mis compras: los pagos en revisión y los demás estados no cambian", () =
   assert.equal(verComo({ Estado: "rechazado", MP_status: "rejected", MP_payment_id: "100000000008" }), null);
 });
 
-test("mis compras: con los pedidos de prueba de Ale (06/11/2026) se ven los 2 pagados y los 2 cancelados que se cobraron", () => {
+test("mis compras: con los pedidos de prueba de Ale (06/11/2026) se ven los 2 pagados y los 2 cancelados con pago registrado", () => {
   const CLIENTE = "recCLIENTEPRUEBA1";
   const fila = (id: string, numero: string, estado: string, fecha: string, mp: string, pago?: string) => ({
     id,

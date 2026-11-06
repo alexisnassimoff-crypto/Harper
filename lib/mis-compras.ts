@@ -15,10 +15,10 @@ import { esMarcaDeReclamo, MARCA_REVISAR } from "./webhook-decision";
  * dirección, el teléfono ni los datos de facturación.
  *
  * No se muestran los checkouts que no llegaron a pagarse, los pagos
- * rechazados ni los pedidos cancelados que nunca tuvieron un pago: no son
- * compras. Un pago que Mercado Pago está revisando sí, como «Pago en
- * revisión», y un pedido cancelado que se cobró también, aunque se haya
- * devuelto la plata (ver cancelacionConPago).
+ * rechazados ni los pedidos cancelados que se sabe que nunca se pagaron: no
+ * son compras. Un pago que Mercado Pago está revisando sí, como «Pago en
+ * revisión», y un pedido cancelado que se cobró (aunque se haya devuelto la
+ * plata) o del que no se sabe, también (ver pagoDeUnCancelado).
  */
 
 export type EstadoDeCompra = "en-revision" | "pagado" | "preparando" | "enviado" | "entregado" | "cancelado";
@@ -81,29 +81,49 @@ export function estadoDeCompra(estado: unknown, mpStatus: unknown): EstadoDeComp
   return null;
 }
 
-/** Los estados de Mercado Pago a los que un pago llega solo después de aprobarse. */
-const PAGO_YA_APROBADO = new Set(["approved", "refunded", "charged_back", "in_mediation"]);
+/** Estados de Mercado Pago que prueban un cobro: el pago se aprobó (y quizá después se devolvió). */
+const PAGO_COBRADO = new Set(["approved", "refunded", "charged_back"]);
+
+/** Estados de Mercado Pago de un intento que terminó sin cobrarse. */
+const PAGO_NO_APROBADO = new Set(["rejected", "cancelled"]);
 
 /**
- * ¿Este pedido cancelado tuvo un pago? (Ale, 06/11/2026: un cancelado que
- * nunca se pagó no es una compra; uno que se cobró sí, aunque después se haya
- * devuelto la plata.) Cuenta cualquier rastro que deja un cobro:
- *  - el MP_payment_id, que el webhook escribe al aprobar un pago, junto con el
- *    Estado «pagado» (lib/webhook-proceso.ts);
- *  - un estado de Mercado Pago al que solo se llega después de aprobar;
- *  - el pago con saldo, sin Mercado Pago («pagado con saldo…», del checkout);
- *  - una marca del webhook sobre un pago («revisar:…» o «procesando…»).
- * Ante la duda, el pedido queda a la vista: con un MP_payment_id se muestra
- * aunque el último MP_status no sea «approved», porque ese campo se puede
- * pisar (a mano, o entre notificaciones) y no prueba que el pago nunca se
- * aprobó. Se oculta solo el cancelado sin ningún rastro de pago, como el que
- * el checkout anula «sin preferencia de pago» o un carrito abandonado.
+ * Qué se sabe del pago de un pedido cancelado (Ale, 06/11/2026: un cancelado
+ * que nunca se pagó no es una compra; uno que se cobró sí, aunque después se
+ * haya devuelto la plata; y uno dudoso no se oculta). Solo con lo que ya
+ * guarda el pedido:
+ *
+ *  - "cobrado": MP_status «approved», «refunded» o «charged_back», o «pagado
+ *    con saldo» (el checkout, sin Mercado Pago).
+ *  - "sin-pago": el intento registrado se rechazó o se canceló («rejected»,
+ *    «cancelled»; el webhook los anota con MP_payment_id), o no hay ningún
+ *    rastro de pago: ni MP_payment_id ni una marca de pago en MP_status (el
+ *    checkout anulado «sin preferencia de pago», un carrito abandonado).
+ *  - "dudoso": un pago en revisión o en disputa («pending», «in_process»,
+ *    «authorized», «in_mediation»), un MP_payment_id con el MP_status vacío o
+ *    con una nota escrita a mano, «pagando con saldo» sin confirmar, o una
+ *    marca del webhook («revisar:…», «procesando…»). El MP_payment_id solo no
+ *    prueba un cobro: el webhook lo anota también en los pagos en revisión y
+ *    en los rechazados.
+ *
+ * Mis compras oculta solo "sin-pago". "cobrado" y "dudoso" se ven como
+ * «Cancelado», sin el recorrido de «Pago confirmado»: la pantalla no dice que
+ * se cobró.
  */
-export function cancelacionConPago(fila: Pick<FilaPedidoDeCompra, "MP_status" | "MP_payment_id">): boolean {
-  if (texto(fila.MP_payment_id)) return true;
+export type PagoDeUnCancelado = "cobrado" | "sin-pago" | "dudoso";
+
+export function pagoDeUnCancelado(fila: Pick<FilaPedidoDeCompra, "MP_status" | "MP_payment_id">): PagoDeUnCancelado {
   const mp = String(fila.MP_status ?? "").trim();
   const estadoMP = mp.split(/[\s(,]/)[0].toLowerCase();
-  return PAGO_YA_APROBADO.has(estadoMP) || mp.startsWith("pagado con saldo") || mp.startsWith(MARCA_REVISAR) || esMarcaDeReclamo(mp);
+  if (PAGO_COBRADO.has(estadoMP) || mp.startsWith("pagado con saldo")) return "cobrado";
+  if (PAGO_NO_APROBADO.has(estadoMP)) return "sin-pago";
+  const hayRastro =
+    PAGO_EN_REVISION.has(estadoMP) ||
+    Boolean(texto(fila.MP_payment_id)) ||
+    mp.startsWith("pagando con saldo") ||
+    mp.startsWith(MARCA_REVISAR) ||
+    esMarcaDeReclamo(mp);
+  return hayRastro ? "dudoso" : "sin-pago";
 }
 
 const numero = (valor: unknown) => (typeof valor === "number" && Number.isFinite(valor) ? valor : Number(valor));
@@ -161,8 +181,8 @@ export function itemsDeCompra(json: unknown): ItemDeCompra[] {
 export function compraDe(fila: { id: string; createdTime?: string; fields: FilaPedidoDeCompra }): Compra | null {
   const estado = estadoDeCompra(fila.fields.Estado, fila.fields.MP_status);
   if (!estado) return null;
-  // Un pedido cancelado que nunca se pagó no es una compra.
-  if (estado === "cancelado" && !cancelacionConPago(fila.fields)) return null;
+  // Un pedido cancelado que se sabe que nunca se pagó no es una compra.
+  if (estado === "cancelado" && pagoDeUnCancelado(fila.fields) === "sin-pago") return null;
   const total = numero(fila.fields.Total);
   const envio = numero(fila.fields.Envio);
   return {
