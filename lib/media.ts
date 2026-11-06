@@ -209,3 +209,16 @@ export function tokenValido(recibido: string | null) {
 
   return aceptados.some((esperado) => coincide(recibido, esperado));
 }
+
+/**
+ * Autoriza SOLO POST /api/pedidos/notificar-envio (la automatización de
+ * Airtable «Aviso de despacho»). Acepta lo mismo que tokenValido y, además,
+ * AVISO_DESPACHO_TOKEN: un secreto propio de esa ruta, que no abre ninguna
+ * otra API (las demás siguen usando tokenValido, que no lo conoce).
+ */
+export function tokenAvisoDespachoValido(recibido: string | null) {
+  if (tokenValido(recibido)) return true;
+
+  const propio = process.env.AVISO_DESPACHO_TOKEN;
+  return Boolean(recibido && propio) && coincide(recibido!, propio!);
+}
