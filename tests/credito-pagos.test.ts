@@ -159,7 +159,8 @@ test("El cobro del pedido se mide con todos sus pagos, no con el del aviso", () 
     ["se devolvió el original y queda el repetido", [leido("a", "refunded", T, { reembolsado: T }), leido("b", "approved", T)], "cobrado", {}],
     ["se devolvieron los dos", [leido("a", "refunded", T, { reembolsado: T }), leido("b", "refunded", T, { reembolsado: T })], "sin-cobro", {}],
     ["reembolso parcial", [leido("a", "approved", T, { reembolsado: 30_000 })], "parcial", { neto: 70_000 }],
-    ["reclamo abierto", [leido("a", "in_mediation", T)], "cobrado", { incidenciaAbierta: true }],
+    ["reclamo abierto", [leido("a", "in_mediation", T)], "cobrado", { incidenciaAbierta: true, cubiertoSinDisputa: false }],
+    ["reclamo abierto en uno y otro pago válido (revisión del PR #70)", [leido("a", "in_mediation", T), leido("b", "approved", T)], "cobrado", { incidenciaAbierta: true, cubiertoSinDisputa: true }],
     ["contracargo en curso", [leido("a", "charged_back", T, { statusDetail: "in_process" })], "cobrado", { incidenciaAbierta: true }],
     ["contracargo ganado", [leido("a", "charged_back", T, { statusDetail: "reimbursed" })], "cobrado", { incidenciaAbierta: false }],
     ["contracargo perdido", [leido("a", "charged_back", T, { statusDetail: "settled" })], "sin-cobro", { contracargoPerdido: true }],
@@ -563,10 +564,15 @@ test("Cinco avisos del mismo pago a la vez: uno anota, los ocupados piden reinte
 test("Sin conectar: sin MP_ACCESS_TOKEN no hay lector; el módulo no escribe en Airtable ni le pide nada a Mercado Pago que no sea leer", () => {
   assert.equal(dependenciasPagoCredito({ ...dependenciasCredito() }), null);
   const raiz = path.resolve(__dirname, "..", "..");
-  const fuente = fs.readFileSync(path.join(raiz, "lib", "credito-pagos.ts"), "utf8");
-  assert.doesNotMatch(fuente, /createRecord|updateRecord|updateRecords/);
-  assert.doesNotMatch(fuente, /method:\s*["'](?:POST|PUT|PATCH|DELETE)/i);
-  assert.doesNotMatch(fuente, /\/refunds|\/checkout\/preferences/);
+  // El crédito y la lectura de Mercado Pago (lib/mp-cobro.ts, Tarea 12) solo leen.
+  for (const archivo of ["credito-pagos.ts", "mp-cobro.ts"]) {
+    const fuente = fs.readFileSync(path.join(raiz, "lib", archivo), "utf8");
+    assert.doesNotMatch(fuente, /createRecord|updateRecord|updateRecords/, archivo);
+    assert.doesNotMatch(fuente, /method:\s*["'](?:POST|PUT|PATCH|DELETE)/i, archivo);
+    assert.doesNotMatch(fuente, /\/refunds|\/checkout\/preferences/, archivo);
+  }
+  // lib/mp-cobro.ts no sabe nada del crédito: el webhook lo usa para el cashback de hoy sin traer el crédito.
+  assert.doesNotMatch(fs.readFileSync(path.join(raiz, "lib", "mp-cobro.ts"), "utf8"), /from\s+["']\.\/credito-/);
   const webhook = fs.readFileSync(path.join(raiz, "lib", "webhook-proceso.ts"), "utf8");
-  assert.doesNotMatch(webhook, /credito-/, "el webhook de producción no lo usa");
+  assert.doesNotMatch(webhook, /credito-/, "el webhook de producción no usa el crédito");
 });
