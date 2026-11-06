@@ -14,7 +14,7 @@ delete process.env.HARPER_DUO_ACTIVO;
 
 import { createRecord, listRecords, TABLAS, updateRecord } from "../lib/airtable";
 import { creditosPorEmail, filaDelRegistro, type CamposCredito } from "../lib/credito-airtable";
-import { billeteraDeCredito, billeteraDeLaCuenta, cuentaConCredito, entrarALaCuenta, visitaDeLaCuenta } from "../lib/credito-cuenta";
+import { atenderEntrada, billeteraDeCredito, billeteraDeLaCuenta, cuentaConCredito, entrarALaCuenta, visitaDeLaCuenta } from "../lib/credito-cuenta";
 import { interceptar, reiniciar, RespuestaFixture } from "../lib/fixtures/servidor";
 import { comprasDeLaCuenta } from "../lib/mis-compras";
 import { claveDeCodigos, crearDesafio } from "../lib/reconocer-cliente";
@@ -136,6 +136,33 @@ test("Código incorrecto o vencido, y el interruptor apagado: no entra", async (
   // Apagado (por defecto en las pruebas): la ruta contesta 404 y no abre nada.
   assert.equal(cuentaConCredito(), false);
   assert.deepEqual(await entrarALaCuenta(conCodigo("x@ejemplo.com"), { claveCodigos: CLAVE, ahora: AHORA }), { ok: false, status: 404, error: "No disponible" });
+});
+
+test("Con el interruptor apagado, /api/cuenta/entrar contesta 404 sin gastar la cuota compartida con los suscriptores", async () => {
+  const llamadas: string[][] = [];
+  const consumirCuota = async (ventanas: { clave: string }[]) => {
+    llamadas.push(ventanas.map((v) => v.clave));
+    return { excedida: null };
+  };
+  const peticion = { cuerpo: conCodigo("socia@ejemplo.com"), ip: "200.1.2.3", desdeOtroSitio: false };
+
+  // Apagado (por defecto en las pruebas): 404 y la cuota intacta.
+  assert.deepEqual(await atenderEntrada(peticion, { consumirCuota, claveCodigos: CLAVE, ahora: AHORA }), { status: 404, cuerpo: { error: "No disponible" } });
+  assert.deepEqual(await atenderEntrada(peticion, { consumirCuota, claveCodigos: CLAVE, abierta: false, ahora: AHORA }), { status: 404, cuerpo: { error: "No disponible" } });
+  // Desde otro sitio: 403, tampoco gasta.
+  assert.equal((await atenderEntrada({ ...peticion, desdeOtroSitio: true }, { consumirCuota, claveCodigos: CLAVE, abierta: true, ahora: AHORA })).status, 403);
+  assert.deepEqual(llamadas, [], "no se tocó la cuota");
+
+  // Prendido: cuenta un intento en las mismas ventanas que /api/suscriptores/confirmar y entra.
+  const r = await atenderEntrada(peticion, { consumirCuota, claveCodigos: CLAVE, abierta: true, ahora: AHORA });
+  assert.equal(r.status, 200);
+  assert.equal(llamadas.length, 1);
+  assert.equal(llamadas[0][0], "suscriptor-confirmar-ip:200.1.2.3");
+  assert.match(llamadas[0][1], /^suscriptor-confirmar-mail:/);
+  // Con la cuota agotada: 429, sin comprobar el código.
+  const agotada = await atenderEntrada(peticion, { consumirCuota: async () => ({ excedida: "suscriptor-confirmar-mail" }), claveCodigos: CLAVE, abierta: true, ahora: AHORA });
+  assert.equal(agotada.status, 429);
+  assert.equal(agotada.sesion, undefined);
 });
 
 // ---------- Sesiones ----------
@@ -309,5 +336,5 @@ test("Compatibilidad: Mis compras funciona con el mail del comprador; favoritos,
   assert.match(pagina, /const conCredito = cuentaConCredito\(\);/);
   assert.match(pagina, /\{ abierta: conCredito \}/);
   assert.match(pagina, /\.\.\.\(conCredito \? \[seccionCredito\(billetera\)\] : \[\]\)/);
-  assert.match(leer("app", "api", "cuenta", "entrar", "route.ts"), /entrarALaCuenta\(/);
+  assert.match(leer("app", "api", "cuenta", "entrar", "route.ts"), /atenderEntrada\(/);
 });

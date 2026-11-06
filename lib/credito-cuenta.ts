@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { creditosPorEmail } from "./credito-airtable";
 import { creditoActivo } from "./credito-harper";
 import { laDelPedido, saldosDeLaCuenta, type FilaCredito } from "./credito-persistencia";
@@ -110,6 +111,62 @@ export async function entrarALaCuenta(
     };
   }
   return { ok: true, estado: "cuenta", email, abrir: { nombre: COOKIE_CUENTA, valor: crearSesionCuenta(claveCuenta, email, ahora) }, cerrar: COOKIE_SUSCRIPTOR };
+}
+
+/** Lo que la ruta /api/cuenta/entrar necesita de la petición. */
+export type PeticionEntrada = { cuerpo: unknown; ip: string; desdeOtroSitio: boolean };
+
+export type RespuestaEntrada = {
+  status: number;
+  cuerpo: Record<string, unknown>;
+  reintentarEnSegundos?: number;
+  /** La sesión que se abre y la cookie que se borra. */
+  sesion?: { abrir: { nombre: string; valor: string }; cerrar: string; ahora: number };
+};
+
+const MINUTO = 60_000;
+
+/**
+ * Atiende POST /api/cuenta/entrar. El orden importa (revisión del PR #81):
+ * con el interruptor apagado contesta 404 ANTES de tocar la cuota de
+ * intentos, que comparte con /api/suscriptores/confirmar; así la ruta
+ * apagada no le gasta intentos a nadie.
+ */
+export async function atenderEntrada(
+  peticion: PeticionEntrada,
+  deps: {
+    /** lib/cuota.ts: `excedida` trae la ventana que se pasó, o null. */
+    consumirCuota: (ventanas: { clave: string; ventanaMs: number; limite: number }[]) => Promise<{ excedida: unknown }>;
+    claveCodigos: Buffer | null;
+    abierta?: boolean;
+    ahora?: number;
+    buscarSuscriptor?: (email: string) => Promise<CuentaSuscriptor | null>;
+  }
+): Promise<RespuestaEntrada> {
+  if (peticion.desdeOtroSitio) return { status: 403, cuerpo: { error: "Origen no permitido" } };
+  const abierta = deps.abierta ?? cuentaConCredito();
+  if (!abierta) return { status: 404, cuerpo: { error: "No disponible" } };
+
+  const datos = (peticion.cuerpo ?? {}) as { email?: unknown; codigo?: unknown; desafio?: unknown };
+  const email = normalizarEmail(datos.email);
+  if (email) {
+    const delMail = createHash("sha256").update(email).digest("base64url").slice(0, 16);
+    const cuota = await deps.consumirCuota([
+      { clave: `suscriptor-confirmar-ip:${peticion.ip}`, ventanaMs: 60 * MINUTO, limite: 20 },
+      { clave: `suscriptor-confirmar-mail:${delMail}`, ventanaMs: 15 * MINUTO, limite: 6 },
+    ]);
+    if (cuota.excedida) {
+      return { status: 429, cuerpo: { error: "Demasiados intentos. Esperá unos minutos y pedí un código nuevo." }, reintentarEnSegundos: 300 };
+    }
+  }
+
+  const ahora = deps.ahora ?? Date.now();
+  const r = await entrarALaCuenta(
+    { email: datos.email, codigo: datos.codigo, desafio: datos.desafio },
+    { claveCodigos: deps.claveCodigos, abierta, ahora, buscarSuscriptor: deps.buscarSuscriptor }
+  );
+  if (!r.ok) return { status: r.status, cuerpo: { error: r.error } };
+  return { status: 200, cuerpo: { estado: r.estado }, sesion: { abrir: r.abrir, cerrar: r.cerrar, ahora } };
 }
 
 // ---------- La billetera ----------
