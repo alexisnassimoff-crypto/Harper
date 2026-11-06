@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { EntrarAlPanel, SalirDelPanel } from "@/components/panel/EntrarAlPanel";
 import { precio } from "@/lib/formato";
-import { agruparPorTramo, atajosDeMes, leerRango, PERIODOS, type PedidoPanel } from "@/lib/panel-datos";
+import { agruparPorTramo, atajosDeMes, cifraDeContribucion, leerRango, PERIODOS, type PedidoPanel } from "@/lib/panel-datos";
 import { datosDelPanel } from "@/lib/panel-servidor";
 import { COOKIE_PANEL, mailDeLaSesionPanel } from "@/lib/panel-sesion";
 import { fechaArgentina, fechaLegible } from "@/lib/suscriptores";
@@ -137,6 +137,8 @@ export default async function Panel({ searchParams }: { searchParams: Promise<Pa
   const v = d.ventas;
   const conversion = d.embudo?.pasos.at(-1)?.deLasVisitas ?? null;
   const barras = v ? agruparPorTramo(v.porDia) : null;
+  // La contribución estimada, con su aclaración, o «Sin datos suficientes» (lib/panel-datos.ts).
+  const cifra = d.margen ? cifraDeContribucion(d.margen) : null;
   const maxTramo = barras ? Math.max(1, ...barras.tramos.map((x) => x.facturado)) : 1;
   const meses = atajosDeMes(hoy);
   const visitasEmbudo = d.embudo?.pasos[0]?.valor ?? 0;
@@ -209,12 +211,8 @@ export default async function Panel({ searchParams }: { searchParams: Promise<Pa
             <Cifra titulo="Unidades" valor={numeroAR(v.unidades)} />
             <Cifra
               titulo="Contribución estimada"
-              valor={d.margen ? conSigno(d.margen.contribucion) : "—"}
-              detalle={
-                d.margen
-                  ? `${pesos(d.margen.porPedido)} por pedido · ${pct(d.margen.porcentaje)} de las ventas sin IVA · antes de publicidad`
-                  : d.sinMargen
-              }
+              valor={cifra ? cifra.valor : "—"}
+              detalle={cifra ? cifra.detalle : d.sinMargen}
             />
             <Cifra
               titulo="Conversión"
@@ -371,7 +369,11 @@ export default async function Panel({ searchParams }: { searchParams: Promise<Pa
           d.iva.deConfig ? ", de Config" : ", el mismo del resumen semanal de Mercado Libre"
         }). Lo «estimado» usa una tasa de referencia, no lo que se cobró de verdad. Lo pendiente no se resta.`}
       >
-        {d.margen ? (
+        {d.margen && cifra && d.margen.sinDatosSuficientes ? (
+          <p className="panel-aviso">
+            {cifra.valor}. {cifra.detalle}
+          </p>
+        ) : d.margen && cifra ? (
           <>
             <dl className="panel-cuenta">
               <div>
@@ -422,10 +424,7 @@ export default async function Panel({ searchParams }: { searchParams: Promise<Pa
                 <dd>{conSigno(d.margen.contribucion)}</dd>
               </div>
             </dl>
-            <p className="panel-seccion__nota">
-              {pesos(d.margen.porPedido)} por pedido · {pct(d.margen.porcentaje)} de las ventas sin IVA. Antes de lo pendiente: cuotas sin dato, preparación y
-              publicidad.
-            </p>
+            <p className="panel-seccion__nota">{cifra.detalle}</p>
 
             <dl className="panel-cuenta">
               <div className="panel-cuenta__total">

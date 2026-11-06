@@ -9,9 +9,12 @@ import { fetchRedisFalso, reiniciarRedis } from "../lib/fixtures/redis";
 import { canalDeCampana, canalDeLaVisita, canalDelOrigen, canalDeReferencia } from "../lib/canales";
 import { direccionParaMedir, esEventoMedido, leerCuerpoDeMedicion, rutaSinMedir } from "../lib/medir";
 import { claveDelDia, contarEvento, conteoVacio, leerConteos } from "../lib/medir-servidor";
+import { precio } from "../lib/formato";
 import {
+  ACLARACION_CONTRIBUCION,
   agruparPorTramo,
   armarEmbudo,
+  cifraDeContribucion,
   atajosDeMes,
   diasDe,
   diasEntre,
@@ -490,6 +493,51 @@ test("panel: «Cuánto dejó» da lo mismo que el motor de contribución para el
     cerca(m.envios, motor.costos.envio, `${c.nombre}: envío`);
     cerca(m.contribucion, motor.contribucionAntesDePublicidad + motor.costos.preparacion, `${c.nombre}: contribución`);
   }
+});
+
+test("panel: la cifra de «Contribución estimada» siempre aclara que no descuenta cuotas desconocidas, preparación ni publicidad", () => {
+  const costoDe = (id: string) => (id === "recVARIANTE00001" ? { costo: 20_000, packaging: 1_000 } : null);
+  const m = margenDe([pedido("A"), pedido("B")], { tasa: 21, costoDe, envioPorDefecto: 0 })!;
+  assert.equal(m.sinDatosSuficientes, false);
+  const cifra = cifraDeContribucion(m);
+  assert.equal(cifra.valor, precio(Math.round(m.contribucion)));
+  assert.ok(cifra.detalle.startsWith(`${precio(Math.round(m.porPedido!))} por pedido · `), cifra.detalle);
+  assert.ok(cifra.detalle.endsWith(ACLARACION_CONTRIBUCION), "la aclaración va siempre, también en la sección");
+  assert.equal(ACLARACION_CONTRIBUCION, "Todavía no descuenta cuotas desconocidas, preparación ni publicidad: no es la ganancia real.");
+
+  // Con pérdida, el signo se ve y la aclaración sigue.
+  const perdida = cifraDeContribucion({ ...m, contribucion: -1_500 });
+  assert.equal(perdida.valor, `−${precio(1_500)}`);
+  assert.ok(perdida.detalle.endsWith(ACLARACION_CONTRIBUCION));
+});
+
+test("panel: con pedidos confirmados pero ninguno con costos, «Sin datos suficientes» y cuántos quedaron afuera, nunca $ 0", () => {
+  const sinCostos = () => null;
+  const dos = margenDe([pedido("A"), pedido("B", { estado: "enviado" }), pedido("C", { estado: "pendiente" })], { tasa: 21, costoDe: sinCostos, envioPorDefecto: 0 })!;
+  assert.equal(dos.pedidos, 0);
+  assert.equal(dos.sinCosto, 2, "el pendiente de pago no cuenta");
+  assert.equal(dos.sinDatosSuficientes, true);
+  assert.deepEqual(cifraDeContribucion(dos), {
+    valor: "Sin datos suficientes",
+    detalle: "2 pedidos confirmados quedaron afuera: a sus productos les falta el costo en Costos ML.",
+  });
+  assert.notEqual(cifraDeContribucion(dos).valor, precio(0));
+
+  const uno = margenDe([pedido("A")], { tasa: 21, costoDe: sinCostos, envioPorDefecto: 0 })!;
+  assert.equal(cifraDeContribucion(uno).detalle, "1 pedido confirmado quedó afuera: a sus productos les falta el costo en Costos ML.");
+
+  // Si al menos uno tiene costos, hay contribución (y el resto se avisa aparte en la sección).
+  const costoDe = (id: string) => (id === "recVARIANTE00001" ? { costo: 20_000, packaging: 1_000 } : null);
+  const sinCosto = { items: [{ varianteId: "recSINCOSTO00001", nombre: "X", color: "", categoria: "Anteojos", cantidad: 1, subtotal: 1 }] };
+  const parcial = margenDe([pedido("A"), pedido("B", sinCosto)], { tasa: 21, costoDe, envioPorDefecto: 0 })!;
+  assert.equal(parcial.sinDatosSuficientes, false);
+  assert.equal(parcial.sinCosto, 1);
+  assert.notEqual(cifraDeContribucion(parcial).valor, "Sin datos suficientes");
+
+  // Sin ningún pedido confirmado no hay ventas: $ 0 es el dato real, no falta de datos.
+  const vacio = margenDe([pedido("P", { estado: "pendiente" })], { tasa: 21, costoDe, envioPorDefecto: 0 })!;
+  assert.equal(vacio.sinDatosSuficientes, false);
+  assert.equal(cifraDeContribucion(vacio).valor, precio(0));
 });
 
 test("panel: sin pedidos confirmados, la contribución es cero y la ganancia neta igual dice qué falta", () => {

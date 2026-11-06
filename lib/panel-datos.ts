@@ -8,6 +8,7 @@ import {
   type ParametrosContribucion,
 } from "./contribucion";
 import { esPedidoConDineroMP } from "./dinero-mp";
+import { precio } from "./formato";
 import type { EventoMedido } from "./medir";
 import type { Origen } from "./origen";
 import { beneficiosDeNotas, fechaArgentina, saldoDe, sumarDias, type MovimientoSaldo } from "./suscriptores";
@@ -311,6 +312,11 @@ export type Margen = {
   porPedido: number | null;
   /** Contribución estimada sobre ventas netas, en %. */
   porcentaje: number | null;
+  /**
+   * Hay pedidos confirmados, pero a ninguno se le conocen los costos de los
+   * productos: la contribución no se puede calcular (no es $ 0).
+   */
+  sinDatosSuficientes: boolean;
 
   /** Costos que existen pero no se conocen. No se restan. */
   pendientes: {
@@ -372,6 +378,7 @@ export function margenDe(
     contribucion: 0,
     porPedido: null,
     porcentaje: null,
+    sinDatosSuficientes: false,
     pendientes: {
       cuotasSinDato: 0,
       cuotasHasta: 0,
@@ -424,6 +431,7 @@ export function margenDe(
   m.contribucion = m.ventasNetas - m.productos - m.packaging - m.envios - m.cashback - m.cuotas - m.mercadoPago - m.iibb - m.devoluciones;
   m.porPedido = m.pedidos > 0 ? m.contribucion / m.pedidos : null;
   m.porcentaje = m.ventasNetas > 0 ? (m.contribucion / m.ventasNetas) * 100 : null;
+  m.sinDatosSuficientes = m.pedidos === 0 && m.sinCosto > 0;
 
   const falta = m.faltaParaLaGanancia;
   falta.push("el gasto en publicidad de la tienda web del período (no está cargado en ninguna tabla)");
@@ -440,6 +448,33 @@ export function margenDe(
     falta.push(`el costo en Costos ML de algún producto de ${pedidosEn(m.sinCosto)}, que ${m.sinCosto === 1 ? "queda" : "quedan"} afuera de la cuenta`);
   }
   return m;
+}
+
+/** Lo que acompaña siempre a la contribución estimada, para que no se lea como ganancia. */
+export const ACLARACION_CONTRIBUCION = "Todavía no descuenta cuotas desconocidas, preparación ni publicidad: no es la ganancia real.";
+
+const pesosConSigno = (n: number) => `${n < 0 ? "−" : ""}${precio(Math.round(Math.abs(n)))}`;
+const porcentajeConUnDecimal = (n: number | null) =>
+  n === null ? "—" : `${new Intl.NumberFormat("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n)} %`;
+
+/**
+ * La cifra principal de «Contribución estimada» y su explicación: siempre con
+ * la aclaración de que no es la ganancia real. Si hay pedidos confirmados pero
+ * a ninguno se le conocen los costos, «Sin datos suficientes» (nunca $ 0) y
+ * cuántos quedaron afuera.
+ */
+export function cifraDeContribucion(m: Margen): { valor: string; detalle: string } {
+  if (m.sinDatosSuficientes) {
+    return {
+      valor: "Sin datos suficientes",
+      detalle: `${pedidosEn(m.sinCosto)} ${m.sinCosto === 1 ? "confirmado quedó" : "confirmados quedaron"} afuera: a sus productos les falta el costo en Costos ML.`,
+    };
+  }
+  const porPedido = m.porPedido === null ? "—" : precio(Math.round(m.porPedido));
+  return {
+    valor: pesosConSigno(m.contribucion),
+    detalle: `${porPedido} por pedido · ${porcentajeConUnDecimal(m.porcentaje)} de las ventas sin IVA. ${ACLARACION_CONTRIBUCION}`,
+  };
 }
 
 export type ResumenVentas = {
