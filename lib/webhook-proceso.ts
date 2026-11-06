@@ -15,6 +15,7 @@ import {
   dependenciasPagoCredito,
   hayQueReintentar,
   procesarPagoParaCredito,
+  regimenDelPedido,
   type DependenciasPagoCredito,
   type ResultadoPagoCredito,
 } from "./credito-pagos";
@@ -195,10 +196,16 @@ export type Dependencias = {
   /**
    * Crédito Harper (docs/plan-programa-harper.md §17.9): lo pone
    * `dependenciasReales` SOLO con HARPER_CREDITO_ACTIVO=1. Sin él (null o
-   * ausente), el webhook es exactamente el de siempre.
+   * ausente), el webhook es exactamente el de siempre. Prendido pero sin lo
+   * indispensable (MP_ACCESS_TOKEN, Redis), `{ sinConfigurar }`: los pedidos
+   * del crédito nuevo piden reintento y se avisa a Harper; nunca se saltea en
+   * silencio.
    */
-  credito?: DependenciasPagoCredito | null;
+  credito?: DependenciasPagoCredito | CreditoSinConfigurar | null;
 };
+
+/** El Crédito Harper está prendido, pero falta algo indispensable para procesarlo. */
+export type CreditoSinConfigurar = { sinConfigurar: string[] };
 
 export type Resultado = {
   /** 200 si la notificación quedó resuelta; 503 si hay que reintentarla. */
@@ -222,12 +229,19 @@ export function dependenciasReales(sitio: string, extra: Partial<Dependencias> =
   };
 }
 
-/** Las dependencias del Crédito Harper, solo con HARPER_CREDITO_ACTIVO=1 (apagado: null, el webhook de siempre). */
-function creditoDesdeEntorno(): DependenciasPagoCredito | null {
+/**
+ * Las dependencias del Crédito Harper, solo con HARPER_CREDITO_ACTIVO=1
+ * (apagado: null, el webhook de siempre). Prendido y sin lo indispensable,
+ * `{ sinConfigurar }` con lo que falta: no se saltea en silencio.
+ */
+export function creditoDesdeEntorno(): DependenciasPagoCredito | CreditoSinConfigurar | null {
   if (!creditoActivo()) return null;
-  const credito = dependenciasPagoCredito(dependenciasCredito());
-  if (!credito) console.error("[webhook] HARPER_CREDITO_ACTIVO=1 pero falta MP_ACCESS_TOKEN: el Crédito Harper no se procesa");
-  return credito;
+  const base = dependenciasCredito();
+  const credito = dependenciasPagoCredito(base);
+  const faltan = [credito ? null : "MP_ACCESS_TOKEN", base.cerrojo ? null : "Redis (cerrojo)"].filter((f): f is string => f !== null);
+  if (credito && faltan.length === 0) return credito;
+  console.error(`[webhook] HARPER_CREDITO_ACTIVO=1 pero falta ${faltan.join(" y ")}: los pagos del Crédito Harper piden reintento hasta que esté`);
+  return { sinConfigurar: faltan };
 }
 
 /** Otra instancia nos pisó la marca entre dos pasos: nos retiramos. */
@@ -374,7 +388,68 @@ export async function procesarNotificacion(dataId: string, deps: Dependencias): 
   // crédito es otra llave). Si contestó otra cosa, Mercado Pago reintenta y el
   // crédito se procesa en ese reintento.
   if (!deps.credito || resultado.status !== 200) return resultado;
+  if ("sinConfigurar" in deps.credito) return creditoSinConfigurar(dataId, resultado, deps.credito.sinConfigurar, deps);
   return conCreditoHarper(dataId, resultado, deps.credito, deps);
+}
+
+/**
+ * Manda un aviso interno a Harper. Verdadero si salió. También si los mails
+ * están apagados a propósito (como en las pruebas locales): ahí no hay a quién
+ * avisar, igual que con los mails del pedido. Un fallo (Resend caído, la
+ * config que no se lee) es falso.
+ */
+async function avisarAHarper(deps: Dependencias, armar: () => Promise<Parameters<Dependencias["enviarMail"]>[0]>): Promise<boolean> {
+  try {
+    const salio = await deps.enviarMail(await armar());
+    return salio || !deps.mailsConfigurados();
+  } catch (error) {
+    console.error("[webhook] no se pudo armar o mandar un aviso interno:", error);
+    return false;
+  }
+}
+
+/** Cuándo salió la última alerta de «crédito prendido sin configurar»: una por instancia y hora, no una por aviso. */
+let ultimaAlertaCreditoSinConfigurar = Number.NEGATIVE_INFINITY;
+
+/**
+ * HARPER_CREDITO_ACTIVO=1 pero falta algo indispensable. El pago ya quedó
+ * resuelto por el flujo de siempre:
+ *  - un pedido con las reglas de hoy no genera crédito nuevo: su respuesta
+ *    queda exactamente igual;
+ *  - un pedido del crédito nuevo (o uno que no se pudo leer) contesta 503, así
+ *    Mercado Pago reintenta hasta que esté configurado (el flujo de siempre ve
+ *    un duplicado: no se repite nada), y se avisa a Harper una vez por hora.
+ */
+async function creditoSinConfigurar(pagoId: string, hoy: Resultado, faltan: string[], deps: Dependencias): Promise<Resultado> {
+  try {
+    const pedidoId = (await deps.obtenerPago(pagoId)).external_reference;
+    if (!pedidoId) return hoy;
+    const pedido = await getRecord<FilaPedido>(TABLAS.pedidos, pedidoId);
+    if (regimenDelPedido(pedido.fields.Notas).regimen === "anterior") return hoy;
+  } catch (error) {
+    console.error(`[webhook] no se pudo leer el régimen del pago ${pagoId} con el Crédito Harper sin configurar:`, error);
+  }
+
+  const que = faltan.join(" y ");
+  console.error(`[webhook] el Crédito Harper del pago ${pagoId} no se procesa: falta ${que}. Se pide reintento.`);
+  const ahora = deps.reloj.ahora();
+  if (ahora - ultimaAlertaCreditoSinConfigurar >= CADA_CUANTO_ALERTAR_MS) {
+    const avisado = await avisarAHarper(deps, async () =>
+      mailAlertaInterna({
+        config: await getConfig(),
+        asunto: `ALERTA Harper — Crédito Harper prendido sin configurar: falta ${que}`,
+        lineas: [
+          `HARPER_CREDITO_ACTIVO está en 1, pero falta ${que}. El pago ${pagoId} quedó procesado como siempre (pedido, stock y mails), pero su Crédito Harper no.`,
+          "Mercado Pago va a reintentar el aviso y el crédito se anota solo cuando esté configurado. Si no se va a configurar ya, apagá HARPER_CREDITO_ACTIVO.",
+        ],
+      })
+    );
+    if (avisado) ultimaAlertaCreditoSinConfigurar = ahora;
+  }
+  return {
+    status: 503,
+    cuerpo: { ...hoy.cuerpo, ok: false, credito: { sinConfigurar: faltan }, detalle: `Crédito Harper prendido sin configurar (falta ${que}); reintentar` },
+  };
 }
 
 /**
@@ -401,7 +476,8 @@ function resumenDelCredito(r: ResultadoPagoCredito) {
  *    duplicado (sus pasos ya están hechos) y el crédito vuelve a intentarse:
  *    la persistencia no anota dos veces.
  *  - Un error que reintentar no arregla: 200 (para no reintentar para siempre)
- *    y un mail interno para revisarlo a mano.
+ *    y un mail interno para revisarlo a mano. Si ese aviso no sale, 503: el
+ *    reintento vuelve a avisar, sin repetir el pago ni sus mails.
  */
 async function conCreditoHarper(pagoId: string, hoy: Resultado, credito: DependenciasPagoCredito, deps: Dependencias): Promise<Resultado> {
   try {
@@ -423,19 +499,24 @@ async function conCreditoHarper(pagoId: string, hoy: Resultado, credito: Depende
       };
     }
     console.error(`[webhook] el Crédito Harper del pago ${pagoId} necesita revisión a mano:`, error);
-    try {
-      await deps.enviarMail(
-        mailAlertaInterna({
-          config: await getConfig(),
-          asunto: `REVISAR Crédito Harper — pago ${pagoId}: no se pudo anotar`,
-          lineas: [
-            `El pago ${pagoId} quedó procesado como siempre (pedido, stock y mails), pero su Crédito Harper no se pudo procesar: ${describir(error)}.`,
-            "Reintentar no lo arregla. Revisá el pedido y, si corresponde, anotá el crédito a mano en la tabla Créditos.",
-          ],
-        })
-      );
-    } catch (otro) {
-      console.error("[webhook] no salió el aviso del crédito a revisar", otro);
+    const avisado = await avisarAHarper(deps, async () =>
+      mailAlertaInterna({
+        config: await getConfig(),
+        asunto: `REVISAR Crédito Harper — pago ${pagoId}: no se pudo anotar`,
+        lineas: [
+          `El pago ${pagoId} quedó procesado como siempre (pedido, stock y mails), pero su Crédito Harper no se pudo procesar: ${describir(error)}.`,
+          "Reintentar no lo arregla. Revisá el pedido y, si corresponde, anotá el crédito a mano en la tabla Créditos.",
+        ],
+      })
+    );
+    if (!avisado) {
+      // Sin el aviso, nadie se enteraría del crédito sin anotar: que Mercado
+      // Pago reintente y se vuelva a avisar.
+      console.error(`[webhook] no salió el aviso del crédito a revisar del pago ${pagoId}: se pide reintento para volver a avisar`);
+      return {
+        status: 503,
+        cuerpo: { ...hoy.cuerpo, ok: false, credito: { revisar: true, avisoEnviado: false }, detalle: "el Crédito Harper necesita revisión y no salió el aviso; reintentar" },
+      };
     }
     return { status: 200, cuerpo: { ...hoy.cuerpo, credito: { revisar: true, detalle: describir(error) } } };
   }

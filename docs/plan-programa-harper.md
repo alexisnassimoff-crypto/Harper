@@ -1920,7 +1920,13 @@ Ante el aviso de un pago:
 paso 2. Un error del crédito que reintentar no arregla (datos del pedido que
 no sirven, Airtable que rechaza la escritura) contesta 200 y manda un mail
 interno «REVISAR Crédito Harper», para que Mercado Pago no reintente para
-siempre:
+siempre. Si ese mail no sale (`enviarMail` devuelve falso o falla), contesta
+503: el reintento vuelve a avisar sin repetir el pago ni sus mails. Con
+`HARPER_CREDITO_ACTIVO=1` pero sin `MP_ACCESS_TOKEN` o sin Redis, el crédito
+no se saltea en silencio: los pedidos del crédito nuevo contestan 503 (el
+pago queda registrado como siempre) y sale una alerta «ALERTA Harper —
+Crédito Harper prendido sin configurar», una por hora; los del régimen
+anterior siguen igual:
 
 1. **`app/api/checkout/route.ts`**
    - Con `HARPER_CREDITO_ACTIVO=1` y un pedido sin cashback de hoy, agregar

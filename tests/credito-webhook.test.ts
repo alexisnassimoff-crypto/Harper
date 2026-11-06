@@ -22,7 +22,7 @@ import type { PagoMP } from "../lib/mercadopago";
 import { pagoDe, type LectorMercadoPago } from "../lib/mp-cobro";
 import { notasDeBeneficios } from "../lib/suscriptores";
 import type { ItemResuelto } from "../lib/tipos";
-import { dependenciasReales, procesarNotificacion, type Dependencias, type FilaPedido, type Resultado } from "../lib/webhook-proceso";
+import { creditoDesdeEntorno, dependenciasReales, procesarNotificacion, type Dependencias, type FilaPedido, type Resultado } from "../lib/webhook-proceso";
 
 type Mail = Parameters<Dependencias["enviarMail"]>[0];
 
@@ -153,7 +153,10 @@ function armar(opciones: { credito?: boolean; almacen?: (real: AlmacenCreditos) 
     pagos.set(String(p.id), p);
     return String(p.id);
   };
-  return { deps, mails, pagos, agregar, cuenta, cerrojoPedido };
+  const avanzar = (ms: number) => {
+    t += ms;
+  };
+  return { deps, mails, pagos, agregar, cuenta, cerrojoPedido, credito, avanzar };
 }
 
 const creditosDe = async (numero: string) => (await listRecords<CamposCredito>(TABLAS.creditos, { revalidate: 0 })).filter((r) => r.fields.Pedido === numero);
@@ -382,8 +385,8 @@ test("Error pasajero al escribir el crédito: 503 sin tocar el pago; el reintent
 });
 
 test("Sin Redis para el crédito: no se escribe nada y se pide reintento", async () => {
-  const { deps, agregar } = armar();
-  deps.credito = { ...deps.credito!, credito: { ...deps.credito!.credito, cerrojo: null } };
+  const { deps, agregar, credito } = armar();
+  deps.credito = { ...credito, credito: { ...credito.credito, cerrojo: null } };
   const { pedidoId, numero } = await crearPedido();
   const r = await procesarNotificacion(agregar(pagoDelPedido(pedidoId, 157_325)), deps);
   assert.equal(r.status, 503);
@@ -419,6 +422,147 @@ test("Error que reintentar no arregla: 200, aviso interno a Harper y ningún cr�
   assert.equal((await estadoDe(p2.pedidoId)).estado, "pagado");
   assert.deepEqual(await creditosDe(p2.numero), []);
   assert.ok(b.mails.some((m) => m.asunto.startsWith("REVISAR Crédito Harper")));
+});
+
+/** Un crédito que no se puede anotar nunca: Airtable rechaza la escritura. */
+const siempreRechaza = (real: AlmacenCreditos): AlmacenCreditos => ({
+  ...real,
+  crear: async () => {
+    throw new ErrorAirtable(422, "/Creditos", "INVALID_VALUE_FOR_COLUMN");
+  },
+});
+const esRevisar = (m: Mail) => m.asunto.startsWith("REVISAR Crédito Harper");
+
+test("Error que reintentar no arregla y el aviso NO sale (enviarMail devuelve false): 503 para volver a avisar; el reintento avisa sin repetir el pago ni sus mails", async () => {
+  const { deps, mails, agregar } = armar({ almacen: siempreRechaza });
+  let avisosQueFallan = 1;
+  const enviar = deps.enviarMail;
+  deps.enviarMail = async (mail) => (esRevisar(mail) && avisosQueFallan-- > 0 ? false : enviar(mail));
+  const { pedidoId, numero } = await crearPedido();
+  const pagoId = agregar(pagoDelPedido(pedidoId, 157_325));
+
+  const r1 = await procesarNotificacion(pagoId, deps);
+  assert.equal(r1.status, 503, "sin aviso, Mercado Pago reintenta");
+  assert.deepEqual(r1.cuerpo.credito, { revisar: true, avisoEnviado: false });
+  assert.equal(r1.cuerpo.estado, "pagado", "el pago quedó registrado como siempre");
+  assert.equal((await estadoDe(pedidoId)).estado, "pagado");
+  assert.equal(mails.length, 2, "los dos mails del pedido; el aviso no salió");
+  assert.equal(mails.some(esRevisar), false);
+
+  const r2 = await procesarNotificacion(pagoId, deps);
+  assert.equal(r2.status, 200);
+  assert.equal(r2.cuerpo.duplicado, true, "el flujo de siempre no se repite");
+  assert.equal((r2.cuerpo.credito as { revisar?: boolean }).revisar, true);
+  assert.equal(mails.length, 3, "solo se suma el aviso: ni el pago ni sus mails se repiten");
+  assert.ok(esRevisar(mails[2]));
+  assert.equal((await estadoDe(pedidoId)).pagoId, pagoId);
+  assert.deepEqual(await creditosDe(numero), []);
+
+  // Si mandar el aviso tira (Resend caído, la config que no se lee): también 503.
+  const b = armar({ almacen: siempreRechaza });
+  const enviarB = b.deps.enviarMail;
+  b.deps.enviarMail = async (mail) => {
+    if (esRevisar(mail)) throw new Error("Resend 500");
+    return enviarB(mail);
+  };
+  const p2 = await crearPedido();
+  const rb = await procesarNotificacion(b.agregar(pagoDelPedido(p2.pedidoId, 157_325)), b.deps);
+  assert.equal(rb.status, 503);
+  assert.deepEqual(rb.cuerpo.credito, { revisar: true, avisoEnviado: false });
+  assert.equal((await estadoDe(p2.pedidoId)).estado, "pagado");
+
+  // Con los mails apagados a propósito (como en local) no hay a quién avisar: 200, igual que los mails del pedido.
+  const c = armar({ almacen: siempreRechaza });
+  c.deps.mailsConfigurados = () => false;
+  c.deps.enviarMail = async () => false;
+  const p3 = await crearPedido();
+  const rc = await procesarNotificacion(c.agregar(pagoDelPedido(p3.pedidoId, 157_325)), c.deps);
+  assert.equal(rc.status, 200);
+  assert.equal((rc.cuerpo.credito as { revisar?: boolean }).revisar, true);
+});
+
+// ---------- Prendido sin configurar ----------
+
+test("Prendido sin lo indispensable: creditoDesdeEntorno no devuelve null, dice qué falta", () => {
+  const variables = ["HARPER_CREDITO_ACTIVO", "MP_ACCESS_TOKEN", "KV_REST_API_URL", "KV_REST_API_TOKEN"];
+  try {
+    process.env.HARPER_CREDITO_ACTIVO = "1";
+    assert.deepEqual(creditoDesdeEntorno(), { sinConfigurar: ["MP_ACCESS_TOKEN", "Redis (cerrojo)"] });
+    assert.deepEqual(dependenciasReales("https://harper.ar").credito, { sinConfigurar: ["MP_ACCESS_TOKEN", "Redis (cerrojo)"] });
+
+    // Valores de mentira: nada se conecta al armar las dependencias.
+    process.env.MP_ACCESS_TOKEN = "prueba-no-es-un-token";
+    assert.deepEqual(creditoDesdeEntorno(), { sinConfigurar: ["Redis (cerrojo)"] });
+
+    process.env.KV_REST_API_URL = "https://redis.invalid";
+    process.env.KV_REST_API_TOKEN = "prueba-no-es-un-token";
+    const listo = creditoDesdeEntorno();
+    assert.ok(listo && !("sinConfigurar" in listo) && listo.mp && listo.credito.cerrojo, "con todo, las dependencias de verdad");
+
+    delete process.env.MP_ACCESS_TOKEN;
+    assert.deepEqual(creditoDesdeEntorno(), { sinConfigurar: ["MP_ACCESS_TOKEN"] });
+
+    // Apagado: null, falte lo que falte.
+    delete process.env.HARPER_CREDITO_ACTIVO;
+    assert.equal(creditoDesdeEntorno(), null);
+  } finally {
+    for (const v of variables) delete process.env[v];
+  }
+});
+
+test("Prendido sin configurar: el pedido del crédito nuevo pide reintento y avisa a Harper (una vez por hora); el del régimen anterior queda igual", async () => {
+  const { deps, mails, agregar, cuenta, credito, avanzar } = armar();
+  deps.credito = { sinConfigurar: ["MP_ACCESS_TOKEN"] };
+  const esAlerta = (m: Mail) => m.asunto === "ALERTA Harper — Crédito Harper prendido sin configurar: falta MP_ACCESS_TOKEN";
+
+  const p1 = await crearPedido();
+  const pago1 = agregar(pagoDelPedido(p1.pedidoId, 157_325));
+  const r1 = await procesarNotificacion(pago1, deps);
+  assert.equal(r1.status, 503, "no se saltea en silencio: Mercado Pago reintenta");
+  assert.deepEqual(r1.cuerpo.credito, { sinConfigurar: ["MP_ACCESS_TOKEN"] });
+  assert.equal(r1.cuerpo.estado, "pagado", "el pago quedó registrado como siempre");
+  assert.equal((await estadoDe(p1.pedidoId)).estado, "pagado");
+  assert.equal(mails.length, 3, "los dos mails del pedido y la alerta");
+  assert.ok(esAlerta(mails[2]));
+  assert.deepEqual(await creditosDe(p1.numero), []);
+  assert.equal(cuenta.lecturas, 0, "sin configurar, el crédito no se procesa");
+
+  // El reintento: el flujo de siempre ve un duplicado y la alerta no se repite en la hora.
+  const r1b = await procesarNotificacion(pago1, deps);
+  assert.equal(r1b.status, 503);
+  assert.equal(r1b.cuerpo.duplicado, true);
+  assert.equal(mails.length, 3);
+
+  // Un pedido del régimen anterior: la respuesta de siempre, sin crédito ni alerta.
+  const p2 = await crearPedido({ notas: null });
+  const r2 = await procesarNotificacion(agregar(pagoDelPedido(p2.pedidoId, 157_325)), deps);
+  assert.equal(r2.status, 200);
+  assert.equal("credito" in r2.cuerpo, false);
+  assert.equal(r2.cuerpo.estado, "pagado");
+  assert.equal(mails.filter(esAlerta).length, 1);
+  assert.equal(mails.length, 5, "solo los dos mails de su pedido");
+
+  // Una hora después vuelve a avisar; si ese aviso no sale, lo intenta en el próximo.
+  avanzar(60 * 60 * 1000);
+  let alertasQueFallan = 1;
+  const enviar = deps.enviarMail;
+  deps.enviarMail = async (mail) => (esAlerta(mail) && alertasQueFallan-- > 0 ? false : enviar(mail));
+  const p3 = await crearPedido();
+  const pago3 = agregar(pagoDelPedido(p3.pedidoId, 157_325));
+  assert.equal((await procesarNotificacion(pago3, deps)).status, 503);
+  assert.equal(mails.filter(esAlerta).length, 1, "esa alerta no salió");
+  assert.equal((await procesarNotificacion(pago3, deps)).status, 503);
+  assert.equal(mails.filter(esAlerta).length, 2, "salió en el reintento");
+
+  // Configurado: el reintento anota el crédito una vez, sin repetir el pago ni sus mails.
+  deps.credito = credito;
+  const antes = mails.length;
+  const r1c = await procesarNotificacion(pago1, deps);
+  assert.equal(r1c.status, 200);
+  assert.equal(r1c.cuerpo.duplicado, true);
+  assert.deepEqual(r1c.cuerpo.credito, { accion: "registrar", estado: "creado" });
+  assert.equal((await creditosDe(p1.numero)).length, 1);
+  assert.equal(mails.length, antes);
 });
 
 test("Si el flujo de siempre pide reintento, el crédito no se procesa en ese aviso", async () => {
