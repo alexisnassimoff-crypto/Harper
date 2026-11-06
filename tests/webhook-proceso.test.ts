@@ -20,7 +20,8 @@ import { MEDIO_DINERO_MP } from "../lib/dinero-mp";
 import { notasDeBeneficios } from "../lib/suscriptores";
 import { claveSuscriptor } from "../lib/suscriptores-cuenta";
 import { esMarcaDeReclamo, VIGENCIA_RECLAMO_MS } from "../lib/webhook-decision";
-import { dependenciasReales, procesarNotificacion, type Dependencias, type FilaPedido } from "../lib/webhook-proceso";
+import { dependenciasReales, pagosDeLaMarca, procesarNotificacion, type Dependencias, type FilaPedido } from "../lib/webhook-proceso";
+import { CobroIncierto, pagoDe, type LectorMercadoPago } from "../lib/mp-cobro";
 
 type FilaVariante = { Stock?: number; Stock_pedidos?: string };
 type Mail = Parameters<Dependencias["enviarMail"]>[0];
@@ -108,6 +109,27 @@ function pago(pedidoId: string, extra: Partial<PagoMP> = {}): PagoMP {
   return { id: 111, status: "approved", external_reference: pedidoId, transaction_amount: TOTAL, payer: { email: "prueba@harper.ar" }, ...extra };
 }
 
+/**
+ * El lector de pagos de Mercado Pago sobre los mismos pagos de la prueba
+ * ("111@A" gana a "111" para la instancia A). `ocultos`: los que la búsqueda
+ * todavía no trae.
+ */
+function lectorDe(pagos: Record<string, PagoMP>, ocultos: ReadonlySet<string> = new Set()): LectorMercadoPago {
+  const leer = (id: string) => {
+    const p = pagos[`${id}@${quien()}`] ?? pagos[id];
+    if (!p) throw new Error(`pago ${id} desconocido`);
+    return pagoDe(p);
+  };
+  return {
+    pago: async (id) => leer(id),
+    pagosDelPedido: async (pedidoId) =>
+      [...new Set(Object.keys(pagos).map((k) => k.split("@")[0]))]
+        .filter((id) => !ocultos.has(id) && (pagos[`${id}@${quien()}`] ?? pagos[id]))
+        .map(leer)
+        .filter((p) => p.pedidoId === pedidoId),
+  };
+}
+
 function armarDeps(pagos: Record<string, PagoMP>, extra: Partial<Dependencias> = {}) {
   const reloj = relojFalso();
   const mails: { quien: string; mail: Mail }[] = [];
@@ -119,6 +141,8 @@ function armarDeps(pagos: Record<string, PagoMP>, extra: Partial<Dependencias> =
       if (!p) throw new Error(`pago ${id} desconocido`);
       return p;
     },
+    // Todos los pagos del pedido, como los vería esta instancia (Tarea 12).
+    lectorPagos: lectorDe(pagos),
     enviarMail: async (mail: Mail) => {
       mails.push({ quien: quien(), mail });
       return true;
@@ -1197,4 +1221,176 @@ test("Suscriptores: un reembolso o contracargo del pago anula el cashback del pe
   // Otro aviso del mismo reembolso: no vuelve a avisar.
   await como("C", () => procesarNotificacion("111", deps));
   assert.equal(mails.length, antes + 1);
+});
+
+// ---- Tarea 12: el cashback ante pagos duplicados ----
+
+const MONTO = 74900;
+const devueltoDe = (p: PagoMP): PagoMP => ({ ...p, status: "refunded", transaction_amount_refunded: MONTO } as PagoMP);
+
+/** Un pedido de suscriptor cobrado con el pago 111 (y, si se pide, un segundo pago 222 aprobado que quedó para revisar). */
+async function pedidoCobrado(numero: string, conRepetido: boolean) {
+  const suscriptorId = await suscriptorConSaldo();
+  const { pedidoId } = await pedidoDeSuscriptor(suscriptorId, numero);
+  const pagos: Record<string, PagoMP> = { "111": pago(pedidoId, { transaction_amount: MONTO }) };
+  const { deps, mails } = armarDeps(pagos);
+  await como("A", () => procesarNotificacion("111", deps));
+  if (conRepetido) {
+    pagos["222"] = pago(pedidoId, { id: 222, transaction_amount: MONTO });
+    const r = await como("A", () => procesarNotificacion("222", deps));
+    assert.equal(r.cuerpo.estado, "revisar", "el segundo pago queda para revisar, como siempre");
+    assert.deepEqual(pagosDeLaMarca((await estadoDe(pedidoId)).mpStatus), ["222", "111"]);
+  }
+  const cashback = async () => (await saldosDe(suscriptorId)).find((m) => m[0] === "Cashback");
+  const anulado = async () => (await cashback())?.[4] === true;
+  assert.equal(await anulado(), false);
+  const asuntos = (desde: number) => mails.slice(desde).map((m) => m.mail.asunto);
+  return { pedidoId, pagos, deps, mails, anulado, asuntos };
+}
+
+test("Tarea 12, pago repetido: reembolsar el repetido no anula el cashback", async () => {
+  const { pagos, deps, mails, anulado, asuntos } = await pedidoCobrado("HARPER-T12A", true);
+  const antes = mails.length;
+  pagos["222"] = devueltoDe(pagos["222"]);
+  const r = await como("A", () => procesarNotificacion("222", deps));
+  assert.equal(r.status, 200);
+  assert.equal(await anulado(), false, "el 111 sigue cobrando el pedido");
+  assert.deepEqual(asuntos(antes), [], "nada que avisar");
+});
+
+test("Tarea 12, reembolso del primario con el repetido vigente: no anula (antes se anulaba)", async () => {
+  const { pagos, deps, mails, anulado, asuntos } = await pedidoCobrado("HARPER-T12B", true);
+  const antes = mails.length;
+  pagos["111"] = devueltoDe(pagos["111"]);
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.status, 200);
+  assert.equal(r.cuerpo.duplicado, true);
+  assert.equal(await anulado(), false, "el 222 sigue cobrando el pedido");
+  assert.deepEqual(asuntos(antes), []);
+});
+
+test("Tarea 12, reembolso de los dos, en cualquier orden: se anula una sola vez, cuando el pedido queda sin cobro", async () => {
+  for (const [primero, segundo, numero] of [["111", "222", "HARPER-T12C"], ["222", "111", "HARPER-T12D"]] as const) {
+    const { pagos, deps, mails, anulado, asuntos } = await pedidoCobrado(numero, true);
+    const antes = mails.length;
+    pagos[primero] = devueltoDe(pagos[primero]);
+    await como("A", () => procesarNotificacion(primero, deps));
+    assert.equal(await anulado(), false, `${numero}: con uno solo devuelto, sigue cobrado`);
+    pagos[segundo] = devueltoDe(pagos[segundo]);
+    const r = await como("A", () => procesarNotificacion(segundo, deps));
+    assert.equal(r.status, 200);
+    assert.equal(await anulado(), true, `${numero}: sin cobro, se anula`);
+    // Reintentos y avisos repetidos de los dos: no vuelve a avisar.
+    await como("B", () => procesarNotificacion(primero, deps));
+    await como("C", () => procesarNotificacion(segundo, deps));
+    assert.deepEqual(asuntos(antes), [`REVISAR ${numero} — reembolso en Mercado Pago: cashback anulado`]);
+  }
+});
+
+test("Tarea 12, pago único: reembolso o contracargo perdido anulan; contracargo en curso avisa sin anular; ganado no anula", async () => {
+  // Reembolso del único pago: se anula, como siempre.
+  const unico = await pedidoCobrado("HARPER-T12E", false);
+  unico.pagos["111"] = devueltoDe(unico.pagos["111"]);
+  await como("A", () => procesarNotificacion("111", unico.deps));
+  assert.equal(await unico.anulado(), true);
+
+  // Contracargo: en curso no anula y avisa; perdido anula.
+  const c = await pedidoCobrado("HARPER-T12F", false);
+  const antes = c.mails.length;
+  c.pagos["111"] = { ...c.pagos["111"], status: "charged_back", status_detail: "in_process" };
+  const enCurso = await como("A", () => procesarNotificacion("111", c.deps));
+  assert.equal(enCurso.status, 200);
+  assert.equal(await c.anulado(), false, "todavía no se sabe si se pierde");
+  assert.deepEqual(c.asuntos(antes), ["REVISAR HARPER-T12F — contracargo en Mercado Pago: cashback sin anular"]);
+  c.pagos["111"] = { ...c.pagos["111"], status: "charged_back", status_detail: "settled" };
+  await como("A", () => procesarNotificacion("111", c.deps));
+  assert.equal(await c.anulado(), true);
+  assert.equal(c.asuntos(antes).at(-1), "REVISAR HARPER-T12F — contracargo en Mercado Pago: cashback anulado");
+
+  // Contracargo ganado: el pedido sigue cobrado, no se anula.
+  const g = await pedidoCobrado("HARPER-T12G", false);
+  g.pagos["111"] = { ...g.pagos["111"], status: "charged_back", status_detail: "reimbursed" };
+  await como("A", () => procesarNotificacion("111", g.deps));
+  assert.equal(await g.anulado(), false);
+});
+
+test("Tarea 12, fuera de orden: avisos viejos cuando ya está todo devuelto, y una búsqueda atrasada", async () => {
+  // Los dos ya devueltos cuando llegan los avisos (el del original, primero): anula una vez.
+  const tarde = await pedidoCobrado("HARPER-T12H", true);
+  const antes = tarde.mails.length;
+  tarde.pagos["111"] = devueltoDe(tarde.pagos["111"]);
+  tarde.pagos["222"] = devueltoDe(tarde.pagos["222"]);
+  await como("A", () => procesarNotificacion("111", tarde.deps));
+  await como("B", () => procesarNotificacion("222", tarde.deps));
+  assert.equal(await tarde.anulado(), true);
+  assert.equal(tarde.asuntos(antes).length, 1);
+
+  // La búsqueda todavía no trae el repetido vigente: igual se lee, porque quedó en la marca «revisar».
+  const atrasada = await pedidoCobrado("HARPER-T12I", true);
+  atrasada.pagos["111"] = devueltoDe(atrasada.pagos["111"]);
+  const deps = { ...atrasada.deps, lectorPagos: lectorDe(atrasada.pagos, new Set(["222"])) };
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.status, 200);
+  assert.equal(await atrasada.anulado(), false, "el 222 sigue vigente aunque la búsqueda no lo traiga");
+
+  // La búsqueda no trae ni el pago del aviso: «sin cobro» no se certifica; 503 y reintento.
+  const unico = await pedidoCobrado("HARPER-T12J", false);
+  unico.pagos["111"] = devueltoDe(unico.pagos["111"]);
+  const sinBusqueda = { ...unico.deps, lectorPagos: lectorDe(unico.pagos, new Set(["111"])) };
+  const incierto = await como("A", () => procesarNotificacion("111", sinBusqueda));
+  assert.equal(incierto.status, 503);
+  assert.equal(await unico.anulado(), false);
+  const reintento = await como("A", () => procesarNotificacion("111", unico.deps));
+  assert.equal(reintento.status, 200);
+  assert.equal(await unico.anulado(), true);
+});
+
+test("Tarea 12, sin certeza no se anula: Mercado Pago caído, búsqueda incompleta, estado desconocido o sin lector → 503", async () => {
+  const p = await pedidoCobrado("HARPER-T12K", true);
+  p.pagos["111"] = devueltoDe(p.pagos["111"]);
+  const casos: [string, LectorMercadoPago | null][] = [
+    ["Mercado Pago no contesta", { pago: async () => { throw new Error("Mercado Pago 503"); }, pagosDelPedido: async () => { throw new Error("Mercado Pago 503"); } }],
+    ["búsqueda incompleta", { ...lectorDe(p.pagos), pagosDelPedido: async () => { throw new CobroIncierto("la búsqueda trajo 1 de 2 pagos"); } }],
+    ["sin lector", null],
+  ];
+  for (const [que, lectorPagos] of casos) {
+    const r = await como("A", () => procesarNotificacion("111", { ...p.deps, lectorPagos }));
+    assert.equal(r.status, 503, que);
+    assert.equal(r.cuerpo.reintentar, true, que);
+    assert.equal(await p.anulado(), false, que);
+  }
+  // Un estado de Mercado Pago que no se conoce en el repetido: tampoco se supone nada.
+  p.pagos["222"] = { ...p.pagos["222"], status: "estado_nuevo_de_mp" };
+  const desconocido = await como("A", () => procesarNotificacion("111", p.deps));
+  assert.equal(desconocido.status, 503);
+  assert.equal(await p.anulado(), false);
+  // Cuando Mercado Pago dice algo conocido, el reintento decide.
+  p.pagos["222"] = devueltoDe({ ...p.pagos["222"], status: "approved" });
+  assert.equal((await como("A", () => procesarNotificacion("111", p.deps))).status, 200);
+  assert.equal(await p.anulado(), true);
+});
+
+test("Tarea 12, un pedido sin cashback (no es de un suscriptor): el reembolso sigue igual, sin leer los pagos", async () => {
+  const { pedidoId } = await crearPedido({ Numero: "HARPER-T12L" });
+  const pagos: Record<string, PagoMP> = { "111": pago(pedidoId) };
+  let lecturas = 0;
+  const { deps } = armarDeps(pagos, {
+    lectorPagos: {
+      pago: async () => { lecturas++; throw new Error("no debería leer"); },
+      pagosDelPedido: async () => { lecturas++; throw new Error("no debería leer"); },
+    },
+  });
+  await como("A", () => procesarNotificacion("111", deps));
+  pagos["111"] = { ...pagos["111"], status: "refunded" };
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.status, 200);
+  assert.equal(r.cuerpo.duplicado, true);
+  assert.equal(lecturas, 0);
+});
+
+test("Tarea 12: de las marcas «revisar» solo se leen pagos de la del segundo pago, nunca montos", () => {
+  assert.deepEqual(pagosDeLaMarca("revisar: segundo pago aprobado 222 sobre un pedido pagado (pago anterior 111); posible doble cobro"), ["222", "111"]);
+  assert.deepEqual(pagosDeLaMarca("revisar: se cobró 179800 y el pedido dice 179800"), []);
+  assert.deepEqual(pagosDeLaMarca("approved"), []);
+  assert.deepEqual(pagosDeLaMarca(undefined), []);
 });

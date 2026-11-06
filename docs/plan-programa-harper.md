@@ -1927,11 +1927,8 @@ Ante el aviso de un pago:
      la llave (revisión del PR #68, punto 4).
 4. **No se cambia:** el cashback de hoy, las cuotas, los precios ni las
    condiciones.
-5. **Una observación sobre el cashback de hoy (no se cambia sin
-   autorización).**
-   - Hoy el webhook anula el cashback cuando se reembolsa el pago registrado
-     en el pedido, aunque quede vigente un pago repetido.
-   - Con `cobroDelPedido` se podría corregir en otra tarea.
+5. **El cashback de hoy ante pagos repetidos:** se corrigió aparte, en la
+   Tarea 12 (§17.11).
 
 **Falta decidir antes de conectar:**
 
@@ -1987,6 +1984,50 @@ verdad, sin pedidos ni créditos de clientes:
 
 **El adaptador escribe en esa base** solo con `HARPER_CREDITO_SANDBOX=1`,
 fuera de Vercel y con una base que no sea la real (`puedeEscribirCreditos`).
+
+### 17.11 El cashback de hoy ante pagos repetidos (Tarea 12)
+
+**El error que había.**
+
+- El webhook anulaba el cashback cuando se reembolsaba el pago registrado
+  en el pedido, aunque el cliente hubiera pagado dos veces y el otro pago
+  siguiera cobrado.
+- Al revés, si después se devolvía el repetido, no lo anulaba nunca.
+
+**Cómo queda.** Ante un reembolso o un contracargo de **cualquier** pago del
+pedido, el webhook mira todos los pagos en Mercado Pago, con la misma
+lectura del crédito (`lib/mp-cobro.ts`, solo lectura).
+
+| Lo que dicen los pagos | Cashback |
+|---|---|
+| Pago único reembolsado, o contracargo perdido | Se anula y se avisa, como siempre |
+| Se devolvió el repetido y el original sigue cobrado | No se anula |
+| Se devolvió el original y el repetido sigue cobrado | No se anula (antes sí) |
+| Se devolvieron los dos, en cualquier orden | Se anula una sola vez, al quedar sin cobro |
+| Contracargo en curso | No se anula todavía: se avisa a Harper. Si se pierde, el aviso de Mercado Pago lo anula |
+| Contracargo ganado | No se anula |
+| Quedó cobrado en parte | No se anula: se avisa a Harper, que decide |
+| Mercado Pago no contesta, la búsqueda viene incompleta o atrasada, o un estado no se conoce | No se anula por suposición: 503 y Mercado Pago reintenta |
+
+**Qué pagos se miran:**
+
+- los de la búsqueda de Mercado Pago;
+- el del aviso;
+- el registrado en el pedido;
+- los que quedaron en la marca «revisar: segundo pago aprobado…».
+
+Cada uno se lee por su ID.
+
+**Lo único que cambia sin pagos repetidos: el contracargo.** Antes se anulaba
+apenas empezaba. Ahora espera a saber si se pierde, y mientras tanto avisa a
+Harper.
+
+**Lo que no cambia:**
+
+- el resto del webhook;
+- los pedidos sin cashback, que ni siquiera leen los pagos;
+- los mails de siempre;
+- el Crédito Harper y el Dúo, que siguen apagados.
 
 ---
 

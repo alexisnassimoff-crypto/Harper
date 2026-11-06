@@ -21,6 +21,7 @@ import {
   type DatosMail,
 } from "./mails";
 import { obtenerPago as obtenerPagoReal, type PagoMP } from "./mercadopago";
+import { cobroCertificado, CobroIncierto, lectorMercadoPagoDesdeEntorno, type LectorMercadoPago } from "./mp-cobro";
 import { descontarStock } from "./stock";
 import { precio as formatearPrecio } from "./formato";
 import { beneficiosDeNotas, cashbackDisponibleDesde, type BeneficiosDelPedido } from "./suscriptores";
@@ -147,6 +148,13 @@ export type VentaConfirmada = {
 export type Dependencias = {
   obtenerPago: (pagoId: string) => Promise<PagoMP>;
   /**
+   * Todos los pagos del pedido en Mercado Pago, solo lectura (lib/mp-cobro.ts).
+   * Antes de anular un cashback por un reembolso o contracargo se mira si el
+   * pedido sigue cobrado por otro pago (Tarea 12). Sin lector no se anula
+   * nada: se pide reintento.
+   */
+  lectorPagos?: LectorMercadoPago | null;
+  /**
    * Cerrojo con escritura condicional (Redis), o null si no está configurado.
    * Con cerrojo, una sola instancia trabaja sobre el pedido a la vez y el
    * stock de cada variante se toca de a un pedido por vez; las marcas de
@@ -186,6 +194,7 @@ export type Resultado = {
 export function dependenciasReales(sitio: string, extra: Partial<Dependencias> = {}): Dependencias {
   return {
     obtenerPago: obtenerPagoReal,
+    lectorPagos: lectorMercadoPagoDesdeEntorno(),
     cerrojo: cerrojoDesdeEntorno(),
     enviarMail: enviarMailReal,
     mailsConfigurados: mailsConfiguradosReal,
@@ -458,6 +467,84 @@ async function anularCashbackPorReembolso(pedido: AirtableRecord<FilaPedido>, pa
   );
 }
 
+/**
+ * Los pagos que el webhook dejó anotados en la marca «revisar: segundo pago
+ * aprobado X … (pago anterior Y)». Solo esa marca: las otras llevan montos,
+ * no pagos.
+ */
+export function pagosDeLaMarca(mpStatus: string | undefined): string[] {
+  if (!mpStatus?.startsWith(MARCA_REVISAR)) return [];
+  const m = /segundo pago aprobado (\d+) .*\(pago anterior (\d+)\)/.exec(mpStatus);
+  return m ? [m[1], m[2]] : [];
+}
+
+/** Hay que reintentar: no se pudo certificar el cobro del pedido para decidir sobre el cashback. */
+const REINTENTAR_CASHBACK: Resultado = {
+  status: 503,
+  cuerpo: { ok: false, reintentar: true, detalle: "no se pudo certificar si el pedido sigue cobrado: el cashback no se toca y se reintenta" },
+};
+
+/**
+ * Un reembolso o un contracargo de CUALQUIER pago del pedido (Tarea 12):
+ * antes de anular el cashback se mira, con todos los pagos en Mercado Pago
+ * (lib/mp-cobro.ts), si el pedido sigue cobrado.
+ *  - Sin cobro (todo devuelto, contracargo perdido): se anula, como siempre.
+ *  - Sigue cobrado por otro pago (se devolvió un pago repetido, o el
+ *    original y queda el repetido): no se anula.
+ *  - Contracargo en curso: todavía no se sabe si se pierde; no se anula y se
+ *    avisa a Harper. Si se pierde, el aviso de Mercado Pago lo anula.
+ *  - Cobrado en parte: no se anula y se avisa a Harper, que decide.
+ *  - Si Mercado Pago no contesta, la búsqueda viene incompleta o atrasada, o
+ *    un estado no se conoce: no se anula por suposición. Devuelve un 503 para
+ *    que Mercado Pago reintente (cada paso es idempotente).
+ * Devuelve null cuando quedó resuelto.
+ */
+async function revisarCashbackPorReembolso(pedido: AirtableRecord<FilaPedido>, pago: PagoMP, deps: Dependencias): Promise<Resultado | null> {
+  if (!ESTADOS_REEMBOLSO.has(pago.status)) return null;
+  const beneficios = beneficiosDeNotas(pedido.fields.Notas);
+  if (!beneficios || beneficios.cashback <= 0) return null;
+  const numero = pedido.fields.Numero ?? pedido.id;
+  try {
+    if (!deps.lectorPagos) throw new CobroIncierto("no hay lector de pagos de Mercado Pago");
+    const conocidos = [String(pago.id), pedido.fields.MP_payment_id, ...pagosDeLaMarca(pedido.fields.MP_status)];
+    const cobro = await cobroCertificado(deps.lectorPagos, pedido.id, conocidos, pedido.fields.Total ?? Number.NaN, numero);
+
+    if (cobro.estado === "sin-cobro") {
+      await anularCashbackPorReembolso(pedido, pago, deps);
+      return null;
+    }
+
+    const que = pago.status === "charged_back" ? "contracargo" : "reembolso";
+    if (cobro.estado === "cobrado" && !cobro.incidenciaAbierta) {
+      console.info(`[webhook] ${que} del pago ${pago.id}: el pedido ${numero} sigue cobrado por otro pago; el cashback no se anula`);
+      return null;
+    }
+
+    // Contracargo en curso o cobrado en parte: no se anula y se avisa.
+    const motivo =
+      cobro.estado === "cobrado"
+        ? "hay un contracargo o un reclamo en curso: todavía no se sabe si se pierde"
+        : `el pedido quedó cobrado en parte (${formatearPrecio(cobro.neto)} de ${formatearPrecio(pedido.fields.Total ?? 0)})`;
+    console.warn(`[webhook] ${que} del pago ${pago.id} sobre el pedido ${numero}: ${motivo}; el cashback no se anula`);
+    const config = await getConfig();
+    await deps.enviarMail(
+      mailAlertaInterna({
+        config,
+        asunto: `REVISAR ${numero} — ${que} en Mercado Pago: cashback sin anular`,
+        lineas: [
+          `Mercado Pago avisó un ${que} del pago ${pago.id}, pero ${motivo}.`,
+          `El cashback de ${formatearPrecio(beneficios.cashback)} de ${beneficios.email} NO se anuló. Si corresponde, anulalo a mano en Saldos.`,
+        ],
+        enlace: `https://airtable.com/${process.env.AIRTABLE_BASE_ID}/${TABLAS.pedidos}/${pedido.id}`,
+      })
+    );
+    return null;
+  } catch (error) {
+    console.error(`[webhook] ${describir(error)}: el cashback del pedido ${numero} no se toca; se pide reintento`);
+    return REINTENTAR_CASHBACK;
+  }
+}
+
 async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependencias): Promise<Resultado> {
   const pagoId = String(pago.id);
 
@@ -475,13 +562,11 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
   }
 
   if (accion === "duplicado") {
-    // Mercado Pago avisa que este mismo pago se devolvió (reembolso desde el
-    // panel o contracargo de la tarjeta): el cashback de ese pedido se anula.
-    if (ESTADOS_REEMBOLSO.has(pago.status) && pedido.fields.MP_payment_id === pagoId) {
-      await anularCashbackPorReembolso(pedido, pago, deps).catch((error) =>
-        console.error(`[webhook] no se pudo anular el cashback del pago devuelto ${pagoId}`, error)
-      );
-    }
+    // Mercado Pago avisa que un pago del pedido se devolvió (reembolso desde
+    // el panel o contracargo de la tarjeta): el cashback se anula solo si el
+    // pedido quedó sin cobro (Tarea 12).
+    const revision = await revisarCashbackPorReembolso(pedido, pago, deps);
+    if (revision) return revision;
     return ok({ duplicado: true });
   }
 
@@ -489,6 +574,10 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
     console.warn(
       `[webhook] el pago ${pagoId} (${pago.status}) llegó sobre el pedido ${pedidoId} ya ${pedido.fields.Estado}: no se toca`
     );
+    // Otro pago del pedido (un repetido) que se devolvió: puede dejar el
+    // pedido sin cobro si el original ya se había devuelto (Tarea 12).
+    const revision = await revisarCashbackPorReembolso(pedido, pago, deps);
+    if (revision) return revision;
     return ok({ ignorado: true });
   }
 
