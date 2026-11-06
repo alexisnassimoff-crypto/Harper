@@ -78,12 +78,18 @@ Con cuenta o sin cuenta:
 
 Tus derechos de arrepentimiento (10 días, Ley 24.240, art. 34), de garantía y de cambios no se recortan por el crédito. Ale pidió validar todo este punto antes de definir cómo se implementa.
 
-**Lo que ya propone el plan:**
+**Lo que ya propone el plan** (§13.2 y §17.5). Separa dos situaciones, y no fija ninguna regla de reintegro nueva:
 
-- Si devolvés toda la compra mientras el crédito está pendiente, ese crédito se anula.
-- Si usaste crédito en una compra que devolvés, el crédito usado vuelve a tu cuenta cuando se concreta la devolución. Lo pagado con dinero se reintegra por Mercado Pago.
-- Un contracargo se trata como una devolución.
-- Si hay una devolución o un reclamo cuando el crédito ya está disponible, queda **en revisión** y no se puede usar hasta que Harper lo resuelva.
+- **Una devolución resuelta** (se concretó y se reintegró el dinero):
+    - si devolviste toda la compra mientras su crédito estaba pendiente, ese crédito se anula;
+    - si usaste crédito en esa compra, el crédito usado vuelve a tu cuenta, y lo pagado con dinero se reintegra por Mercado Pago;
+    - si el crédito de esa compra ya estaba disponible, queda **en revisión** y no se puede usar hasta que Harper lo resuelva.
+- **Un contracargo, una disputa o un reclamo abiertos** (todavía sin resolver). No cuentan como devolución ni anulan nada por sí solos:
+    - el crédito pendiente de esa compra no pasa a disponible mientras sigan abiertos;
+    - si el crédito ya estaba disponible, queda **en revisión** hasta que se resuelvan.
+- **Cuando se resuelven:**
+    - si terminan con el dinero devuelto al comprador, se tratan como una devolución resuelta;
+    - si terminan a favor de Harper, el crédito pendiente se libera a su tiempo, y el que estaba en revisión lo resuelve Harper.
 
 **Lo que está abierto:**
 
@@ -101,11 +107,12 @@ Si te suscribiste antes del [FECHA DE CORTE]:
 - **Desde el corte** terminan el envío gratis sin mínimo y el 10 % de vuelta en cada compra. Las 6 cuotas pasan a ser para todos, y tus compras nuevas generan Crédito Harper como las de cualquiera.
 - Las cuentas abiertas desde el corte no reciben cupón de bienvenida.
 
-### 8. Novedades y baja **[Decidido]**
+### 8. Novedades y baja de las novedades **[Decidido]**
 
 - **Novedades:** recibir novedades, lanzamientos y promociones por mail es opcional.
-- **Baja:** te podés dar de baja cuando quieras, sin costo, con el enlace de cualquiera de esos mails o desde Mi Cuenta Harper.
-- **Qué corta:** solo esos mails. Tu cuenta, tu saldo y tu Crédito Harper no cambian, y te seguimos mandando los mails de tus pedidos y de tu cuenta.
+- **Baja de las novedades:** te podés dar de baja de esos mails cuando quieras, sin costo, con el enlace de cualquiera de ellos o desde Mi Cuenta Harper.
+- **Qué corta:** solo los mails de novedades. Tu cuenta, tu saldo y tu Crédito Harper no cambian, y te seguimos mandando los mails de tus pedidos y de tu cuenta.
+- **No es cerrar la cuenta:** darte de baja de las novedades no elimina tu Mi Cuenta Harper. Pedir que borremos tus datos es otra cosa (punto 9).
 
 **[Revisión legal L3: si el aviso «tu crédito ya se puede usar» es un mail de la cuenta o de novedades.]**
 

@@ -10,7 +10,7 @@
 
 ## Lo decidido y lo que necesita revisión legal
 
-13 temas ya están decididos. Necesitan revisión legal 5 puntos (L1 a L5), más algunas frases y una lectura general del texto. Faltan 6 decisiones de Ale que no son legales.
+13 temas ya están decididos. Necesitan revisión legal 5 puntos (L1 a L5), más algunas frases, el mail de transición y una lectura general del texto. Faltan 6 decisiones de Ale que no son legales.
 
 **Decidido**
 
@@ -39,7 +39,8 @@
 | L3 | La casilla de novedades, la Política de privacidad y si «tu crédito ya se puede usar» es un mail de la cuenta | A, puntos 3, 8 y 9 |
 | L4 | Si el saldo anterior puede pagar el envío | A, punto 7; B |
 | L5 | Devolución de una compra después de usar su crédito (saldo en negativo) | A, punto 6 |
-| Frases | «No vence, por ahora»; el crédito «en revisión»; si las promociones van acá o en los Términos; montos fijos o «los publicados»; si el aviso es un mail de servicio | A, puntos 4 a 6; B |
+| Frases | «No vence, por ahora»; el crédito «en revisión» (con devolución resuelta y con disputa abierta); si las promociones van acá o en los Términos; montos fijos o «los publicados» | A, puntos 4 a 6 |
+| Mail de transición | Si califica como aviso de cambio de condiciones; si puede llevar información promocional (Dúo, cuotas, envío); si se puede mandar a quien rechazó las comunicaciones comerciales | B |
 | Lectura general | Todo el texto, con la Ley 24.240 (arrepentimiento, garantía) y la Ley 25.326 (datos) | A y B |
 
 **Falta decidir (Ale, no legal)**
