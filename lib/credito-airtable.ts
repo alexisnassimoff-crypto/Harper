@@ -111,10 +111,20 @@ export class CreditoApagado extends Error {
   }
 }
 
-/** Solo en el Airtable de prueba, o con el Crédito Harper prendido (todavía no). */
+/** La base real de Harper: el modo sandbox nunca escribe en ella. */
+export const BASE_REAL = "appcFfhxM8uVdVKoP";
+
+/**
+ * Solo en el Airtable de prueba (en memoria), en una base de pruebas aislada
+ * (`HARPER_CREDITO_SANDBOX=1`, fuera de Vercel y con otra base que no sea la
+ * real: tests/integracion/credito-sandbox.test.ts), o con el Crédito Harper
+ * prendido (todavía no).
+ */
 export function puedeEscribirCreditos(entorno: Record<string, string | undefined> = process.env): boolean {
   const fixtures = entorno.HARPER_FIXTURES === "1" && !entorno.VERCEL;
-  return fixtures || creditoActivo(entorno);
+  const base = entorno.AIRTABLE_BASE_ID?.trim() ?? "";
+  const sandbox = entorno.HARPER_CREDITO_SANDBOX === "1" && !entorno.VERCEL && /^app[A-Za-z0-9]{14}$/.test(base) && base !== BASE_REAL;
+  return fixtures || sandbox || creditoActivo(entorno);
 }
 
 function exigirEscritura() {

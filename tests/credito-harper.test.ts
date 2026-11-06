@@ -266,7 +266,7 @@ test("Apagado por defecto y sin usar: ninguna página, componente ni ruta lo usa
       // y a esos dos no los usa nadie (tests/credito-persistencia.test.ts).
       else if (
         /\.(ts|tsx)$/.test(entrada.name) &&
-        !["credito-harper.ts", "credito-persistencia.ts", "credito-airtable.ts"].some((n) => relativo === path.join("lib", n))
+        !["credito-harper.ts", "credito-persistencia.ts", "credito-airtable.ts", "credito-pagos.ts"].some((n) => relativo === path.join("lib", n))
       ) {
         const texto = fs.readFileSync(path.join(raiz, relativo), "utf8");
         if (/from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)credito-harper["']/.test(texto)) usos.push(relativo);

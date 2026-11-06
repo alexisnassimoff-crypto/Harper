@@ -427,20 +427,26 @@ export async function aplicarDevolucion(numero: string, quedan: readonly Renglon
  * el crédito pendiente, se anula; disponible, «A revisar». Si llega antes que
  * el crédito, queda una fila anulada que impide anotarlo después.
  *
- * `quedoSinCobro` (se lee adentro del cerrojo, de Mercado Pago): si el pedido
- * sigue cobrado por otro pago (se reembolsó un pago repetido), no se toca nada.
+ * `quedoSinCobro` es OBLIGATORIO (revisión del PR #68): se lee adentro del
+ * cerrojo, de Mercado Pago (lib/credito-pagos.ts), si el pedido quedó de
+ * verdad sin cobro. Si sigue cobrado por otro pago (se reembolsó un pago
+ * repetido), no se toca nada. Una anulación a mano de Harper lo dice
+ * explícitamente con `async () => true`.
  */
 export async function anularPorPedido(
   numero: string,
   motivo: "cancelacion" | "reembolso" | "contracargo-perdido",
   deps: DependenciasCredito,
-  opciones: { quedoSinCobro?: () => Promise<boolean> } = {}
+  opciones: { quedoSinCobro: () => Promise<boolean> }
 ): Promise<ResultadoCambio> {
+  if (typeof opciones?.quedoSinCobro !== "function") {
+    throw new TypeError("Para anular hay que leer si el pedido quedó sin cobro (quedoSinCobro)");
+  }
   const texto = { cancelacion: "cancelación del pedido", reembolso: "reembolso del pago", "contracargo-perdido": "contracargo perdido" }[motivo];
   const n = numero.trim();
   return conCerrojo(n, deps, async (d): Promise<ResultadoCambio> => {
     const fila = laDelPedido((await leerDepurado(n, d)).filas);
-    if (opciones.quedoSinCobro && !(await opciones.quedoSinCobro())) return { estado: "sigue-cobrado", fila };
+    if (!(await opciones.quedoSinCobro())) return { estado: "sigue-cobrado", fila };
     if (!fila) return { estado: "anulado-antes", fila: await bloquearAntes(n, "Anulado", texto, d) };
     if (fila.estado === "Anulado") return { estado: "ya-anulado", fila };
     if (fila.estado !== "Pendiente") return aRevisar(fila, d, texto);
