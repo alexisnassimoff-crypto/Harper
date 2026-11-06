@@ -2344,6 +2344,84 @@ plazos de devolución.
 **No cambia:** los pagos, el cashback de hoy, los precios, el Dúo ni
 ninguna otra función.
 
+### 18.6 Lo implementado (05/11/2026)
+
+**1. El campo «Fecha_entrega» en Pedidos** (`fld04ZWywkyXDEXUW`).
+
+- Es de tipo Fecha, sin hora, y se muestra como día/mes/año (igual que en
+  Créditos).
+- Nació vacío en los 27 pedidos. No se cargó ninguna fecha a mano.
+- Ningún código lo lee ni lo escribe todavía.
+- El sitio actualiza Pedidos campo por campo, sin reemplazar la fila
+  entera, así que no lo borra.
+
+**2. La automatización «Fecha de entrega»** (`wflZ8rV3CNx6ugq3D`).
+
+- **Cuándo corre:** cuando el Estado pasa de pendiente, pagado, preparando,
+  enviado, cancelado o rechazado a «entregado». No corre al crear un pedido
+  ni con ningún otro cambio. Así gasta una sola corrida por entrega.
+- **Qué hace:**
+  1. vuelve a leer el pedido;
+  2. si sigue «entregado» y Fecha_entrega está vacía, escribe la fecha del
+     día según la hora de Buenos Aires;
+  3. en cualquier otro caso no escribe nada;
+  4. deja en el historial: «fecha-registrada», «ya-tenia-fecha»,
+     «no-entregado» o «sin-pedido».
+- **Qué no hace:** no manda mails, no llama a harper.ar ni a otro servicio,
+  no usa secretos, no cambia el Estado y no toca otro campo ni otro pedido.
+- **Si se agrega un Estado nuevo en Pedidos,** hay que sumarlo a la lista
+  «desde» del disparador. Si no, ese paso a «entregado» no anota la fecha.
+  El control de «entregado sin fecha» (§18.2) lo detectaría.
+- **Está encendida desde el 06/11/2026.** La encendió Ale desde Airtable,
+  porque la API no deja hacerlo. «Aviso de despacho» sigue apagada.
+
+**3. El script, en el repositorio**
+(`airtable/automatizaciones/fecha-de-entrega.js`).
+
+- Es una copia exacta del que corre en Airtable.
+- `tests/airtable-fecha-entrega.test.ts` lo corre con un Airtable simulado
+  y un reloj fijo. Son 10 pruebas:
+  - pone la fecha con el campo vacío;
+  - usa la fecha de la Argentina, no la UTC (23:30 y 00:30);
+  - no sobrescribe una fecha;
+  - no escribe si el pedido ya no está entregado o no existe;
+  - deja la primera fecha si se vuelve atrás y se marca otra vez;
+  - solo toca el pedido que disparó la automatización;
+  - no llama a ningún servicio.
+- Se comprobó que las pruebas fallan si se rompe el script: sin la
+  protección de no sobrescribir, con la fecha en UTC o sin revisar el
+  Estado.
+
+**4. La prueba controlada en la base real: aprobada** (06/11/2026, entre
+las 10:01 y las 10:03 de Argentina).
+
+| Paso | Qué se hizo | Resultado |
+|---|---|---|
+| 1 | Se crearon «PRUEBA-FECHA-ENTREGA-A» y «-B», sin cliente, productos, Tracking ni total. B con Fecha_entrega 01/11/2026 | Crearlos no disparó la automatización |
+| 2 | A pasó de «pendiente» a «entregado» | Fecha_entrega = 06/11/2026, la fecha de hoy en la Argentina |
+| 3 | B pasó a «entregado» | Siguió en 01/11/2026: no la sobrescribió |
+| 4 | A pasó a «preparando» y otra vez a «entregado» | Pasar a «preparando» no la disparó. Al volver a «entregado» quedó la primera fecha, 06/11/2026 |
+| 5 | Historial de «Fecha de entrega» | Tres corridas, una por cada paso a «entregado», las tres sin error |
+| 6 | Se borraron los dos pedidos de prueba | Siguen los 27 pedidos reales, idénticos a la foto de antes (número, Estado y total), todos sin Fecha_entrega ni Tracking |
+
+**No salió ningún mail:**
+
+- «Aviso de despacho» sigue apagada y no tuvo ninguna corrida;
+- los pedidos de prueba nunca pasaron por «enviado», no tenían Tracking ni
+  cliente;
+- en Gmail no hay ningún mensaje con «PRUEBA-FECHA-ENTREGA»;
+- el script no llama a nada y harper.ar no reacciona a cambios en Airtable.
+
+**Lo que esta prueba no mostró:** la prueba fue a las 10 de la mañana, cuando
+la fecha de la Argentina y la UTC coinciden. El cambio de día (23:30 y
+00:30) lo cubren las pruebas del script (punto 3), no la prueba real.
+
+**Lo que falta, cada parte con su autorización:**
+
+- lo que lee la fecha desde el código (§18.2): la ruta diaria, los avisos
+  de los 10 días y la incidencia por arrepentimiento;
+- conectar el Crédito Harper (§17.9).
+
 ---
 
 ## Anexo A. Tablas completas de la sección A
