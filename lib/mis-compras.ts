@@ -1,4 +1,5 @@
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
+import { esMarcaDeReclamo, MARCA_REVISAR } from "./webhook-decision";
 
 /**
  * «Mis compras» de Mi cuenta Harper (Ale, 05/11/2026): los pedidos del
@@ -13,9 +14,11 @@ import { escaparFormula, listRecords, TABLAS } from "./airtable";
  * dirección), y de cada pedido se muestra solo lo de la compra: nada de la
  * dirección, el teléfono ni los datos de facturación.
  *
- * No se muestran los checkouts que no llegaron a pagarse ni los pagos
- * rechazados: no son compras. Un pago que Mercado Pago está revisando sí,
- * como «Pago en revisión».
+ * No se muestran los checkouts que no llegaron a pagarse, los pagos
+ * rechazados ni los pedidos cancelados que se sabe que nunca se pagaron: no
+ * son compras. Un pago que Mercado Pago está revisando sí, como «Pago en
+ * revisión», y un pedido cancelado que se cobró (aunque se haya devuelto la
+ * plata) o del que no se sabe, también (ver pagoDeUnCancelado).
  */
 
 export type EstadoDeCompra = "en-revision" | "pagado" | "preparando" | "enviado" | "entregado" | "cancelado";
@@ -56,6 +59,7 @@ export type FilaPedidoDeCompra = {
   Envio?: number;
   Fecha?: string;
   MP_status?: string;
+  MP_payment_id?: string;
   Tracking?: string;
 };
 
@@ -75,6 +79,51 @@ export function estadoDeCompra(estado: unknown, mpStatus: unknown): EstadoDeComp
   if (e === "pagado" || e === "preparando" || e === "enviado" || e === "entregado" || e === "cancelado") return e;
   if (e === "pendiente" && PAGO_EN_REVISION.has(String(mpStatus ?? "").trim())) return "en-revision";
   return null;
+}
+
+/** Estados de Mercado Pago que prueban un cobro: el pago se aprobó (y quizá después se devolvió). */
+const PAGO_COBRADO = new Set(["approved", "refunded", "charged_back"]);
+
+/** Estados de Mercado Pago de un intento que terminó sin cobrarse. */
+const PAGO_NO_APROBADO = new Set(["rejected", "cancelled"]);
+
+/**
+ * Qué se sabe del pago de un pedido cancelado (Ale, 06/11/2026: un cancelado
+ * que nunca se pagó no es una compra; uno que se cobró sí, aunque después se
+ * haya devuelto la plata; y uno dudoso no se oculta). Solo con lo que ya
+ * guarda el pedido:
+ *
+ *  - "cobrado": MP_status «approved», «refunded» o «charged_back», o «pagado
+ *    con saldo» (el checkout, sin Mercado Pago).
+ *  - "sin-pago": el intento registrado se rechazó o se canceló («rejected»,
+ *    «cancelled»; el webhook los anota con MP_payment_id), o no hay ningún
+ *    rastro de pago: ni MP_payment_id ni una marca de pago en MP_status (el
+ *    checkout anulado «sin preferencia de pago», un carrito abandonado).
+ *  - "dudoso": un pago en revisión o en disputa («pending», «in_process»,
+ *    «authorized», «in_mediation»), un MP_payment_id con el MP_status vacío o
+ *    con una nota escrita a mano, «pagando con saldo» sin confirmar, o una
+ *    marca del webhook («revisar:…», «procesando…»). El MP_payment_id solo no
+ *    prueba un cobro: el webhook lo anota también en los pagos en revisión y
+ *    en los rechazados.
+ *
+ * Mis compras oculta solo "sin-pago". "cobrado" y "dudoso" se ven como
+ * «Cancelado», sin el recorrido de «Pago confirmado»: la pantalla no dice que
+ * se cobró.
+ */
+export type PagoDeUnCancelado = "cobrado" | "sin-pago" | "dudoso";
+
+export function pagoDeUnCancelado(fila: Pick<FilaPedidoDeCompra, "MP_status" | "MP_payment_id">): PagoDeUnCancelado {
+  const mp = String(fila.MP_status ?? "").trim();
+  const estadoMP = mp.split(/[\s(,]/)[0].toLowerCase();
+  if (PAGO_COBRADO.has(estadoMP) || mp.startsWith("pagado con saldo")) return "cobrado";
+  if (PAGO_NO_APROBADO.has(estadoMP)) return "sin-pago";
+  const hayRastro =
+    PAGO_EN_REVISION.has(estadoMP) ||
+    Boolean(texto(fila.MP_payment_id)) ||
+    mp.startsWith("pagando con saldo") ||
+    mp.startsWith(MARCA_REVISAR) ||
+    esMarcaDeReclamo(mp);
+  return hayRastro ? "dudoso" : "sin-pago";
 }
 
 const numero = (valor: unknown) => (typeof valor === "number" && Number.isFinite(valor) ? valor : Number(valor));
@@ -132,6 +181,8 @@ export function itemsDeCompra(json: unknown): ItemDeCompra[] {
 export function compraDe(fila: { id: string; createdTime?: string; fields: FilaPedidoDeCompra }): Compra | null {
   const estado = estadoDeCompra(fila.fields.Estado, fila.fields.MP_status);
   if (!estado) return null;
+  // Un pedido cancelado que se sabe que nunca se pagó no es una compra.
+  if (estado === "cancelado" && pagoDeUnCancelado(fila.fields) === "sin-pago") return null;
   const total = numero(fila.fields.Total);
   const envio = numero(fila.fields.Envio);
   return {
