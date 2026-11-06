@@ -528,6 +528,30 @@ export function comprasDePrueba(hoy: string = fechaArgentina(new Date())): { cli
   return { clientes, pedidos };
 }
 
+/**
+ * «Mi Crédito Harper» para ver la billetera de una compradora sin suscripción
+ * (solo con HARPER_FIXTURES_CREDITOS=1; Crédito Harper, paso 3): uno de cada
+ * estado y uno de otra persona, que nunca tiene que aparecer.
+ */
+export function creditosDePrueba(hoy: string = fechaArgentina(new Date())): RegistroFixture[] {
+  const fila = (id: string, pedido: string, email: string, campos: Record<string, unknown>): RegistroFixture => ({
+    id,
+    createdTime: CREADO,
+    fields: { Clave: `credito-harper:${pedido}`, Pedido: pedido, Email: email, Porcentaje: 10, Base: 157325, Anteojos: 2, Reglas: "credito-harper-v1", Notas: "", ...campos },
+  });
+  const MAIL = "compradora@ejemplo.com";
+  return [
+    fila("recCREDITOPRUEBA1", "HARPER-CRED1", MAIL, { Monto: 4495, Porcentaje: 5, Base: 89900, Anteojos: 1, Estado: "Disponible", Generado_el: `${sumarDias(hoy, -60)}T15:00:00.000Z`, Fecha_entrega: sumarDias(hoy, -55), Disponible_desde: sumarDias(hoy, -25) }),
+    fila("recCREDITOPRUEBA2", "HARPER-CRED2", MAIL, { Monto: 15733, Estado: "Pendiente", Generado_el: `${sumarDias(hoy, -12)}T15:00:00.000Z`, Fecha_entrega: sumarDias(hoy, -8), Disponible_desde: sumarDias(hoy, 22) }),
+    fila("recCREDITOPRUEBA3", "HARPER-CRED3", MAIL, { Monto: 8990, Estado: "Pendiente", Generado_el: `${sumarDias(hoy, -2)}T15:00:00.000Z` }),
+    fila("recCREDITOPRUEBA4", "HARPER-CRED4", MAIL, { Monto: 6000, Estado: "A revisar", Generado_el: `${sumarDias(hoy, -30)}T15:00:00.000Z` }),
+    fila("recCREDITOPRUEBA5", "HARPER-CRED5", MAIL, { Monto: 7000, Estado: "Anulado", Generado_el: `${sumarDias(hoy, -40)}T15:00:00.000Z` }),
+    // Ana, suscriptora con su saldo de siempre: su crédito va aparte.
+    fila("recCREDITOPRUEBA7", "HARPER-CRED7", "ana@ejemplo.com", { Monto: 15733, Estado: "Pendiente", Generado_el: `${sumarDias(hoy, -3)}T15:00:00.000Z` }),
+    fila("recCREDITOPRUEBA6", "HARPER-CRED6", "otra@ejemplo.com", { Monto: 99999, Estado: "Disponible", Generado_el: `${sumarDias(hoy, -5)}T15:00:00.000Z` }),
+  ];
+}
+
 /** Las tablas tal como las espera `lib/airtable.ts`, por su ID. */
 export function tablasIniciales(): Map<string, RegistroFixture[]> {
   // «Mis compras» de prueba, solo si se piden (ver comprasDePrueba).
@@ -542,8 +566,8 @@ export function tablasIniciales(): Map<string, RegistroFixture[]> {
     [TABLAS.arrepentimientos, []],
     [TABLAS.suscriptores, suscriptoresIniciales()],
     [TABLAS.saldos, saldosIniciales()],
-    // Crédito Harper: vacía, como la real (lib/credito-airtable.ts).
-    [TABLAS.creditos, []],
+    // Crédito Harper: vacía, como la real (lib/credito-airtable.ts), salvo que se pidan los de prueba.
+    [TABLAS.creditos, process.env.HARPER_FIXTURES_CREDITOS === "1" ? creditosDePrueba() : []],
     [TABLA_IMPORTACION_ML, estructurar(IMPORTACION_ML)],
   ]);
 }

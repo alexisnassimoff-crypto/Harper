@@ -477,7 +477,43 @@ export const TEXTOS = {
       },
       movimientos: "Movimientos",
       /** Las pestañas de Mi cuenta (Ale, 05/11/2026). */
-      pestanas: { compras: "Compras", favoritos: "Favoritos", movimientos: "Movimientos", datos: "Mis datos" },
+      pestanas: { compras: "Compras", favoritos: "Favoritos", movimientos: "Movimientos", datos: "Mis datos", credito: "Crédito Harper" },
+      /**
+       * Crédito Harper, paso 3: solo con HARPER_CREDITO_ACTIVO=1. Apagado,
+       * ninguno de estos textos se muestra.
+       */
+      /** La etiqueta de la cuenta de quien no es suscriptor. */
+      etiquetaCuenta: "Mi Cuenta Harper",
+      entrarBajadaCuenta: "Escribí el mail con el que compraste y te mandamos un código. No hace falta suscribirse.",
+      /** Arriba del saldo de siempre, para no confundirlo con el Crédito Harper. */
+      saldoAnterior: "Saldo de Suscriptores Harper",
+      credito: {
+        titulo: "Mi Crédito Harper",
+        bajada: "Lo ganás con tus compras de anteojos. Se usa solo en anteojos y no vence.",
+        disponible: "Disponible",
+        disponibleDetalle: "Para tu próxima compra de anteojos.",
+        pendiente: "Pendiente",
+        pendienteDetalle: "Se libera 30 días después de que recibís el pedido.",
+        enRevision: "En revisión",
+        enRevisionDetalle: "Lo estamos revisando. Mientras tanto no se puede usar.",
+        movimientos: "Movimientos",
+        vacio: "Todavía no tenés Crédito Harper. Lo vas a ver acá después de tu próxima compra de anteojos.",
+        error: "No pudimos traer tu Crédito Harper ahora. Probá de nuevo en un rato.",
+        /** «Pedido HARPER-12345AB · 10 %». */
+        concepto: (pedido: string, porcentaje: number) => `Pedido ${pedido} · ${porcentaje} %`,
+        estado: {
+          disponible: "Disponible",
+          pendiente: "Pendiente",
+          "en-revision": "En revisión",
+          anulado: "Anulado",
+        },
+        desde: (fecha: string) => `Se libera el ${fecha}.`,
+        liberado: (fecha: string) => `Se liberó el ${fecha}.`,
+        sinEntrega: "Se libera 30 días después de la entrega.",
+        conGestion: "Hay una gestión abierta sobre este pedido: se libera cuando se resuelva.",
+        anulado: "El pedido se canceló o se devolvió.",
+        enRevisionNota: "Lo estamos revisando.",
+      },
       sinMovimientos: "Todavía no hay movimientos. Con tu primera compra empieza a volver el 10%.",
       movimiento: {
         Cashback: (pedido: string) => (pedido ? `Cashback del pedido ${pedido}` : "Cashback"),

@@ -13,11 +13,12 @@ const { cuenta: T } = TEXTOS.suscriptores;
  * vuelve a armar con la sesión. Si llegó desde un corazón sin haber entrado
  * (`guardar`, el SKU), primero guarda ese favorito y abre «Mis favoritos».
  */
-export function EntrarACuenta({ guardar = null }: { guardar?: string | null }) {
+export function EntrarACuenta({ guardar = null, soloCuenta = false }: { guardar?: string | null; soloCuenta?: boolean }) {
   const router = useRouter();
 
   async function alEntrar() {
-    if (!guardar) {
+    // Sin suscripción no hay favoritos guardados: solo se vuelve a armar la página.
+    if (!guardar || soloCuenta) {
       router.refresh();
       return;
     }
@@ -40,6 +41,8 @@ export function EntrarACuenta({ guardar = null }: { guardar?: string | null }) {
       mostrarListo={false}
       conCambioDeModo={false}
       alListo={() => void alEntrar()}
+      soloCuenta={soloCuenta}
+      alEntrar={() => void alEntrar()}
     />
   );
 }
@@ -49,7 +52,7 @@ export function EntrarACuenta({ guardar = null }: { guardar?: string | null }) {
  * de recibir mails y pierde los beneficios (app/api/suscriptores/baja, con la
  * sesión). Ninguna de las dos borra el saldo.
  */
-export function AccionesCuenta({ activo = true, email = "" }: { activo?: boolean; email?: string }) {
+export function AccionesCuenta({ activo = true, email = "", soloSalir = false }: { activo?: boolean; email?: string; soloSalir?: boolean }) {
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState<"salir" | "baja" | null>(null);
@@ -87,6 +90,15 @@ export function AccionesCuenta({ activo = true, email = "" }: { activo?: boolean
           Volver
         </button>
       </section>
+    );
+  }
+
+  // La cuenta sin suscripción (Crédito Harper, paso 3): no hay suscripción que dar de baja.
+  if (soloSalir) {
+    return (
+      <button type="button" className="enlace-accion cuenta-suscriptor__salir" onClick={salir} disabled={ocupado !== null}>
+        {ocupado === "salir" ? "Saliendo…" : T.salir}
+      </button>
     );
   }
 

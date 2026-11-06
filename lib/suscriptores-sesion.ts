@@ -57,6 +57,47 @@ export function leerSesionSuscriptor(clave: Buffer, valor: unknown, ahora = Date
   }
 }
 
+// ---------- La cuenta sin suscripción (Crédito Harper, paso 3) ----------
+
+/**
+ * La sesión de Mi Cuenta de quien compró y no es suscriptor: solo su mail,
+ * verificado con el código. No es una suscripción: no da cupón, saldo, envío
+ * gratis ni ningún beneficio (el carrito y el checkout leen solo
+ * COOKIE_SUSCRIPTOR) y nunca crea una fila en Suscriptores. Se firma con otra
+ * etiqueta que la del suscriptor: una no sirve como la otra.
+ */
+export const COOKIE_CUENTA = "harper_cuenta";
+
+export type SesionCuenta = { email: string; hasta: number };
+
+export function claveDeSesionCuenta(): Buffer | null {
+  const secreto = process.env.MP_WEBHOOK_SECRET?.trim();
+  return secreto ? createHmac("sha256", secreto).update("harper:sesion-cuenta:v1").digest() : null;
+}
+
+export function crearSesionCuenta(clave: Buffer, email: string, ahora = Date.now()): string {
+  const cuerpo = Buffer.from(JSON.stringify({ c: email.trim().toLowerCase(), h: ahora + DURACION_SESION_MS })).toString("base64url");
+  return `${cuerpo}.${firma(clave, cuerpo)}`;
+}
+
+/** La sesión de la cuenta, si la firma es nuestra, no venció y trae un mail. Null si no. */
+export function leerSesionCuenta(clave: Buffer, valor: unknown, ahora = Date.now()): SesionCuenta | null {
+  if (typeof valor !== "string" || valor.length > 600) return null;
+  const [cuerpo, firmado, sobra] = valor.split(".");
+  if (!cuerpo || !firmado || sobra !== undefined) return null;
+  const esperada = Buffer.from(firma(clave, cuerpo));
+  const recibida = Buffer.from(firmado);
+  if (esperada.length !== recibida.length || !timingSafeEqual(esperada, recibida)) return null;
+  try {
+    const datos = JSON.parse(Buffer.from(cuerpo, "base64url").toString("utf8")) as { c?: unknown; h?: unknown };
+    if (typeof datos.c !== "string" || datos.c !== datos.c.trim().toLowerCase() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.c) || datos.c.length > 254) return null;
+    if (typeof datos.h !== "number" || datos.h <= ahora) return null;
+    return { email: datos.c, hasta: datos.h };
+  } catch {
+    return null;
+  }
+}
+
 /** El valor de una cookie en el encabezado `Cookie` de una petición. */
 export function leerCookie(encabezado: string | null | undefined, nombre: string): string | null {
   if (!encabezado) return null;

@@ -1665,7 +1665,14 @@ página calcula el descuento por su cuenta.
   corre con `HARPER_CREDITO_ACTIVO=1`, que sigue apagado: apagado, el
   webhook y el checkout son los de siempre. Desde el paso 2 (06/11/2026)
   existe la ruta diaria que libera el crédito a los 30 días de la entrega
-  (§17.9, punto 3), también detrás del interruptor y **sin cron**. Cuando este documento dice qué pasa ante un aviso de pago, un
+  (§17.9, punto 3), también detrás del interruptor y **sin cron**. Desde el
+  paso 3 (06/11/2026), Mi Cuenta tiene «Mi Crédito Harper» (disponible,
+  pendiente, en revisión y movimientos, leídos por el mail de la sesión) y
+  deja entrar a quien compró sin suscribirse, con su mail verificado y sin
+  darse de alta (`lib/credito-cuenta.ts`, `/api/cuenta/entrar`): no crea
+  filas en Suscriptores, cupones ni cashback, y el saldo de Suscriptores
+  Harper va aparte. Todo detrás del mismo interruptor; usar el crédito en
+  el checkout es el paso 4. Cuando este documento dice qué pasa ante un aviso de pago, un
   reembolso o una entrega, describe la lógica preparada y probada, no algo
   que ya funcione con pedidos reales. Conectarla requiere autorización
   (§17.9).
