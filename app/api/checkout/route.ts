@@ -14,6 +14,7 @@ import {
   normalizarFacturacion,
   validarFacturacion,
 } from "@/lib/facturacion";
+import { notasConRegimen } from "@/lib/credito-pagos";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { itemsDelPedido, limpiarItems, notasDelPedido, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
@@ -364,7 +365,9 @@ export async function POST(request: Request) {
         .join(" + ") || null;
     const notasSuscriptor = [beneficios ? notasDeBeneficios(beneficios).join("\n") : null, notaDni].filter(Boolean).join("\n") || null;
     // Más la línea del Dúo, si lo hubo («Promoción: Dúo 25 % · …»). Sin Dúo, son las mismas.
-    const notasExtra = notasDelPedido(notasSuscriptor, cobro.items);
+    // Y la marca del Crédito Harper, solo con HARPER_CREDITO_ACTIVO=1 y sin el
+    // cashback de hoy (§17.9); apagado, las Notas quedan idénticas.
+    const notasExtra = notasConRegimen(notasDelPedido(notasSuscriptor, cobro.items));
     const envio = { campos: camposDeEnvio(carrito.envioDelPedido, cliente), nota: notaDeEnvio(carrito.envioDelPedido) };
 
     // Todo pagado con el saldo del suscriptor, con su envío gratis: no hay

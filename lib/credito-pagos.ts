@@ -1,5 +1,5 @@
 import { ErrorAirtable, getRecord, TABLAS, type AirtableRecord } from "./airtable";
-import type { RenglonCobrado } from "./credito-harper";
+import { creditoActivo, type RenglonCobrado } from "./credito-harper";
 import { ESTADOS_CONFIRMADOS } from "./webhook-decision";
 import {
   anularPorPedido,
@@ -15,7 +15,9 @@ import {
  * Crédito Harper y los pagos (Tarea 11): leer el estado VERDADERO del pago en
  * Mercado Pago y del pedido en Harper, y decidir qué le pasa al crédito.
  *
- * SIN CONECTAR: el webhook de Mercado Pago no lo llama. Solo lee: a Mercado
+ * Lo llama el webhook de Mercado Pago (lib/webhook-proceso.ts) SOLO con
+ * HARPER_CREDITO_ACTIVO=1, que sigue apagado; apagado, el webhook no lo
+ * llama y el checkout no marca el régimen (`notasConRegimen`). Solo lee: a Mercado
  * Pago le hace GET (nunca crea, cambia ni reembolsa nada) y en Airtable lee
  * Pedidos y Clientes. Las escrituras son las de lib/credito-persistencia.ts,
  * en la tabla «Créditos», que con HARPER_CREDITO_ACTIVO apagado no escribe
@@ -87,6 +89,17 @@ export function regimenDelPedido(notas: unknown): Regimen {
   return { regimen: "anterior", motivo: "sin-marca" };
 }
 
+/**
+ * Las Notas con las que el checkout crea el pedido, con la marca del régimen
+ * (§17.9, punto 1). Con HARPER_CREDITO_ACTIVO=1, un pedido sin el cashback de
+ * hoy lleva la marca del Crédito Harper. Apagado, con el cashback de hoy o ya
+ * marcado, las Notas quedan idénticas. Lo usa app/api/checkout/route.ts.
+ */
+export function notasConRegimen(notas: string | null, activo: boolean = creditoActivo()): string | null {
+  if (!activo || regimenDelPedido(notas).motivo !== "sin-marca") return notas;
+  return [notas, MARCA_REGIMEN_NUEVO].filter(Boolean).join("\n\n");
+}
+
 /** Los campos de Pedidos que se leen (todos existen hoy). */
 export type FilaPedidoCredito = {
   Numero?: string;
@@ -140,22 +153,29 @@ export function renglonesDeItems(items: unknown): RenglonCobrado[] {
   });
 }
 
-/** El pedido, de su fila de Airtable y el mail del cliente. */
+/**
+ * El pedido, de su fila de Airtable y el mail del cliente. Un pedido con las
+ * reglas de hoy (régimen anterior) no genera crédito nuevo: no se le leen ni
+ * se le exigen los Items ni el total, así un pedido de antes con otro formato
+ * no frena ni ensucia su aviso de pago (paso 1, §17.9). Para él, `renglones`
+ * va vacío y `total` en 0: no se usan.
+ */
 export function pedidoDesdeFila(r: AirtableRecord<FilaPedidoCredito>, email: string | null): PedidoHarper {
   const numeroPedido = (r.fields.Numero ?? "").trim();
   if (!numeroPedido) throw new RangeError(`El pedido ${r.id} no tiene número`);
-  const total = r.fields.Total;
-  if (typeof total !== "number" || !Number.isFinite(total) || total < 0) throw new RangeError(`El pedido ${numeroPedido} no tiene un total válido`);
-  return {
+  const regimen = regimenDelPedido(r.fields.Notas);
+  const base = {
     id: r.id,
     numero: numeroPedido,
     estado: (r.fields.Estado ?? "").trim(),
-    total,
-    renglones: renglonesDeItems(r.fields.Items),
     email: email?.trim().toLowerCase() || null,
-    regimen: regimenDelPedido(r.fields.Notas),
+    regimen,
     pagoRegistrado: r.fields.MP_payment_id?.trim() || null,
   };
+  if (regimen.regimen === "anterior") return { ...base, total: 0, renglones: [] };
+  const total = r.fields.Total;
+  if (typeof total !== "number" || !Number.isFinite(total) || total < 0) throw new RangeError(`El pedido ${numeroPedido} no tiene un total válido`);
+  return { ...base, total, renglones: renglonesDeItems(r.fields.Items) };
 }
 
 export interface LectorPedidos {
@@ -241,11 +261,15 @@ export async function procesarPagoParaCredito(pagoId: string, deps: Dependencias
   if (!pago.pedidoId) return { accion: "nada", motivo: "pago-sin-pedido" };
   const pedidoId = pago.pedidoId;
 
-  const primero = await leerTodo(pedidoId, pago.id, deps);
-  if (!primero) return { accion: "nada", motivo: "pedido-inexistente" };
-  const { pedido, cobro } = primero;
+  // El régimen primero: un pedido con las reglas de hoy no genera crédito
+  // nuevo, y no se le piden a Mercado Pago sus otros pagos. El webhook llama
+  // acá con todos los avisos, y los pedidos de hoy tienen que seguir igual: ni
+  // un reintento ni un aviso de más por el crédito (paso 1, §17.9).
+  const pedido = await deps.pedidos.leer(pedidoId);
+  if (!pedido) return { accion: "nada", motivo: "pedido-inexistente" };
   const n = pedido.numero;
   if (pedido.regimen.regimen === "anterior") return { accion: "nada", motivo: "regimen-anterior", numero: n, regimen: pedido.regimen };
+  const cobro = await cobroCertificado(deps.mp, pedidoId, [pago.id, pedido.pagoRegistrado], pedido.total, n);
 
   if (cobro.estado === "cobrado") {
     // El pago solo no alcanza: el pedido tiene que estar confirmado por el
@@ -317,7 +341,7 @@ export function hayQueReintentar(r: ResultadoPagoCredito): boolean {
   return r.resultado.estado === "ocupado" || (r.accion === "registrar" && r.incidencia?.estado === "ocupado");
 }
 
-/** Las dependencias de verdad, para cuando se conecte (todavía no se usa). */
+/** Las dependencias de verdad (las arma el webhook, solo con HARPER_CREDITO_ACTIVO=1). Null sin MP_ACCESS_TOKEN. */
 export function dependenciasPagoCredito(credito: DependenciasCredito): DependenciasPagoCredito | null {
   const mp = lectorMercadoPagoDesdeEntorno();
   return mp ? { credito, mp, pedidos: lectorPedidosAirtable } : null;

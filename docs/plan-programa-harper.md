@@ -1659,9 +1659,11 @@ página calcula el descuento por su cuenta.
   - el lector de pagos y pedidos (Tarea 11, `lib/credito-pagos.ts`, §17.9).
 
   No las usa el webhook, ni el checkout, ni ninguna página.
-- **En producción, el Crédito Harper no hace nada.** No está conectado al
-  webhook de Mercado Pago ni al checkout, y `HARPER_CREDITO_ACTIVO` está
-  apagado. Cuando este documento dice qué pasa ante un aviso de pago, un
+- **En producción, el Crédito Harper no hace nada.** Desde el paso 1 de la
+  implementación (06/11/2026) la generación está conectada al webhook de
+  Mercado Pago y a la marca del checkout (§17.9, puntos 1 y 2), pero solo
+  corre con `HARPER_CREDITO_ACTIVO=1`, que sigue apagado: apagado, el
+  webhook y el checkout son los de siempre. Cuando este documento dice qué pasa ante un aviso de pago, un
   reembolso o una entrega, describe la lógica preparada y probada, no algo
   que ya funcione con pedidos reales. Conectarla requiere autorización
   (§17.9).
@@ -1913,7 +1915,18 @@ Ante el aviso de un pago:
 - **Cerrojo ocupado:** devuelve «ocupado».
 - **En todos esos casos:** quien llame contesta 503 y Mercado Pago reintenta.
 
-**Cambios concretos al flujo de pagos, PARA AUTORIZAR (no están hechos):**
+**Cambios concretos al flujo de pagos.** Los puntos 1 y 2 están hechos
+(paso 1, 06/11/2026), detrás de `HARPER_CREDITO_ACTIVO` apagado; el 3 es el
+paso 2. Un error del crédito que reintentar no arregla (datos del pedido que
+no sirven, Airtable que rechaza la escritura) contesta 200 y manda un mail
+interno «REVISAR Crédito Harper», para que Mercado Pago no reintente para
+siempre. Si ese mail no sale (`enviarMail` devuelve falso o falla), contesta
+503: el reintento vuelve a avisar sin repetir el pago ni sus mails. Con
+`HARPER_CREDITO_ACTIVO=1` pero sin `MP_ACCESS_TOKEN` o sin Redis, el crédito
+no se saltea en silencio: los pedidos del crédito nuevo contestan 503 (el
+pago queda registrado como siempre) y sale una alerta «ALERTA Harper —
+Crédito Harper prendido sin configurar», una por hora; los del régimen
+anterior siguen igual:
 
 1. **`app/api/checkout/route.ts`**
    - Con `HARPER_CREDITO_ACTIVO=1` y un pedido sin cashback de hoy, agregar
