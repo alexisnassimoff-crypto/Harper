@@ -2372,8 +2372,8 @@ ninguna otra función.
 - **Si se agrega un Estado nuevo en Pedidos,** hay que sumarlo a la lista
   «desde» del disparador. Si no, ese paso a «entregado» no anota la fecha.
   El control de «entregado sin fecha» (§18.2) lo detectaría.
-- **Está creada y apagada.** Airtable no deja encenderla desde la API: la
-  enciende Ale desde la página de la automatización.
+- **Está encendida desde el 06/11/2026.** La encendió Ale desde Airtable,
+  porque la API no deja hacerlo. «Aviso de despacho» sigue apagada.
 
 **3. El script, en el repositorio**
 (`airtable/automatizaciones/fecha-de-entrega.js`).
@@ -2392,32 +2392,32 @@ ninguna otra función.
   protección de no sobrescribir, con la fecha en UTC o sin revisar el
   Estado.
 
-**4. La prueba controlada en la base real** (se corre apenas Ale enciende la
-automatización).
+**4. La prueba controlada en la base real: aprobada** (06/11/2026, entre
+las 10:01 y las 10:03 de Argentina).
 
-1. Se crean dos pedidos de prueba, «PRUEBA-FECHA-ENTREGA-A» y «-B». No
-   tienen cliente, ni productos, ni Tracking, ni total. B tiene
-   Fecha_entrega 01/11/2026.
-2. A pasa de «pendiente» a «entregado»: tiene que quedar la fecha del día.
-3. B pasa a «entregado»: tiene que seguir el 01/11/2026.
-4. A pasa a «preparando» y otra vez a «entregado»: tiene que quedar la
-   primera fecha.
-5. Se revisa el historial de la automatización: tres corridas, una
-   «fecha-registrada» y dos «ya-tenia-fecha».
-6. Se borran los dos pedidos de prueba. Se comprueba que siguen los 27
-   pedidos reales, todos con Fecha_entrega vacía.
+| Paso | Qué se hizo | Resultado |
+|---|---|---|
+| 1 | Se crearon «PRUEBA-FECHA-ENTREGA-A» y «-B», sin cliente, productos, Tracking ni total. B con Fecha_entrega 01/11/2026 | Crearlos no disparó la automatización |
+| 2 | A pasó de «pendiente» a «entregado» | Fecha_entrega = 06/11/2026, la fecha de hoy en la Argentina |
+| 3 | B pasó a «entregado» | Siguió en 01/11/2026: no la sobrescribió |
+| 4 | A pasó a «preparando» y otra vez a «entregado» | Pasar a «preparando» no la disparó. Al volver a «entregado» quedó la primera fecha, 06/11/2026 |
+| 5 | Historial de «Fecha de entrega» | Tres corridas, una por cada paso a «entregado», las tres sin error |
+| 6 | Se borraron los dos pedidos de prueba | Siguen los 27 pedidos reales, idénticos a la foto de antes (número, Estado y total), todos sin Fecha_entrega ni Tracking |
 
-**Por qué no puede mandar mails:**
+**No salió ningún mail:**
 
-- los pedidos de prueba nunca pasan por «enviado» ni tienen Tracking, que
-  es lo único que dispara «Aviso de despacho» (además, está apagada);
-- no tienen cliente ni mail;
-- harper.ar no reacciona a cambios en Airtable;
-- el script no llama a nada.
+- «Aviso de despacho» sigue apagada y no tuvo ninguna corrida;
+- los pedidos de prueba nunca pasaron por «enviado», no tenían Tracking ni
+  cliente;
+- en Gmail no hay ningún mensaje con «PRUEBA-FECHA-ENTREGA»;
+- el script no llama a nada y harper.ar no reacciona a cambios en Airtable.
+
+**Lo que esta prueba no mostró:** la prueba fue a las 10 de la mañana, cuando
+la fecha de la Argentina y la UTC coinciden. El cambio de día (23:30 y
+00:30) lo cubren las pruebas del script (punto 3), no la prueba real.
 
 **Lo que falta, cada parte con su autorización:**
 
-- encender la automatización y correr la prueba controlada;
 - lo que lee la fecha desde el código (§18.2): la ruta diaria, los avisos
   de los 10 días y la incidencia por arrepentimiento;
 - conectar el Crédito Harper (§17.9).
