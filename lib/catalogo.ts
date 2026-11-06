@@ -46,7 +46,7 @@ type FilaProducto = {
   Alto_cm?: number;
   /** Un renglón por ítem incluido en la caja. */
   Incluye?: string;
-  /** Los tres números de la patilla («52□18-140»): calibre, puente y patilla. */
+  /** Los tres números de la patilla («52-18-140»): calibre, puente y patilla. */
   Calibre_mm?: number;
   Puente_mm?: number;
   Patilla_mm?: number;

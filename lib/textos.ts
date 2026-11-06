@@ -162,7 +162,7 @@ export const TEXTOS = {
       dibujo: "Dibujo de un anteojo de frente con las medidas marcadas",
       guiaTitulo: "Cómo saber si te va a quedar bien",
       guia: [
-        "Buscá unos anteojos que te queden cómodos y mirá la parte de adentro de la patilla: vas a ver tres números, por ejemplo 52□18-140.",
+        "Buscá unos anteojos que te queden cómodos y mirá la parte de adentro de la patilla: vas a ver tres números, por ejemplo 52-18-140.",
         "El primero es el calibre (el ancho de cada cristal), el segundo es el puente (la parte que apoya en la nariz) y el tercero es el largo de la patilla, en milímetros.",
         "Si el calibre y el puente de este modelo están a 2 o 3 mm de los tuyos, lo más probable es que te quede parecido. La patilla influye menos.",
       ],

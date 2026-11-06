@@ -41,7 +41,7 @@ export type Envase = {
 
 /**
  * Medidas del anteojo, en milímetros. Calibre, puente y patilla son los tres
- * números grabados en la patilla («52□18-140»); el frente es el ancho total
+ * números grabados en la patilla («52-18-140»); el frente es el ancho total
  * del anteojo y el alto, el de cada cristal.
  *
  * Cada una es opcional: se muestra la que esté cargada y ninguna se inventa.
