@@ -207,7 +207,7 @@ test("Crédito pendiente, disponible, en revisión y anulado: cada uno en su lug
   await credito(mail, "HARPER-B5", { Estado: "Pendiente", Monto: 2_000, Porcentaje: 5, Incidencia_abierta: true, Generado_el: "2026-12-01T12:00:00.000Z" });
   await credito(mail, "HARPER-B6", { Estado: "Anulado", Monto: 0, Porcentaje: 0, Base: 0, Anteojos: 0 }); // fila que bloquea: no se muestra
 
-  const b = await billeteraDeLaCuenta({ tipo: "comprador", email: mail }, creditosPorEmail, new Date(AHORA));
+  const b = await billeteraDeLaCuenta({ tipo: "comprador", email: mail }, { hoy: new Date(AHORA) });
 
   assert.equal(b.disponible, 4_495);
   assert.equal(b.pendiente, 15_733 + 2_000);
@@ -224,7 +224,7 @@ test("Crédito pendiente, disponible, en revisión y anulado: cada uno en su lug
   );
   assert.equal(b.movimientos.find((m) => m.pedido === "HARPER-B1")?.fecha, "2026-09-28", "el día en Buenos Aires");
   // Sin créditos: todo en cero y sin movimientos (eso sí es un $ 0 real).
-  assert.deepEqual(await billeteraDeLaCuenta({ tipo: "comprador", email: "sin@ejemplo.com" }, creditosPorEmail, new Date(AHORA)), { disponible: 0, pendiente: 0, enRevision: 0, movimientos: [] });
+  assert.deepEqual(await billeteraDeLaCuenta({ tipo: "comprador", email: "sin@ejemplo.com" }, { hoy: new Date(AHORA) }), { disponible: 0, pendiente: 0, enRevision: 0, movimientos: [] });
 });
 
 test("Acceso indebido: solo los créditos del mail de la sesión; no sirve otro mail ni uno parecido", async () => {
@@ -232,11 +232,11 @@ test("Acceso indebido: solo los créditos del mail de la sesión; no sirve otro 
   await credito("Juana.Ana@Ejemplo.com", "HARPER-J1", { Estado: "Disponible", Monto: 9_999 });
   await credito("otra@ejemplo.com", "HARPER-O1", { Estado: "Disponible", Monto: 1_111 });
 
-  const ana = await billeteraDeLaCuenta({ tipo: "comprador", email: "ana@ejemplo.com" }, creditosPorEmail, new Date(AHORA));
+  const ana = await billeteraDeLaCuenta({ tipo: "comprador", email: "ana@ejemplo.com" }, { hoy: new Date(AHORA) });
   assert.deepEqual(ana.movimientos.map((m) => m.pedido), ["HARPER-A1"]);
   assert.equal(ana.disponible, 15_733);
   // Mayúsculas en Airtable: es el mismo mail.
-  const juana = await billeteraDeLaCuenta({ tipo: "comprador", email: "juana.ana@ejemplo.com" }, creditosPorEmail, new Date(AHORA));
+  const juana = await billeteraDeLaCuenta({ tipo: "comprador", email: "juana.ana@ejemplo.com" }, { hoy: new Date(AHORA) });
   assert.deepEqual(juana.movimientos.map((m) => m.pedido), ["HARPER-J1"]);
   // Aunque la lectura trajera de más, solo cuenta lo del mail de la sesión.
   const todas = (await listRecords<CamposCredito>(TABLAS.creditos, { revalidate: 0 })).map(filaDelRegistro);
@@ -266,7 +266,7 @@ test("Si Airtable no responde, la billetera no da $ 0: falla y la página muestr
   interceptar((ruta, { method }) => {
     if (method === "GET" && ruta.startsWith(TABLAS.creditos)) throw new RespuestaFixture(503, "Airtable caído");
   });
-  await assert.rejects(billeteraDeLaCuenta({ tipo: "comprador", email: "ana@ejemplo.com" }, creditosPorEmail, new Date(AHORA)));
+  await assert.rejects(billeteraDeLaCuenta({ tipo: "comprador", email: "ana@ejemplo.com" }, { hoy: new Date(AHORA) }));
   interceptar(null);
   // La página: si falla, la sección recibe null y muestra el aviso (nunca los números).
   const pagina = fs.readFileSync(path.resolve(__dirname, "..", "..", "app", "suscriptores", "mi-cuenta", "page.tsx"), "utf8");
@@ -288,7 +288,7 @@ test("Saldos anteriores intactos: el saldo de Suscriptores no cambia ni se mezcl
   const escrituras = anotarEscrituras();
 
   const resumen = await resumenDeLaCuenta(cuenta, new Date(AHORA));
-  const billetera = await billeteraDeLaCuenta({ tipo: "suscriptor", email: cuenta.email, cuenta }, creditosPorEmail, new Date(AHORA));
+  const billetera = await billeteraDeLaCuenta({ tipo: "suscriptor", email: cuenta.email, cuenta }, { hoy: new Date(AHORA) });
 
   assert.equal(resumen.saldoDisponible, 8_091 - 2_000, "el saldo de siempre, con sus reglas");
   assert.equal(resumen.saldoEnCamino, 4_000);

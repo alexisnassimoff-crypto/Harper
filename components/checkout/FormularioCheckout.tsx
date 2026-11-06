@@ -35,6 +35,7 @@ import DireccionesGuardadas from "./DireccionesGuardadas";
 import { PROVINCIAS } from "./provincias";
 import ReconocerComprador from "./ReconocerComprador";
 import SuscriptorEnCheckout from "./SuscriptorEnCheckout";
+import CreditoEnCheckout from "./CreditoEnCheckout";
 import { DIAS_PARA_USAR_CASHBACK } from "@/lib/suscriptores";
 import { marcarCuponBienvenidaUsado } from "@/components/carrito/cuponUsado";
 import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
@@ -103,6 +104,9 @@ type RespuestaCheckout = {
   cuponBienvenidaRechazado?: boolean;
   /** La sesión de suscriptor no es la misma con la que vio el total. */
   suscriptorCambio?: boolean;
+  /** Crédito Harper (paso 4): no se pudo usar (sin sesión, otro mail, sin Redis) o cambió lo disponible. */
+  creditoRechazado?: boolean;
+  creditoCambio?: boolean;
 };
 
 const VACIO: DatosCliente = {
@@ -166,6 +170,12 @@ export default function FormularioCheckout({
   // o salir: la cookie es otra y el envío se vuelve a cotizar.
   const [usarSaldo, setUsarSaldo] = useState(true);
   const [usarCupon, setUsarCupon] = useState(true);
+  // Crédito Harper (paso 4): se usa salvo que lo desmarque. Solo existe si el
+  // servidor lo ofrece (interruptor prendido y cuenta verificada).
+  const [usarCredito, setUsarCredito] = useState(true);
+  // Se pide recién cuando el servidor lo ofreció: apagado, los pedidos al servidor son los de siempre.
+  const [creditoOfrecido, setCreditoOfrecido] = useState(false);
+  const pedirCredito = usarCredito && creditoOfrecido;
   const [sesion, setSesion] = useState(0);
   const {
     datos: carrito,
@@ -173,7 +183,11 @@ export default function FormularioCheckout({
     actualizando,
     error: errorCarrito,
     recargar,
-  } = useCarritoResuelto({ cuotas: true, usarSaldo, usarCupon });
+  } = useCarritoResuelto({ cuotas: true, usarSaldo, usarCupon, usarCredito: pedirCredito });
+  const hayCredito = Boolean(carrito?.creditoHarper);
+  useEffect(() => {
+    if (hayCredito) setCreditoOfrecido(true);
+  }, [hayCredito]);
 
   const [form, setForm] = useState<DatosCliente>(VACIO);
   // Con los datos completos (de una compra anterior en este navegador, o con
@@ -231,7 +245,7 @@ export default function FormularioCheckout({
     listo: envioListo,
     recotizar,
     adoptar: adoptarEnvio,
-  } = useCotizacionEnvio(destino, cupon, cotizaEnvio, { usarSaldo, usarCupon, sesion });
+  } = useCotizacionEnvio(destino, cupon, cotizaEnvio, { usarSaldo, usarCupon, sesion, usarCredito: pedirCredito });
   // Si toca Pagar mientras se calcula el envío de su dirección, se guarda el
   // total que estaba viendo: al llegar la cotización se sigue solo si el
   // total no cambió.
@@ -801,6 +815,8 @@ export default function FormularioCheckout({
           // El suscriptor: si usa su saldo y si sigue pidiendo el cupón. Los montos, del servidor.
           usarSaldo,
           usarCupon,
+          // Crédito Harper (paso 4): solo si el servidor lo ofreció. El monto lo calcula y lo aparta el servidor.
+          ...(carrito?.creditoHarper && pedirCredito ? { usarCredito: true } : {}),
           // Con qué sesión de suscriptor vio ese total (o sin ninguna).
           suscriptorVisto: carrito?.suscriptor?.email ?? null,
         }),
@@ -852,6 +868,15 @@ export default function FormularioCheckout({
 
       // La sesión de suscriptor cambió: se vuelve a pedir el carrito (con o sin
       // beneficios) y ve el total nuevo antes de pagar.
+      // Crédito Harper (paso 4): sin él, o con el total nuevo, revisa antes de pagar.
+      if ((respuesta.status === 409 || respuesta.status === 503) && (cuerpo.creditoRechazado || cuerpo.creditoCambio)) {
+        if (cuerpo.creditoRechazado) setUsarCredito(false);
+        recargar();
+        setFallo(cuerpo.error ?? TEXTOS.suscriptores.cuenta.credito.cambio);
+        setEnviando(false);
+        return;
+      }
+
       if (respuesta.status === 409 && cuerpo.suscriptorCambio) {
         recargar();
         setFallo(cuerpo.error ?? TEXTOS.suscriptores.sesionCambio);
@@ -1121,6 +1146,11 @@ export default function FormularioCheckout({
           }}
           bloqueado={enviando}
         />
+
+        {/* Crédito Harper (paso 4): solo si el servidor lo ofrece. */}
+        {carrito.creditoHarper ? (
+          <CreditoEnCheckout credito={carrito.creditoHarper} usar={usarCredito} alCambiar={setUsarCredito} bloqueado={enviando} />
+        ) : null}
 
         {/* ---------- 2. Entrega ---------- */}
         <section className="checkout__paso" aria-labelledby="paso-entrega">

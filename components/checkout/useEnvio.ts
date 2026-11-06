@@ -40,6 +40,7 @@ function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown, benefici
     beneficios.usarSaldo,
     beneficios.usarCupon,
     beneficios.sesion,
+    beneficios.usarCredito ?? false,
   ]);
 }
 
@@ -48,7 +49,7 @@ function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown, benefici
  * cambian el total y con él las cuotas. `sesion` cambia cuando entra o sale:
  * la cookie cambió y con ella el envío (gratis para suscriptores).
  */
-export type Beneficios = { usarSaldo: boolean; usarCupon: boolean; sesion: number };
+export type Beneficios = { usarSaldo: boolean; usarCupon: boolean; sesion: number; /** Crédito Harper (paso 4). */ usarCredito?: boolean };
 const SIN_BENEFICIOS: Beneficios = { usarSaldo: false, usarCupon: true, sesion: 0 };
 
 /**
@@ -88,7 +89,14 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown,
       fetch("/api/envio/cotizar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destino, items, cupon, usarSaldo: beneficios.usarSaldo, usarCupon: beneficios.usarCupon }),
+        body: JSON.stringify({
+          destino,
+          items,
+          cupon,
+          usarSaldo: beneficios.usarSaldo,
+          usarCupon: beneficios.usarCupon,
+          ...(beneficios.usarCredito ? { usarCredito: true } : {}),
+        }),
         signal: controlador.signal,
       })
         .then(async (r) => {

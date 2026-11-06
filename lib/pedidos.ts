@@ -45,6 +45,7 @@ import {
   type ResumenSuscriptor,
   type SuscriptorDelCarrito,
 } from "./suscriptores";
+import { aplicarCreditoHarper } from "./credito-uso";
 import type {
   Categoria,
   DestinoEnvio,
@@ -122,6 +123,12 @@ export type CarritoResuelto = {
    * Dúo apagado no existe: el carrito es exactamente el de siempre.
    */
   duo?: DuoDelCarrito;
+  /**
+   * Crédito Harper (paso 4, lib/credito-uso.ts): solo si quien llama lo pidió
+   * con lo que la cuenta puede usar. Sin eso no existe y el carrito es el de
+   * siempre.
+   */
+  creditoHarper?: { usado: number; usable: number; elegible: number };
 };
 
 /** Tope por variante: evita que un bug o un curioso pida 9999 unidades. */
@@ -182,6 +189,12 @@ export async function resolverCarrito(
      * ese mail o DNI) y el comprador sigue sin él.
      */
     usarCupon?: boolean;
+    /**
+     * Crédito Harper (paso 4): lo que la cuenta verificada puede usar
+     * (`usable`, calculado en el servidor) y cuánto pidió usar (`pedido`: un
+     * monto, o null para todo lo que se pueda). Solo en anteojos.
+     */
+    creditoHarper?: { usable: number; pedido: number | null } | null;
   } = {}
 ): Promise<CarritoResuelto> {
   // Para cobrar, las tres lecturas van sin cache y sin red de contención: si
@@ -299,6 +312,14 @@ export async function resolverCarrito(
   });
   items = beneficios.items;
 
+  // Crédito Harper (paso 4): después del cupón y del saldo, antes del 10 % por
+  // dinero en Mercado Pago; solo sobre lo que queda por pagar en anteojos.
+  const pedidoCredito = opciones.creditoHarper ?? null;
+  const credito = pedidoCredito
+    ? aplicarCreditoHarper(items, Math.min(Math.max(0, pedidoCredito.usable), pedidoCredito.pedido ?? Number.POSITIVE_INFINITY))
+    : null;
+  if (credito) items = credito.items;
+
   const subtotal = items.reduce((total, i) => total + i.subtotal, 0);
   const paquete =
     items.length > 0
@@ -357,6 +378,7 @@ export async function resolverCarrito(
         }
       : null,
     ...(duo ? { duo } : {}),
+    ...(credito && pedidoCredito ? { creditoHarper: { usado: credito.credito, usable: Math.max(0, pedidoCredito.usable), elegible: credito.elegible } } : {}),
   };
 }
 

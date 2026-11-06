@@ -15,6 +15,8 @@ import {
   validarFacturacion,
 } from "@/lib/facturacion";
 import { notasConRegimen } from "@/lib/credito-pagos";
+import { cuentaConCredito, visitaDeLaPeticion } from "@/lib/credito-cuenta";
+import { abrirCuentaDeCredito, CreditoInsuficiente, dependenciasUsoReales, notaDeUso, type CuentaTomada } from "@/lib/credito-uso";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { crearPreferencia, mercadoPagoConfigurado } from "@/lib/mercadopago";
 import { itemsDelPedido, limpiarItems, notasDelPedido, numeroDePedido, resolverCarrito, resumirItems } from "@/lib/pedidos";
@@ -35,7 +37,7 @@ import {
   type BeneficiosDelPedido,
 } from "@/lib/suscriptores";
 import { claveSuscriptor, suscriptorDeLaSesion, suscriptorParaElCarrito } from "@/lib/suscriptores-cuenta";
-import { cerrojoDesdeEntorno, soltarSinFallar, tomarConEspera } from "@/lib/cerrojo";
+import { cerrojoDesdeEntorno, ErrorCerrojo, soltarSinFallar, tomarConEspera } from "@/lib/cerrojo";
 import { RELOJ_REAL } from "@/lib/webhook-lock";
 import { COOKIE_SUSCRIPTOR, leerCookie } from "@/lib/suscriptores-sesion";
 import { confirmarPedidoSinPago } from "@/lib/suscriptores-sin-pago";
@@ -80,6 +82,11 @@ export async function POST(request: Request) {
     medioPago?: unknown;
     /** El suscriptor pidió pagar con su saldo. */
     usarSaldo?: unknown;
+    /**
+     * Crédito Harper (paso 4, solo con HARPER_CREDITO_ACTIVO=1): true para usar
+     * todo lo que se pueda, o un monto. Apagado, se ignora.
+     */
+    usarCredito?: unknown;
     /** Falso: sigue sin el cupón de bienvenida después de que se lo rechazamos. */
     usarCupon?: unknown;
     /**
@@ -142,6 +149,11 @@ export async function POST(request: Request) {
   let pedidoId: string | null = null;
   // El cerrojo del suscriptor, si se tomó: se suelta al final pase lo que pase.
   let cerrojoTomado: { soltar: () => Promise<void> } | null = null;
+  // Crédito Harper (paso 4): la cuenta tomada y la reserva hecha, para soltarla
+  // y liberarla si algo falla.
+  let cuentaCredito: CuentaTomada | null = null;
+  let cerrarCredito: (() => Promise<void>) | null = null;
+  let reservaCredito: string | null = null;
 
   // Del navegador viene QUÉ eligió (y el comprobante firmado de esa
   // cotización), nunca CUÁNTO sale: el precio lo decide el servidor.
@@ -175,6 +187,30 @@ export async function POST(request: Request) {
     }
     const suscriptor = cuenta ? await suscriptorParaElCarrito(cuenta) : null;
 
+    // Crédito Harper (paso 4): solo con el interruptor prendido, con la cuenta
+    // verificada (la cookie firmada, nunca el mail del formulario) y si lo
+    // pidió. Un cerrojo por cuenta, obligatorio: desde que se lee lo que puede
+    // usar hasta que la reserva queda escrita, otra compra no lo toca.
+    const pidioCredito = cuerpo.usarCredito === true || (typeof cuerpo.usarCredito === "number" && cuerpo.usarCredito > 0);
+    if (pidioCredito && cuentaConCredito()) {
+      const visita = await visitaDeLaPeticion(request);
+      if (!visita) return NextResponse.json({ error: TEXTOS.suscriptores.cuenta.credito.sinSesion, creditoRechazado: true }, { status: 409 });
+      if (cliente.email.trim().toLowerCase() !== visita.email) {
+        return NextResponse.json({ error: TEXTOS.suscriptores.cuenta.credito.otroMail(visita.email), creditoRechazado: true }, { status: 409 });
+      }
+      let abierta: Awaited<ReturnType<typeof abrirCuentaDeCredito>>;
+      try {
+        abierta = await abrirCuentaDeCredito(visita.email, dependenciasUsoReales(cerrojoDesdeEntorno()));
+      } catch (error) {
+        if (!(error instanceof ErrorCerrojo)) throw error;
+        console.error("[checkout] sin cerrojo no se usa Crédito Harper:", error.message);
+        return NextResponse.json({ error: TEXTOS.suscriptores.cuenta.credito.noDisponible, creditoRechazado: true }, { status: 503 });
+      }
+      if ("estado" in abierta) return NextResponse.json({ error: TEXTOS.suscriptores.cuenta.credito.otraCompra }, { status: 409 });
+      cuentaCredito = abierta.cuenta;
+      cerrarCredito = abierta.cerrar;
+    }
+
     // Para cobrar se lee el catálogo sin cache y sin red de contención.
     const carrito = await resolverCarrito(items, {
       suscriptor,
@@ -193,6 +229,14 @@ export async function POST(request: Request) {
       },
       eleccion,
       cupon: cuerpo.cupon,
+      ...(cuentaCredito
+        ? {
+            creditoHarper: {
+              usable: cuentaCredito.saldo.usable,
+              pedido: typeof cuerpo.usarCredito === "number" ? Math.floor(cuerpo.usarCredito) : null,
+            },
+          }
+        : {}),
     });
 
     if (carrito.items.length === 0) {
@@ -305,6 +349,18 @@ export async function POST(request: Request) {
 
     const ahora = new Date();
     const numero = numeroDePedido(ahora);
+    // El crédito usado queda apartado ANTES de crear el pedido, con la cuenta
+    // tomada: otra compra ya no lo puede usar. Si el pedido no se paga, se libera.
+    const creditoUsado = carrito.creditoHarper?.usado ?? 0;
+    if (cuentaCredito && creditoUsado > 0) {
+      try {
+        await cuentaCredito.reservar(numero, creditoUsado);
+        reservaCredito = numero;
+      } catch (error) {
+        if (!(error instanceof CreditoInsuficiente)) throw error;
+        return NextResponse.json({ error: TEXTOS.suscriptores.cuenta.credito.cambio, creditoCambio: true }, { status: 409 });
+      }
+    }
     const { id: clienteId, dniAnterior } = await guardarCliente(cliente);
     // El cliente ya compró con otro DNI: el suyo queda el de esa compra (con
     // ese se decide el cupón de bienvenida) y el de este pedido, en las notas.
@@ -363,7 +419,15 @@ export async function POST(request: Request) {
       ]
         .filter(Boolean)
         .join(" + ") || null;
-    const notasSuscriptor = [beneficios ? notasDeBeneficios(beneficios).join("\n") : null, notaDni].filter(Boolean).join("\n") || null;
+    const notasSuscriptor =
+      [
+        beneficios ? notasDeBeneficios(beneficios).join("\n") : null,
+        // Para Harper: el uso de verdad está en «Créditos» (lib/credito-uso.ts).
+        creditoUsado > 0 ? notaDeUso(creditoUsado, cliente.email.trim().toLowerCase()) : null,
+        notaDni,
+      ]
+        .filter(Boolean)
+        .join("\n") || null;
     // Más la línea del Dúo, si lo hubo («Promoción: Dúo 25 % · …»). Sin Dúo, son las mismas.
     // Y la marca del Crédito Harper, solo con HARPER_CREDITO_ACTIVO=1 y sin el
     // cashback de hoy (§17.9); apagado, las Notas quedan idénticas.
@@ -374,17 +438,30 @@ export async function POST(request: Request) {
     // nada que cobrar, así que no pasa por Mercado Pago
     // (lib/suscriptores-sin-pago.ts).
     if (cobro.total === 0) {
-      if (!suscriptor || !beneficios || beneficios.saldoUsado <= 0) {
+      const conSaldo = Boolean(suscriptor && beneficios && beneficios.saldoUsado > 0);
+      const conCredito = Boolean(cuentaCredito && reservaCredito);
+      if (!conSaldo && !conCredito) {
         return NextResponse.json({ error: "No hay nada que cobrar en tu carrito." }, { status: 400 });
       }
       const ce = envio.campos as Record<string, unknown>;
+      const tomada = cuentaCredito;
       const resultado = await confirmarPedidoSinPago({
-        suscriptor,
+        suscriptor: suscriptor && beneficios ? suscriptor : null,
+        // Crédito Harper (paso 4): se confirma con la cuenta que el checkout ya tiene tomada.
+        credito:
+          conCredito && tomada
+            ? {
+                monto: creditoUsado,
+                confirmar: () => tomada.confirmar(numero),
+                // Sin pago de Mercado Pago: si ya se confirmó y después falló, se deshace también el «Usado».
+                liberar: () => tomada.liberar(numero, "el pedido en $ 0 no se pudo completar", { tambienUsado: true }),
+              }
+            : null,
         // El checkout ya tiene el cerrojo del suscriptor.
         cerrojoTomado: Boolean(cerrojoTomado),
         numero,
-        cupon: beneficios.cupon,
-        saldoUsado: beneficios.saldoUsado,
+        cupon: beneficios?.cupon ?? 0,
+        saldoUsado: beneficios?.saldoUsado ?? 0,
         clienteId,
         // Nace pendiente y pasa a pagado recién con el cupón y el saldo anotados.
         crearPedido: () =>
@@ -414,7 +491,13 @@ export async function POST(request: Request) {
             : null,
         },
       });
-      if (!resultado.ok) return NextResponse.json({ error: resultado.error }, { status: resultado.status });
+      if (!resultado.ok) {
+        // Liberar es idempotente: si ya lo hizo confirmarPedidoSinPago, no cambia nada.
+        if (tomada && reservaCredito) await tomada.liberar(numero, "el pedido en $ 0 no se pudo completar", { tambienUsado: true }).catch(() => {});
+        reservaCredito = null;
+        return NextResponse.json({ error: resultado.error }, { status: resultado.status });
+      }
+      reservaCredito = null;
       return NextResponse.json({ numero, initPoint: `/gracias?pedido=${encodeURIComponent(numero)}` });
     }
 
@@ -439,13 +522,15 @@ export async function POST(request: Request) {
       // releída de Airtable arriba) con los beneficios activos. Nunca por el
       // mail que se escribió en el formulario (lib/suscriptores.ts).
       cuotasMaximas: cuotasDelComprador(suscriptor),
-      // Si usa saldo o el cupón, los aparta mientras su link cobra: un link corto.
-      ...(beneficios && (beneficios.saldoUsado > 0 || beneficios.cupon > 0) ? { venceEnMinutos: MINUTOS_RESERVA } : {}),
+      // Si usa saldo, el cupón o Crédito Harper, los aparta mientras su link cobra: un link corto.
+      ...((beneficios && (beneficios.saldoUsado > 0 || beneficios.cupon > 0)) || reservaCredito ? { venceEnMinutos: MINUTOS_RESERVA } : {}),
     });
 
     await updateRecord<FilaPedido>(TABLAS.pedidos, pedido.id, {
       MP_preference_id: preferencia.id,
     });
+    // Desde acá la reserva queda hasta que se pague o venza el link.
+    reservaCredito = null;
 
     return NextResponse.json({
       numero,
@@ -457,6 +542,10 @@ export async function POST(request: Request) {
     // Si el pedido llegó a crearse pero el pago no, queda marcado. Sin esto
     // cada intento fallido dejaba un "pendiente" eterno ensuciando Airtable.
     if (pedidoId) await anularPedido(pedidoId);
+    // El crédito apartado para este pedido vuelve a estar disponible.
+    if (cuentaCredito && reservaCredito) {
+      await cuentaCredito.liberar(reservaCredito, "no se pudo iniciar el pago").catch((e) => console.error("[checkout] no se pudo liberar el Crédito Harper", reservaCredito, e));
+    }
 
     // Airtable caído no es "tu carrito está vacío": es un problema nuestro.
     const codigo = esErrorPermanente(error) ? 400 : 503;
@@ -466,6 +555,7 @@ export async function POST(request: Request) {
       { status: codigo }
     );
   } finally {
+    if (cerrarCredito) await cerrarCredito();
     if (cerrojoTomado) await cerrojoTomado.soltar();
   }
 }

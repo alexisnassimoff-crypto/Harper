@@ -133,12 +133,20 @@ function exigirEscritura() {
 
 const tabla = () => TABLAS.creditos;
 
+/**
+ * Los usos del crédito en un checkout (paso 4, lib/credito-uso.ts) viven en
+ * la misma tabla con otra clave («uso-credito-harper:…»): no son créditos
+ * ganados y nunca se leen como uno (ni como un duplicado del pedido).
+ */
+const esCreditoGanado = (r: AirtableRecord<CamposCredito>) => !(r.fields.Clave ?? "").trim().startsWith("uso-credito-harper:");
+
 /** El almacén de lib/credito-persistencia.ts sobre la tabla «Créditos». Lee siempre sin cache. */
 export const almacenAirtable: AlmacenCreditos = {
   async delPedido(pedido) {
     const numero = pedido.trim();
     const filas = await listRecords<CamposCredito>(tabla(), { filterByFormula: `{Pedido} = '${escaparFormula(numero)}'`, revalidate: 0 });
-    return filas.map(filaDelRegistro).filter((f) => f.pedido === numero);
+    // El uso de crédito de ese mismo pedido (paso 4) es otra cosa: no es su crédito.
+    return filas.filter(esCreditoGanado).map(filaDelRegistro).filter((f) => f.pedido === numero);
   },
   async crear(fila) {
     exigirEscritura();
@@ -153,7 +161,7 @@ export const almacenAirtable: AlmacenCreditos = {
   async pendientes() {
     const filas = await listRecords<CamposCredito>(tabla(), { filterByFormula: `{Estado} = 'Pendiente'`, revalidate: 0 });
     // Una fila que se lee «A revisar» (datos rotos) no se libera.
-    return filas.map(filaDelRegistro).filter((f) => f.estado === "Pendiente");
+    return filas.filter(esCreditoGanado).map(filaDelRegistro).filter((f) => f.estado === "Pendiente");
   },
 };
 
@@ -166,7 +174,7 @@ export async function creditosPorEmail(email: string): Promise<FilaCredito[]> {
   const mail = email.trim().toLowerCase();
   if (!mail.includes("@")) return [];
   const filas = await listRecords<CamposCredito>(tabla(), { filterByFormula: `LOWER({Email}) = '${escaparFormula(mail)}'`, revalidate: 0 });
-  return filas.map(filaDelRegistro).filter((f) => f.email === mail);
+  return filas.filter(esCreditoGanado).map(filaDelRegistro).filter((f) => f.email === mail);
 }
 
 /** Si el pedido ya tiene el cashback de hoy en Saldos (anulado o no). Solo lectura. */

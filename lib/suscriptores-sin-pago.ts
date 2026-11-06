@@ -41,6 +41,12 @@ import { TEXTOS } from "./textos";
  *     anula: el comprador puede volver a intentar.
  *  5. Stock, compra del cliente y mails. Si algo de esto falla, el pedido ya
  *     está hecho: Harper se entera en el aviso y lo completa a mano.
+ *
+ * Crédito Harper (paso 4, solo con HARPER_CREDITO_ACTIVO=1): si el pedido
+ * queda en $ 0 por el crédito, `credito` confirma su uso (ya reservado por el
+ * checkout, con la cuenta tomada) junto con el cupón y el saldo, y lo libera
+ * si algo falla. Puede no haber suscriptor: quien compró sin suscribirse paga
+ * solo con su crédito.
  */
 
 const TTL_SIN_PAGO_MS = 60_000;
@@ -48,7 +54,10 @@ const TTL_SIN_PAGO_MS = 60_000;
 export type ResultadoSinPago = { ok: true } | { ok: false; status: number; error: string };
 
 export async function confirmarPedidoSinPago(d: {
-  suscriptor: Pick<SuscriptorDelCarrito, "id" | "email">;
+  /** Null: compra sin suscripción, pagada con Crédito Harper. */
+  suscriptor: Pick<SuscriptorDelCarrito, "id" | "email"> | null;
+  /** El Crédito Harper usado (paso 4): confirmarlo o liberarlo, con la cuenta ya tomada por el checkout. */
+  credito?: { monto: number; confirmar: () => Promise<unknown>; liberar: () => Promise<void> } | null;
   numero: string;
   /** Lo que el carrito usó, en pesos: tiene que seguir estando. */
   cupon: number;
@@ -68,49 +77,62 @@ export async function confirmarPedidoSinPago(d: {
 }): Promise<ResultadoSinPago> {
   const cerrojo = d.cerrojo === undefined ? cerrojoDesdeEntorno() : d.cerrojo;
   const ahora = d.ahora ?? (() => new Date());
-  const clave = claveSuscriptor(d.suscriptor.id);
+  const clave = d.suscriptor ? claveSuscriptor(d.suscriptor.id) : null;
   const nonce = randomUUID();
-  const tomarlo = Boolean(cerrojo) && !d.cerrojoTomado;
+  const tomarlo = Boolean(cerrojo) && Boolean(clave) && !d.cerrojoTomado;
 
-  if (tomarlo && cerrojo && !(await cerrojo.tomar(clave, nonce, TTL_SIN_PAGO_MS))) {
+  if (tomarlo && cerrojo && clave && !(await cerrojo.tomar(clave, nonce, TTL_SIN_PAGO_MS))) {
     return { ok: false, status: 409, error: "Ya estamos confirmando tu pedido. Esperá un momento y revisá tu mail." };
   }
 
   try {
-    const [fresco, movimientos, reservas] = await Promise.all([
-      suscriptorPorId(d.suscriptor.id),
-      movimientosDe(d.suscriptor.id),
-      reservasDe(d.suscriptor.id, ahora()),
-    ]);
-    // Dado de baja también puede: paga con el saldo que ya ganó (sin cupón, que el carrito no le da).
-    if (!fresco || fresco.email !== d.suscriptor.email.toLowerCase()) {
-      return { ok: false, status: 409, error: "Tu suscripción cambió. Entrá de nuevo con tu mail y revisá tu carrito." };
-    }
-    // Sin lo que apartan sus otros pedidos sin pagar (un link de Mercado Pago abierto con el mismo saldo).
-    const disponible = saldoDe(movimientos, ahora()).disponible - reservas.saldo;
-    if (disponible < d.saldoUsado || (d.cupon > 0 && (!tieneCupon(fresco) || !estaActivo(fresco) || reservas.cupon))) {
-      return { ok: false, status: 409, error: TEXTOS.suscriptores.saldoCambio };
+    let fresco: Awaited<ReturnType<typeof suscriptorPorId>> = null;
+    if (d.suscriptor) {
+      const [leido, movimientos, reservas] = await Promise.all([
+        suscriptorPorId(d.suscriptor.id),
+        movimientosDe(d.suscriptor.id),
+        reservasDe(d.suscriptor.id, ahora()),
+      ]);
+      fresco = leido;
+      // Dado de baja también puede: paga con el saldo que ya ganó (sin cupón, que el carrito no le da).
+      if (!fresco || fresco.email !== d.suscriptor.email.toLowerCase()) {
+        return { ok: false, status: 409, error: "Tu suscripción cambió. Entrá de nuevo con tu mail y revisá tu carrito." };
+      }
+      // Sin lo que apartan sus otros pedidos sin pagar (un link de Mercado Pago abierto con el mismo saldo).
+      const disponible = saldoDe(movimientos, ahora()).disponible - reservas.saldo;
+      if (disponible < d.saldoUsado || (d.cupon > 0 && (!tieneCupon(fresco) || !estaActivo(fresco) || reservas.cupon))) {
+        return { ok: false, status: 409, error: TEXTOS.suscriptores.saldoCambio };
+      }
+    } else if (d.cupon > 0 || d.saldoUsado > 0 || !d.credito) {
+      return { ok: false, status: 400, error: "No hay nada que cobrar en tu carrito." };
     }
 
     const pedido = await d.crearPedido();
-    const datosMovimiento = { suscriptorId: fresco.id, email: fresco.email, numeroPedido: d.numero, fecha: ahora() };
     let cuponAnotado = false;
 
     try {
-      if (d.cupon > 0) {
-        const cupon = await registrarCupon({ suscriptorId: fresco.id, numeroPedido: d.numero });
-        if (cupon.estado !== "registrado" && cupon.estado !== "ya") {
-          await d.anularPedido(pedido.id);
-          return { ok: false, status: 409, error: TEXTOS.suscriptores.saldoCambio };
+      if (fresco) {
+        const datosMovimiento = { suscriptorId: fresco.id, email: fresco.email, numeroPedido: d.numero, fecha: ahora() };
+        if (d.cupon > 0) {
+          const cupon = await registrarCupon({ suscriptorId: fresco.id, numeroPedido: d.numero });
+          if (cupon.estado !== "registrado" && cupon.estado !== "ya") {
+            await d.credito?.liberar().catch(() => {});
+            await d.anularPedido(pedido.id);
+            return { ok: false, status: 409, error: TEXTOS.suscriptores.saldoCambio };
+          }
+          cuponAnotado = true;
         }
-        cuponAnotado = true;
+        if (d.saldoUsado > 0) await registrarUso({ ...datosMovimiento, monto: d.saldoUsado });
       }
-      if (d.saldoUsado > 0) await registrarUso({ ...datosMovimiento, monto: d.saldoUsado });
+      if (d.credito) await d.credito.confirmar();
       await d.marcarPagado(pedido.id);
     } catch (error) {
       // Lo que se haya anotado se deshace: el pedido no existió.
-      if (cuponAnotado) await devolverCupon({ suscriptorId: fresco.id, numeroPedido: d.numero }).catch(() => {});
-      await deshacerUso(fresco.id, d.numero).catch(() => {});
+      if (fresco) {
+        if (cuponAnotado) await devolverCupon({ suscriptorId: fresco.id, numeroPedido: d.numero }).catch(() => {});
+        await deshacerUso(fresco.id, d.numero).catch(() => {});
+      }
+      if (d.credito) await d.credito.liberar().catch(() => {});
       await d.anularPedido(pedido.id);
       throw error;
     }
@@ -131,7 +153,7 @@ export async function confirmarPedidoSinPago(d: {
 
     const datos: DatosMail = {
       ...d.datosMail,
-      suscriptor: { email: fresco.email, cupon: d.cupon, saldoUsado: d.saldoUsado, cashback: 0, cashbackDesde: null },
+      ...(fresco ? { suscriptor: { email: fresco.email, cupon: d.cupon, saldoUsado: d.saldoUsado, cashback: 0, cashbackDesde: null } } : {}),
       alerta: [d.datosMail.alerta, ...problemas].filter(Boolean).join(" ") || null,
     };
     const pedidoUrl = `https://airtable.com/${process.env.AIRTABLE_BASE_ID}/${TABLAS.pedidos}/${pedido.id}`;
@@ -145,10 +167,10 @@ export async function confirmarPedidoSinPago(d: {
       }
     }
 
-    console.info(`[suscriptores] el pedido ${d.numero} se pagó entero con saldo`);
+    console.info(`[suscriptores] el pedido ${d.numero} se pagó entero con ${d.credito ? "saldo o Crédito Harper" : "saldo"}`);
     return { ok: true };
   } finally {
-    if (tomarlo && cerrojo) await cerrojo.soltar(clave, nonce).catch(() => {});
+    if (tomarlo && cerrojo && clave) await cerrojo.soltar(clave, nonce).catch(() => {});
   }
 }
 

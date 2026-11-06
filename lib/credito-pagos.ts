@@ -1,6 +1,7 @@
 import { ErrorAirtable, getRecord, TABLAS, type AirtableRecord } from "./airtable";
 import { creditoActivo, type RenglonCobrado } from "./credito-harper";
 import { ESTADOS_CONFIRMADOS } from "./webhook-decision";
+import { dependenciasUsoReales, type DependenciasUso } from "./credito-uso";
 import {
   anularPorPedido,
   marcarIncidencia,
@@ -205,6 +206,8 @@ export type DependenciasPagoCredito = {
   credito: DependenciasCredito;
   mp: LectorMercadoPago;
   pedidos: LectorPedidos;
+  /** Paso 4: el crédito USADO en el pedido (lib/credito-uso.ts). Sin esto, no se mira. */
+  uso?: DependenciasUso;
 };
 
 export type ResultadoPagoCredito =
@@ -344,5 +347,5 @@ export function hayQueReintentar(r: ResultadoPagoCredito): boolean {
 /** Las dependencias de verdad (las arma el webhook, solo con HARPER_CREDITO_ACTIVO=1). Null sin MP_ACCESS_TOKEN. */
 export function dependenciasPagoCredito(credito: DependenciasCredito): DependenciasPagoCredito | null {
   const mp = lectorMercadoPagoDesdeEntorno();
-  return mp ? { credito, mp, pedidos: lectorPedidosAirtable } : null;
+  return mp ? { credito, mp, pedidos: lectorPedidosAirtable, uso: dependenciasUsoReales(credito.cerrojo) } : null;
 }

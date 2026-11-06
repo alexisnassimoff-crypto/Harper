@@ -50,6 +50,8 @@ export type CarritoResueltoCliente = {
   suscriptor?: ResumenSuscriptor | null;
   /** Solo con el Dúo prendido (Tarea 07): lo que descontó y qué gana con otro par. */
   duo?: DuoDelCarrito;
+  /** Solo con el Crédito Harper prendido y crédito para usar (paso 4): lo usado, lo que se puede usar y lo elegible. */
+  creditoHarper?: { usado: number; usable: number; elegible: number };
 };
 
 /**
@@ -95,12 +97,15 @@ export function useCarritoResuelto({
   cuotas = false,
   usarSaldo,
   usarCupon,
+  usarCredito,
 }: {
   cuotas?: boolean;
   /** El checkout: el suscriptor eligió pagar con su saldo (lib/suscriptores.ts). Sin decir, no se usa. */
   usarSaldo?: boolean;
   /** Falso después de que el checkout rechazó el cupón de bienvenida (ya hay una compra con ese mail o DNI). */
   usarCupon?: boolean;
+  /** Crédito Harper (paso 4): el servidor lo aplica solo con el interruptor prendido y la cuenta verificada. */
+  usarCredito?: boolean;
 } = {}) {
   const { items, listo, quitar, cupon } = useCarrito();
   const [datos, setDatos] = useState<CarritoResueltoCliente | null>(null);
@@ -141,6 +146,7 @@ export function useCarritoResuelto({
         ...(cuotas ? { cuotas: true } : {}),
         ...(usarSaldo ? { usarSaldo: true } : {}),
         ...(usarCupon === false ? { usarCupon: false } : {}),
+        ...(usarCredito ? { usarCredito: true } : {}),
       })
     )
       .then((resuelto) => {
@@ -164,7 +170,7 @@ export function useCarritoResuelto({
       vigente = false;
     };
     // `quitar` es estable (useCallback) y `items` cambia por contenido.
-  }, [items, listo, quitar, intento, cupon, cuotas, usarSaldo, usarCupon]);
+  }, [items, listo, quitar, intento, cupon, cuotas, usarSaldo, usarCupon, usarCredito]);
 
   return { datos, cargando: cargando || !listo, actualizando, error, recargar };
 }

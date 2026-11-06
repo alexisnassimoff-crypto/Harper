@@ -1671,8 +1671,9 @@ página calcula el descuento por su cuenta.
   deja entrar a quien compró sin suscribirse, con su mail verificado y sin
   darse de alta (`lib/credito-cuenta.ts`, `/api/cuenta/entrar`): no crea
   filas en Suscriptores, cupones ni cashback, y el saldo de Suscriptores
-  Harper va aparte. Todo detrás del mismo interruptor; usar el crédito en
-  el checkout es el paso 4. Cuando este documento dice qué pasa ante un aviso de pago, un
+  Harper va aparte. Desde el paso 4 (06/11/2026) el checkout puede usar el
+  crédito disponible en anteojos, con reserva, confirmación por el pago
+  real y liberación (§17.12). Todo detrás del mismo interruptor. Cuando este documento dice qué pasa ante un aviso de pago, un
   reembolso o una entrega, describe la lógica preparada y probada, no algo
   que ya funcione con pedidos reales. Conectarla requiere autorización
   (§17.9).
@@ -1793,8 +1794,8 @@ está definida (§14, L1).
   - el saldo de hoy: sirve en cualquier producto;
   - el Crédito Harper: solo anteojos. Disponible, pendiente y «A revisar»,
     por separado.
-- **Usar el crédito en el checkout es otra tarea.** Necesita su propia
-  propuesta: cómo se anota el uso.
+- **Usar el crédito en el checkout:** paso 4, §17.12. El saldo de hoy se
+  aplica primero, con sus reglas de siempre; el crédito, después.
 
 ### 17.7 Lo que falta para conectarlo (cada paso con aprobación)
 
@@ -1813,10 +1814,9 @@ está definida (§14, L1).
    el campo y la automatización de Airtable; lo que la lee desde el código
    va al conectar el crédito.
 5. La liberación diaria.
-6. **Mostrarlo en Mi cuenta y usarlo en el checkout.** Usarlo necesita
-   descontar o reservar el crédito sin descontarlo dos veces. «Disponible» es
-   lo ganado, no lo que queda después de usarlo. Es otra tarea, con su propia
-   propuesta.
+6. ~~Mostrarlo en Mi cuenta y usarlo en el checkout.~~ Pasos 3 y 4
+   (§17.12), detrás del interruptor. Antes del corte, Ale tiene que aprobar
+   las opciones nuevas de «Estado» en Créditos (§17.12).
 7. La regla de reintegro de la devolución parcial (§14, L1).
 
 ### 17.8 Pagos repetidos, reembolsos anticipados y avisos fuera de orden (Tarea 10)
@@ -2190,6 +2190,51 @@ nunca vuelve a crear un cashback anulado.
     pedido en disputa. No cambia ninguna fila existente.
 - **Descartado:** consultar las disputas en Mercado Pago en cada checkout.
   Es lento, depende de que Mercado Pago conteste y no cubre Mi cuenta.
+
+### 17.12 Usar el crédito en el checkout (paso 4, apagado)
+
+Código: `lib/credito-uso.ts`. Solo con `HARPER_CREDITO_ACTIVO=1`; apagado,
+el carrito, el checkout y el webhook son los de siempre (el navegador ni
+siquiera lo pide hasta que el servidor lo ofrece).
+
+- **Dónde se anota.** En la misma tabla Créditos, una fila por pedido con
+  clave `uso-credito-harper:<pedido>` y Reglas `uso-credito-harper-v1`
+  (Porcentaje, Base y Anteojos en 0). Nunca se lee como crédito ganado.
+- **Lo que se puede usar** = crédito ganado «Disponible» del mail − usos
+  «Usado» y «A revisar» − reservas vigentes. Nunca negativo. Lo pendiente,
+  anulado o en revisión no cuenta. Una fila de uso editada a mano que no se
+  entiende bloquea la cuenta (se puede usar 0).
+- **Quién.** Solo el mail de la sesión verificada (cookie de la cuenta o de
+  suscriptor), y tiene que ser el mail del pedido.
+- **Sobre qué.** Solo renglones de anteojos, parcial o total; nunca envío,
+  estuches ni paños. Orden: tramos o Dúo, cupón, cupón de bienvenida y
+  saldo de Suscriptores (sin cambios), crédito, 10 % de dinero en Mercado
+  Pago. El crédito nuevo se calcula sobre lo pagado en anteojos, sin el
+  crédito usado.
+- **Dos compras a la vez.** Cerrojo de Redis por cuenta
+  (`harper:credito-cuenta:<hash del mail>`, 60 s). Con la llave tomada se
+  lee todo de nuevo y se reserva antes de crear el pedido; la otra compra
+  espera y ve lo que queda. Sin Redis no se usa crédito.
+- **Estados del uso:**
+
+  | Estado | Cuándo |
+  |---|---|
+  | Reservado | Al crear el pedido; vale mientras el link de pago está abierto (30 + 15 min), el pago está en revisión o el pedido está confirmado |
+  | Usado | El pago real se acreditó y el pedido está confirmado (webhook), o el pedido en $ 0 se confirmó |
+  | Liberado | El pedido se canceló, venció sin pago o no se pudo crear |
+  | A revisar | Reembolso total o contracargo perdido: sigue descontado y se avisa a Harper |
+  | Devuelto | Solo Harper, a mano, cuando decide devolverlo |
+
+- **Pagos.** Rechazado o abandonado: la reserva sigue mientras el link
+  cobra y después se libera sola. Aviso repetido o segundo pago: queda un
+  solo «Usado». Pago que llega después de liberar: se anota «Usado» y, si
+  la cuenta queda con más usado que ganado, se avisa. Reembolso parcial: no
+  cambia y se avisa (la regla está pendiente, §14 L1). Lo que Harper ya
+  decidió («A revisar», «Devuelto») no lo pisa ningún pago.
+- **Antes del corte (con aprobación de Ale):** agregar a «Estado» de
+  Créditos las opciones Reservado, Usado, Liberado y Devuelto. Hoy la
+  selección única solo tiene Pendiente, Disponible, Anulado y A revisar.
+  No se cambió nada en la base real.
 
 ---
 

@@ -56,34 +56,51 @@ export default function MiCreditoHarper({ billetera }: { billetera: BilleteraCre
             </h3>
             {billetera.movimientos.length > 0 ? (
               <ul>
-                {billetera.movimientos.map((m) => (
-                  <li key={m.pedido} className="cuenta-suscriptor__movimiento" data-estado={m.estado}>
-                    <span className="cuenta-suscriptor__fecha">{m.fecha ? fechaLegible(m.fecha) : ""}</span>
-                    <span className="cuenta-suscriptor__concepto">
-                      {T.concepto(m.pedido, m.porcentaje)}
-                      <small>
-                        {T.estado[m.estado]}
-                        {" · "}
-                        {m.estado === "pendiente"
-                          ? m.conGestionAbierta
-                            ? T.conGestion
-                            : m.disponibleDesde
-                              ? T.desde(fechaLegible(m.disponibleDesde))
-                              : T.sinEntrega
-                          : m.estado === "anulado"
-                            ? T.anulado
-                            : m.estado === "en-revision"
-                              ? T.enRevisionNota
+                {billetera.movimientos.map((m) =>
+                  m.tipo === "uso" ? (
+                    <li key={`uso-${m.pedido}`} className="cuenta-suscriptor__movimiento" data-estado={m.estado}>
+                      <span className="cuenta-suscriptor__fecha">{m.fecha ? fechaLegible(m.fecha) : ""}</span>
+                      <span className="cuenta-suscriptor__concepto">
+                        {T.usadoEn(m.pedido)}
+                        <small>
+                          {T.estado[m.estado]}
+                          {" · "}
+                          {m.estado === "reservado" ? T.reservadoNota : m.conGestionAbierta ? T.usoEnRevision : ""}
+                        </small>
+                      </span>
+                      <span className="cuenta-suscriptor__importe" data-signo="menos">
+                        {`−${formatearPrecio(m.monto)}`}
+                      </span>
+                    </li>
+                  ) : (
+                    <li key={m.pedido} className="cuenta-suscriptor__movimiento" data-estado={m.estado}>
+                      <span className="cuenta-suscriptor__fecha">{m.fecha ? fechaLegible(m.fecha) : ""}</span>
+                      <span className="cuenta-suscriptor__concepto">
+                        {T.concepto(m.pedido, m.porcentaje)}
+                        <small>
+                          {T.estado[m.estado]}
+                          {" · "}
+                          {m.estado === "pendiente"
+                            ? m.conGestionAbierta
+                              ? T.conGestion
                               : m.disponibleDesde
-                                ? T.liberado(fechaLegible(m.disponibleDesde))
-                                : ""}
-                      </small>
-                    </span>
-                    <span className="cuenta-suscriptor__importe" data-signo={m.estado === "anulado" ? "anulado" : "mas"}>
-                      {m.estado === "anulado" ? <s>{formatearPrecio(m.monto)}</s> : `+${formatearPrecio(m.monto)}`}
-                    </span>
-                  </li>
-                ))}
+                                ? T.desde(fechaLegible(m.disponibleDesde))
+                                : T.sinEntrega
+                            : m.estado === "anulado"
+                              ? T.anulado
+                              : m.estado === "en-revision"
+                                ? T.enRevisionNota
+                                : m.disponibleDesde
+                                  ? T.liberado(fechaLegible(m.disponibleDesde))
+                                  : ""}
+                        </small>
+                      </span>
+                      <span className="cuenta-suscriptor__importe" data-signo={m.estado === "anulado" ? "anulado" : "mas"}>
+                        {m.estado === "anulado" ? <s>{formatearPrecio(m.monto)}</s> : `+${formatearPrecio(m.monto)}`}
+                      </span>
+                    </li>
+                  )
+                )}
               </ul>
             ) : (
               <p className="apagado">{T.vacio}</p>
