@@ -1,5 +1,14 @@
 import { canalDelOrigen, CANALES, NOMBRE_DEL_CANAL, type Canal } from "./canales";
+import {
+  baseDeLaVenta,
+  costoDelCashback,
+  costoEnvioNeto,
+  costosDelCobro,
+  PARAMETROS_REFERENCIA,
+  type ParametrosContribucion,
+} from "./contribucion";
 import { esPedidoConDineroMP } from "./dinero-mp";
+import { precio } from "./formato";
 import type { EventoMedido } from "./medir";
 import type { Origen } from "./origen";
 import { beneficiosDeNotas, fechaArgentina, saldoDe, sumarDias, type MovimientoSaldo } from "./suscriptores";
@@ -11,10 +20,10 @@ import { ESTADOS_CONFIRMADOS } from "./webhook-decision";
  * se prueban con números a mano.
  *
  * La regla del negocio manda (CLAUDE.md, «ganar plata»): además de cuánto se
- * vendió, cuánto dejó cada venta. El margen es una estimación y lo dice:
- * ventas y envío sin IVA (la tasa de Config `impuestos_nacionales`), costo de
- * la tabla Costos ML, el cashback que se le da al suscriptor, y SIN la
- * comisión de Mercado Pago, que no queda registrada en el pedido.
+ * vendió, cuánto dejó cada venta. «Cuánto dejó» (`margenDe`) usa el motor de
+ * contribución (lib/contribucion.ts) con los montos reales de cada pedido y
+ * separa tres cosas: lo que sale del pedido, lo estimado con las tasas de
+ * referencia del motor y lo que falta conocer (eso no se resta).
  */
 
 export const PERIODOS = [7, 30, 90] as const;
@@ -272,28 +281,87 @@ export type Margen = {
   sinCosto: number;
   /** Pedidos sin el costo real del envío: se usó la tarifa plana de Config. */
   enviosEstimados: number;
+  /**
+   * Ventas sin IVA, antes del saldo usado: ese crédito ya se contó como costo
+   * en la compra que lo prometió (la regla del motor, `baseDeLaVenta`).
+   */
   ventasNetas: number;
+
+  // Del pedido.
+  /** Costo de los productos, de Costos ML. */
   productos: number;
+  /** Packaging, de Costos ML. */
   packaging: number;
+  /** Envíos sin IVA: el cotizado del pedido o, si no hay, la tarifa plana (`enviosEstimados`). */
   envios: number;
+  /** El crédito que prometió cada pedido, sin IVA (`costoDelCashback`). */
   cashback: number;
+  /** Cuotas de los pedidos en que se sabe cuántas fueron: con dinero en Mercado Pago es un pago, sin costo. */
+  cuotas: number;
+
+  // Estimados con las tasas de referencia del motor (no los montos reales).
+  /** Comisión de Mercado Pago sobre lo cobrado. */
+  mercadoPago: number;
+  /** Ingresos Brutos sobre lo facturado sin IVA. */
+  iibb: number;
+  /** Reserva por devoluciones sobre las ventas sin IVA. */
+  devoluciones: number;
+
+  /** Contribución estimada: ventas sin IVA menos todo lo anterior. No resta lo pendiente. */
   contribucion: number;
   porPedido: number | null;
-  /** Contribución sobre ventas netas, en %. */
+  /** Contribución estimada sobre ventas netas, en %. */
   porcentaje: number | null;
+  /**
+   * Hay pedidos confirmados, pero a ninguno se le conocen los costos de los
+   * productos: la contribución no se puede calcular (no es $ 0).
+   */
+  sinDatosSuficientes: boolean;
+
+  /** Costos que existen pero no se conocen. No se restan. */
+  pendientes: {
+    /** Pedidos pagados con tarjeta: no se guarda cuántas cuotas eligió el comprador. */
+    cuotasSinDato: number;
+    /** Lo que costarían esas cuotas si todas fueran de 6 (el tope de hoy, el de los suscriptores). */
+    cuotasHasta: number;
+    /** La preparación (armar y despachar) que supone el motor por pedido: una hipótesis, no un dato. */
+    preparacionDeReferencia: number;
+    /** La publicidad por pedido que supone el motor: una hipótesis, no un dato. */
+    publicidadDeReferencia: number;
+  };
+  /**
+   * Lo que falta para la ganancia neta final, en palabras. Mientras haya algo,
+   * no hay ganancia neta: solo la contribución estimada.
+   */
+  faltaParaLaGanancia: string[];
+  /** Las tasas de referencia que se usaron, sobre 1 (0,0339 = 3,39 %). */
+  tasas: { mercadoPago: number; iibb: number; devoluciones: number; seisCuotas: number };
 };
 
+/** Una tasa sobre 1, en %, sin ceros de más: 0,0339 → «3,39 %»; 0,03 → «3 %». */
+const porcentajeAR = (x: number) => `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(x * 100)} %`;
+const pedidosEn = (n: number) => `${n} ${n === 1 ? "pedido" : "pedidos"}`;
+
 /**
- * Cuánto dejaron los pedidos confirmados, antes de la comisión de Mercado
- * Pago. Null si falta la tasa de impuestos (sin ella, las ventas con IVA
- * contra costos sin IVA darían un margen inflado).
+ * Cuánto dejaron los pedidos confirmados, con el motor de contribución
+ * (lib/contribucion.ts) y los montos reales de cada pedido:
+ *
+ *  - del pedido: productos y packaging (Costos ML), envío cotizado, cashback
+ *    prometido y las cuotas cuando se saben (dinero en Mercado Pago: un pago);
+ *  - estimado con las tasas de referencia del motor: Mercado Pago, IIBB y la
+ *    reserva por devoluciones;
+ *  - pendiente, sin restar: las cuotas que no se saben, la preparación y la
+ *    publicidad.
+ *
+ * Null si falta la tasa de impuestos (sin ella, las ventas con IVA contra
+ * costos sin IVA darían un margen inflado).
  */
 export function margenDe(
   pedidos: PedidoPanel[],
   opciones: { tasa: number | null; costoDe: (varianteId: string) => CostoUnitario | null; envioPorDefecto: number }
 ): Margen | null {
   if (opciones.tasa === null) return null;
-  const sinIva = (monto: number) => monto / (1 + opciones.tasa! / 100);
+  const parametros: ParametrosContribucion = { ...PARAMETROS_REFERENCIA, alicuotaIva: opciones.tasa / 100, envioIncluyeIva: true };
   const m: Margen = {
     pedidos: 0,
     sinCosto: 0,
@@ -303,9 +371,27 @@ export function margenDe(
     packaging: 0,
     envios: 0,
     cashback: 0,
+    cuotas: 0,
+    mercadoPago: 0,
+    iibb: 0,
+    devoluciones: 0,
     contribucion: 0,
     porPedido: null,
     porcentaje: null,
+    sinDatosSuficientes: false,
+    pendientes: {
+      cuotasSinDato: 0,
+      cuotasHasta: 0,
+      preparacionDeReferencia: parametros.preparacionPorPedido,
+      publicidadDeReferencia: parametros.cacPorPedido,
+    },
+    faltaParaLaGanancia: [],
+    tasas: {
+      mercadoPago: parametros.comisionMercadoPago,
+      iibb: parametros.iibb,
+      devoluciones: parametros.reservaDevoluciones,
+      seisCuotas: parametros.financiacion[6],
+    },
   };
 
   for (const p of pedidos.filter(esConfirmado)) {
@@ -315,7 +401,10 @@ export function margenDe(
       continue;
     }
     m.pedidos++;
-    m.ventasNetas += sinIva(p.total);
+    // El total ya trae los descuentos, el cupón y el saldo restados: los
+    // productos antes del saldo son total − envío + saldo.
+    const base = baseDeLaVenta({ productos: p.total - p.envio + p.saldoUsado, envioCobrado: p.envio, saldoAplicado: p.saldoUsado }, parametros);
+    m.ventasNetas += base.ventaNeta;
     for (const { item, costo } of costos) {
       m.productos += costo!.costo * item.cantidad;
       m.packaging += costo!.packaging * item.cantidad;
@@ -323,14 +412,69 @@ export function margenDe(
     // Harper le paga al transportista el costo real, lo haya pagado el comprador o no
     // (lo que pagó ya está en el total).
     if (p.envioCostoReal === null) m.enviosEstimados++;
-    m.envios += sinIva(p.envioCostoReal ?? opciones.envioPorDefecto);
-    m.cashback += p.cashback;
+    m.envios += costoEnvioNeto(p.envioCostoReal ?? opciones.envioPorDefecto, parametros);
+    m.cashback += costoDelCashback(p.cashback, 1, parametros);
+
+    // Mercado Pago, IIBB y devoluciones no dependen de las cuotas.
+    const cobro = costosDelCobro(base, 1, parametros);
+    m.mercadoPago += cobro.mercadoPago;
+    m.iibb += cobro.iibb;
+    m.devoluciones += cobro.devoluciones;
+    // Con dinero en Mercado Pago la preferencia sale en un solo pago (lib/mercadopago.ts): las cuotas no cuestan.
+    if (p.dineroMP) m.cuotas += cobro.financiacion;
+    else {
+      m.pendientes.cuotasSinDato++;
+      m.pendientes.cuotasHasta += costosDelCobro(base, 6, parametros).financiacion;
+    }
   }
 
-  m.contribucion = m.ventasNetas - m.productos - m.packaging - m.envios - m.cashback;
+  m.contribucion = m.ventasNetas - m.productos - m.packaging - m.envios - m.cashback - m.cuotas - m.mercadoPago - m.iibb - m.devoluciones;
   m.porPedido = m.pedidos > 0 ? m.contribucion / m.pedidos : null;
   m.porcentaje = m.ventasNetas > 0 ? (m.contribucion / m.ventasNetas) * 100 : null;
+  m.sinDatosSuficientes = m.pedidos === 0 && m.sinCosto > 0;
+
+  const falta = m.faltaParaLaGanancia;
+  falta.push("el gasto en publicidad de la tienda web del período (no está cargado en ninguna tabla)");
+  falta.push("el costo de armar y despachar cada pedido (no está cargado)");
+  if (m.pendientes.cuotasSinDato > 0) {
+    falta.push(`las cuotas que eligió el comprador en ${pedidosEn(m.pendientes.cuotasSinDato)} con tarjeta (Mercado Pago lo sabe, el pedido no lo guarda)`);
+  }
+  if (m.pedidos > 0) {
+    falta.push(`la comisión real de Mercado Pago de cada pago (se estimó con el ${porcentajeAR(m.tasas.mercadoPago)})`);
+    falta.push(`la alícuota real de IIBB y las devoluciones reales (se estimaron con el ${porcentajeAR(m.tasas.iibb)} y el ${porcentajeAR(m.tasas.devoluciones)})`);
+  }
+  if (m.enviosEstimados > 0) falta.push(`el envío cotizado de ${pedidosEn(m.enviosEstimados)} (se usó la tarifa plana de Config)`);
+  if (m.sinCosto > 0) {
+    falta.push(`el costo en Costos ML de algún producto de ${pedidosEn(m.sinCosto)}, que ${m.sinCosto === 1 ? "queda" : "quedan"} afuera de la cuenta`);
+  }
   return m;
+}
+
+/** Lo que acompaña siempre a la contribución estimada, para que no se lea como ganancia. */
+export const ACLARACION_CONTRIBUCION = "Todavía no descuenta cuotas desconocidas, preparación ni publicidad: no es la ganancia real.";
+
+const pesosConSigno = (n: number) => `${n < 0 ? "−" : ""}${precio(Math.round(Math.abs(n)))}`;
+const porcentajeConUnDecimal = (n: number | null) =>
+  n === null ? "—" : `${new Intl.NumberFormat("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n)} %`;
+
+/**
+ * La cifra principal de «Contribución estimada» y su explicación: siempre con
+ * la aclaración de que no es la ganancia real. Si hay pedidos confirmados pero
+ * a ninguno se le conocen los costos, «Sin datos suficientes» (nunca $ 0) y
+ * cuántos quedaron afuera.
+ */
+export function cifraDeContribucion(m: Margen): { valor: string; detalle: string } {
+  if (m.sinDatosSuficientes) {
+    return {
+      valor: "Sin datos suficientes",
+      detalle: `${pedidosEn(m.sinCosto)} ${m.sinCosto === 1 ? "confirmado quedó" : "confirmados quedaron"} afuera: a sus productos les falta el costo en Costos ML.`,
+    };
+  }
+  const porPedido = m.porPedido === null ? "—" : precio(Math.round(m.porPedido));
+  return {
+    valor: pesosConSigno(m.contribucion),
+    detalle: `${porPedido} por pedido · ${porcentajeConUnDecimal(m.porcentaje)} de las ventas sin IVA. ${ACLARACION_CONTRIBUCION}`,
+  };
 }
 
 export type ResumenVentas = {

@@ -6,7 +6,9 @@ import { preciosConDescuentoDuo } from "./duo";
  * Cuánto deja un pedido después de producto, preparación, envío, Mercado
  * Pago, financiación, IIBB, devoluciones, cashback y publicidad, sobre la
  * venta neta de IVA. Es puro: no lee Airtable, ni Mercado Pago, ni nada de
- * afuera, y no lo usa (todavía) ninguna página ni el checkout.
+ * afuera. El checkout no lo usa. El panel privado («Cuánto dejó»,
+ * lib/panel-datos.ts) usa sus piezas (`baseDeLaVenta`, `costosDelCobro`,
+ * `costoDelCashback`, `costoEnvioNeto`) con los montos reales de cada pedido.
  *
  * Supuestos (todos en `ParametrosContribucion` o en el pedido, para poder
  * cambiarlos):
@@ -220,6 +222,43 @@ export function costoEnvioNeto(costoEnvio: number, parametros: ParametrosContrib
   return parametros.envioIncluyeIva ? costoEnvio / (1 + parametros.alicuotaIva) : costoEnvio;
 }
 
+/** Lo que se cobra, la venta neta y lo facturado de una venta (montos con IVA). */
+export type BaseDeLaVenta = { cobrado: number; ventaNeta: number; facturadoNeto: number };
+
+/**
+ * La base de una venta, con la regla del saldo: lo cobrado por Mercado Pago es
+ * productos − saldo + envío; la venta neta se mide ANTES del saldo (ya se
+ * contó como costo en la compra que lo prometió); lo facturado neto, sobre lo
+ * cobrado. `productos` es después de los descuentos y antes del saldo.
+ */
+export function baseDeLaVenta(
+  montos: { productos: number; envioCobrado: number; saldoAplicado: number },
+  parametros: ParametrosContribucion = PARAMETROS_REFERENCIA
+): BaseDeLaVenta {
+  const conIva = 1 + parametros.alicuotaIva;
+  const cobrado = montos.productos - montos.saldoAplicado + montos.envioCobrado;
+  return { cobrado, ventaNeta: (montos.productos + montos.envioCobrado) / conIva, facturadoNeto: cobrado / conIva };
+}
+
+/** Lo que cuesta cobrar y facturar una venta: Mercado Pago, cuotas, IIBB y la reserva por devoluciones. */
+export function costosDelCobro(
+  base: BaseDeLaVenta,
+  cuotas: Cuotas,
+  parametros: ParametrosContribucion = PARAMETROS_REFERENCIA
+): { mercadoPago: number; financiacion: number; iibb: number; devoluciones: number } {
+  return {
+    mercadoPago: base.cobrado * parametros.comisionMercadoPago,
+    financiacion: base.cobrado * parametros.financiacion[cuotas],
+    iibb: base.facturadoNeto * parametros.iibb,
+    devoluciones: base.ventaNeta * parametros.reservaDevoluciones,
+  };
+}
+
+/** El costo del crédito prometido: cuando se use, baja una venta futura con IVA incluido, así que se cuenta neto, por la parte que se espera usar. */
+export function costoDelCashback(comprometido: number, tasaDeUso = 1, parametros: ParametrosContribucion = PARAMETROS_REFERENCIA): number {
+  return (comprometido * tasaDeUso) / (1 + parametros.alicuotaIva);
+}
+
 /** La contribución de un pedido. Tira `RangeError` si el pedido no tiene sentido. */
 export function calcularContribucion(
   pedido: PedidoModelo,
@@ -243,30 +282,28 @@ export function calcularContribucion(
   exigir(!pedido.cashback || pedido.cashback.tope === null || pedido.cashback.tope >= 0, "El tope del cashback no puede ser negativo");
   exigir(tasaDeUso >= 0 && tasaDeUso <= 1, "La tasa de uso del cashback va de 0 a 1");
 
-  const conIva = 1 + p.alicuotaIva;
   const lista = pedido.pares.reduce((total, precio) => total + precio, 0);
   const aplicados = descuentosAplicados(pedido.pares, pedido.descuentoSegundo, bienvenidaPedida, pedido.acumularBienvenidaConDuo);
   const descuento = aplicados.duo + aplicados.bienvenida;
   const productos = lista - descuento;
   exigir(saldoAplicado >= 0 && saldoAplicado <= productos, "El saldo aplicado va de 0 a lo que valen los productos");
 
-  const cobrado = productos - saldoAplicado + envioCobrado;
   // La venta, antes del saldo: el saldo ya se contó como costo en la compra que lo prometió.
-  const ventaNeta = (productos + envioCobrado) / conIva;
-  const facturadoNeto = cobrado / conIva;
+  const base = baseDeLaVenta({ productos, envioCobrado, saldoAplicado }, p);
+  const { cobrado, ventaNeta, facturadoNeto } = base;
   // Lo efectivamente pagado en productos: después de los descuentos y del saldo, sin envío.
   const comprometido = cashbackComprometido(productos - saldoAplicado, pedido.cashback);
+  const cobro = costosDelCobro(base, pedido.cuotas, p);
 
   const costos = {
     producto: pedido.pares.length * p.costoUnitarioNeto,
     preparacion: p.preparacionPorPedido,
     envio: costoEnvioNeto(pedido.costoEnvio, p),
-    mercadoPago: cobrado * p.comisionMercadoPago,
-    financiacion: cobrado * p.financiacion[pedido.cuotas],
-    iibb: facturadoNeto * p.iibb,
-    devoluciones: ventaNeta * p.reservaDevoluciones,
-    // Cuando se use, baja una venta futura con IVA incluido: su costo es neto.
-    cashback: (comprometido * tasaDeUso) / conIva,
+    mercadoPago: cobro.mercadoPago,
+    financiacion: cobro.financiacion,
+    iibb: cobro.iibb,
+    devoluciones: cobro.devoluciones,
+    cashback: costoDelCashback(comprometido, tasaDeUso, p),
     publicidad,
   };
 
