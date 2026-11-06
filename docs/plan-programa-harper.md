@@ -1056,9 +1056,10 @@ pago, como se aceptó.
 
 **A validar: la fecha de entrega confiable.**
 
-- El pedido tiene un estado «entregado» (`lib/mis-compras.ts`), pero no
-  confirmé que se cargue siempre ni con fecha.
-- Hay que definir de dónde sale: del transportista o de una carga manual.
+- El pedido tiene un estado «entregado» (`lib/mis-compras.ts`). Lo pone
+  Harper a mano y no guarda la fecha.
+- La propuesta es un campo «Fecha_entrega» en Pedidos que se completa solo
+  al marcar «entregado» (§18, para aprobar).
 - Mientras no haya fecha confiable, el crédito sigue pendiente (§14, O1).
 - No cambia lo que deja el pedido.
 
@@ -1383,7 +1384,7 @@ devuelto.
 
 | # | Qué | Por qué |
 |---|---|---|
-| O1 | **Una fecha de entrega confiable** para cada pedido | El crédito pendiente pasa a disponible 30 días después de esa fecha. Sin ella, sigue pendiente. Hay un estado «entregado», pero no confirmé que siempre tenga fecha (§10.2) |
+| O1 | **Una fecha de entrega confiable** para cada pedido | El crédito pendiente pasa a disponible 30 días después de esa fecha. Sin ella, sigue pendiente. Hoy «entregado» no guarda la fecha. Propuesta para aprobar en §18: un campo en Pedidos que se completa al marcar «entregado» |
 | O2 | **El costo real del envío por provincia** fuera de AMBA | El Dúo con envío gratis a todo el país llega mientras el envío no pase de $ 21.701 (§9) |
 | O3 | **Verificar las tarifas de envío vigentes en la tienda (Config)** al implementar, y revisar las de AMBA cada vez que Rueddo las ajuste | El par suelto en 6 cuotas llega mientras el envío de AMBA no pase de $ 11.636. Con las tarifas de `lib/rueddo.ts`, el máximo es $ 9.075 |
 | O4 | **Recalcular antes de lanzar un modelo más barato** | Con el costo y el CAC de hoy, un par suelto en 6 cuotas necesita un precio de $ 85.279 o más. Un Dúo de dos pares baratos queda justo (§5) |
@@ -1644,7 +1645,7 @@ página calcula el descuento por su cuenta.
 
 ---
 
-## 17. Crédito Harper: dónde se guarda y cómo se conecta (Tareas 09 a 11)
+## 17. Crédito Harper: dónde se guarda y cómo se conecta (Tareas 09 a 13)
 
 ### 17.1 Estado
 
@@ -1663,6 +1664,8 @@ página calcula el descuento por su cuenta.
 - Las pruebas corren contra una tabla y un cerrojo en memoria
   (`tests/credito-persistencia.test.ts`) y contra el Airtable y el Redis de
   prueba (`tests/credito-airtable.test.ts`).
+- **Se probó también contra un Airtable y un Redis reales de prueba**
+  (Tarea 13, §17.10): pasaron las 6 pruebas y no quedó nada escrito.
 
 ### 17.2 La tabla «Créditos» (aprobada y creada)
 
@@ -1789,7 +1792,8 @@ está definida (§14, L1).
 
    Falta conectarla: los cambios concretos están en §17.9 para autorizar.
    Con `HARPER_CREDITO_ACTIVO` apagado, no hace nada.
-4. De dónde sale la fecha de entrega (§14, O1).
+4. De dónde sale la fecha de entrega (§14, O1). Propuesta para aprobar en
+   §18.
 5. La liberación diaria.
 6. **Mostrarlo en Mi cuenta y usarlo en el checkout.** Usarlo necesita
    descontar o reservar el crédito sin descontarlo dos veces. «Disponible» es
@@ -1818,9 +1822,10 @@ Mercado Pago, el pedido en Pedidos), no el aviso que llegó.
 | Un aviso de pago atrasado sobre un crédito anulado o ya disponible | No lo revive ni lo cambia |
 | No se puede leer el pedido, o se lee otro | No se escribe nada y se suelta la llave |
 
-**Lo que todavía no se probó:** la concurrencia real con Redis y Airtable de
-verdad. Las pruebas usan los de prueba. La suite para una base aislada ya
-está escrita (§17.10) y falta correrla.
+**Probado con infraestructura real** (Tarea 13, §17.10): la concurrencia, la
+llave que vence, la respuesta perdida, Redis caído y el reembolso antes del
+pago. Se probaron contra un Airtable y un Redis reales de prueba, no los de
+Harper.
 
 ### 17.9 El crédito con los avisos de pago (Tarea 11)
 
@@ -1932,55 +1937,103 @@ Ante el aviso de un pago:
 
 **Falta decidir antes de conectar:**
 
-- la fuente de la fecha de entrega (§14, O1);
+- la fuente de la fecha de entrega (§14, O1; propuesta en §18);
 - el aviso a los suscriptores (§11);
 - cómo se usa el crédito en el checkout (§17.7, punto 6).
 
-### 17.10 Pruebas en una base aislada y Redis real (preparadas, sin correr)
+### 17.10 Pruebas en una base aislada y Redis real (Tarea 13, hechas)
 
 `tests/integracion/credito-sandbox.test.ts` prueba contra infraestructura de
-verdad, sin pedidos ni créditos de clientes:
+verdad, sin pedidos ni créditos de clientes.
 
-- varias instancias a la vez;
-- una llave que vence (TTL);
-- una respuesta de Airtable que se pierde después de escribir;
-- Redis inalcanzable;
-- un reembolso antes que el pago;
-- un aviso de pago de punta a punta, con pago repetido.
+**Resultado (05/11/2026, hora de Argentina): pasaron las 6, contra el
+Airtable y el Redis de prueba reales**, en unos 20 segundos. Se corrió con el
+código de main en `1109dcd`.
 
-**Protecciones:**
+| Prueba | Qué mostró |
+|---|---|
+| 1. Cuatro instancias anotan el mismo crédito a la vez | Una sola fila y ningún duplicado anulado: alcanzó el cerrojo, sin el respaldo |
+| 2. Otra instancia tiene la llave, con vencimiento de 1,5 s | «Ocupado» y ninguna fila mientras dura; a los 2 s vence sola y se crea el crédito |
+| 3. Airtable escribe, pero la respuesta se pierde | El reintento encuentra la fila («ya») y no crea otra |
+| 4. Redis inalcanzable | Falla cerrado (`ErrorCerrojo`) y no escribe nada |
+| 5. El reembolso llega antes que el pago | Queda una fila «Anulado»; el pago que llega después no anota crédito («ya») |
+| 6. Un aviso de pago de punta a punta, con pago repetido | Pedido y Cliente leídos de la base de prueba. Se crea el crédito; reembolsar el repetido no lo toca; reembolsar los dos lo anula |
+
+En la prueba 6, Mercado Pago es de mentira, porque no hay pagos de prueba.
+Airtable y Redis son los reales de prueba.
+
+**Limpieza, verificada después de correr:**
+
+- las cuatro tablas de «Harper Sandbox» quedaron con 0 filas;
+- el Redis de prueba quedó con 0 llaves;
+- en la base real no se escribió nada: «Créditos» sigue con 0 filas;
+- producción siguió en `1109dcd`, con el Dúo y el Crédito Harper apagados.
+
+**El token de Airtable de prueba no entra a la base real:**
+
+- contra «Harper Sandbox» contesta 200;
+- contra la base real (`appcFfhxM8uVdVKoP`) contesta 403.
+
+Se comprobó antes de correr. Al primer token le faltaba esa restricción y se
+reemplazó.
+
+**Protecciones de la suite:**
 
 - **Se saltea sola** si faltan las variables, como en la suite de siempre.
 - **Se niega a correr** si la base es la real de Harper o si aparece una
   tabla real.
 - **Lo que crea lleva el prefijo `SANDBOX-…`** y se borra al terminar.
-- **Se ensayó con Airtable y Redis en memoria:** pasan las 6 pruebas y la
-  limpieza borra solo lo creado. Eso valida la lógica, no la
-  infraestructura.
 
-**Qué hace falta para correrla:**
+**Lo que hay hoy para repetirla:**
 
-1. **Una base de Airtable nueva, «Harper Sandbox», vacía.**
-   - No duplicar la base real: copiaría la fórmula de «Etiqueta», que tiene
-     un secreto.
-   - Lleva cuatro tablas:
-     - **Créditos:** los 14 campos de §17.2.
-     - **Pedidos:** Numero (texto), Estado (selección), Cliente (vínculo a
-       Clientes), Items (texto largo), Total (número), Notas (texto largo).
-     - **Clientes:** Email.
-     - **Saldos:** Movimiento (texto), Pedido (texto), Tipo (selección:
-       Cashback, Uso, Ajuste), Anulado (casilla).
-2. **Un token personal de Airtable con acceso SOLO a esa base:** lectura y
-   escritura de registros.
-3. **Una base de Redis de Upstash aparte de la de producción.** El plan
-   gratis alcanza.
-4. **Cinco variables, solo donde se corra la prueba** (nunca en Vercel):
-   - `HARPER_SANDBOX_AIRTABLE_TOKEN`;
-   - `HARPER_SANDBOX_AIRTABLE_BASE`;
-   - `HARPER_SANDBOX_TABLAS`: `{"creditos":"tbl…","pedidos":"tbl…","clientes":"tbl…","saldos":"tbl…"}`;
-   - `HARPER_SANDBOX_REDIS_URL`;
-   - `HARPER_SANDBOX_REDIS_TOKEN`.
+1. **Base de Airtable «Harper Sandbox»** (`appqBwBrRQhdSNAYS`), vacía, sin
+   copiar la real. La real tiene la fórmula de «Etiqueta», que tiene un
+   secreto. Cuatro tablas:
+   - **Créditos** (`tblHticJJUlhy0Ni8`): los 14 campos de §17.2.
+   - **Pedidos** (`tblg0bsRWjbd3NY1l`): Numero (texto), Estado (selección),
+     Cliente (vínculo a Clientes), Items (texto largo), Total (número),
+     Notas (texto largo).
+   - **Clientes** (`tble2j5u1nvXbVZ7n`): Email.
+   - **Saldos** (`tbl6zfoXSvMsX17ur`): Movimiento (texto), Pedido (texto),
+     Tipo (selección: Cashback, Uso, Ajuste), Anulado (casilla).
+2. **Redis de Upstash aparte del de producción**, en el plan gratis:
+   `content-seahorse-191881.upstash.io`.
+3. **Los dos tokens no están en el código, ni en GitHub, ni en Vercel.**
+   Están como «Network secrets» del entorno «Cloud» de Claude Code, uno por
+   servicio:
+   - `api.airtable.com`, solo con acceso a «Harper Sandbox»;
+   - el host del Redis de prueba.
+
+   El proxy del entorno los agrega a cada pedido. Por eso las variables de
+   token llevan un texto de relleno, no el token.
+4. **Las variables, solo donde se corra la prueba** (nunca en Vercel):
+
+   ```
+   HARPER_SANDBOX_AIRTABLE_TOKEN=token-de-relleno
+   HARPER_SANDBOX_AIRTABLE_BASE=appqBwBrRQhdSNAYS
+   HARPER_SANDBOX_TABLAS='{"creditos":"tblHticJJUlhy0Ni8","pedidos":"tblg0bsRWjbd3NY1l","clientes":"tble2j5u1nvXbVZ7n","saldos":"tbl6zfoXSvMsX17ur"}'
+   HARPER_SANDBOX_REDIS_URL=https://content-seahorse-191881.upstash.io
+   HARPER_SANDBOX_REDIS_TOKEN=token-de-relleno
+   NODE_USE_ENV_PROXY=1
+   ```
+
 5. **Correr** `npm run test:credito-sandbox`.
+
+**`NODE_USE_ENV_PROXY=1` es obligatorio desde Cloud.**
+
+- El `fetch` de Node no usa el proxy del entorno (`HTTPS_PROXY`) si no se le
+  pide.
+- Sin esa variable, los pedidos salen sin pasar por el proxy, llevan el
+  token de relleno y Airtable y Upstash contestan 401.
+- Pasó en la primera corrida: las 6 fallaron con 401 y no se escribió nada.
+- Con la variable, el proxy pone el token verdadero.
+- Se corrió con Node 22.22, que la reconoce. Una versión vieja de Node la
+  ignora y vuelve el 401.
+- Fuera de Cloud, con los tokens en las variables, no hace falta.
+
+**Para dejar de usar el entorno de prueba:** borrar los dos secretos en Cloud,
+en Edit, Network secrets. La base y el Redis de prueba se pueden borrar sin
+tocar nada de Harper.
 
 **El adaptador escribe en esa base** solo con `HARPER_CREDITO_SANDBOX=1`,
 fuera de Vercel y con una base que no sea la real (`puedeEscribirCreditos`).
@@ -2081,6 +2134,145 @@ nunca vuelve a crear un cashback anulado.
 - **Descartado:** consultar las disputas en Mercado Pago en cada checkout.
   Es lento, depende de que Mercado Pago conteste y no cubre Mi cuenta.
 
+---
+
+## 18. Fecha de entrega confiable (Tarea 14, propuesta para aprobar)
+
+**Nada de esta sección está hecho ni activado.** Es la propuesta para §14,
+O1. El crédito pendiente pasa a disponible 30 días después de esta fecha
+(§10.2).
+
+### 18.1 Lo que ya existe
+
+| Pieza | Qué hace hoy | ¿Sirve para la fecha? |
+|---|---|---|
+| Estado del pedido (Pedidos): pagado, preparando, enviado, entregado | «enviado» y «entregado» los pone Harper a mano en Airtable. Ningún código los cambia | Sí: «entregado» es la señal. Pero no guarda cuándo |
+| Tracking (texto) | El número o el enlace del transportista. Mi cuenta lo muestra en «Seguir mi envío» (`lib/mis-compras.ts`) | Ahí Harper ve la fecha real de entrega |
+| Automatización «Aviso de despacho» (sin encender) | Con «enviado» y Tracking, le pide a harper.ar el mail «Tu pedido está en camino». No cambia el Estado | Es el modelo a copiar: una automatización de Airtable que se dispara por una condición |
+| MiCorreo (`lib/correo.ts`) | Cotiza y carga el envío en Correo Argentino desde el link «Etiqueta». Guarda Correo_envio_id y el Tracking | Hoy no lee el seguimiento. Sería la fase 2 (§18.4) |
+| Envia (`lib/envia.ts`) | Solo cotiza. No crea envíos ni recibe avisos | No: sin un envío creado en Envia, no hay seguimiento |
+| Rueddo (`lib/rueddo.ts`) | Solo la tarifa de AMBA. El envío se arma fuera del sistema | No hay integración |
+| Arrepentimientos | Guarda cada solicitud del botón, con fecha. El número de pedido es opcional y se escribe a mano | Sirve para abrir la incidencia, no para la fecha |
+| Crédito Harper (`lib/credito-persistencia.ts`) | `confirmarEntrega` guarda la fecha una sola vez. Si llega otra distinta, no la pisa: devuelve «distinta». Si la entrega se conoce antes que el pago, el crédito nace con ella | Sí: solo falta de dónde leerla |
+
+**Lo que falta:** Pedidos no tiene un campo con la fecha de entrega. Hoy
+«entregado» dice que llegó, no cuándo.
+
+**Los datos de hoy (05/11/2026):**
+
+- De 27 pedidos web, ninguno está «enviado» ni «entregado»: hay 2 pagados,
+  6 cancelados y 19 pendientes.
+- De los 11 que eligieron envío, 9 son Rueddo (AMBA) y 2 de tarifa plana.
+  Ninguno usó Correo Argentino ni Andreani.
+- No hay fechas viejas que recuperar: el campo nacería vacío y serviría
+  desde el primer envío.
+
+### 18.2 La propuesta
+
+**Fuente de la fecha: Harper, al marcar «entregado».** Por ahora no viene
+del transportista.
+
+Por qué:
+
+- es lo que ya se hace: Harper marca el estado;
+- ningún transportista tiene el seguimiento integrado, y casi todos los
+  envíos elegidos son de Rueddo, que no tiene integración;
+- con tan pocos pedidos, una integración cuesta más de lo que resuelve.
+
+**Cambio mínimo en Airtable (necesita aprobación):**
+
+1. **Un campo nuevo en Pedidos: «Fecha_entrega»** (Fecha, sin hora).
+2. **Una automatización nueva, «Fecha de entrega»**, como la de despacho:
+   - se dispara cuando el pedido queda en «entregado» y Fecha_entrega está
+     vacía;
+   - pone la fecha del día, en hora de Argentina;
+   - no llama a harper.ar, no usa secretos y no cambia el Estado;
+   - nunca pisa una fecha cargada.
+3. **Harper puede corregir la fecha** a la del seguimiento del transportista
+   si marcó «entregado» días después:
+   - una fecha más tardía que la real es segura: el crédito se libera
+     después;
+   - una más temprana, no: lo liberaría antes de tiempo.
+
+**Descartado:** un campo de «última modificación» del Estado. Cambia cada
+vez que se toca el Estado, por ejemplo si después se cancela, y se perdería
+la fecha.
+
+**Cambio mínimo en el código.** Va al conectar el crédito, con
+`HARPER_CREDITO_ACTIVO=1`, y cada punto se autoriza:
+
+1. **Al anotar el crédito, leer Fecha_entrega del pedido.** Hoy se pasa
+   vacía (`lib/credito-pagos.ts`).
+2. **En la ruta diaria ya propuesta** (`/api/credito/diario`, §17.9):
+   - **Confirmar entregas:** a cada crédito pendiente sin fecha, si su
+     pedido ya tiene Fecha_entrega, se le aplica `confirmarEntrega`. Leerla
+     un día después no cambia nada: el crédito se libera 30 días después de
+     la entrega, no de cuando se leyó.
+   - **Antes de liberar, volver a leer el pedido.** Si ya no está
+     «entregado» o la fecha cambió, no se libera y se avisa a Harper.
+   - **Avisar a Harper** en el mail diario de la conciliación (§18.3).
+3. **Validar la fecha:** no puede ser futura ni anterior a la compra. Si no
+   es válida, no se usa y se avisa.
+
+El aviso de pedidos sin entrega solo lee Pedidos. Puede mandarse aunque el
+crédito siga apagado.
+
+### 18.3 Cuando falta la confirmación, llega tarde o hay una devolución
+
+| Caso | Qué pasa |
+|---|---|
+| Nadie confirma la entrega | El crédito sigue pendiente. A los 10 días de la compra sin Fecha_entrega, el mail diario lo avisa a Harper con el pedido y el Tracking, hasta que se resuelva |
+| Harper consulta y el paquete llegó | Marca «entregado» y, si hace falta, corrige la fecha a la del seguimiento |
+| El paquete se perdió o volvió al remitente | Nunca queda «entregado»: el crédito no se libera. Si se reembolsa, el webhook ya lo anula (§17.9) |
+| Harper marca «entregado» días después | La automatización pone la fecha del día. Harper la corrige a la real si la sabe. Si no, queda la tardía: el crédito se libera después, nunca antes |
+| La fecha se corrige cuando el crédito ya la leyó | El crédito no cambia solo (`confirmarEntrega` devuelve «distinta»). El mail diario avisa la diferencia y Harper decide |
+| Se marcó «entregado» por error | Harper vuelve el Estado atrás. Antes de liberar se relee el pedido: no se libera y se avisa. Hay 30 días para darse cuenta |
+| La entrega se confirma antes que el aviso del pago | El crédito nace con esa fecha (ya funciona así, §17.8) |
+| Arrepentimiento (10 días) | El crédito sigue pendiente, porque se libera a los 30 días. La solicitud abre la incidencia (§18.5, punto 4). Con la devolución hecha, se anula o se recalcula (§17.5) |
+| Cambio (30 días) | Harper marca «Incidencia_abierta» en Créditos. No se libera hasta cerrarla. Si ya estaba disponible, queda «A revisar» |
+| Devolución con reembolso por Mercado Pago | El webhook ya anula el crédito cuando el pedido queda sin cobro (§17.9) |
+| El cambio se manda en un segundo envío | Vale la primera fecha de entrega. La incidencia abierta frena la liberación hasta cerrarla |
+
+**No se presume la entrega.** Sin fecha, el crédito no se libera solo,
+aunque pasen meses. Presumirla podría liberarlo antes de que terminen los
+plazos de devolución.
+
+### 18.4 Fase 2: el seguimiento del transportista (solo si hace falta)
+
+- **Correo Argentino:** Harper ya carga esos envíos en MiCorreo y guarda
+  Correo_envio_id. El paso mínimo sería que la ruta diaria lea el
+  seguimiento y avise «Correo Argentino dice entregado el …», para que
+  Harper lo confirme. Es una hipótesis: hay que comprobar con un envío real
+  que MiCorreo da la fecha de entrega antes de diseñarlo.
+- **Rueddo y Andreani:** no hay integración. Hoy no conviene hacerla.
+- **Cuándo hacer la fase 2:**
+  - si más de 1 de cada 10 pedidos enviados llega al aviso de los 10 días;
+  - o si las fechas cargadas difieren del seguimiento en más de 2 días.
+
+**Cómo se mide:**
+
+- los pedidos «entregado» con Fecha_entrega, sobre el total de entregados:
+  tiene que dar 100 %;
+- los días entre la compra y la entrega, por transportista;
+- cuántos pedidos llegan al aviso de los 10 días;
+- una vez por mes, comparar 5 fechas cargadas con el seguimiento del
+  transportista.
+
+### 18.5 Decisiones para Ale
+
+1. **La fuente:** la marca de Harper, corregida con el seguimiento cuando
+   haga falta. Sin integración de transportista por ahora.
+2. **Crear en Pedidos el campo «Fecha_entrega» y la automatización «Fecha
+   de entrega».** Recomiendo encenderla apenas se cree: registra la fecha
+   desde el primer envío, aunque el crédito siga apagado.
+3. **Sin confirmación:**
+   - el crédito sigue pendiente, sin plazo máximo y sin presumir la entrega;
+   - el aviso a Harper sale a los 10 días de la compra.
+4. **La solicitud de arrepentimiento abre sola la incidencia del crédito**
+   cuando trae un número de pedido de ese mail. Si no lo trae, Harper la
+   abre a mano en Créditos.
+5. **El seguimiento de Correo Argentino queda para la fase 2**, con el
+   criterio de §18.4.
 
 ---
 
