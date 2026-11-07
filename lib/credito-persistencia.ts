@@ -499,7 +499,14 @@ export async function marcarIncidencia(
   numero: string,
   abierta: boolean | (() => Promise<boolean>),
   que: string,
-  deps: DependenciasCredito
+  deps: DependenciasCredito,
+  /**
+   * `nuncaCerrar` (los avisos de Mercado Pago, paso 5): solo puede abrirla.
+   * Si lo que se lee dice «cerrada», no se toca: la incidencia pudo abrirla
+   * un arrepentimiento, un cambio o un reclamo interno, y la casilla no dice
+   * de dónde vino. Cerrarla es de Harper.
+   */
+  opciones: { nuncaCerrar?: boolean } = {}
 ): Promise<ResultadoCambio> {
   const n = numero.trim();
   return conCerrojo(n, deps, async (d): Promise<ResultadoCambio> => {
@@ -507,6 +514,7 @@ export async function marcarIncidencia(
     if (!fila) return { estado: "sin-credito" };
     if (fila.estado === "Anulado") return { estado: "ya-anulado", fila };
     const ahoraAbierta = typeof abierta === "function" ? await abierta() : abierta;
+    if (!ahoraAbierta && opciones.nuncaCerrar) return { estado: fila.incidenciaAbierta ? "incidencia-abierta" : "incidencia-cerrada", fila };
     if (ahoraAbierta && fila.estado === "Disponible") {
       const conMarca = await d.almacen.actualizar(fila.id, { incidenciaAbierta: true, notas: conNota(fila, d, `Incidencia abierta: ${que}.`) });
       return aRevisar(conMarca, d, que);

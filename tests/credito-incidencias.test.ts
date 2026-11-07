@@ -12,7 +12,7 @@ delete process.env.HARPER_DUO_ACTIVO;
 delete process.env.HARPER_CREDITO_ACTIVO;
 for (const v of ["KV_REST_API_URL", "KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "MP_ACCESS_TOKEN"]) delete process.env[v];
 
-import { createRecord, getRecord, TABLAS, updateRecord } from "../lib/airtable";
+import { createRecord, getRecord, listRecords, TABLAS, updateRecord } from "../lib/airtable";
 import { normalizarSolicitud } from "../lib/arrepentimiento";
 import { registrarArrepentimiento } from "../lib/arrepentimiento-servidor";
 import type { Cerrojo } from "../lib/cerrojo";
@@ -20,10 +20,13 @@ import type { ConfigTienda } from "../lib/config";
 import { almacenAirtable, dependenciasCredito, type CamposCredito } from "../lib/credito-airtable";
 import { billeteraDeCredito } from "../lib/credito-cuenta";
 import { dependenciasIncidenciaReales, incidenciaPorArrepentimiento, vincularArrepentimiento, type DependenciasIncidencia } from "../lib/credito-incidencias";
-import { MARCA_REGIMEN_NUEVO } from "../lib/credito-pagos";
+import { procesarCreditosDelDia, lectorPedidosPorNumeroAirtable } from "../lib/credito-diario";
+import { lectorPedidosAirtable, MARCA_REGIMEN_NUEVO, pagoDe, procesarPagoParaCredito, type DependenciasPagoCredito, type LectorMercadoPago } from "../lib/credito-pagos";
 import { claveCerrojoCredito, liberarCredito, saldosDeLaCuenta } from "../lib/credito-persistencia";
 import { abrirCuentaDeCredito, almacenUsosAirtable, claveDelUso, CreditoInsuficiente, leerSaldoDeCredito, lectorPedidosDeUsosAirtable, type DependenciasUso } from "../lib/credito-uso";
 import { cerrojoEnMemoria, reiniciarRedis } from "../lib/fixtures/redis";
+import type { PagoMP } from "../lib/mercadopago";
+import { fechaArgentina, sumarDias } from "../lib/suscriptores";
 import { interceptar, reiniciar } from "../lib/fixtures/servidor";
 
 const AHORA = Date.parse("2026-12-10T15:00:00.000Z");
@@ -42,7 +45,13 @@ function armar(o: { activo?: boolean; cerrojo?: Cerrojo | null } = {}) {
   let n = 0;
   const credito = { ...dependenciasCredito(), cerrojo, ahora: () => new Date(r.t), nonce: () => `n-${++n}` };
   const uso: DependenciasUso = { almacen: almacenUsosAirtable, pedidos: lectorPedidosDeUsosAirtable, cerrojo, reloj: r, esperaOcupadoMs: 50 };
-  const deps: DependenciasIncidencia = { ...dependenciasIncidenciaReales(), activo: () => o.activo ?? true, credito, uso };
+  const deps: DependenciasIncidencia = {
+    ...dependenciasIncidenciaReales(),
+    activo: () => o.activo ?? true,
+    credito,
+    uso,
+    esperar: () => new Promise<void>((listo) => setTimeout(listo, 5)),
+  };
   return { deps, reloj: r, cerrojo };
 }
 
@@ -269,6 +278,10 @@ test("La devolución parcial no se recalcula sola: aplicarDevolucion no se usa d
   // El reembolso parcial de Mercado Pago abre la incidencia y la ruta diaria lo retiene (no lo recalcula).
   const pagos = fs.readFileSync(path.join(raiz, "lib", "credito-pagos.ts"), "utf8");
   assert.match(pagos, /return ahora\.estado === "parcial" \|\| ahora\.incidenciaAbierta;/);
+  // Revisión del PR #83: los dos avisos de Mercado Pago que tocan la incidencia solo pueden abrirla.
+  assert.equal((pagos.match(/marcarIncidencia\(/g) ?? []).length, 2);
+  assert.equal((pagos.match(/\{ nuncaCerrar: true \}/g) ?? []).length, 2);
+  assert.doesNotMatch(pagos, /resuelto a favor de Harper/);
   const diario = fs.readFileSync(path.join(raiz, "lib", "credito-diario.ts"), "utf8");
   assert.match(diario, /reembolso parcial en Mercado Pago: registrar la devolución/);
 });
@@ -329,4 +342,167 @@ test("El arrepentimiento se registra igual, y la nota del crédito llega al avis
   assert.match(tira.aHarper, /No se pudo revisar el Crédito Harper del pedido/);
   const apagado = await correr(async () => null);
   assert.doesNotMatch(apagado.aHarper, /Crédito Harper/, "apagado, el aviso es el de siempre");
+});
+
+// ---------- Revisión del PR #83: un aviso de Mercado Pago nunca cierra una incidencia ----------
+
+/** Un pedido entregado hoy, cobrado en un Mercado Pago de mentira (solo lectura), con su crédito pendiente. */
+async function cobrada(o: { credito?: Partial<CamposCredito> } = {}) {
+  const pagos = new Map<string, PagoMP>();
+  const c = await compra({ credito: { Fecha_entrega: null, Disponible_desde: null, ...o.credito } });
+  const pagoId = String(800_000 + secuencia);
+  pagos.set(pagoId, { id: Number(pagoId), status: "approved", external_reference: c.pedido.id, transaction_amount: 89_900 } as PagoMP);
+  const hoy = fechaArgentina(new Date(c.pedido.createdTime));
+  await updateRecord(TABLAS.pedidos, c.pedido.id, { MP_payment_id: pagoId, Fecha_entrega: hoy });
+  const leer = (id: string) => {
+    const p = pagos.get(id);
+    if (!p) throw new Error(`pago ${id} desconocido`);
+    return pagoDe(p);
+  };
+  const mp: LectorMercadoPago = { pago: async (id) => leer(id), pagosDelPedido: async (pedidoId) => [...pagos.keys()].map(leer).filter((x) => x.pedidoId === pedidoId) };
+  return { ...c, pagoId, pagos, mp, hoy };
+}
+const pagoCon = (deps: DependenciasIncidencia, mp: LectorMercadoPago): DependenciasPagoCredito => ({ credito: deps.credito, mp, pedidos: lectorPedidosAirtable });
+const abierta = async (id: string) => (await filaDe(id)).Incidencia_abierta === true;
+
+test("Arrepentimiento abierto + aviso aprobado repetido de Mercado Pago: la incidencia sigue abierta", async () => {
+  const { deps } = armar();
+  const c = await cobrada();
+  await incidenciaPorArrepentimiento(solicitudDe(c.numero), CODIGO, deps);
+  assert.equal(await abierta(c.credito!.id), true);
+  for (let i = 0; i < 3; i++) {
+    const r = await procesarPagoParaCredito(c.pagoId, pagoCon(deps, c.mp));
+    assert.equal(r.accion === "registrar" && r.resultado.estado, "ya");
+    assert.equal(r.accion === "registrar" && r.incidencia, null, "no la toca");
+  }
+  assert.equal(await abierta(c.credito!.id), true);
+  assert.doesNotMatch((await filaDe(c.credito!.id)).Notas ?? "", /Incidencia cerrada/);
+});
+
+test("Reclamo interno marcado a mano + pago normal de Mercado Pago: sigue abierta y el crédito disponible sigue retenido", async () => {
+  const { deps } = armar();
+  const c = await cobrada({ credito: { Estado: "Disponible", Incidencia_abierta: true } });
+  const r = await procesarPagoParaCredito(c.pagoId, pagoCon(deps, c.mp));
+  assert.equal(r.accion === "registrar" && r.incidencia, null);
+  assert.equal(await abierta(c.credito!.id), true);
+  assert.equal((await filaDe(c.credito!.id)).Estado, "Disponible");
+  assert.equal((await leerSaldoDeCredito(MAIL, deps.uso)).usable, 0);
+});
+
+test("Avisos simultáneos no levantan el bloqueo, ni siquiera si el reclamo de Mercado Pago se resuelve en el medio", async () => {
+  // Varios avisos aprobados a la vez, con un arrepentimiento al mismo tiempo.
+  const { deps } = armar();
+  const c = await cobrada();
+  await Promise.all([
+    procesarPagoParaCredito(c.pagoId, pagoCon(deps, c.mp)),
+    incidenciaPorArrepentimiento(solicitudDe(c.numero), CODIGO, deps),
+    procesarPagoParaCredito(c.pagoId, pagoCon(deps, c.mp)),
+    procesarPagoParaCredito(c.pagoId, pagoCon(deps, c.mp)),
+  ]);
+  assert.equal(await abierta(c.credito!.id), true);
+  // Ya abierta, otros avisos aprobados a la vez tampoco la cierran.
+  await Promise.all([1, 2, 3].map(() => procesarPagoParaCredito(c.pagoId, pagoCon(deps, c.mp))));
+  assert.equal(await abierta(c.credito!.id), true);
+
+  // Mercado Pago muestra un reclamo cuando la casilla está cerrada; adentro del
+  // cerrojo, el reclamo ya se resolvió, pero entretanto Harper abrió una
+  // incidencia interna: el aviso no la cierra.
+  const otro = armar();
+  const d = await cobrada();
+  d.pagos.set(d.pagoId, { ...d.pagos.get(d.pagoId)!, status: "in_mediation" } as PagoMP);
+  const cerrojo = otro.cerrojo!;
+  // La primera llave es la de anotar el crédito («ya»); la segunda, la de la incidencia.
+  let vez = 0;
+  const conCarrera: Cerrojo = {
+    ...cerrojo,
+    tomar: async (clave, nonce, ttl) => {
+      if (clave === claveCerrojoCredito(d.numero) && ++vez === 2) {
+        await updateRecord<CamposCredito>(TABLAS.creditos, d.credito!.id, { Incidencia_abierta: true });
+        d.pagos.set(d.pagoId, { ...d.pagos.get(d.pagoId)!, status: "approved" } as PagoMP);
+      }
+      return cerrojo.tomar(clave, nonce, ttl);
+    },
+  };
+  const r = await procesarPagoParaCredito(d.pagoId, { credito: { ...otro.deps.credito, cerrojo: conCarrera }, mp: d.mp, pedidos: lectorPedidosAirtable });
+  assert.equal(r.accion === "registrar" && r.incidencia?.estado, "incidencia-abierta");
+  assert.equal(await abierta(d.credito!.id), true, "nunca se cierra por un aviso");
+
+  // Lo mismo con un reembolso parcial: hay una incidencia interna abierta (un
+  // arrepentimiento) y, adentro del cerrojo, el pago ya no figura reembolsado
+  // (se revirtió). El aviso no la cierra.
+  const tercero = armar();
+  const e = await cobrada();
+  await incidenciaPorArrepentimiento(solicitudDe(e.numero), CODIGO, tercero.deps);
+  e.pagos.set(e.pagoId, { ...e.pagos.get(e.pagoId)!, transaction_amount_refunded: 20_000 } as PagoMP);
+  const cerrojo3 = tercero.cerrojo!;
+  const conReversa: Cerrojo = {
+    ...cerrojo3,
+    tomar: async (clave, nonce, ttl) => {
+      if (clave === claveCerrojoCredito(e.numero)) e.pagos.set(e.pagoId, { ...e.pagos.get(e.pagoId)!, transaction_amount_refunded: 0 } as PagoMP);
+      return cerrojo3.tomar(clave, nonce, ttl);
+    },
+  };
+  const parcial = await procesarPagoParaCredito(e.pagoId, { credito: { ...tercero.deps.credito, cerrojo: conReversa }, mp: e.mp, pedidos: lectorPedidosAirtable });
+  assert.equal(parcial.accion, "incidencia");
+  assert.equal(await abierta(e.credito!.id), true, "el reembolso parcial tampoco la cierra");
+});
+
+test("Una incidencia que Harper cerró de verdad no queda bloqueada: los avisos no la reabren sin reclamo y la ruta diaria la libera", async () => {
+  const { deps, reloj: r } = armar();
+  const c = await cobrada();
+  await incidenciaPorArrepentimiento(solicitudDe(c.numero), CODIGO, deps);
+  // Harper la resuelve: destilda Incidencia_abierta.
+  await updateRecord<CamposCredito>(TABLAS.creditos, c.credito!.id, { Incidencia_abierta: false });
+  await procesarPagoParaCredito(c.pagoId, pagoCon(deps, c.mp));
+  await procesarPagoParaCredito(c.pagoId, pagoCon(deps, c.mp));
+  assert.equal(await abierta(c.credito!.id), false, "sin reclamo en Mercado Pago, no se reabre");
+
+  r.t = new Date(`${sumarDias(c.hoy, 30)}T03:00:00.000Z`).getTime();
+  const resumen = await procesarCreditosDelDia({ credito: deps.credito, mp: c.mp, pedidos: lectorPedidosPorNumeroAirtable });
+  assert.deepEqual(resumen.liberados.map((l) => l.pedido), [c.numero]);
+  assert.equal((await filaDe(c.credito!.id)).Estado, "Disponible");
+
+  // Y un reclamo nuevo en Mercado Pago, después de cerrada, sí la vuelve a abrir.
+  const otra = await cobrada();
+  await updateRecord<CamposCredito>(TABLAS.creditos, otra.credito!.id, { Incidencia_abierta: false });
+  otra.pagos.set(otra.pagoId, { ...otra.pagos.get(otra.pagoId)!, status: "in_mediation" } as PagoMP);
+  const reabierta = await procesarPagoParaCredito(otra.pagoId, pagoCon(deps, otra.mp));
+  assert.equal(reabierta.accion === "registrar" && reabierta.incidencia?.estado, "incidencia-abierta");
+});
+
+test("La liberación diaria nunca libera un crédito con una incidencia interna abierta (arrepentimiento o marca a mano)", async () => {
+  const { deps, reloj: r } = armar();
+  const arrep = await cobrada();
+  await incidenciaPorArrepentimiento(solicitudDe(arrep.numero), CODIGO, deps);
+  const amano = await cobrada({ credito: { Incidencia_abierta: true } });
+  r.t = new Date(`${sumarDias(arrep.hoy, 45)}T03:00:00.000Z`).getTime();
+  for (let dia = 0; dia < 3; dia++) {
+    const resumen = await procesarCreditosDelDia({ credito: deps.credito, mp: arrep.mp, pedidos: lectorPedidosPorNumeroAirtable });
+    assert.deepEqual(resumen.liberados, []);
+    r.t += 24 * 3_600_000;
+  }
+  for (const c of [arrep, amano]) {
+    const fila = await filaDe(c.credito!.id);
+    assert.equal(fila.Estado, "Pendiente", c.numero);
+    assert.equal(fila.Incidencia_abierta, true, c.numero);
+  }
+});
+
+test("Los pedidos con las reglas de hoy y sus saldos no cambian: ni crédito, ni incidencia, ni Saldos", async () => {
+  const { deps } = armar();
+  const viejo = await cobrada();
+  // El pedido es del régimen anterior (sin la marca del crédito nuevo) y no tiene crédito.
+  await updateRecord(TABLAS.pedidos, viejo.pedido.id, { Notas: "Cashback a acreditar: $ 4.495 (ana@ejemplo.com)" });
+  await updateRecord<CamposCredito>(TABLAS.creditos, viejo.credito!.id, { Pedido: "HARPER-OTRO-QUE-NO-ES", Clave: "credito-harper:HARPER-OTRO-QUE-NO-ES" });
+  await createRecord(TABLAS.saldos, { Pedido: viejo.numero, Tipo: "Cashback", Monto: 4_495, Email: MAIL });
+  const saldosAntes = JSON.stringify((await listRecords(TABLAS.saldos, { revalidate: 0 })).map((x) => x.fields));
+  const creditosAntes = (await listRecords(TABLAS.creditos, { revalidate: 0 })).length;
+
+  const r = await procesarPagoParaCredito(viejo.pagoId, pagoCon(deps, viejo.mp));
+  assert.equal(r.accion === "nada" && r.motivo, "regimen-anterior");
+  assert.equal(await incidenciaPorArrepentimiento(solicitudDe(viejo.numero), CODIGO, deps), null);
+
+  assert.equal(JSON.stringify((await listRecords(TABLAS.saldos, { revalidate: 0 })).map((x) => x.fields)), saldosAntes);
+  assert.equal((await listRecords(TABLAS.creditos, { revalidate: 0 })).length, creditosAntes);
+  assert.equal((await almacenAirtable.delPedido(viejo.numero)).length, 0);
 });

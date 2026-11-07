@@ -297,14 +297,19 @@ export async function procesarPagoParaCredito(pagoId: string, deps: Dependencias
       },
       deps.credito
     );
-    // Ya estaba: se pone al día la incidencia (contracargo abierto o ganado), leyendo el estado de hoy.
+    // Ya estaba: si Mercado Pago muestra un reclamo o contracargo abierto, se
+    // abre la incidencia (leyendo el estado de hoy, adentro del cerrojo). Un
+    // aviso de Mercado Pago NUNCA la cierra (revisión del PR #83): la pudo
+    // abrir un arrepentimiento, un cambio o un reclamo interno, y la casilla
+    // no dice de dónde vino. Con el reclamo resuelto, la cierra Harper.
     let incidencia: ResultadoCambio | null = null;
-    if (resultado.estado === "ya" && resultado.fila && resultado.fila.estado !== "Anulado" && resultado.fila.incidenciaAbierta !== cobro.incidenciaAbierta) {
+    if (resultado.estado === "ya" && resultado.fila && resultado.fila.estado !== "Anulado" && !resultado.fila.incidenciaAbierta && cobro.incidenciaAbierta) {
       incidencia = await marcarIncidencia(
         n,
         async () => (await releer(pedidoId, pago.id, n, deps)).cobro.incidenciaAbierta,
-        cobro.incidenciaAbierta ? "reclamo o contracargo en Mercado Pago" : "reclamo o contracargo resuelto a favor de Harper",
-        deps.credito
+        "reclamo o contracargo en Mercado Pago",
+        deps.credito,
+        { nuncaCerrar: true }
       );
     }
     return { accion: "registrar", numero: n, cobro, resultado, incidencia };
@@ -327,7 +332,9 @@ export async function procesarPagoParaCredito(pagoId: string, deps: Dependencias
         return ahora.estado === "parcial" || ahora.incidenciaAbierta;
       },
       "reembolso parcial en Mercado Pago: registrar la devolución",
-      deps.credito
+      deps.credito,
+      // Tampoco este aviso cierra una incidencia: solo la abre.
+      { nuncaCerrar: true }
     );
     if (resultado.estado === "sin-credito") return { accion: "nada", motivo: "parcial-sin-credito", numero: n };
     return { accion: "incidencia", numero: n, cobro, resultado };

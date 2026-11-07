@@ -45,7 +45,12 @@ export type DependenciasIncidencia = {
   pedidos: LectorPedidos;
   credito: DependenciasCredito;
   uso: DependenciasUso;
+  /** Cuánto esperar antes de reintentar si otro proceso (un aviso de pago) tiene el crédito. */
+  esperar?: (ms: number) => Promise<void>;
 };
+
+/** Si el crédito está ocupado (un aviso de pago a la vez), se reintenta unas veces antes de pedir que se marque a mano. */
+const ESPERAS_SI_OCUPADO_MS = [200, 500, 1_000, 2_000];
 
 export function dependenciasIncidenciaReales(): DependenciasIncidencia {
   const credito = dependenciasCredito();
@@ -145,7 +150,13 @@ export async function incidenciaPorArrepentimiento(
       return `Crédito Harper: no se abrió ninguna incidencia porque ${vinculo.motivo}. Revisalo a mano y, si la compra tiene Crédito Harper, marcá Incidencia_abierta en Créditos.`;
     }
     const { numero, email } = vinculo;
-    const r = await marcarIncidencia(numero, true, `arrepentimiento ${codigo}`, d.credito);
+    let r = await marcarIncidencia(numero, true, `arrepentimiento ${codigo}`, d.credito);
+    const esperar = d.esperar ?? ((ms: number) => new Promise<void>((listo) => setTimeout(listo, ms)));
+    for (const ms of ESPERAS_SI_OCUPADO_MS) {
+      if (r.estado !== "ocupado") break;
+      await esperar(ms);
+      r = await marcarIncidencia(numero, true, `arrepentimiento ${codigo}`, d.credito);
+    }
     const notas = [notaDeLaIncidencia(r, numero, codigo)];
     if (r.estado === "incidencia-abierta" || r.estado === "a-revisar") {
       notas.push(
