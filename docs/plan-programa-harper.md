@@ -2240,6 +2240,10 @@ siquiera lo pide hasta que el servidor lo ofrece).
   A revisar. La API de Airtable no agrega opciones a una selección sin
   escribir un registro, así que Harper las agrega a mano en el campo y
   después se verifica el esquema. Ningún registro se toca.
+  *Corrección (07/11/2026):* el sitio escribe con `typecast: true`, así que
+  Airtable podría crear la opción sola en la primera escritura si el token
+  tiene permiso para cambiar el campo. No se comprobó (haría falta escribir
+  en la base real). Agregarlas a mano evita depender de eso.
 
 ### 17.13 Devoluciones e incidencias (paso 5, apagado)
 
@@ -2269,6 +2273,65 @@ Créditos y `marcarIncidencia` (§17.3). No define ninguna regla de L1–L5.
 Nunca frena el arrepentimiento: si algo falla (Redis, Airtable), el
 arrepentimiento se registra igual y la nota pide marcar la incidencia a
 mano. Apagado, no se lee ni se escribe nada y el aviso es el de siempre.
+
+### 17.14 Pruebas integrales (paso 6, 07/11/2026)
+
+**El recorrido completo, ejecutado** (`tests/credito-recorrido.test.ts`, 8
+pruebas, todas pasan). Encadena las piezas reales: el carrito, la sesión
+de la cuenta, la reserva, el webhook de Mercado Pago, la ruta diaria, el
+arrepentimiento y el pedido en $ 0. Corre sobre el Airtable y el Redis de
+prueba (en memoria), con un Mercado Pago de mentira (solo lectura). Los
+interruptores se prenden solo en ese proceso de prueba.
+
+| Prueba | Qué se comprobó |
+|---|---|
+| Recorrido completo | Compra con Dúo → pago → crédito pendiente (10 % de lo pagado en anteojos, sin el estuche) → entrega → espera hasta el día 29 → disponible el día 30 → compra nueva con el crédito (solo el anteojo, nunca el paño) → reservado → pago → «Usado» y crédito nuevo sobre lo pagado, sin el crédito usado |
+| Pagos repetidos | Avisos repetidos y un segundo pago en la compra y en la del crédito: un crédito, un uso, stock una vez |
+| Compra de $ 0 | Sin Mercado Pago: «Usado», stock descontado, sin crédito nuevo; si la confirmación falla, ni pagado ni stock, el crédito vuelve y se avisa |
+| Concurrencia | Tres compras a la vez con el mismo crédito por el carrito y el checkout: una lo usa, las otras dos «el crédito cambió»; nunca negativo |
+| Rechazado y abandonado | La reserva sigue mientras el link cobra, se libera sola al vencer y el crédito se vuelve a usar |
+| Reembolsos | La compra con crédito reembolsada: su crédito se anula y el uso queda «A revisar», con aviso. La primera, con el crédito ya gastado: «A revisar», la cuenta en 0 y nunca negativa |
+| Arrepentimiento e incidencia interna | Retienen el crédito a través de los avisos de Mercado Pago y de la ruta diaria; cuando Harper las cierra, se libera o se vuelve a ofrecer |
+| Fallos y recuperación | Sin Redis: el pago queda, el crédito se pide de nuevo y se anota una vez. Airtable caído al anotar: 503 y una sola fila al reintentar. Mercado Pago caído en la ruta diaria: no libera y al día siguiente sí |
+
+**Mutaciones:** se rompieron a mano 9 protecciones y la prueba integral
+detectó las 9: tope de la reserva, crédito sobre el paño, confirmación en
+$ 0, incidencia interna, confirmación del uso en el webhook, liberación con
+incidencia, liberación antes de los 30 días, crédito sobre más de lo pagado
+y reembolso que no anula.
+
+**Las pruebas que ya existían**, sin reconstruirlas:
+
+| Archivo | Pruebas |
+|---|---|
+| credito-uso | 22 |
+| credito-incidencias | 17 |
+| credito-diario | 19 |
+| credito-pagos | 22 |
+| credito-webhook | 18 |
+| credito-cuenta | 11 |
+| credito-persistencia | 36 |
+| credito-airtable | 11 |
+| credito-harper | 13 |
+| Dúo (5 archivos) | 50 |
+| webhook-proceso | 58 |
+| arrepentimiento | 13 |
+| suscriptores-cuenta | 18 |
+
+La suite completa da 818 pruebas: 812 pasan, 0 fallan y 6 se saltan.
+
+**Lo que no se pudo ejecutar en este entorno** (no se inventa resultado):
+
+- **Las 6 pruebas de la base aislada real** (`tests/integracion/credito-sandbox.test.ts`, §17.10) se saltaron porque faltan las credenciales `HARPER_SANDBOX_*`. Pasaron el 05/11/2026 (Tarea 13); conviene repetirlas antes del corte, porque desde entonces cambió el código.
+- **Las rutas de `app/`** (checkout, carrito, entrada a la cuenta, ruta diaria) no se compilan en las pruebas. Se probó lo que esas rutas llaman, en el mismo orden, más controles sobre su código. Una compra de punta a punta en el navegador no se hizo: requeriría una compra real o el sandbox de Mercado Pago.
+- **Mercado Pago de verdad:** los pagos se simulan con un lector de mentira con los mismos estados.
+
+**Lo que bloquea la activación (verificado):**
+
+1. Las opciones Reservado, Usado, Liberado y Devuelto de «Estado» en Créditos (aprobadas, falta agregarlas a mano: el esquema leído el 07/11 tiene solo las 4 de antes).
+2. El cron de `/api/credito/diario` no está en `vercel.json`. Sin él, ningún crédito pasa a disponible. Agregarlo requiere autorización, y además hay que confirmar que `CRON_SECRET` esté cargado en Vercel (no se puede leer desde acá).
+3. Las decisiones del corte y la revisión legal (L1–L5, condiciones y mail de transición).
+4. Prender `HARPER_CREDITO_ACTIVO` (y, aparte, `HARPER_DUO_ACTIVO`) en Vercel, con autorización.
 
 ---
 
