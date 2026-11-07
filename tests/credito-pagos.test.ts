@@ -325,7 +325,7 @@ test("Reembolso anticipado: el reembolso se procesa antes que la aprobación y e
   assert.deepEqual(filas.map((f) => [f.fields.Estado, f.fields.Monto]), [["Anulado", 0]]);
 });
 
-test("Contracargo: nace con la incidencia; ganado la cierra; un aviso viejo de «reclamo» no la vuelve a abrir; perdido anula", async () => {
+test("Contracargo: nace con la incidencia; ganado NO la cierra solo (la cierra Harper); un aviso viejo no la vuelve a abrir; perdido anula", async () => {
   const p = await pedido();
   const a = pagoAprobado(p.id, p.total, { status: "in_mediation" });
   mp.poner(a);
@@ -333,12 +333,15 @@ test("Contracargo: nace con la incidencia; ganado la cierra; un aviso viejo de �
   await procesarPagoParaCredito(String(a.id), d);
   assert.equal((await filasDe(p.numero))[0].fields.Incidencia_abierta, true);
 
+  // Revisión del PR #83: un aviso de Mercado Pago nunca cierra una incidencia
+  // (la casilla no dice si además la abrió un arrepentimiento o un reclamo).
   mp.cambiar(a.id, { status: "charged_back", status_detail: "reimbursed" });
   const ganado = await procesarPagoParaCredito(String(a.id), d);
-  assert.equal(ganado.accion === "registrar" && ganado.incidencia?.estado, "incidencia-cerrada");
-  assert.equal((await filasDe(p.numero))[0].fields.Incidencia_abierta, false);
+  assert.equal(ganado.accion === "registrar" && ganado.incidencia, null);
+  assert.equal((await filasDe(p.numero))[0].fields.Incidencia_abierta, true, "sigue abierta: la cierra Harper");
 
-  // El aviso viejo de «in_mediation» llega ahora: se lee el pago, que dice ganado.
+  // Harper la cierra. El aviso viejo de «in_mediation» llega ahora: se lee el pago, que dice ganado.
+  await updateRecord<CamposCredito>(TABLAS.creditos, (await filasDe(p.numero))[0].id, { Incidencia_abierta: false });
   const viejo = await procesarPagoParaCredito(String(a.id), d);
   assert.equal(viejo.accion === "registrar" && viejo.incidencia, null);
   assert.equal((await filasDe(p.numero))[0].fields.Incidencia_abierta, false);
