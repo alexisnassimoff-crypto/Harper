@@ -238,6 +238,12 @@ export function urlDeInstagram(valor: string | undefined): string {
   return /^[A-Za-z0-9._]{1,30}$/.test(usuario) ? `https://www.instagram.com/${usuario}/` : "";
 }
 
+/** «https://www.instagram.com/harper.ar/» → «@harper.ar», para mostrarlo en el pie; null si no hay Instagram. */
+export function usuarioDeInstagram(url: string | undefined): string | null {
+  const usuario = (url ?? "").match(/instagram\.com\/([A-Za-z0-9._]{1,30})\/?$/i)?.[1];
+  return usuario ? `@${usuario}` : null;
+}
+
 /** Para avisar una sola vez por instancia de una provincia de origen mal escrita. */
 let provinciaAvisada = "";
 
