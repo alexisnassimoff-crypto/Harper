@@ -13,11 +13,27 @@
  * desde el link, así nadie puede borrar otra cosa por error.
  */
 export const QUE_SE_PUEDE_SACAR = {
-  antirreflex: { nombre: "antirreflex", patron: /anti[\s-]?r+efle(x|j)/i },
-  uv400: { nombre: "UV400", patron: /uv\s*-?\s*400/i },
+  antirreflex: { nombre: "antirreflex", patron: /anti[\s-]?r+efle(x|j)/i, publicaciones: "anteojosHarper" },
+  uv400: { nombre: "UV400", patron: /uv\s*-?\s*400/i, publicaciones: "anteojosHarper" },
 } as const;
 
+/**
+ * A qué publicaciones se aplica cada corrección, por título. El 8/11 la
+ * primera versión revisaba todas, y en estuches y paños «ideal para limpiar
+ * cristales con tratamiento antirreflejo» es cierto: solo los anteojos Harper
+ * dicen que TIENEN antirreflex.
+ */
+export const PUBLICACIONES = {
+  anteojosHarper: { nombre: "anteojos Harper", titulo: /^anteojos\b.*\bharper\b/i },
+} as const;
+
+/** Si una publicación entra en la corrección, por su título. */
+export function seAplicaA(que: QueSacar, titulo: string): boolean {
+  return PUBLICACIONES[QUE_SE_PUEDE_SACAR[que].publicaciones].titulo.test(titulo);
+}
+
 export type QueSacar = keyof typeof QUE_SE_PUEDE_SACAR;
+
 
 export function esQueSacar(valor: string | null): valor is QueSacar {
   return valor !== null && Object.prototype.hasOwnProperty.call(QUE_SE_PUEDE_SACAR, valor);
@@ -79,12 +95,12 @@ export function estadoDelCambio(quitadas: string[], aplicar: boolean): Cambio["e
 const escapar = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** La página para el celular: qué se saca de cada publicación, y el botón para aplicarlo. */
-export function paginaDeCambios(d: { que: string; cambios: Cambio[]; aplicar: boolean; linkAplicar: string | null }): string {
+export function paginaDeCambios(d: { que: string; cambios: Cambio[]; aplicar: boolean; linkAplicar: string | null; soloEn?: string }): string {
   const gris = "color:#78756c";
   const conCambios = d.cambios.filter((c) => c.estado !== "sin cambios");
   const partes = [
     `<h1 style="font-size:20px;margin:0 0 4px">Sacar «${escapar(d.que)}» de las descripciones</h1>`,
-    `<p style="${gris};margin:0 0 16px">${d.cambios.length} publicaciones revisadas · ${conCambios.length} con cambios${d.aplicar ? "" : " · todavía no se cambió nada"}</p>`,
+    `<p style="${gris};margin:0 0 16px">${d.soloEn ? `Solo ${escapar(d.soloEn)} · ` : ""}${d.cambios.length} publicaciones revisadas · ${conCambios.length} con cambios${d.aplicar ? "" : " · todavía no se cambió nada"}</p>`,
   ];
   for (const c of conCambios) {
     const color = c.estado === "aplicado" ? "#2f6b3a" : c.estado === "para aplicar" ? "#1f1e1b" : "#a3341f";

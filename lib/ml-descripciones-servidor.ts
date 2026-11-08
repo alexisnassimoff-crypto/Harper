@@ -1,7 +1,7 @@
-import { listRecords } from "./airtable";
+import { createRecord, listRecords } from "./airtable";
 import { tokenVigente } from "./ml-auth";
 import { pedirML } from "./ml-cliente";
-import { atributosQueMencionan, estadoDelCambio, QUE_SE_PUEDE_SACAR, quitarLineas, type Cambio, type QueSacar } from "./ml-descripciones";
+import { atributosQueMencionan, estadoDelCambio, QUE_SE_PUEDE_SACAR, quitarLineas, seAplicaA, type Cambio, type QueSacar } from "./ml-descripciones";
 import { TABLA_METRICAS_ML } from "./ml-metricas-servidor";
 
 /**
@@ -9,7 +9,13 @@ import { TABLA_METRICAS_ML } from "./ml-metricas-servidor";
  * las líneas que mencionan algo que no es cierto. Sin `aplicar` solo muestra
  * qué cambiaría; con `aplicar` lo cambia en Mercado Libre. Las características
  * (atributos) que lo mencionan solo se informan: se corrigen a mano.
+ *
+ * Solo revisa las publicaciones a las que se aplica la corrección (por título,
+ * ver PUBLICACIONES) y, antes de cambiar una, guarda la descripción entera en
+ * la tabla Descripciones ML: si la copia no se puede guardar, no se cambia.
  */
+
+export const TABLA_DESCRIPCIONES_ML = "tblIQ7bBLFqr1WAsp";
 
 const EN_PARALELO = 5;
 
@@ -20,7 +26,7 @@ export async function corregirDescripciones(que: QueSacar, aplicar: boolean): Pr
   const token = await tokenVigente();
   const activas = (await listRecords<FilaMetricas>(TABLA_METRICAS_ML, { revalidate: 0 }))
     .map((r) => r.fields)
-    .filter((f): f is FilaMetricas & { ML_id: string } => Boolean(f.ML_id) && f.Estado === "active");
+    .filter((f): f is FilaMetricas & { ML_id: string } => Boolean(f.ML_id) && f.Estado === "active" && seAplicaA(que, f.Titulo ?? ""));
 
   const cambios: Cambio[] = [];
   let siguiente = 0;
@@ -38,6 +44,17 @@ export async function corregirDescripciones(que: QueSacar, aplicar: boolean): Pr
           const { nuevo, quitadas } = quitarLineas(texto, patron);
           const estado = estadoDelCambio(quitadas, aplicar);
           if (estado === "aplicado") {
+            // Primero la copia: sin copia no se toca la descripción.
+            await createRecord(TABLA_DESCRIPCIONES_ML, {
+              Clave: `${f.ML_id} · ${new Date().toISOString()}`,
+              ML_id: f.ML_id,
+              Titulo: titulo,
+              Que: QUE_SE_PUEDE_SACAR[que].nombre,
+              Original: texto,
+              Nuevo: nuevo,
+              Quitadas: quitadas.join("\n"),
+              Fecha: new Date().toISOString(),
+            });
             await pedirML(`/items/${f.ML_id}/description?api_version=2`, { metodo: "PUT", cuerpo: { plain_text: nuevo }, token });
           }
           cambios.push({

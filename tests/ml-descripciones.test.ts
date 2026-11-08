@@ -8,6 +8,7 @@ import {
   paginaDeCambios,
   QUE_SE_PUEDE_SACAR,
   quitarLineas,
+  seAplicaA,
 } from "../lib/ml-descripciones";
 
 const DESCRIPCION = [
@@ -93,4 +94,19 @@ test("la página muestra lo que se saca, avisa las características y ofrece el 
   assert.ok(!despues.includes("Sacar estas líneas en Mercado Libre"));
 
   assert.ok(paginaDeCambios({ que: "UV400", cambios: [], aplicar: false, linkAplicar: null }).includes("Ninguna descripción menciona «UV400»"));
+});
+
+test("solo se aplica a los anteojos Harper: estuches, paños y anteojos de sol quedan afuera", () => {
+  assert.equal(seAplicaA("antirreflex", "Anteojos Filtro Luz Azul Fotocromaticos Harper Mod Citrino Carey"), true);
+  assert.equal(seAplicaA("antirreflex", "Anteojos Filtro Luz Azul Y Fotocromaticos Harper Mod Obsidia Negro"), true);
+  // 8/11: en estos «cristales con tratamiento antirreflejo» es cierto (sirven para limpiarlos).
+  assert.equal(seAplicaA("antirreflex", "Estuche Magnetico Para Anteojos De Ecocuero Premium Con Paño"), false);
+  assert.equal(seAplicaA("antirreflex", "Estuche Magnetico Cuerpo Vegano Premium + Paño Microfibra Marrón"), false);
+  assert.equal(seAplicaA("antirreflex", "Paños Microfibra Focus Vision 15x18 Cm 100u Lentes Pantalla Negro"), false);
+  assert.equal(seAplicaA("antirreflex", "Anteojos Lentes De Sol Polarizados Montados Al Aire Vyce Gris Oscuro"), false);
+  assert.equal(seAplicaA("uv400", "Estuche Ovalado Para Anteojos Ecocuero Premium Con Paño Negro"), false);
+});
+
+test("la página dice a qué publicaciones se aplica", () => {
+  assert.ok(paginaDeCambios({ que: "antirreflex", soloEn: "anteojos Harper", cambios: [], aplicar: false, linkAplicar: null }).includes("Solo anteojos Harper"));
 });
