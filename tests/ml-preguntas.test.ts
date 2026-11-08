@@ -55,6 +55,9 @@ test("una publicación en Full lo dice en la ficha, que es lo que habilita la re
   const { ficha } = fichaDePublicacion({ title: "Estuche", shipping: { free_shipping: false, logistic_type: "fulfillment" } }, null);
   assert.match(ficha, /despacha Mercado Libre \(Full\)/);
   assert.match(INSTRUCCIONES, /si la ficha dice "despacha Mercado Libre \(Full\)"/);
+  // 8/11: la ficha decía «antirreflex» y no era cierto; el comprador había avisado que en las fotos no se veía.
+  assert.match(INSTRUCCIONES, /en el borrador usá lo que dicen los datos de Harper/);
+  assert.match(INSTRUCCIONES, /el comprador dice que lo que ve \(en las fotos/);
   const { ficha: sinFull } = fichaDePublicacion({ title: "Anteojo", shipping: { logistic_type: "xd_drop_off" } }, null);
   assert.doesNotMatch(sinFull, /Full/);
 });
