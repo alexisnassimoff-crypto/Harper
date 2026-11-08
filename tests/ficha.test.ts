@@ -89,3 +89,30 @@ test("ficha: los textos nuevos no prometen nada médico ni usan las palabras que
   }
   assert.match(todo, /filtran parte de la luz azul/);
 });
+
+test("ficha (Ale, 08/11/2026): compra directa, el color a la vista y la confianza antes que las promociones", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const ficha = readFileSync(join(__dirname, "../../components/producto/FichaProducto.tsx"), "utf8");
+  const barra = readFileSync(join(__dirname, "../../components/producto/CtaFija.tsx"), "utf8");
+  // La barra fija dice el modelo y el color, con el punto del color; sin pack, sin cuotas (están junto al precio).
+  assert.match(ficha, /color=\{conPack \? null : variante\.colorHex\}/);
+  assert.match(ficha, /detalle=\{conPack \? \(opcionElegida\?\.cuota \?\? null\) : null\}/);
+  assert.match(barra, /cta-fija__punto/);
+  // Al agregar: el botón cambia y se avisa qué color entró, con el carrito a un toque.
+  assert.match(ficha, /data-agregado=\{agregado \|\| undefined\}/);
+  assert.match(ficha, /role="status"/);
+  assert.match(ficha, /Agregaste \{producto\.nombre\} · \{variante\.color\} al carrito\./);
+  assert.match(ficha, /href="\/carrito"/);
+  // Después de comprar: envío, devoluciones, cambios y garantía; la consulta y Suscriptores, después.
+  const condiciones = ficha.indexOf("<CondicionesCompra");
+  const graduados = ficha.indexOf("<ConsultaGraduados");
+  const suscriptores = ficha.indexOf("<SuscriptoresEnLaFicha");
+  assert.ok(condiciones > 0 && condiciones < graduados && graduados < suscriptores);
+  // Cristales: el acceso abre la sección verificada.
+  assert.match(ficha, /abrirSeccion\("cristales"\)/);
+  assert.match(ficha, /<Acordeon id="cristales"/);
+  // La lógica de compra no cambia: los mismos manejadores.
+  assert.match(ficha, /onClick=\{agregarAlCarrito\}/);
+  assert.match(ficha, /alComprar=\{conPack \? armarPack : comprarAhora\}/);
+});

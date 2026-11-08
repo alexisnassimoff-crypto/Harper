@@ -18,6 +18,7 @@ import { createPortal } from "react-dom";
 export default function CtaFija({
   visible,
   nombre,
+  color = null,
   precio,
   detalle,
   ocupado = false,
@@ -26,6 +27,8 @@ export default function CtaFija({
 }: {
   visible: boolean;
   nombre: string;
+  /** El color elegido (hex), con un punto antes del nombre: se sabe qué variante se compra. */
+  color?: string | null;
   precio: string;
   /** Renglón chico debajo del precio, por ejemplo la cuota. */
   detalle?: string | null;
@@ -54,7 +57,10 @@ export default function CtaFija({
   return createPortal(
     <div className="cta-fija" data-visible={visible || undefined} inert={!visible}>
       <div className="cta-fija__datos">
-        <span className="cta-fija__nombre">{nombre}</span>
+        <span className="cta-fija__nombre">
+          {color ? <i className="cta-fija__punto" style={{ background: color }} aria-hidden="true" /> : null}
+          {nombre}
+        </span>
         <span className="cta-fija__precio">
           {precio}
           {detalle ? <small> · {detalle}</small> : null}

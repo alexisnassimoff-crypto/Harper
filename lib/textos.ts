@@ -173,6 +173,8 @@ export const TEXTOS = {
     },
     cristales: {
       titulo: "Cristales fotocromáticos",
+      /** El acceso desde las características, que abre la sección. */
+      comoFuncionan: "Cómo funcionan los cristales",
       bajada: "Cambian solos según la luz: al sol se oscurecen y adentro vuelven a aclararse. Así usás el mismo par todo el día.",
       puntos: [
         { titulo: "Cómo funcionan", texto: "Reaccionan a los rayos UV del sol. Por eso se oscurecen al aire libre y no con la luz de una lámpara." },
