@@ -4,6 +4,7 @@ import { getConfig } from "@/lib/config";
 import { direccionesDisponibles } from "@/lib/direcciones-servidor";
 import { leerMedioPago } from "@/lib/dinero-mp";
 import { puedeCotizar } from "@/lib/envia";
+import { TEXTOS } from "@/lib/textos";
 
 export const metadata: Metadata = {
   title: "Finalizar compra",
@@ -40,7 +41,8 @@ export default async function PaginaCheckout({
         <p role="alert" className="checkout__aviso">
           {conDineroMP
             ? "El pago no se pudo completar y no te cobramos nada. Revisá que tengas saldo en tu cuenta de Mercado Pago o probá con otro medio de pago."
-            : "El pago no se pudo completar y no te cobramos nada. Revisá los datos de la tarjeta o probá con otro medio de pago."}
+            : "El pago no se pudo completar y no te cobramos nada. Revisá los datos de la tarjeta o probá con otro medio de pago."}{" "}
+          {TEXTOS.checkout.siguenAca}
         </p>
       ) : null}
 
@@ -52,6 +54,7 @@ export default async function PaginaCheckout({
         buscador={direccionesDisponibles()}
         cotizaEnvio={cotizaEnvio}
         medioInicial={conDineroMP ? "dineroMP" : "mercadopago"}
+        whatsapp={config.whatsapp ?? ""}
       />
     </section>
   );

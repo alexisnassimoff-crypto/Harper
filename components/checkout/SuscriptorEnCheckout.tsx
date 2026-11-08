@@ -104,25 +104,33 @@ export default function SuscriptorEnCheckout({
         {T.checkoutCaja.nota}
         {cuotasSuscriptor ? ` Cuotas con ${NOMBRE_MARCAS} · CFTEA ${cfteaSinCortar(cuotasSuscriptor.cftea)}.` : ""}
       </p>
-      {listo ? (
-        <FormularioSuscripcion
-          // Otro mail, otro formulario: no se arrastra un código pedido para el anterior.
-          key={email.trim().toLowerCase()}
-          origen="Checkout"
-          email={email}
-          nombre={nombre}
-          conNombre={false}
-          anidado
-          mostrarListo={false}
-          textoBoton={T.checkoutCaja.suscribirme}
-          alListo={() => {
-            setRecien(true);
-            alCambiarSesion();
-          }}
-        />
-      ) : (
-        <p className="checkout__suscriptor-nota">{T.checkoutCaja.escribiMail}</p>
-      )}
+      {/* Plegada (recorrido móvil, Ale, 08/11/2026): abierta, la casilla, el
+          código y el botón ocupaban media pantalla del celular entre «Tus
+          datos» y «Entrega». La oferta y su nota quedan a la vista; el
+          formulario, a un toque. Plegado no se desmonta: un código pedido
+          sigue ahí. */}
+      <details className="checkout__suscriptor-pliegue">
+        <summary className="checkout__suscriptor-abrir">{T.checkoutCaja.abrir}</summary>
+        {listo ? (
+          <FormularioSuscripcion
+            // Otro mail, otro formulario: no se arrastra un código pedido para el anterior.
+            key={email.trim().toLowerCase()}
+            origen="Checkout"
+            email={email}
+            nombre={nombre}
+            conNombre={false}
+            anidado
+            mostrarListo={false}
+            textoBoton={T.checkoutCaja.suscribirme}
+            alListo={() => {
+              setRecien(true);
+              alCambiarSesion();
+            }}
+          />
+        ) : (
+          <p className="checkout__suscriptor-nota">{T.checkoutCaja.escribiMail}</p>
+        )}
+      </details>
     </section>
   );
 }
