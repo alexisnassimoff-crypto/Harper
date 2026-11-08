@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import CabeceraColeccion from "@/components/CabeceraColeccion";
 import GrillaProductos from "@/components/GrillaProductos";
 import { getProductos } from "@/lib/catalogo";
 
@@ -28,9 +29,7 @@ export default async function Panos() {
 
   return (
     <section className="contenedor seccion seccion--pagina">
-      <div className="seccion__cabecera">
-        <h1 className="titulo">Paños</h1>
-      </div>
+      <CabeceraColeccion titulo="Paños" cantidad={productos.length} />
       <GrillaProductos productos={productos} precargar={3} />
     </section>
   );

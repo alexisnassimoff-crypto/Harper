@@ -44,11 +44,12 @@
   --sombra-media: 0 10px 30px -12px rgb(22 21 15 / 0.22);
   --sombra-alta: 0 22px 48px -18px rgb(22 21 15 / 0.30);
 
-  /* Tipografía definitiva (Ale, 05/11/2026): solo dos en toda la web.
-     Archivo Narrow Bold en títulos, nombres y botones; Roboto Mono en todo lo
-     demás. Las dos las define app/layout.tsx con next/font (--fuente-titulos y
-     --fuente-texto), por eso no se declaran acá. La mono ya es ancha: las
-     etiquetas en mayúsculas llevan poco espaciado. */
+  /* Tipografía aprobada (Ale, 07/11/2026): Barlow Condensed en los títulos,
+     Roboto Mono en los textos y Rethink Sans en los botones. Las tres las
+     define app/layout.tsx con next/font (--fuente-titulos, --fuente-texto y
+     --fuente-botones), por eso no se declaran acá. La escala está en el bloque
+     «Tipografía aprobada», al final. La mono ya es ancha: las etiquetas en
+     mayúsculas llevan poco espaciado. */
   --fuente-etiquetas: var(--fuente-texto);
   --tracking-titulo: 0;
   --tracking-label: 0.07em;
@@ -131,13 +132,13 @@ p {
 
 .display {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-size: clamp(2.25rem, 9vw, 4.75rem);
+  font-size: var(--tipo-display);
   font-weight: 500;
 }
 
 .titulo {
   font-family: var(--fuente-titulos), Georgia, serif;
-  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-size: var(--tipo-h1);
   font-weight: 500;
   line-height: 1.1;
 }
@@ -2603,7 +2604,7 @@ p {
   margin-bottom: 1rem;
 }
 .titulo--chico {
-  font-size: clamp(1.375rem, 3.5vw, 1.875rem);
+  font-size: var(--tipo-h2);
 }
 
 @media (min-width: 48rem) {
@@ -4058,7 +4059,7 @@ p {
 .titulo-serif {
   font-family: var(--fuente-titulos), Georgia, serif;
   font-weight: 500;
-  font-size: clamp(1.875rem, 6vw, 3rem);
+  font-size: var(--tipo-h2);
   line-height: 1.08;
   letter-spacing: -0.01em;
   text-wrap: balance;
@@ -7319,19 +7320,49 @@ body[data-sin-flotantes] .wsp {
 }
 
 /* ===========================================================================
-   Tipografía definitiva (Ale, 05/11/2026), en todo el sitio.
-   - Títulos (principales y secundarios), nombres de los modelos y botones:
-     Archivo Narrow Bold (700), en mayúsculas, como la referencia de D.Franklin.
-   - Textos, descripciones, mensajes, precios y etiquetas: Roboto Mono, como
-     la de MOSCOT, en un tamaño cómodo para el celular.
+   Tipografía aprobada (Ale, 07/11/2026), en todo el sitio.
+   - Títulos y nombres de los modelos: Barlow Condensed SemiBold 600, en
+     mayúsculas.
+   - Textos, descripciones, mensajes, precios y etiquetas: Roboto Mono
+     Regular 400 y Medium 500. Nada más grueso: con `font-synthesis-weight`
+     apagado, un 600/700 viejo se ve en 500 y el navegador no inventa negritas.
+   - Botones: Rethink Sans Medium 500, en mayúsculas y con espaciado amplio.
+   Una sola escala para celular y escritorio: cada nivel crece con la pantalla
+   (clamp) y mantiene la misma proporción con los demás.
    Va al final para ganarle a las reglas viejas de cada componente sin
    tocarlas una por una.
    ========================================================================= */
 
+:root {
+  /* Escala de los títulos, del más grande al más chico. */
+  --tipo-display: clamp(2.5rem, 8vw, 4.75rem); /* portada y cierres */
+  --tipo-h1: clamp(2.25rem, 6vw, 3.5rem); /* título de una página o colección */
+  --tipo-h2: clamp(1.875rem, 4.6vw, 2.75rem); /* título de una sección */
+  --tipo-h3: clamp(1.375rem, 2.8vw, 1.75rem); /* subsección */
+  --tipo-nombre: 1.25rem; /* nombre de un modelo en una tarjeta */
+  /* Textos. */
+  --tipo-cuerpo: 0.9375rem;
+  --tipo-chico: 0.8125rem;
+  --tipo-etiqueta: 0.6875rem;
+  /* Botones. */
+  --tipo-boton: 0.875rem;
+  --tipo-boton-chico: 0.8125rem;
+  --tracking-titulo: 0.01em;
+  --tracking-boton: 0.12em;
+}
+
 body {
-  font-size: 15px;
+  font-size: var(--tipo-cuerpo);
+  font-weight: 400;
   line-height: 1.65;
   letter-spacing: -0.01em;
+  font-synthesis-weight: none;
+}
+
+/* Las negritas del texto son Medium 500 (la Roboto Mono no tiene más). */
+strong,
+b {
+  font-weight: 500;
 }
 
 h1,
@@ -7365,25 +7396,29 @@ h3,
 .suscripcion-inicio__titulo,
 .pregunta__titulo {
   font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.005em;
-  line-height: 1;
+  letter-spacing: var(--tracking-titulo);
+  line-height: 0.98;
   text-wrap: balance;
 }
 
 /* Los títulos de las secciones que se abren (ficha y preguntas): un poco más chicos. */
 .pregunta__titulo {
-  font-size: 1.125rem;
+  font-size: 1.1875rem;
   line-height: 1.15;
   letter-spacing: 0.02em;
 }
 
 /* Los nombres de los modelos: un poco de aire entre letras, como una etiqueta. */
 .ficha__titulo,
-.ficha-producto__nombre,
 .pieza__nombre,
 .tarjeta-inicio__nombre {
+  font-size: var(--tipo-nombre);
+  letter-spacing: 0.03em;
+  line-height: 1.05;
+}
+.ficha-producto__nombre {
   letter-spacing: 0.03em;
 }
 
@@ -7395,22 +7430,28 @@ h3,
   letter-spacing: inherit;
 }
 
-/* Botones: la letra de los títulos, más grande que antes, para leerlos de un vistazo. */
+/* Botones: Rethink Sans Medium, en mayúsculas y con aire entre letras. En
+   todos lados igual (antes, las tarjetas del catálogo decían «Agregar» y las
+   de la portada «AGREGAR»). */
 .boton {
-  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
-  font-size: 0.9375rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-family: var(--fuente-botones), Arial, sans-serif;
+  font-size: var(--tipo-boton);
+  font-weight: 500;
+  letter-spacing: var(--tracking-boton);
+  text-transform: uppercase;
 }
-.boton--chico {
-  font-size: 0.875rem;
+.boton--chico,
+.ficha__cuerpo .boton {
+  font-size: var(--tipo-boton-chico);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 /* Etiquetas en mayúsculas: mono, chicas y con poco espaciado. */
 .etiqueta-mono,
 .label {
   font-family: var(--fuente-texto), ui-monospace, monospace;
-  font-size: 0.6875rem;
+  font-size: var(--tipo-etiqueta);
   font-weight: 500;
   letter-spacing: 0.07em;
 }
@@ -7423,6 +7464,37 @@ h3,
   font-weight: 500;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Encabezado de las colecciones (Ale, 07/11/2026) ----------
+   El título de cada colección (Anteojos, Estuches, Paños y las que vengan) y
+   el de «Elegí tus anteojos» en la portada: centrados, con la etiqueta arriba
+   y la cantidad de modelos abajo, igual en el celular y en la computadora. */
+.cabecera-coleccion,
+.comprar__cabecera {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  margin: 0 auto 2rem;
+  text-align: center;
+}
+.cabecera-coleccion__titulo {
+  max-width: 18ch;
+}
+.cabecera-coleccion__cantidad {
+  font-size: var(--tipo-chico);
+  color: var(--texto-suave);
+}
+@media (min-width: 48rem) {
+  .cabecera-coleccion,
+  .comprar__cabecera {
+    margin-bottom: 2.75rem;
+  }
+}
+/* En la portada, los accesos por categoría y «Al sol / Adentro» quedan
+   centrados debajo del título, como el resto del encabezado. */
+.comprar__fila {
+  justify-content: center;
 }
 
 /* ---------- «Mis compras» en Mi cuenta (Ale, 05/11/2026) ----------

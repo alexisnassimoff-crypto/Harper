@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Archivo_Narrow, Roboto_Mono } from "next/font/google";
+import { Barlow_Condensed, Rethink_Sans, Roboto_Mono } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
@@ -20,22 +20,30 @@ import { anunciosDelHeader } from "@/lib/anuncios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
 import { cuotasDeTodosYSuscriptores } from "@/lib/cuotas-servidor";
 
-// La tipografía, definitiva (Ale, 05/11/2026): solo dos en toda la web, las
-// dos de Google Fonts (gratis y servidas desde harper.ar por next/font).
-// - Archivo Narrow Bold para los títulos, los nombres de los modelos y los
-//   botones: angosta y en mayúsculas, como la referencia de D.Franklin.
-// - Roboto Mono para todo lo demás (textos, descripciones, mensajes, precios y
-//   etiquetas), como la de MOSCOT.
+// La tipografía aprobada (Ale, 07/11/2026): tres familias de Google Fonts,
+// gratis y servidas desde harper.ar por next/font, solo con los pesos que se
+// usan (cada peso de más es un archivo más que baja el celular).
+// - Títulos: Barlow Condensed SemiBold 600, en mayúsculas.
+// - Textos (descripciones, mensajes, precios y etiquetas): Roboto Mono
+//   Regular 400 y Medium 500.
+// - Botones: Rethink Sans 500, en mayúsculas y con espaciado amplio.
 const texto = Roboto_Mono({
   subsets: ["latin"],
+  weight: ["400", "500"],
   display: "swap",
   variable: "--fuente-texto",
 });
-const titulos = Archivo_Narrow({
+const titulos = Barlow_Condensed({
   subsets: ["latin"],
-  weight: ["700"],
+  weight: ["600"],
   display: "swap",
   variable: "--fuente-titulos",
+});
+const botones = Rethink_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
+  variable: "--fuente-botones",
 });
 
 const SITIO = process.env.NEXT_PUBLIC_SITE_URL ?? "https://harper.ar";
@@ -132,7 +140,7 @@ export default async function RootLayout({
   ];
 
   return (
-    <html lang="es" className={`${texto.variable} ${titulos.variable}`}>
+    <html lang="es" className={`${texto.variable} ${titulos.variable} ${botones.variable}`}>
       <head>
         <script
           type="application/ld+json"
