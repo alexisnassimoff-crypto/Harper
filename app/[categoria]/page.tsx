@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import CabeceraColeccion from "@/components/CabeceraColeccion";
 import GrillaProductos from "@/components/GrillaProductos";
 import MensajesConfianza from "@/components/MensajesConfianza";
 import { getProductos } from "@/lib/catalogo";
@@ -53,9 +54,7 @@ export default async function PaginaCategoria({ params }: { params: Promise<{ ca
 
   return (
     <section className="contenedor seccion seccion--pagina">
-      <div className="seccion__cabecera">
-        <h1 className="titulo">{info.nombre}</h1>
-      </div>
+      <CabeceraColeccion titulo={info.nombre} cantidad={productos.length} />
       <GrillaProductos productos={productos} precargar={4} />
       <MensajesConfianza mensajes={mensajesDeConfianza(config, cuotas)} variante="tira" />
     </section>

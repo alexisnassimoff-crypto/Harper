@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import CabeceraColeccion from "@/components/CabeceraColeccion";
 import GrillaProductos from "@/components/GrillaProductos";
 import { getProductos } from "@/lib/catalogo";
 
@@ -25,9 +26,7 @@ export default async function Estuches() {
 
   return (
     <section className="contenedor seccion seccion--pagina">
-      <div className="seccion__cabecera">
-        <h1 className="titulo">Estuches</h1>
-      </div>
+      <CabeceraColeccion titulo="Estuches" cantidad={productos.length} />
       <GrillaProductos productos={productos} precargar={4} />
     </section>
   );
