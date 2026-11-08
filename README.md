@@ -395,6 +395,7 @@ precios, etiquetas). Se definen en `app/layout.tsx` como `--fuente-titulos` y
 | `POST /api/ml/notificaciones` | Recibe las notificaciones de Mercado Libre y procesa las preguntas |
 | `GET/POST /api/ml/preguntas/aprobar` | Muestra y publica un borrador aprobado desde el mail |
 | `GET /api/ml/avisos` | Ver o mandar a mano la alerta de stock y el resumen semanal |
+| `GET /api/ml/descripciones` | Saca de las descripciones una afirmación falsa (`sacar=antirreflex` o `uv400`): primero muestra, con `aplicar=1` cambia |
 | `GET /api/ml/promociones` | Promociones activas, programadas e invitaciones de ML de cada publicación |
 | `GET /api/ml/competencia` | Precios y posición en búsquedas de los competidores de la tabla Competencia |
 

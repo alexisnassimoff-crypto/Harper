@@ -46,7 +46,7 @@ async function motivo(respuesta: Response): Promise<string> {
 
 export async function pedirML<T = unknown>(
   ruta: string,
-  opciones: { metodo?: "GET" | "POST"; cuerpo?: unknown; headers?: Record<string, string>; token?: string } = {}
+  opciones: { metodo?: "GET" | "POST" | "PUT"; cuerpo?: unknown; headers?: Record<string, string>; token?: string } = {}
 ): Promise<T> {
   const token = opciones.token ?? (await tokenVigente());
 
