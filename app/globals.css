@@ -2743,7 +2743,12 @@ p {
   }
 }
 @media (min-width: 48rem) {
+  /* Dos columnas desde 768 px, justo donde termina el diseño de celular (con
+     su barra de compra). Con «auto-fit», entre 768 y 775 px todavía no
+     entraban dos y la ficha quedaba en una columna, sin barra. Desde 776 px,
+     el mismo resultado de siempre. */
   .ficha-producto {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     padding-block: 2.5rem 4rem;
   }
   .ficha-producto__datos {
@@ -6989,9 +6994,20 @@ main:has(.cierre:last-child) ~ .pie {
 }
 
 @media (max-width: 47.99rem) {
+  /* Una sola columna hasta 767 px: entre 736 y 767 la grilla tenía lugar
+     para dos y las piezas abiertas se repartían en ambas. */
   .ficha-producto {
+    grid-template-columns: minmax(0, 1fr);
     gap: 0;
     padding-top: 0.75rem;
+  }
+  /* La barra de compra de la ficha, en todo el rango de este diseño (la
+     regla general la muestra solo hasta 736 px; el checkout no cambia). */
+  body:has(.ficha-producto) .cta-fija {
+    display: flex;
+  }
+  body[data-cta-fija]:has(.ficha-producto) footer {
+    padding-bottom: 4.75rem;
   }
   .ficha-producto > .pila {
     display: contents;
@@ -7033,11 +7049,12 @@ main:has(.cierre:last-child) ~ .pie {
     gap: 0.3rem !important;
     line-height: 1.3;
   }
-  /* Mientras se ve la barra de compra, el botón de WhatsApp se guarda: arriba
-     de la barra tapaba el precio sin impuestos y el corazón. Vuelve cuando
-     aparecen los botones; la consulta por WhatsApp sigue en la ficha (talle y
-     cristales con aumento) y en el pie. */
-  body[data-cta-fija]:has(.ficha-producto) .wsp {
+  /* Mientras la barra de compra está en pantalla, el botón de WhatsApp se
+     guarda: arriba de la barra tapaba el precio sin impuestos y el corazón.
+     Solo con la barra de verdad a la vista (data-visible, y mostrada por la
+     regla de arriba en este mismo rango); vuelve cuando aparecen los botones.
+     La consulta por WhatsApp sigue en la ficha (talle y cristales) y en el pie. */
+  body:has(.ficha-producto):has(.cta-fija[data-visible]) .wsp {
     display: none;
   }
   /* La categoría ya está en el menú de arriba. */
