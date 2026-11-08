@@ -57,7 +57,8 @@ export default function SuscriptoresEnLaFicha({ cuotas }: { cuotas: CuotasVerifi
         <FormularioSuscripcion origen="Ficha" conNombre={false} alListo={() => setAca(true)} />
       ) : (
         <div className="suscriptor-ficha__acciones">
-          <button type="button" className="boton boton--chico" onClick={() => setAbierta(true)}>
+          {/* De contorno: en la ficha, el botón lleno es solo el de comprar (Ale, 08/11/2026). */}
+          <button type="button" className="boton boton--chico boton--fantasma" onClick={() => setAbierta(true)}>
             {TEXTOS.inicio.suscripcion.boton}
           </button>
           <Link href="/legales/suscriptores" className="suscripcion__enlace">

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
@@ -207,12 +208,13 @@ export default function FichaProducto({
   // Medidas y talle: en los anteojos, con la guía aunque falten las medidas (lib/ficha.ts).
   const conTalle = esCategoriaDeAnteojos(producto.categoria);
   const talle = talleDe(producto.medidas);
-  function verMedidas() {
-    const seccion = document.getElementById("medidas") as HTMLDetailsElement | null;
+  function abrirSeccion(id: string) {
+    const seccion = document.getElementById(id) as HTMLDetailsElement | null;
     if (!seccion) return;
     seccion.open = true;
     seccion.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  const verMedidas = () => abrirSeccion("medidas");
 
   // Envío, devolución, cambios, garantía y pago, con sus enlaces a la vista.
   const condiciones = condicionesDeCompra(confianza, {
@@ -305,7 +307,7 @@ export default function FichaProducto({
             modelo, el precio, el color y las características. */}
         {HAY_CUPONES ? <CuponBienvenida precio={producto.precio} estadoServidor={carritoResuelto?.cupon ?? null} /> : null}
 
-        <div className="pila" style={{ gap: "0.6rem" }}>
+        <div className="pila ficha-producto__cabecera" style={{ gap: "0.6rem" }}>
           {calificacion ? (
             <a href="#opiniones" className="calificacion">
               <Estrellas puntaje={calificacion.promedio} />
@@ -360,11 +362,17 @@ export default function FichaProducto({
 
         {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}
         {caracteristicas ? (
-          <ul className="caracteristicas" aria-label="Características">
-            {caracteristicas.lista.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-          </ul>
+          <div className="ficha-producto__que-es">
+            <ul className="caracteristicas" aria-label="Características">
+              {caracteristicas.lista.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+            {/* Cómo funcionan los cristales, a un toque: abre la sección de abajo. */}
+            <button type="button" className="enlace-accion ficha-producto__como-funcionan" onClick={() => abrirSeccion("cristales")}>
+              {TEXTOS.ficha.cristales.comoFuncionan}
+            </button>
+          </div>
         ) : null}
 
         {selectorDeColor("datos")}
@@ -376,8 +384,9 @@ export default function FichaProducto({
           <p className="ficha-producto__talle">
             {talle ? (
               <>
-                <span className="label">{TEXTOS.ficha.talle.etiqueta}</span> {talle}
-                <span aria-hidden="true"> · </span>
+                <span>
+                  <span className="label">{TEXTOS.ficha.talle.etiqueta}</span> {talle}
+                </span>
               </>
             ) : null}
             <button type="button" className="enlace-accion" onClick={verMedidas}>
@@ -387,7 +396,7 @@ export default function FichaProducto({
         ) : null}
 
         {/* Compra */}
-        <div ref={bloqueCompra} className="pila" style={{ gap: "0.75rem" }}>
+        <div ref={bloqueCompra} className="pila ficha-producto__compra" style={{ gap: "0.75rem" }}>
           {conPack ? (
             // Con un pack elegido, el botón abre la hoja para completar los pares
             // (este color ya va adentro): se pueden mezclar modelos y colores.
@@ -413,9 +422,23 @@ export default function FichaProducto({
                 type="button"
                 className="boton boton--fantasma boton--bloque"
                 onClick={agregarAlCarrito}
+                data-agregado={agregado || undefined}
               >
-                {agregado ? "Agregado al carrito" : "Agregar al carrito"}
+                {agregado ? "✓ Agregado al carrito" : "Agregar al carrito"}
               </button>
+
+              {/* Lo que se agregó, dicho con el color (y el carrito a un toque). */}
+              <p className="ficha-producto__agregado" role="status">
+                {agregado ? (
+                  <>
+                    <span aria-hidden="true">✓ </span>
+                    Agregaste {producto.nombre} · {variante.color} al carrito.{" "}
+                    <Link href="/carrito" className="enlace-verde">
+                      Ver carrito
+                    </Link>
+                  </>
+                ) : null}
+              </p>
 
               {variante.stock <= 5 ? (
                 <p className="apagado" style={{ fontSize: "0.8125rem" }}>
@@ -427,14 +450,16 @@ export default function FichaProducto({
           )}
         </div>
 
-        {/* Suscriptores Harper (Ale, 03/11/2026): solo en anteojos, que es lo que vende la web. */}
-        {producto.categoria === "Anteojos" ? <SuscriptoresEnLaFicha cuotas={cuotasSuscriptor} /> : null}
+        {/* Después de comprar, lo que da confianza: envío, devolución, cambios,
+            garantía y pago (Ale, 08/11/2026). La consulta y Suscriptores, después. */}
+        <CondicionesCompra condiciones={condiciones} />
 
         {/* Solo en los modelos cuyo armazón admite cristales graduados
             (confirmados en lib/caracteristicas.ts): una consulta, no una venta. */}
         {caracteristicas ? <ConsultaGraduados modelo={producto.nombre} whatsapp={whatsapp} /> : null}
 
-        <CondicionesCompra condiciones={condiciones} />
+        {/* Suscriptores Harper (Ale, 03/11/2026): solo en anteojos, que es lo que vende la web. */}
+        {producto.categoria === "Anteojos" ? <SuscriptoresEnLaFicha cuotas={cuotasSuscriptor} /> : null}
 
         {/* Sin escala, la promoción del segundo par en una línea (solo
             anteojos); con la escala, las opciones de arriba ya la cuentan. */}
@@ -459,7 +484,7 @@ export default function FichaProducto({
           ) : null}
 
           {caracteristicas ? (
-            <Acordeon titulo={TEXTOS.ficha.cristales.titulo}>
+            <Acordeon id="cristales" titulo={TEXTOS.ficha.cristales.titulo}>
               <CristalesFotocromaticos />
             </Acordeon>
           ) : null}
@@ -501,14 +526,11 @@ export default function FichaProducto({
       <CtaFija
         visible={(!compraEnPantalla || avisoCookies) && (conPack || !variante.agotada)}
         nombre={conPack && opcionElegida ? opcionElegida.titulo : `${producto.nombre} · ${variante.color}`}
+        color={conPack ? null : variante.colorHex}
         precio={conPack && opcionElegida ? opcionElegida.total : formatearPrecio(producto.precio)}
-        detalle={
-          conPack
-            ? (opcionElegida?.cuota ?? null)
-            : cuotasSuyas
-              ? `${cuotasSuyas.cuotas} cuotas de ${precioConCentavos(cuotasSuyas.montoCuota)} · CFTEA ${cuotasSuyas.cftea}`
-              : null
-        }
+        // Sin pack, la barra va en un renglón: el modelo, el color y el precio.
+        // Las cuotas (con su CFTEA) están a la vista junto al precio de la ficha.
+        detalle={conPack ? (opcionElegida?.cuota ?? null) : null}
         ocupado={enTransicion}
         alComprar={conPack ? armarPack : comprarAhora}
         textoBoton={conPack ? `Elegir mis ${paresElegidos}` : "Comprar ahora"}

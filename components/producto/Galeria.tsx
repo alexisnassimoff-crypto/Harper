@@ -170,7 +170,8 @@ export default function Galeria({
       {medios.length > 1 ? (
         <span className="galeria__puntos" aria-hidden="true">
           {medios.map((m, i) => (
-            <span key={m.src} className="ficha__punto" data-activo={i === indiceMedio || undefined} />
+            // El video se marca con un triángulo: en el celular no hay miniaturas que lo anuncien.
+            <span key={m.src} className="ficha__punto" data-activo={i === indiceMedio || undefined} data-video={m.tipo === "video" || undefined} />
           ))}
         </span>
       ) : null}

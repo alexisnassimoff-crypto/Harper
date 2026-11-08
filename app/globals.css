@@ -2743,7 +2743,12 @@ p {
   }
 }
 @media (min-width: 48rem) {
+  /* Dos columnas desde 768 px, justo donde termina el diseño de celular (con
+     su barra de compra). Con «auto-fit», entre 768 y 775 px todavía no
+     entraban dos y la ficha quedaba en una columna, sin barra. Desde 776 px,
+     el mismo resultado de siempre. */
   .ficha-producto {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     padding-block: 2.5rem 4rem;
   }
   .ficha-producto__datos {
@@ -6895,6 +6900,181 @@ main:has(.cierre:last-child) ~ .pie {
 }
 .ficha-producto__talle .enlace-accion {
   font-size: 0.875rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Ficha: compra más directa (Ale, 08/11/2026)
+
+   En el celular, la primera pantalla tiene la foto, los colores pegados a
+   ella, el nombre, el precio y las cuotas; la barra de compra queda abajo, en
+   un renglón. Las dos columnas se abren (display: contents) para ordenar sus
+   piezas juntas: foto, colores, nombre y precio, talle, compra y después lo
+   demás. En escritorio, las dos columnas de siempre.
+--------------------------------------------------------------------------- */
+
+/* El talle: el dato a la izquierda y «Ver medidas y talle» a la derecha. */
+.ficha-producto__talle {
+  justify-content: space-between;
+}
+
+/* Las características y, debajo, cómo funcionan los cristales. */
+.ficha-producto__que-es {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+}
+.ficha-producto__como-funcionan {
+  margin-left: 0;
+  font-size: 0.75rem;
+}
+
+/* Lo que se agregó, con el color y el carrito a un toque. Vacío, no ocupa lugar. */
+.ficha-producto__agregado {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--verde);
+}
+.ficha-producto__agregado:empty {
+  position: absolute;
+}
+
+/* En pantallas táctiles el «hover» queda pegado después del toque: el botón
+   de agregar se ponía negro como si fuera otro estado. */
+@media (hover: none) {
+  .ficha-producto__compra .boton--fantasma:hover:not(:focus-visible) {
+    color: var(--texto);
+    border-color: var(--borde);
+    transform: none;
+    box-shadow: none;
+  }
+  .ficha-producto__compra .boton--fantasma:hover:not(:focus-visible)::before {
+    transform: translateY(101%);
+  }
+}
+
+/* Ya agregado: verde y de contorno, en todos los dispositivos (por encima del
+   «hover», que en el celular queda pegado y lo ponía negro). */
+.ficha-producto__compra .boton--fantasma[data-agregado],
+.ficha-producto__compra .boton--fantasma[data-agregado]:hover:not(:disabled),
+.ficha-producto__compra .boton--fantasma[data-agregado]:focus-visible:not(:disabled) {
+  color: var(--verde);
+  border-color: var(--verde);
+  transform: none;
+  box-shadow: none;
+}
+.ficha-producto__compra .boton--fantasma[data-agregado]::before,
+.ficha-producto__compra .boton--fantasma[data-agregado]:hover:not(:disabled)::before {
+  transform: translateY(101%);
+}
+
+/* La barra fija: el punto del color elegido antes del nombre. */
+.cta-fija__punto {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: 0.4rem;
+  border: 1px solid rgb(22 21 15 / 0.2);
+  border-radius: 50%;
+  vertical-align: -0.04em;
+}
+
+/* El video de la galería, marcado entre los puntos con un triángulo. */
+.ficha__punto[data-video] {
+  width: 0;
+  height: 0;
+  border-radius: 0;
+  background: none;
+  border-style: solid;
+  border-width: 0.2rem 0 0.2rem 0.32rem;
+  border-color: transparent transparent transparent color-mix(in srgb, var(--tinta) 22%, transparent);
+}
+.ficha__punto[data-video][data-activo] {
+  border-left-color: var(--verde);
+}
+
+@media (max-width: 47.99rem) {
+  /* Una sola columna hasta 767 px: entre 736 y 767 la grilla tenía lugar
+     para dos y las piezas abiertas se repartían en ambas. */
+  .ficha-producto {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-top: 0.75rem;
+  }
+  /* La barra de compra de la ficha, en todo el rango de este diseño (la
+     regla general la muestra solo hasta 736 px; el checkout no cambia). */
+  body:has(.ficha-producto) .cta-fija {
+    display: flex;
+  }
+  body[data-cta-fija]:has(.ficha-producto) footer {
+    padding-bottom: 4.75rem;
+  }
+  .ficha-producto > .pila {
+    display: contents;
+  }
+  /* Lo que no tiene lugar fijo va después de la compra, en su orden. */
+  .ficha-producto > .pila > * {
+    order: 30;
+    margin-top: 1.5rem;
+  }
+  /* La foto, más baja que cuadrada (4:3): deja lugar arriba de la barra
+     para el nombre, el precio y las cuotas. La foto entera se ve igual. */
+  .ficha-producto .tarjeta__marco {
+    order: 1;
+    margin-top: 0;
+    aspect-ratio: 4 / 3 !important;
+  }
+  .ficha-producto .tarjeta__marco .foto-cruzada {
+    padding: 3% 7%;
+  }
+  .ficha-producto .galeria__puntos {
+    order: 2;
+    margin-top: 0.35rem;
+  }
+  /* Sin miniaturas: los puntos, las flechas y el gesto ya recorren las fotos. */
+  .ficha-producto .galeria__minis {
+    display: none;
+  }
+  .ficha-producto .ficha-producto__colores--foto {
+    order: 3;
+    margin-top: 0.2rem;
+  }
+  .ficha-producto .cupon {
+    order: 4;
+    margin-top: 1rem;
+  }
+  .ficha-producto .ficha-producto__cabecera {
+    order: 5;
+    margin-top: 0.6rem;
+    gap: 0.3rem !important;
+    line-height: 1.3;
+  }
+  /* Mientras la barra de compra está en pantalla, el botón de WhatsApp se
+     guarda: arriba de la barra tapaba el precio sin impuestos y el corazón.
+     Solo con la barra de verdad a la vista (data-visible, y mostrada por la
+     regla de arriba en este mismo rango); vuelve cuando aparecen los botones.
+     La consulta por WhatsApp sigue en la ficha (talle y cristales) y en el pie. */
+  body:has(.ficha-producto):has(.cta-fija[data-visible]) .wsp {
+    display: none;
+  }
+  /* La categoría ya está en el menú de arriba. */
+  .ficha-producto .ficha-producto__cabecera > .label {
+    display: none;
+  }
+  .ficha-producto .opciones-pares {
+    order: 6;
+  }
+  .ficha-producto .ficha-producto__talle {
+    order: 7;
+    margin-top: 1.1rem;
+  }
+  .ficha-producto .ficha-producto__compra {
+    order: 8;
+    margin-top: 1rem;
+  }
+  .ficha-producto .ficha-producto__que-es {
+    order: 9;
+  }
 }
 
 /* Envío, devolución, cambios, garantía y pago: cada renglón con su enlace. */
