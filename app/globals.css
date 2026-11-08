@@ -4800,85 +4800,204 @@ p {
   color: var(--texto-suave);
 }
 
-/* ---------- Quiénes somos ----------
-   El mismo lenguaje de la portada: serif grande, etiquetas en mono y los
-   anteojos sobre su tinte, con la foto multiplicada. */
+/* ---------- Quiénes somos (Ale, 08/11/2026) ----------
+   Una página editorial: la apertura con fotos reales del catálogo, cómo
+   pensamos los anteojos, la colección con sus colores, cómo es comprar y un
+   cierre a Anteojos. Las familias y los pesos son los del bloque «Tipografía
+   aprobada»; acá, la composición y los tamaños. Los anteojos van sobre el
+   fondo de su color, con la foto multiplicada. */
 
-.nosotros-portada {
+.nosotros-cabecera {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  max-width: 34rem;
+  margin-bottom: 2rem;
+}
+.nosotros-cabecera__titulo {
+  font-size: var(--tipo-h2);
+}
+.nosotros-cabecera__bajada {
+  line-height: 1.7;
+  color: var(--texto-suave);
+}
+
+/* 1. Apertura: el texto y, al lado (abajo en el celular), tres fotos. */
+.nosotros-hero {
+  display: grid;
+  gap: 2rem;
+  padding-block: 2.25rem 3.5rem;
+}
+.nosotros-hero__texto {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 1.15rem;
+}
+.nosotros-hero__etiqueta {
+  color: var(--verde);
+}
+.nosotros-hero__titulo {
+  display: grid;
+  font-size: var(--tipo-display);
+  line-height: 0.92;
+}
+.nosotros-hero__acento {
+  color: var(--verde);
+}
+.nosotros-hero__bajada {
+  max-width: 32rem;
+  line-height: 1.7;
+  color: rgb(22 21 15 / 0.78);
+}
+.nosotros-mosaico {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-mosaico__pieza--grande {
+  grid-column: 1 / -1;
+}
+.nosotros-mosaico__enlace {
+  position: relative;
+  display: block;
+  height: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 2px;
+  color: var(--texto);
+  text-decoration: none;
+}
+.nosotros-mosaico__pieza--grande .nosotros-mosaico__enlace {
+  aspect-ratio: 16 / 11;
+}
+.nosotros-mosaico__enlace img {
+  padding: 6% 7% 14%;
+  transition: transform var(--lento) var(--curva);
+}
+/* La de cerca ocupa todo el cuadro: la bisagra y el logo, sin aire. */
+.nosotros-mosaico__enlace img.nosotros-mosaico__foto--cerca {
+  padding: 0;
+  object-fit: cover;
+  object-position: 40% 50%;
+}
+.nosotros-mosaico__enlace:hover img {
+  transform: scale(1.03);
+}
+.nosotros-mosaico__pie {
+  position: absolute;
+  left: 0.85rem;
+  bottom: 0.7rem;
+  font-size: var(--tipo-etiqueta);
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+/* 2. Cómo pensamos los anteojos: cuatro ideas numeradas. */
+.nosotros-ideas {
+  padding-block: 3.5rem;
+  border-top: 1px solid var(--borde);
+}
+.nosotros-ideas__lista {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-idea {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  padding-block: 1.5rem;
+  border-top: 1px solid var(--borde);
+}
+.nosotros-idea__numero {
+  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--verde);
+}
+.nosotros-idea__titulo {
+  font-size: var(--tipo-h3);
+}
+.nosotros-idea__texto {
+  grid-column: 2;
+  max-width: 30rem;
+  line-height: 1.7;
+  color: var(--texto-suave);
+}
+
+/* 3. La colección: cada modelo con su forma y sus colores. */
+.nosotros-coleccion {
+  padding-block: 3.5rem;
+  background: var(--fondo-alt);
+}
+.nosotros-modelos {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-modelo {
   display: grid;
   gap: 1rem;
-  padding-block: 2.5rem 3rem;
+  padding-block: 1.75rem;
+  border-top: 1px solid var(--borde);
 }
-.nosotros-portada__titulo {
-  max-width: 15ch;
-  font-family: var(--fuente-titulos), Georgia, serif;
-  font-weight: 500;
-  font-size: clamp(2.25rem, 9vw, 4.75rem);
-  line-height: 1.04;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
+.nosotros-modelo__texto {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 0.5rem;
 }
-.nosotros-portada__bajada {
-  max-width: 36rem;
-  font-size: 1.0625rem;
-  line-height: 1.6;
+.nosotros-modelo__nombre {
+  font-size: var(--tipo-h3);
+  letter-spacing: 0.03em;
+}
+.nosotros-modelo__forma {
+  max-width: 26rem;
+  font-size: var(--tipo-chico);
+  line-height: 1.65;
   color: var(--texto-suave);
 }
-.nosotros-tira {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin: 1rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-.nosotros-tira__pieza {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  border-radius: 2px;
-  overflow: hidden;
-}
-.nosotros-tira__pieza img {
-  padding: 6% 8% 14%;
-}
-.nosotros-frase {
-  padding-block: 3.5rem;
-  background: #efe6d6;
-}
-.nosotros-frase__texto {
-  font-size: clamp(1.875rem, 7vw, 3.5rem);
-  line-height: 1.08;
-}
-.nosotros-lista li {
-  padding-block: 1.25rem;
-}
-.nosotros-lista__titulo {
-  font-family: var(--fuente-titulos), Georgia, serif;
+.nosotros-modelo__enlace {
+  margin-top: 0.25rem;
+  font-size: var(--tipo-chico);
   font-weight: 500;
-  font-size: clamp(1.6rem, 6vw, 2.25rem);
-  line-height: 1.05;
 }
-.nosotros-lista__texto {
-  max-width: 38rem;
-  margin-top: 0.5rem;
-  line-height: 1.6;
-  color: var(--texto-suave);
-}
-.nosotros-paleta,
-.nosotros-viene {
+/* En el celular, los colores de cada modelo se deslizan de costado, a sangre. */
+.nosotros-modelo__colores {
   display: grid;
-  gap: 0.75rem;
-}
-.nosotros-paleta__grilla {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: 44%;
   gap: 0.5rem;
-  margin: 0.75rem 0 0;
-  padding: 0;
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 0 var(--gutter) 0.25rem;
   list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+  scrollbar-width: none;
 }
+.nosotros-modelo__colores::-webkit-scrollbar {
+  display: none;
+}
+.nosotros-modelo__colores li {
+  display: grid;
+  scroll-snap-align: start;
+}
+/* Todas las tarjetas de un modelo, del mismo alto (aunque el nombre del color ocupe dos renglones). */
 .nosotros-color {
   display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
   border-radius: 2px;
   overflow: hidden;
   color: var(--texto);
@@ -4889,47 +5008,160 @@ p {
   aspect-ratio: 4 / 3;
 }
 .nosotros-color__foto img {
-  padding: 4% 8%;
+  padding: 6% 8%;
   transition: transform var(--rapido) var(--curva);
 }
 .nosotros-color:hover .nosotros-color__foto img {
   transform: scale(1.04);
 }
 .nosotros-color__pie {
-  display: grid;
-  grid-template-columns: auto 1fr;
+  display: flex;
   align-items: center;
-  gap: 0.1rem 0.45rem;
+  gap: 0.45rem;
   padding: 0 0.7rem 0.7rem;
 }
 .nosotros-color__punto {
-  grid-row: span 2;
-  width: 0.9rem;
-  height: 0.9rem;
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
   border: 1px solid rgb(22 21 15 / 0.15);
   border-radius: 50%;
 }
 .nosotros-color__nombre {
-  font-size: 0.875rem;
-  line-height: 1.2;
+  font-size: var(--tipo-chico);
+  line-height: 1.25;
 }
-.nosotros-viene__boton {
-  justify-self: start;
-  margin-top: 0.5rem;
+
+/* 4. Comprar en Harper: las condiciones, cada una con su enlace. */
+.nosotros-compra {
+  padding-block: 3.5rem;
 }
+.nosotros-compra__lista {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nosotros-compra__item {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  justify-items: start;
+  gap: 0.2rem 0.9rem;
+  padding-block: 1.1rem;
+  border-top: 1px solid var(--borde);
+}
+.nosotros-compra__icono {
+  grid-row: span 3;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: #e8efe9;
+  color: var(--verde);
+}
+.nosotros-compra__texto {
+  grid-column: 2;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.nosotros-compra__detalle {
+  grid-column: 2;
+  font-size: var(--tipo-chico);
+  line-height: 1.55;
+  color: var(--texto-suave);
+}
+.nosotros-compra__enlace {
+  grid-column: 2;
+  margin-top: 0.2rem;
+  font-size: var(--tipo-chico);
+}
+
+/* 5. Cierre: verde, como el de la portada, con una sola acción. */
+.nosotros-cierre__texto {
+  max-width: 30rem;
+  color: rgb(255 255 255 / 0.85);
+}
+.nosotros-cierre__viene {
+  max-width: 30rem;
+  font-size: var(--tipo-chico);
+  color: rgb(255 255 255 / 0.7);
+}
+
 @media (min-width: 48rem) {
-  .nosotros-portada {
-    padding-block: 4rem 4.5rem;
+  .nosotros-cabecera {
+    margin-bottom: 2.5rem;
   }
-  .nosotros-tira {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .nosotros-frase {
+  .nosotros-ideas,
+  .nosotros-coleccion,
+  .nosotros-compra {
     padding-block: 5rem;
   }
-  .nosotros-paleta__grilla {
+  .nosotros-ideas__lista {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 3rem;
+  }
+  .nosotros-modelo__colores {
+    grid-auto-flow: row;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+  .nosotros-compra__lista {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 3rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  /* La apertura en dos columnas: el texto a la izquierda; la foto de cerca,
+     alta, y las otras dos apiladas a su lado. */
+  .nosotros-hero {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    align-items: center;
+    gap: 4rem;
+    padding-block: 4rem 5.5rem;
+  }
+  /* Cada tiempo de la frase, en un renglón al lado de las fotos. */
+  .nosotros-hero__titulo {
+    font-size: clamp(2.75rem, 4.2vw, 3.75rem);
+  }
+  .nosotros-mosaico {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-rows: repeat(2, auto);
     gap: 0.75rem;
+  }
+  .nosotros-mosaico__pieza--grande {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .nosotros-mosaico__pieza--grande .nosotros-mosaico__enlace {
+    aspect-ratio: auto;
+    min-height: 100%;
+  }
+  .nosotros-mosaico__pieza:not(.nosotros-mosaico__pieza--grande) .nosotros-mosaico__enlace {
+    aspect-ratio: 1;
+  }
+  /* Ideas, colección y compra: el título a la izquierda y el contenido al lado. */
+  .nosotros-ideas__grilla,
+  .nosotros-compra__grilla {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+    gap: 4rem;
+  }
+  .nosotros-ideas__grilla .nosotros-cabecera,
+  .nosotros-compra__grilla .nosotros-cabecera {
+    align-self: start;
+    margin-bottom: 0;
+  }
+  .nosotros-modelo {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+    gap: 4rem;
+    padding-block: 2.25rem;
+  }
+  .nosotros-compra__lista {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -7379,8 +7611,6 @@ h3,
 .vitrina-todos__pregunta,
 .asi-llega__cierre,
 .hoja-pack__titulo,
-.nosotros-portada__titulo,
-.nosotros-lista__titulo,
 .suscriptores-portada__titulo,
 .beneficios-suscriptor__titulo,
 .suscripcion__listo,
