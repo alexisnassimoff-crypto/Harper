@@ -195,18 +195,34 @@ export const TEXTOS = {
   pie: {
     lema: "Diseño para todos los días.",
   },
+  /**
+   * Quiénes somos (Ale, 04/11/2026: sin «Los anteojos también se eligen como
+   * la ropa» ni lo del accesorio; 08/11/2026: página editorial de marca). Sin
+   * historia de la empresa, fabricación, materiales ni certificaciones: lo que
+   * se dice del producto es lo confirmado en lib/caracteristicas.ts, y lo de
+   * comprar sale de las mismas condiciones que la ficha (lib/ficha.ts).
+   */
   nosotros: {
-    /** Ale, 04/11/2026: sin «Los anteojos también se eligen como la ropa» ni lo del accesorio. */
     titulo: "Quiénes somos",
+    etiqueta: "Quiénes somos · Buenos Aires, Argentina",
+    /** La frase de la marca, en dos tiempos (también abre la portada). */
     frase: ["Para ver bien.", "Y para que te vean."],
+    bajada:
+      "Harper es una marca de anteojos de Buenos Aires. Nos ocupamos de dos cosas: la forma y el color. Que te queden bien y que combinen con lo que te ponés.",
+    ideas: {
+      etiqueta: "Cómo pensamos los anteojos",
+      titulo: "Lo primero que se ve de vos.",
+      bajada:
+        "Los anteojos se usan todo el día y están siempre a la vista. Por eso no los pensamos solo para ver mejor: también tienen que ir con tu estilo.",
+    },
     manifiesto: [
       {
         titulo: "Color, primero.",
         texto: "Colores pensados para combinar con lo que ya tenés en el placard: el jean de siempre, la camisa blanca, el buzo del domingo.",
       },
       {
-        titulo: "Formas de ahora.",
-        texto: "Líneas simples y actuales, sin nada recargado. Diseño de hoy para usar todos los días.",
+        titulo: "Formas con carácter.",
+        texto: "Cada modelo tiene la suya: del rectangular que nunca falla al geométrico que se hace notar. Líneas simples, sin nada recargado.",
       },
       {
         titulo: "Lindos, y además funcionan.",
@@ -217,12 +233,28 @@ export const TEXTOS = {
         texto: "Ni celebridades ni campañas con modelos. Acá los protagonistas son los anteojos, y el estilo lo ponés vos.",
       },
     ],
-    paleta: "¿Con cuál salís hoy?",
-    paletaBajada: "Tocá un color para verlo de cerca.",
+    coleccion: {
+      etiqueta: "La colección",
+      titulo: "Cada forma, en sus colores.",
+      bajada: "Tocá un color para ver el modelo de cerca.",
+      /** «Ver el Citrino». */
+      verModelo: (nombre: string) => `Ver el ${nombre}`,
+    },
+    compra: {
+      etiqueta: "Comprar en Harper",
+      titulo: "Comprar online, sin vueltas.",
+      bajada: "Las condiciones son las mismas en toda la tienda y las tenés por escrito.",
+      whatsapp: "Te asesoramos por WhatsApp",
+      whatsappDetalle: "Para elegir modelo, color o talle, o consultar por cristales con aumento.",
+      whatsappEnlace: "Escribinos",
+    },
+    cierre: {
+      titulo: "¿Con cuál salís hoy?",
+      texto: "Mirá todos los modelos y sus colores, y elegí el tuyo.",
+      boton: "Explorar anteojos",
+    },
     /** «Se vienen más anteojos: de sol polarizados, de receta y clip-on.» */
     viene: (lineas: string) => `Se vienen más anteojos: ${lineas}.`,
-    vieneBoton: "Ver lo que viene",
-    cierre: "Anteojos para combinar. Buenos Aires, Argentina.",
   },
   /** El corazón de los anteojos (Ale, 05/11/2026): se guardan en la cuenta Harper. `que` es «CITRINO Carey». */
   favoritos: {
