@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { tokenValido } from "@/lib/media";
 import { mlConfigurado } from "@/lib/ml-auth";
-import { esQueSacar, paginaDeCambios, QUE_SE_PUEDE_SACAR } from "@/lib/ml-descripciones";
+import { esQueSacar, paginaDeCambios, PUBLICACIONES, QUE_SE_PUEDE_SACAR } from "@/lib/ml-descripciones";
 import { corregirDescripciones } from "@/lib/ml-descripciones-servidor";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,9 @@ export const maxDuration = 120;
  *   GET /api/ml/descripciones?token=<SYNC_TOKEN>&sacar=antirreflex           → muestra qué se saca (no cambia nada)
  *   GET /api/ml/descripciones?token=<SYNC_TOKEN>&sacar=antirreflex&aplicar=1 → lo saca en Mercado Libre
  *
- * `sacar` es una de las opciones de QUE_SE_PUEDE_SACAR (antirreflex, uv400).
+ * `sacar` es una de las opciones de QUE_SE_PUEDE_SACAR (antirreflex, uv400). Cada una
+ * se aplica solo a las publicaciones de PUBLICACIONES (hoy, anteojos Harper),
+ * y antes de cambiar una descripción se guarda la original en Descripciones ML.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -35,7 +37,13 @@ export async function GET(request: Request) {
     linkAplicar.searchParams.set("aplicar", "1");
     return new Response(
       `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Descripciones</title></head><body style="margin:0;padding:24px 16px;background:#faf9f6">${paginaDeCambios(
-        { que: QUE_SE_PUEDE_SACAR[sacar].nombre, cambios, aplicar, linkAplicar: aplicar ? null : linkAplicar.toString() }
+        {
+          que: QUE_SE_PUEDE_SACAR[sacar].nombre,
+          soloEn: PUBLICACIONES[QUE_SE_PUEDE_SACAR[sacar].publicaciones].nombre,
+          cambios,
+          aplicar,
+          linkAplicar: aplicar ? null : linkAplicar.toString(),
+        }
       )}</body></html>`,
       { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } }
     );
