@@ -28,6 +28,7 @@ import type { MedioPago } from "@/lib/dinero-mp";
 import { emailValido, validarCliente, type ErroresCliente } from "@/lib/validacion";
 import type { DatosRecordados } from "@/lib/reconocer-cliente";
 import { direccionParaElCheckout, type DatosPersonales, type DireccionGuardada } from "@/lib/mis-datos";
+import AyudaWhatsApp from "./AyudaWhatsApp";
 import BarraPagar, { TextoPagoSeguro } from "./BarraPagar";
 import CampoDireccion, { type DireccionElegida } from "./CampoDireccion";
 import CodigoDescuento from "./CodigoDescuento";
@@ -150,6 +151,7 @@ export default function FormularioCheckout({
   buscador = false,
   cotizaEnvio = false,
   medioInicial = "mercadopago",
+  whatsapp = "",
 }: {
   /** Verdadero cuando vuelve de un pago rechazado: no es un checkout nuevo. */
   reintento?: boolean;
@@ -162,6 +164,8 @@ export default function FormularioCheckout({
   cotizaEnvio?: boolean;
   /** Al volver de un pago rechazado con dinero en Mercado Pago, sigue elegida. */
   medioInicial?: MedioPago;
+  /** El WhatsApp de Config, para la consulta junto al total (en celular). Vacío, no se muestra. */
+  whatsapp?: string;
 }) {
   const { items, quitar, cupon, quitarCupon } = useCarrito();
   // Suscriptores Harper (Ale, 03/11/2026): el saldo se usa salvo que lo
@@ -909,10 +913,16 @@ export default function FormularioCheckout({
       // A partir de acá manda Mercado Pago.
       window.location.href = cuerpo.initPoint;
     } catch (error) {
+      // Sin conexión, `fetch` falla con un TypeError cuyo texto es del
+      // navegador, en inglés («Failed to fetch», «Load failed»): se reemplaza
+      // por uno que dice qué pasó y que no se perdió nada. Los mensajes del
+      // servidor siguen tal cual.
       setFallo(
-        error instanceof Error
-          ? error.message
-          : "No pudimos iniciar el pago. Probá de nuevo."
+        error instanceof TypeError
+          ? TEXTOS.checkout.sinConexion
+          : error instanceof Error
+            ? error.message
+            : "No pudimos iniciar el pago. Probá de nuevo."
       );
       setEnviando(false);
     }
@@ -1591,6 +1601,11 @@ export default function FormularioCheckout({
               : "Pagás en Mercado Pago. Las cuotas y su costo los ves ahí antes de confirmar."}
           </p>
         )}
+
+        {/* En celular el botón flotante de WhatsApp se guarda mientras está la
+            barra de pagar (subido sobre la barra, tapaba campos y opciones):
+            la consulta queda acá, junto al total. En escritorio sigue el flotante. */}
+        <AyudaWhatsApp numero={whatsapp} />
       </aside>
 
       <BarraPagar

@@ -197,6 +197,15 @@ export const TEXTOS = {
   pie: {
     lema: "Diseño para todos los días.",
   },
+  /** El checkout (recorrido móvil, Ale, 08/11/2026). */
+  checkout: {
+    /** Cuando el pedido no llega al servidor (sin conexión): en vez del «Failed to fetch» del navegador. */
+    sinConexion: "No pudimos conectarnos. Revisá tu conexión y tocá Pagar de nuevo: tu carrito y tus datos siguen acá.",
+    /** Después de un pago rechazado, para que sepa que no tiene que empezar de cero. */
+    siguenAca: "Tu carrito y tus datos siguen acá.",
+    dudas: "¿Dudas antes de pagar?",
+    escribinos: "Escribinos por WhatsApp",
+  },
   /**
    * Quiénes somos (Ale, 04/11/2026: sin «Los anteojos también se eligen como
    * la ropa» ni lo del accesorio; 08/11/2026: página editorial de marca). Sin
@@ -607,6 +616,8 @@ export const TEXTOS = {
           : `Suscribite gratis con este mail y desbloqueá ${monto} de descuento en esta compra y envío sin cargo.`,
       nota: "Es gratis. El cupón es para tu primera compra en Harper.",
       escribiMail: "Escribí tu mail arriba y te mandamos el código.",
+      /** Lo que abre la invitación plegada. */
+      abrir: "Quiero suscribirme",
       suscribirme: "Suscribirme con este mail",
       usarSaldo: (monto: string) => `Usar mi saldo a favor (${monto})`,
       /** «Con esta compra te vuelven $ 7.990 de saldo, para usar desde los 30 días del pago.» */

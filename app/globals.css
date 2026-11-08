@@ -1113,6 +1113,43 @@ p {
   font-weight: 600;
 }
 
+/* La página del carrito (recorrido móvil, Ale, 08/11/2026). En el celular, una
+   columna: los productos, el resumen con «Finalizar compra» y después las
+   sugerencias. Desde 41.5rem (donde antes la grilla ya pasaba a dos
+   columnas), lo de siempre: productos y sugerencias a la izquierda, el
+   resumen solo a la derecha. La segunda fila es flexible para que el resumen,
+   que ocupa las dos, no separe los productos de las sugerencias. */
+.carrito-vista {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+.carrito-vista__items {
+  gap: 2rem;
+}
+@media (min-width: 41.5rem) {
+  .carrito-vista {
+    /* Las mismas columnas que la grilla de antes: iguales, sin que el
+       contenido de una achique a la otra. */
+    grid-template-columns: repeat(2, minmax(18rem, 1fr));
+    grid-template-rows: auto 1fr;
+    gap: 0 3rem;
+  }
+  .carrito-vista__items {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .carrito-vista__resumen {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .carrito-vista > .sugerencias {
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: 2rem;
+  }
+}
+
 /* ---------- Checkout compacto ----------
    En celular: título chico, el pedido resumido en una línea desplegable
    arriba, campos de a pares y sin textos de ayuda, y la barra fija de pagar.
@@ -5840,6 +5877,65 @@ p {
 }
 .checkout__suscriptor .suscripcion__enlace {
   font-size: 0.8125rem;
+}
+/* La invitación plegada (recorrido móvil, Ale, 08/11/2026): la oferta y su
+   nota a la vista; la casilla, el código y el botón, a un toque. */
+.checkout__suscriptor-pliegue > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--verde);
+}
+.checkout__suscriptor-pliegue > summary::-webkit-details-marker {
+  display: none;
+}
+.checkout__suscriptor-pliegue > summary::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-0.15rem) rotate(45deg);
+  transition: transform var(--rapido) var(--curva);
+}
+.checkout__suscriptor-pliegue[open] > summary {
+  margin-bottom: 0.5rem;
+}
+.checkout__suscriptor-pliegue[open] > summary::after {
+  transform: translateY(0.1rem) rotate(-135deg);
+}
+
+/* La consulta por WhatsApp junto a «Finalizar compra» y al total del
+   checkout (components/checkout/AyudaWhatsApp.tsx): solo en celular, donde el
+   botón flotante se guarda en esas dos páginas. */
+.ayuda-wsp {
+  display: none;
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--texto-suave);
+}
+@media (max-width: 46rem) {
+  .ayuda-wsp {
+    display: block;
+  }
+  /* Subido sobre la barra de pagar, el flotante tapaba campos, casillas y
+     opciones de pago mientras se completaba el formulario; en el carrito,
+     el borde de «Finalizar compra». Con el carrito vacío sigue. */
+  body:has(.cta-fija--pago[data-visible]) .wsp,
+  body:has(.carrito-vista) .wsp {
+    display: none;
+  }
+  /* Al pasar de un campo al siguiente, el navegador lo deja arriba de la
+     barra de pagar y no debajo. */
+  html:has(.cta-fija--pago[data-visible]) {
+    scroll-padding-bottom: calc(4.75rem + 0.75rem + env(safe-area-inset-bottom));
+  }
 }
 .checkout__saldo {
   margin-top: 0;

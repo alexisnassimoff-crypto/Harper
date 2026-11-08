@@ -15,11 +15,12 @@ import { useCarritoResuelto } from "./useCarritoResuelto";
 import CuotasDelCarrito from "./CuotasDelCarrito";
 import LineaCarrito from "./LineaCarrito";
 import SugerenciasCarrito from "./SugerenciasCarrito";
+import AyudaWhatsApp from "@/components/checkout/AyudaWhatsApp";
 import CodigoDescuento from "@/components/checkout/CodigoDescuento";
 import { buscarCupon } from "@/lib/cupones";
 import { envioEnElCarrito } from "@/lib/envio-gratis";
 
-export default function VistaCarrito() {
+export default function VistaCarrito({ whatsapp = "" }: { whatsapp?: string }) {
   const { items: guardados, cupon } = useCarrito();
   const { datos, cargando, actualizando, error, recargar } = useCarritoResuelto({ cuotas: true });
 
@@ -82,18 +83,12 @@ export default function VistaCarrito() {
   }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: "3rem",
-        gridTemplateColumns: "repeat(auto-fit, minmax(min(18rem, 100%), 1fr))",
-        alignItems: "start",
-      }}
-    >
-      {/* Los ítems y las sugerencias van en la misma columna: la grilla reparte
-          columnas entre sus hijos directos, y el resumen tiene que quedar solo
-          en la suya. */}
-      <div className="pila" style={{ gap: "2rem" }}>
+    // En el celular, una columna: los productos, el resumen con «Finalizar
+    // compra» y recién después las sugerencias (antes el botón quedaba a casi
+    // dos pantallas). Desde 41.5rem, dos columnas como siempre: productos y
+    // sugerencias a la izquierda, el resumen a la derecha (globals.css).
+    <div className="carrito-vista">
+      <div className="pila carrito-vista__items">
         {error ? (
           <p className="aviso-carrito" role="status">
             No pudimos actualizar los precios. Mostramos lo último que vimos.{" "}
@@ -113,11 +108,9 @@ export default function VistaCarrito() {
             <LineaCarrito key={item.varianteId} item={item} actualizando={actualizando} />
           ))}
         </ul>
-
-        <SugerenciasCarrito sugerencias={datos.sugerencias ?? []} />
       </div>
 
-      <aside className="panel" aria-busy={actualizando} data-actualizando={actualizando || undefined}>
+      <aside className="panel carrito-vista__resumen" aria-busy={actualizando} data-actualizando={actualizando || undefined}>
         <h2 className="label">Resumen</h2>
 
         {/* El cupón aplicado en la ficha, con la opción de quitarlo. El campo
@@ -177,7 +170,12 @@ export default function VistaCarrito() {
         <Link href="/checkout" className="boton boton--bloque">
           Finalizar compra
         </Link>
+        {/* En celular, con el botón ya en la primera pantalla, el WhatsApp
+            flotante lo tapaba: se guarda y la consulta queda acá. */}
+        <AyudaWhatsApp numero={whatsapp} />
       </aside>
+
+      <SugerenciasCarrito sugerencias={datos.sugerencias ?? []} />
     </div>
   );
 }
