@@ -2939,62 +2939,13 @@ p {
 }
 
 /* ---------------------------------------------------------------------------
-   Pie: Harper protagonista, información legal siempre visible
+   Pie (Ale, 08/11/2026): editorial, Harper protagonista y la información
+   legal siempre visible. Primero el celular: una columna con aire y Tienda y
+   Ayuda lado a lado; en la computadora, la marca arriba y cuatro columnas.
+   Barlow Condensed en el lema y los títulos, Roboto Mono en los enlaces y
+   Rethink Sans en los nombres de los canales (como los botones).
 --------------------------------------------------------------------------- */
 
-.pie {
-  margin-top: 6rem;
-  background: var(--verde);
-  color: #fff;
-}
-.pie a,
-.pie button {
-  color: inherit;
-}
-.pie__principal {
-  display: grid;
-  gap: 2.5rem 2rem;
-  grid-template-columns: 1fr;
-  padding-block: 4rem 3rem;
-}
-@media (min-width: 40rem) {
-  .pie__principal {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .pie__marca {
-    grid-column: 1 / -1;
-  }
-}
-@media (min-width: 64rem) {
-  .pie__principal {
-    grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
-  }
-  .pie__marca {
-    grid-column: auto;
-  }
-}
-.pie__marca {
-  display: grid;
-  gap: 1rem;
-  align-content: start;
-}
-.pie__lema {
-  font-size: 0.9375rem;
-  color: rgb(255 255 255 / 0.78);
-  letter-spacing: 0.01em;
-}
-.pie__columna {
-  display: grid;
-  gap: 0.65rem;
-  align-content: start;
-}
-.pie__titulo {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: rgb(255 255 255 / 0.66);
-}
 /* El contenido recibe el foco (salto desde "Saltar al contenido" o al cerrar
    el aviso de cookies) sin dibujar un marco alrededor de toda la página. */
 #contenido:focus {
@@ -3010,11 +2961,102 @@ p {
   text-align: left;
   cursor: pointer;
 }
-.pie__enlace {
-  justify-self: start;
-  font-size: 0.875rem;
+
+.pie {
+  margin-top: 6rem;
+  background: var(--verde);
   color: #fff;
-  opacity: 0.92;
+}
+.pie a,
+.pie button {
+  color: inherit;
+}
+.pie a:focus-visible,
+.pie button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* La marca: el logo, el lema y Quiénes somos. */
+.pie__marca {
+  display: grid;
+  justify-items: start;
+  gap: 1.15rem;
+  padding-block: 3.5rem 2.5rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.16);
+}
+.pie__logo {
+  display: inline-flex;
+}
+.pie__lema {
+  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
+  font-size: clamp(1.875rem, 8vw, 2.5rem);
+  font-weight: 600;
+  line-height: 0.98;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.pie__nosotros {
+  padding-block: 0.35rem;
+  font-family: var(--fuente-botones), Arial, sans-serif;
+  font-size: var(--tipo-boton-chico);
+  font-weight: 500;
+  letter-spacing: var(--tracking-boton);
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-decoration-color: rgb(255 255 255 / 0.45);
+  text-underline-offset: 0.4em;
+  transition: text-decoration-color var(--rapido) var(--curva);
+}
+.pie__nosotros:hover {
+  text-decoration-color: #fff;
+}
+
+/* Contacto, Tienda, Ayuda y Legales. En el celular, Tienda y Ayuda van lado a
+   lado (Ayuda más ancha: sus enlaces son más largos); Contacto y Legales, a
+   todo el ancho. */
+.pie__grilla {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 2.5rem 1.5rem;
+  padding-block: 2.5rem 3rem;
+}
+.pie__grupo {
+  display: grid;
+  align-content: start;
+  gap: 0.6rem;
+}
+.pie__grupo--contacto,
+.pie__grupo--legales {
+  grid-column: 1 / -1;
+}
+.pie__titulo {
+  margin: 0;
+  font-family: var(--fuente-titulos), "Arial Narrow", Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.7);
+}
+.pie__lista {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Cada enlace con aire arriba y abajo: cómodo para tocar sin errarle. */
+.pie__enlace {
+  display: inline-block;
+  padding-block: 0.45rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-align: left;
+  color: #fff;
+  opacity: 0.9;
   transition: opacity var(--rapido) var(--curva);
 }
 .pie__enlace:hover,
@@ -3023,35 +3065,82 @@ p {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
-/* Instagram, WhatsApp y mail: accesos directos debajo del logo. */
+
+/* Contacto: cada canal con su nombre y su dato, en un renglón alto. */
 .pie__contacto {
-  display: flex;
-  gap: 0.6rem;
-  margin: 0.25rem 0 0;
+  display: grid;
+  margin: 0;
   padding: 0;
   list-style: none;
+  border-top: 1px solid rgb(255 255 255 / 0.14);
 }
-.pie__contacto a {
-  display: inline-grid;
+.pie__contacto li {
+  border-bottom: 1px solid rgb(255 255 255 / 0.14);
+}
+.pie__canal {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 4rem;
+  padding-block: 0.6rem;
+  text-decoration: none;
+}
+.pie__canal-icono {
+  display: grid;
   place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   border: 1px solid rgb(255 255 255 / 0.35);
   border-radius: 50%;
   transition:
     background var(--rapido) var(--curva),
     border-color var(--rapido) var(--curva);
 }
-.pie__contacto a:hover,
-.pie__contacto a:focus-visible {
+.pie__canal:hover .pie__canal-icono,
+.pie__canal:focus-visible .pie__canal-icono {
   background: rgb(255 255 255 / 0.12);
   border-color: #fff;
 }
-/* Los medios de pago, centrados, arriba de la línea. */
+.pie__canal-texto {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.pie__canal-nombre {
+  font-family: var(--fuente-botones), Arial, sans-serif;
+  font-size: var(--tipo-boton-chico);
+  font-weight: 500;
+  letter-spacing: var(--tracking-boton);
+  text-transform: uppercase;
+}
+.pie__canal-dato {
+  font-size: var(--tipo-chico);
+  color: rgb(255 255 255 / 0.75);
+  overflow-wrap: anywhere;
+}
+
+/* Abajo: los medios de pago y el Data Fiscal. Abajo de todo deja lugar para
+   el globo de WhatsApp, que flota en la esquina. */
+.pie__base {
+  display: grid;
+  justify-items: center;
+  gap: 1.5rem;
+  padding-block: 2rem 5.5rem;
+  border-top: 1px solid rgb(255 255 255 / 0.18);
+  text-align: center;
+}
 .pie__medios {
-  display: flex;
-  justify-content: center;
-  padding-bottom: 1.75rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+}
+.pie__medios-titulo {
+  font-size: var(--tipo-etiqueta);
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.7);
 }
 .pie__pagos {
   display: flex;
@@ -3065,19 +3154,10 @@ p {
 .pie__pagos svg {
   display: block;
 }
-/* Debajo de la línea: el Data Fiscal, centrado.
-   Abajo deja lugar para el globo de WhatsApp, que flota en la esquina. */
-.pie__legal {
-  display: grid;
-  justify-items: center;
-  gap: 0.9rem;
-  padding-block: 1.75rem 5.5rem;
-  border-top: 1px solid rgb(255 255 255 / 0.18);
-  text-align: center;
-}
 /* Data Fiscal (F. 960/D de ARCA): el logo, chico y sobre blanco como lo entrega ARCA. */
 .pie__data-fiscal {
   display: inline-flex;
+  padding-block: 0.3rem;
   font-size: 0.8125rem;
   text-decoration: underline;
   text-underline-offset: 0.18em;
@@ -3087,6 +3167,67 @@ p {
   height: 4rem;
   width: auto;
   border-radius: 2px;
+}
+
+@media (min-width: 48rem) {
+  /* La marca en una fila: el logo, el lema separado por una línea fina y
+     Quiénes somos a la derecha. */
+  .pie__marca {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 2.5rem;
+    padding-block: 4.5rem 3.5rem;
+  }
+  .pie__lema {
+    padding-left: 2.5rem;
+    border-left: 1px solid rgb(255 255 255 / 0.25);
+    font-size: clamp(2rem, 3.4vw, 3rem);
+  }
+  .pie__grilla {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3rem 2.5rem;
+    padding-block: 3.5rem;
+  }
+  .pie__grupo--legales {
+    grid-column: auto;
+  }
+  /* Los canales, en fila: de a dos si no entran cómodos los tres. */
+  .pie__contacto {
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    column-gap: 2rem;
+    border-top: 0;
+  }
+  .pie__base {
+    grid-template-columns: minmax(0, 1fr) auto;
+    justify-items: start;
+    align-items: center;
+    padding-block: 2rem 5rem;
+    text-align: left;
+  }
+  .pie__medios {
+    grid-auto-flow: column;
+    align-items: center;
+    justify-items: start;
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  /* Contacto, Tienda, Ayuda y Legales: cuatro columnas. */
+  .pie__grilla {
+    grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 1fr));
+    padding-block: 3.5rem 4rem;
+  }
+  .pie__grupo--contacto {
+    grid-column: auto;
+  }
+  .pie__contacto {
+    grid-template-columns: 1fr;
+    border-top: 1px solid rgb(255 255 255 / 0.14);
+  }
+  .pie__grupo--contacto {
+    padding-right: 1.5rem;
+  }
 }
 
 /* ---------------------------------------------------------------------------

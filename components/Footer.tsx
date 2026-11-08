@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ConfigTienda } from "@/lib/config";
+import { usuarioDeInstagram, type ConfigTienda } from "@/lib/config";
 import { leerDataFiscal } from "@/lib/data-fiscal";
 import { TEXTOS } from "@/lib/textos";
 import { EnlacePreferenciasCookies } from "./AvisoCookies";
@@ -7,9 +7,15 @@ import Logo from "./Logo";
 import MediosDePago from "./MediosDePago";
 
 /**
- * El pie: editorial y con Harper como protagonista. Debajo del logo, los
- * accesos directos (Instagram, WhatsApp y mail). Arriba de la línea, los
- * medios de pago, centrados; abajo, solo el Data Fiscal de ARCA, centrado.
+ * El pie (Ale, 08/11/2026): editorial, con Harper como protagonista y en el
+ * mismo sistema que la portada y Quiénes somos.
+ *
+ *  - Arriba, la marca: el logo grande, el lema en Barlow Condensed y el
+ *    enlace a Quiénes somos.
+ *  - Contacto: Instagram, WhatsApp y mail, con su nombre y su dato a la vista
+ *    (botones cómodos en el celular). Solo los que están en Config.
+ *  - Tienda (las categorías con productos), Ayuda y Legales.
+ *  - Abajo, los medios de pago y el Data Fiscal de ARCA.
  *
  * Sin la línea del © con los datos del vendedor (pedido de Ale, 30/10/2026):
  * la razón social, el CUIT, el domicilio y el correo que pide la Res. GMC
@@ -22,6 +28,9 @@ import MediosDePago from "./MediosDePago";
 
 const DEFENSA_CONSUMIDOR = "https://autogestion.produccion.gob.ar/consumidores";
 
+/** Para los lectores de pantalla: el enlace abre otra pestaña. */
+const OtraPestana = () => <span className="solo-lectores"> (se abre en otra pestaña)</span>;
+
 export default function Footer({
   config,
   categorias = [],
@@ -31,110 +40,177 @@ export default function Footer({
   categorias?: { nombre: string; slug: string }[];
 }) {
   const whatsapp = config.whatsapp ? `https://wa.me/${config.whatsapp}` : null;
+  const instagram = config.instagram ? { href: config.instagram, usuario: usuarioDeInstagram(config.instagram) } : null;
   const dataFiscal = leerDataFiscal(config.dataFiscal);
 
   return (
     <footer className="pie">
-      <div className="contenedor pie__principal">
+      <div className="contenedor">
+        {/* La marca. */}
         <div className="pie__marca">
-          <Logo alto={58} lockup claro />
-          <p className="pie__lema">{TEXTOS.pie.lema}</p>
-          <Link href="/quienes-somos" className="pie__enlace">
-            Quiénes somos
+          <Link href="/" className="pie__logo" aria-label="Harper: ir al inicio">
+            <Logo alto="clamp(4rem, 11vw, 6.25rem)" lockup claro />
           </Link>
-          <ul className="pie__contacto" aria-label="Contacto">
-            {config.instagram ? (
-              <li>
-                <a href={config.instagram} target="_blank" rel="noopener noreferrer" aria-label="Instagram de Harper">
-                  <IconoInstagram />
-                </a>
-              </li>
-            ) : null}
-            {whatsapp ? (
-              <li>
-                <a href={whatsapp} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp de Harper">
-                  <IconoWhatsApp />
-                </a>
-              </li>
-            ) : null}
-            <li>
-              <a href={`mailto:${config.emailContacto}`} aria-label="Escribinos por mail">
-                <IconoMail />
-              </a>
-            </li>
-          </ul>
+          <p className="pie__lema">{TEXTOS.pie.lema}</p>
+          <Link href="/quienes-somos" className="pie__nosotros">
+            Quiénes somos
+            <span aria-hidden="true"> →</span>
+          </Link>
         </div>
 
-        {categorias.length > 0 ? (
-          <nav className="pie__columna" aria-label="Tienda">
-            <span className="pie__titulo">Tienda</span>
-            {categorias.map((c) => (
-              <Link key={c.slug} href={`/${c.slug}`} className="pie__enlace">
-                {c.nombre}
-              </Link>
-            ))}
+        <div className="pie__grilla">
+          {/* Contacto: solo los canales cargados en Config. */}
+          <section className="pie__grupo pie__grupo--contacto" aria-labelledby="pie-contacto">
+            <h2 id="pie-contacto" className="pie__titulo">
+              Contacto
+            </h2>
+            <ul className="pie__contacto">
+              {instagram ? (
+                <li>
+                  <a href={instagram.href} target="_blank" rel="noopener noreferrer" className="pie__canal">
+                    <span className="pie__canal-icono" aria-hidden="true">
+                      <IconoInstagram />
+                    </span>
+                    <span className="pie__canal-texto">
+                      <span className="pie__canal-nombre">Instagram</span>
+                      {instagram.usuario ? <span className="pie__canal-dato">{instagram.usuario}</span> : null}
+                    </span>
+                    <OtraPestana />
+                  </a>
+                </li>
+              ) : null}
+              {whatsapp ? (
+                <li>
+                  <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="pie__canal">
+                    <span className="pie__canal-icono" aria-hidden="true">
+                      <IconoWhatsApp />
+                    </span>
+                    <span className="pie__canal-texto">
+                      <span className="pie__canal-nombre">WhatsApp</span>
+                      <span className="pie__canal-dato">Te asesoramos por chat</span>
+                    </span>
+                    <OtraPestana />
+                  </a>
+                </li>
+              ) : null}
+              <li>
+                <a href={`mailto:${config.emailContacto}`} className="pie__canal">
+                  <span className="pie__canal-icono" aria-hidden="true">
+                    <IconoMail />
+                  </span>
+                  <span className="pie__canal-texto">
+                    <span className="pie__canal-nombre">Mail</span>
+                    <span className="pie__canal-dato">{config.emailContacto}</span>
+                  </span>
+                </a>
+              </li>
+            </ul>
+          </section>
+
+          {categorias.length > 0 ? (
+            <nav className="pie__grupo pie__grupo--tienda" aria-labelledby="pie-tienda">
+              <h2 id="pie-tienda" className="pie__titulo">
+                Tienda
+              </h2>
+              <ul className="pie__lista">
+                {categorias.map((c) => (
+                  <li key={c.slug}>
+                    <Link href={`/${c.slug}`} className="pie__enlace">
+                      {c.nombre}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ) : null}
+
+          <nav className="pie__grupo pie__grupo--ayuda" aria-labelledby="pie-ayuda">
+            <h2 id="pie-ayuda" className="pie__titulo">
+              Ayuda
+            </h2>
+            <ul className="pie__lista">
+              {/* La cuenta Harper (Ale, 05/11/2026): compras, favoritos, datos y, para suscriptores, su saldo y su cupón. */}
+              <li>
+                <Link href="/suscriptores/mi-cuenta" className="pie__enlace">
+                  Mi cuenta
+                </Link>
+              </li>
+              <li>
+                <Link href="/preguntas-frecuentes" className="pie__enlace">
+                  Preguntas frecuentes
+                </Link>
+              </li>
+              <li>
+                <Link href="/legales/devoluciones" className="pie__enlace">
+                  Cambios y devoluciones
+                </Link>
+              </li>
+              <li>
+                <Link href="/legales/devoluciones#garantia" className="pie__enlace">
+                  Garantía
+                </Link>
+              </li>
+            </ul>
           </nav>
-        ) : null}
 
-        <nav className="pie__columna" aria-label="Ayuda">
-          <span className="pie__titulo">Ayuda</span>
-          <Link href="/preguntas-frecuentes" className="pie__enlace">
-            Preguntas frecuentes
-          </Link>
-          <Link href="/legales/devoluciones" className="pie__enlace">
-            Cambios y devoluciones
-          </Link>
-          <Link href="/legales/devoluciones#garantia" className="pie__enlace">
-            Garantía
-          </Link>
-          {/* Suscriptores Harper (Ale, 03/11/2026): su saldo y su cupón. */}
-          <Link href="/suscriptores/mi-cuenta" className="pie__enlace">
-            Soy suscriptor
-          </Link>
-        </nav>
+          <nav className="pie__grupo pie__grupo--legales" aria-labelledby="pie-legales">
+            <h2 id="pie-legales" className="pie__titulo">
+              Legales
+            </h2>
+            <ul className="pie__lista">
+              <li>
+                <Link href="/legales/terminos" className="pie__enlace">
+                  Términos y condiciones
+                </Link>
+              </li>
+              <li>
+                <Link href="/legales/privacidad" className="pie__enlace">
+                  Política de privacidad
+                </Link>
+              </li>
+              <li>
+                <EnlacePreferenciasCookies className="pie__enlace" />
+              </li>
+              <li>
+                <a href={DEFENSA_CONSUMIDOR} target="_blank" rel="noopener noreferrer" className="pie__enlace">
+                  Defensa de las y los Consumidores
+                  <OtraPestana />
+                </a>
+              </li>
+              <li>
+                <Link href="/legales/arrepentimiento" className="pie__enlace">
+                  Botón de arrepentimiento
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        </div>
 
-        <nav className="pie__columna" aria-label="Legales">
-          <span className="pie__titulo">Legales</span>
-          <Link href="/legales/terminos" className="pie__enlace">
-            Términos y condiciones
-          </Link>
-          <Link href="/legales/privacidad" className="pie__enlace">
-            Política de privacidad
-          </Link>
-          <EnlacePreferenciasCookies className="pie__enlace" />
-          <a href={DEFENSA_CONSUMIDOR} target="_blank" rel="noopener noreferrer" className="pie__enlace">
-            Defensa de las y los Consumidores
-          </a>
-          <Link href="/legales/arrepentimiento" className="pie__enlace">
-            Botón de arrepentimiento
-          </Link>
-        </nav>
-      </div>
-
-      {/* Los medios de pago, centrados, arriba de la línea. */}
-      <div className="contenedor pie__medios">
-        <MediosDePago className="pie__pagos" />
-      </div>
-
-      <div className="contenedor pie__legal">
-        {dataFiscal ? (
-          // Formulario 960/D de ARCA: el logo y el enlace son los que entrega
-          // ARCA para harper.ar (Config.data_fiscal). Sin código, no se muestra.
-          <a
-            className="pie__data-fiscal"
-            href={dataFiscal.enlace}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Data Fiscal (ARCA): información fiscal del vendedor"
-          >
-            {dataFiscal.imagen ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={dataFiscal.imagen} alt="Data Fiscal" loading="lazy" decoding="async" />
-            ) : (
-              "Data Fiscal"
-            )}
-          </a>
-        ) : null}
+        {/* Abajo: los medios de pago y el Data Fiscal. */}
+        <div className="pie__base">
+          <div className="pie__medios">
+            <span className="pie__medios-titulo">Medios de pago</span>
+            <MediosDePago className="pie__pagos" />
+          </div>
+          {dataFiscal ? (
+            // Formulario 960/D de ARCA: el logo y el enlace son los que entrega
+            // ARCA para harper.ar (Config.data_fiscal). Sin código, no se muestra.
+            <a
+              className="pie__data-fiscal"
+              href={dataFiscal.enlace}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Data Fiscal (ARCA): información fiscal del vendedor"
+            >
+              {dataFiscal.imagen ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={dataFiscal.imagen} alt="Data Fiscal" loading="lazy" decoding="async" />
+              ) : (
+                "Data Fiscal"
+              )}
+            </a>
+          ) : null}
+        </div>
       </div>
     </footer>
   );
