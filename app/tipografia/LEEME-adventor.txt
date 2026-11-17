@@ -1,0 +1,22 @@
+adventor-regular.woff2 y adventor-bold.woff2
+
+Son TeX Gyre Adventor Regular y Bold (GUST e-foundry, versión 2.501), la
+versión libre del mismo dibujo que ITC Avant Garde Gothic Book y Demi.
+Origen: https://www.gust.org.pl/projects/e-foundry/tex-gyre/adventor
+
+Cambios respecto del original: se convirtieron de OpenType a WOFF2 y se
+recortaron a los caracteres del español (latín básico, acentos, signos y
+flechas) para que pesen unos 20 KB cada una. Por eso llevan otro nombre de
+archivo, como pide la licencia.
+
+Licencia: GUST Font License 1.0 (equivale a la LaTeX Project Public License
+1.3c o posterior). Permite usarlas, distribuirlas y modificarlas, también en
+un sitio comercial.
+https://www.gust.org.pl/projects/e-foundry/licenses/GUST-FONT-LICENSE.txt
+
+Copyright 2007-2018 for TeX Gyre extensions by B. Jackowski, J. M. Nowacki,
+et al. (on behalf of TeX Users Groups).
+
+Si Harper compra la licencia web de ITC Avant Garde Gothic (Monotype), alcanza
+con reemplazar estos dos archivos por los de Book y Demi: el resto del sitio no
+cambia.

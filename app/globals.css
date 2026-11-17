@@ -30,7 +30,11 @@
   --ancho: 78rem;
   --gutter: 1.25rem;
   --radio: 18px;
-  --radio-tarjeta: 28px;
+  /* Donde van las fotos de los productos (tarjetas del catálogo, galería de la
+     ficha y miniaturas del carrito y del checkout): bordes rectos (Ale,
+     17/11/2026). Los botones y los campos siguen redondeados. */
+  --radio-tarjeta: 0;
+  --radio-foto: 0;
   --radio-pill: 999px;
 
   /* Movimiento: una sola curva para que todo el sitio se sienta igual */
@@ -44,12 +48,13 @@
   --sombra-media: 0 10px 30px -12px rgb(22 21 15 / 0.22);
   --sombra-alta: 0 22px 48px -18px rgb(22 21 15 / 0.30);
 
-  /* Tipografía aprobada (Ale, 07/11/2026): Barlow Condensed en los títulos,
-     Roboto Mono en los textos y Rethink Sans en los botones. Las tres las
-     define app/layout.tsx con next/font (--fuente-titulos, --fuente-texto y
-     --fuente-botones), por eso no se declaran acá. La escala está en el bloque
-     «Tipografía aprobada», al final. La mono ya es ancha: las etiquetas en
-     mayúsculas llevan poco espaciado. */
+  /* Tipografía aprobada (Ale, 07/11/2026 y 17/11/2026): Barlow Condensed en
+     los títulos, Avant Garde Gothic en los textos (antes Roboto Mono) y
+     Rethink Sans en los botones. Las tres las define app/layout.tsx con
+     next/font (--fuente-titulos, --fuente-texto y --fuente-botones), por eso
+     no se declaran acá. La escala está en el bloque «Tipografía aprobada», al
+     final. Avant Garde es ancha en mayúsculas: las etiquetas llevan poco
+     espaciado. */
   --fuente-etiquetas: var(--fuente-texto);
   --tracking-titulo: 0;
   --tracking-label: 0.07em;
@@ -486,7 +491,7 @@ p {
   aspect-ratio: 1 / 1;
   padding: 0;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: var(--radio-foto);
   border: 1px solid var(--borde);
   background: var(--fondo);
   transition:
@@ -563,7 +568,7 @@ p {
   flex: 0 0 auto;
   width: 4.25rem;
   height: 4.25rem;
-  border-radius: 14px;
+  border-radius: var(--radio-foto);
   background: var(--fondo-alt);
   overflow: hidden;
 }
@@ -2984,7 +2989,7 @@ p {
    Pie (Ale, 08/11/2026): editorial, Harper protagonista y la información
    legal siempre visible. Primero el celular: una columna con aire y Tienda y
    Ayuda lado a lado; en la computadora, la marca arriba y cuatro columnas.
-   Barlow Condensed en el lema y los títulos, Roboto Mono en los enlaces y
+   Barlow Condensed en el lema y los títulos, Avant Garde en los enlaces y
    Rethink Sans en los nombres de los canales (como los botones).
 --------------------------------------------------------------------------- */
 
@@ -3881,7 +3886,7 @@ p {
   position: relative;
   width: 3.5rem;
   height: 3.5rem;
-  border-radius: 12px;
+  border-radius: var(--radio-foto);
   background: var(--fondo-alt);
 }
 .extra__texto {
@@ -7213,6 +7218,23 @@ main:has(.cierre:last-child) ~ .pie {
   font-size: 0.75rem;
   color: var(--texto-suave);
 }
+/* El pago, aparte y al final (Ale, 17/11/2026): el sello de Mercado Pago más
+   grande y el texto abajo, separado de las demás condiciones por una línea. */
+.condiciones__item--pago {
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: 0.95rem;
+  border-top: 1px solid var(--borde);
+}
+.condiciones__sello {
+  display: block;
+  line-height: 0;
+}
+/* Solo el dibujo de afuera: el sello lleva otro <svg> adentro con el logo. */
+.condiciones__sello > svg {
+  width: 4.25rem;
+  height: auto;
+}
 .condiciones__enlace {
   width: fit-content;
   font-size: 0.75rem;
@@ -7638,7 +7660,7 @@ body[data-sin-flotantes] .wsp {
   color: #fff;
 }
 .comprar__cantidad {
-  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.75rem;
   font-weight: 500;
   opacity: 0.6;
@@ -7885,12 +7907,18 @@ body[data-sin-flotantes] .wsp {
     grid-template-areas: "texto foto";
     min-height: min(42rem, calc(100svh - 6.5rem));
   }
+  /* El anteojo termina donde termina el contenido de la página (el borde
+     derecho del menú), no contra el borde de la pantalla (Ale, 17/11/2026):
+     el mismo margen que el texto tiene a la izquierda, del otro lado. La foto
+     entra entera, sin recortar las patillas. */
   .inicio-hero__foto {
     aspect-ratio: auto;
     min-height: 100%;
+    margin-right: max(var(--gutter), calc((100vw - var(--ancho)) / 2 + var(--gutter)));
   }
   .inicio-hero__foto img {
-    transform: scale(0.84);
+    object-fit: contain;
+    transform: none;
   }
   .inicio-hero__producto {
     font-size: 1.375rem;
@@ -7972,9 +8000,10 @@ body[data-sin-flotantes] .wsp {
    Tipografía aprobada (Ale, 07/11/2026), en todo el sitio.
    - Títulos y nombres de los modelos: Barlow Condensed SemiBold 600, en
      mayúsculas.
-   - Textos, descripciones, mensajes, precios y etiquetas: Roboto Mono
-     Regular 400 y Medium 500. Nada más grueso: con `font-synthesis-weight`
-     apagado, un 600/700 viejo se ve en 500 y el navegador no inventa negritas.
+   - Textos, descripciones, mensajes, precios y etiquetas: Avant Garde Gothic
+     (Ale, 17/11/2026; antes Roboto Mono), Book 400 y Demi para todo lo que
+     se marca desde 500. Con `font-synthesis-weight` apagado el navegador no
+     inventa negritas: un 500, un 600 y un 700 se ven igual, en Demi.
    - Botones: Rethink Sans Medium 500, en mayúsculas y con espaciado amplio.
    Una sola escala para celular y escritorio: cada nivel crece con la pantalla
    (clamp) y mantiene la misma proporción con los demás.
@@ -8004,14 +8033,14 @@ body {
   font-size: var(--tipo-cuerpo);
   font-weight: 400;
   line-height: 1.65;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   font-synthesis-weight: none;
 }
 
-/* Las negritas del texto son Medium 500 (la Roboto Mono no tiene más). */
+/* Las negritas del texto son la Demi de Avant Garde. */
 strong,
 b {
-  font-weight: 500;
+  font-weight: 700;
 }
 
 h1,
@@ -8094,20 +8123,20 @@ h3,
   text-transform: uppercase;
 }
 
-/* Etiquetas en mayúsculas: mono, chicas y con poco espaciado. */
+/* Etiquetas en mayúsculas: chicas y con poco espaciado (la clase conserva el nombre de cuando eran mono). */
 .etiqueta-mono,
 .label {
-  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: var(--tipo-etiqueta);
   font-weight: 500;
   letter-spacing: 0.07em;
 }
 
-/* Precios: mono, con cifras parejas y bien marcadas. */
+/* Precios: con cifras parejas y bien marcadas. */
 .tarjeta-inicio__precio,
 .pieza__precio,
 .portada-color__precio strong {
-  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-weight: 500;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -8279,7 +8308,7 @@ h3,
   text-underline-offset: 0.2em;
 }
 .compra__producto small {
-  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.75rem;
   font-weight: 400;
   letter-spacing: -0.01em;
@@ -8769,7 +8798,7 @@ body[data-cta-fija] .aviso-favoritos {
   border-radius: var(--radio-pill);
   background: var(--hueso-calido);
   color: var(--tinta);
-  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0;
@@ -9077,7 +9106,7 @@ body[data-cta-fija] .aviso-favoritos {
   border-radius: var(--radio-pill);
   background: var(--hueso-calido);
   color: var(--tinta);
-  font-family: var(--fuente-texto), ui-monospace, monospace;
+  font-family: var(--fuente-texto), Helvetica, Arial, sans-serif;
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.04em;

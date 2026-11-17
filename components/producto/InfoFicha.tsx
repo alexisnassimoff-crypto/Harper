@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { IconoConfianza } from "@/components/MensajesConfianza";
+import { SelloMercadoPago } from "@/components/MediosDePago";
 import { medidasDeLaFicha, numerosDeLaPatilla, talleDe, TALLES, type Condicion } from "@/lib/ficha";
 import { TEXTOS } from "@/lib/textos";
 import type { Medidas } from "@/lib/tipos";
@@ -44,17 +45,27 @@ export function Acordeon({
   );
 }
 
-/** Envío, devolución, cambios, garantía y pago, cada uno con su enlace a la vista. */
+/**
+ * Envío, devolución, cambios, garantía y pago, cada uno con su enlace a la
+ * vista. El pago va aparte (Ale, 17/11/2026): el sello de Mercado Pago más
+ * grande y el texto abajo.
+ */
 export function CondicionesCompra({ condiciones }: { condiciones: Condicion[] }) {
   if (condiciones.length === 0) return null;
   return (
     <section className="condiciones" aria-label={T.condiciones.titulo}>
       <ul className="condiciones__lista">
         {condiciones.map((c) => (
-          <li key={c.clave} className="condiciones__item">
-            <span className="condiciones__icono" aria-hidden="true">
-              <IconoCondicion clave={c.clave} />
-            </span>
+          <li key={c.clave} className={c.clave === "pago" ? "condiciones__item condiciones__item--pago" : "condiciones__item"}>
+            {c.clave === "pago" ? (
+              <span className="condiciones__sello">
+                <SelloMercadoPago />
+              </span>
+            ) : (
+              <span className="condiciones__icono" aria-hidden="true">
+                <IconoCondicion clave={c.clave} />
+              </span>
+            )}
             <span className="condiciones__texto">
               <span>{c.texto}</span>
               {c.detalle ? <small>{c.detalle}</small> : null}
