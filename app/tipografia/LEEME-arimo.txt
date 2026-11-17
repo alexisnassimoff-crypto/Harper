@@ -1,0 +1,16 @@
+arimo-regular.woff2 y arimo-bold.woff2
+
+Son Arimo Regular y Bold (recorte latino de @fontsource/arimo 5.3.0), la
+fuente libre con las mismas medidas y casi el mismo dibujo que Arial.
+
+Para qué están: el texto del sitio va en Arial Unicode (Ale, 17/11/2026).
+Arial Unicode y Arial son de Microsoft y Monotype y no se pueden subir a una
+web, así que el sitio usa la que cada dispositivo ya trae (Arial Unicode en
+Mac, Arial en iPhone y Windows). Estos archivos solo los baja quien no tiene
+ninguna de las dos, por ejemplo un Android: unos 11 KB cada uno. Las reglas
+están en app/globals.css, en «Texto Harper».
+
+Licencia: SIL Open Font License 1.1. Permite usarlas, también en un sitio
+comercial. https://scripts.sil.org/OFL
+
+Copyright 2020 The Arimo Project Authors (https://github.com/googlefonts/arimo)

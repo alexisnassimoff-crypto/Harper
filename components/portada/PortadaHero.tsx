@@ -1,10 +1,14 @@
 import Image from "next/image";
+import VideoPortada from "./VideoPortada";
 
 /**
  * La primera pantalla (Ale, 05/11/2026): Harper vende anteojos de diseño, y
  * se dice primero. Debajo, la frase de la marca en dos tiempos, una línea y un
- * solo botón: «Explorar anteojos», que baja a Comprar. La foto es un anteojo
- * real entero, de tres cuartos, con el logo en la patilla (sin caras).
+ * solo botón: «Explorar anteojos», que baja a Comprar.
+ *
+ * Al lado va el video de los cristales fotocromáticos (Ale, 17/11/2026). Si
+ * no hay video, la foto: un anteojo real entero, de tres cuartos, con el logo
+ * en la patilla (sin caras).
  */
 export default function PortadaHero({
   producto,
@@ -12,6 +16,7 @@ export default function PortadaHero({
   bajada,
   boton,
   foto,
+  video,
 }: {
   /** «Anteojos de diseño»: qué vende Harper, siempre a la vista. */
   producto: string;
@@ -20,10 +25,16 @@ export default function PortadaHero({
   bajada: string | null;
   boton: string;
   foto: { src: string; alt: string } | null;
+  /** El video del hero, con su imagen fija. Si está, va en lugar de la foto. */
+  video?: { src: string; imagen: string; descripcion: string } | null;
 }) {
   return (
     <section id="vitrina-portada" className="inicio-hero" aria-labelledby="inicio-titulo">
-      {foto ? (
+      {video ? (
+        <div className="inicio-hero__foto">
+          <VideoPortada src={video.src} imagen={video.imagen} descripcion={video.descripcion} />
+        </div>
+      ) : foto ? (
         <div className="inicio-hero__foto">
           <Image src={foto.src} alt={foto.alt} fill priority sizes="(max-width: 768px) 100vw, 58vw" className="foto-multiplicada" />
         </div>

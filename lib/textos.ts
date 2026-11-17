@@ -52,6 +52,8 @@ export const TEXTOS = {
     /** El titular es la frase de la marca (TEXTOS.nosotros.frase), en dos tiempos. */
     bajada: "Formas simples y colores para combinar con lo que ya tenés en el placard.",
     boton: "Explorar anteojos",
+    /** Qué muestra el video del hero, para quien no lo ve. */
+    video: "Anteojos Harper con cristales fotocromáticos: se oscurecen al sol y se aclaran adentro.",
     comprar: {
       etiqueta: "Comprar",
       titulo: "Elegí tus anteojos.",

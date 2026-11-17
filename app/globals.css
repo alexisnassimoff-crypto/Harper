@@ -49,12 +49,12 @@
   --sombra-alta: 0 22px 48px -18px rgb(22 21 15 / 0.30);
 
   /* Tipografía aprobada (Ale, 07/11/2026 y 17/11/2026): Barlow Condensed en
-     los títulos, Avant Garde Gothic en los textos (antes Roboto Mono) y
-     Rethink Sans en los botones. Las tres las define app/layout.tsx con
-     next/font (--fuente-titulos, --fuente-texto y --fuente-botones), por eso
-     no se declaran acá. La escala está en el bloque «Tipografía aprobada», al
-     final. Avant Garde es ancha en mayúsculas: las etiquetas llevan poco
-     espaciado. */
+     los títulos, Arial Unicode en los textos (antes Roboto Mono) y Rethink
+     Sans en los botones. Los títulos y los botones los define app/layout.tsx
+     con next/font (--fuente-titulos y --fuente-botones), por eso no se
+     declaran acá; el texto es «Texto Harper», justo debajo. La escala está en
+     el bloque «Tipografía aprobada», al final. */
+  --fuente-texto: "Texto Harper";
   --fuente-etiquetas: var(--fuente-texto);
   --tracking-titulo: 0;
   --tracking-label: 0.07em;
@@ -64,6 +64,35 @@
   :root {
     --gutter: 2.5rem;
   }
+}
+
+/* «Texto Harper»: Arial Unicode (Ale, 17/11/2026). Es una fuente de Microsoft
+   que no se puede subir a una web, así que cada dispositivo usa la que ya
+   trae: Arial Unicode donde está (Mac), si no Arial (iPhone, Windows), y solo
+   quien no tiene ninguna (Android) baja Arimo, la fuente libre con sus mismas
+   medidas (app/tipografia/LEEME-arimo.txt). Arial Unicode no tiene negrita:
+   lo que el sitio marca desde 500 va en Arial Bold. */
+@font-face {
+  font-family: "Texto Harper";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    local("Arial Unicode MS"),
+    local("ArialUnicodeMS"),
+    local("Arial"),
+    local("ArialMT"),
+    url("./tipografia/arimo-regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Texto Harper";
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src:
+    local("Arial Bold"),
+    local("Arial-BoldMT"),
+    url("./tipografia/arimo-bold.woff2") format("woff2");
 }
 
 *,
@@ -2989,7 +3018,7 @@ p {
    Pie (Ale, 08/11/2026): editorial, Harper protagonista y la información
    legal siempre visible. Primero el celular: una columna con aire y Tienda y
    Ayuda lado a lado; en la computadora, la marca arriba y cuatro columnas.
-   Barlow Condensed en el lema y los títulos, Avant Garde en los enlaces y
+   Barlow Condensed en el lema y los títulos, Arial Unicode en los enlaces y
    Rethink Sans en los nombres de los canales (como los botones).
 --------------------------------------------------------------------------- */
 
@@ -7586,6 +7615,18 @@ body[data-sin-flotantes] .wsp {
   transform: scale(0.9);
   animation: portada-aparece var(--lento) var(--curva);
 }
+/* El video de los cristales (Ale, 17/11/2026). Tiene fondo blanco y se
+   multiplica sobre el color del hero, como las fotos: no queda un recuadro.
+   Entra entero, del ancho del bloque. */
+.inicio-hero__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+  animation: portada-aparece var(--lento) var(--curva);
+}
 .inicio-hero__texto {
   grid-area: texto;
   display: flex;
@@ -8000,10 +8041,10 @@ body[data-sin-flotantes] .wsp {
    Tipografía aprobada (Ale, 07/11/2026), en todo el sitio.
    - Títulos y nombres de los modelos: Barlow Condensed SemiBold 600, en
      mayúsculas.
-   - Textos, descripciones, mensajes, precios y etiquetas: Avant Garde Gothic
-     (Ale, 17/11/2026; antes Roboto Mono), Book 400 y Demi para todo lo que
-     se marca desde 500. Con `font-synthesis-weight` apagado el navegador no
-     inventa negritas: un 500, un 600 y un 700 se ven igual, en Demi.
+   - Textos, descripciones, mensajes, precios y etiquetas: Arial Unicode
+     (Ale, 17/11/2026; antes Roboto Mono), Regular 400 y Bold para todo lo
+     que se marca desde 500. Con `font-synthesis-weight` apagado el navegador
+     no inventa negritas: un 500, un 600 y un 700 se ven igual, en Bold.
    - Botones: Rethink Sans Medium 500, en mayúsculas y con espaciado amplio.
    Una sola escala para celular y escritorio: cada nivel crece con la pantalla
    (clamp) y mantiene la misma proporción con los demás.
@@ -8037,7 +8078,7 @@ body {
   font-synthesis-weight: none;
 }
 
-/* Las negritas del texto son la Demi de Avant Garde. */
+/* Las negritas del texto son Arial Bold. */
 strong,
 b {
   font-weight: 700;

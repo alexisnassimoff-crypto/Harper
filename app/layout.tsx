@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Barlow_Condensed, Rethink_Sans } from "next/font/google";
-import localFont from "next/font/local";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
@@ -21,27 +20,15 @@ import { anunciosDelHeader } from "@/lib/anuncios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
 import { cuotasDeTodosYSuscriptores } from "@/lib/cuotas-servidor";
 
-// La tipografía (Ale, 07/11/2026 y 17/11/2026): tres familias, gratis y
-// servidas desde harper.ar por next/font, solo con los pesos que se usan (cada
-// peso de más es un archivo más que baja el celular).
+// La tipografía (Ale, 07/11/2026 y 17/11/2026): los títulos y los botones
+// son de Google Fonts, gratis y servidas desde harper.ar por next/font, solo
+// con los pesos que se usan (cada peso de más es un archivo más que baja el
+// celular).
 // - Títulos: Barlow Condensed SemiBold 600, en mayúsculas.
-// - Textos (descripciones, mensajes, precios y etiquetas): Avant Garde
-//   Gothic, Book 400 y Demi 700 (Ale, 17/11/2026; antes Roboto Mono). Los
-//   archivos son TeX Gyre Adventor, la versión libre del mismo dibujo: ver
-//   app/tipografia/LEEME-adventor.txt.
 // - Botones: Rethink Sans 500, en mayúsculas y con espaciado amplio.
-const texto = localFont({
-  src: [
-    { path: "./tipografia/adventor-regular.woff2", weight: "400", style: "normal" },
-    // Demi para todo lo que el sitio marca desde 500: con una sola negrita, un
-    // 500, un 600 y un 700 se ven igual, como antes con la Medium de la mono.
-    { path: "./tipografia/adventor-bold.woff2", weight: "500 700", style: "normal" },
-  ],
-  display: "swap",
-  variable: "--fuente-texto",
-  // Mientras baja, Arial ajustada a sus medidas: el texto no salta al cambiar.
-  adjustFontFallback: "Arial",
-});
+// - Textos (descripciones, mensajes, precios y etiquetas): Arial Unicode. No
+//   se declara acá: usa la fuente que ya trae cada dispositivo, y está en
+//   app/globals.css («Texto Harper»).
 const titulos = Barlow_Condensed({
   subsets: ["latin"],
   weight: ["600"],
@@ -149,7 +136,7 @@ export default async function RootLayout({
   ];
 
   return (
-    <html lang="es" className={`${texto.variable} ${titulos.variable} ${botones.variable}`}>
+    <html lang="es" className={`${titulos.variable} ${botones.variable}`}>
       <head>
         <script
           type="application/ld+json"
