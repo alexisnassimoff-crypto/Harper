@@ -26,6 +26,21 @@ function Sello({ nombre, fondo, children }: { nombre: string; fondo: string; chi
   );
 }
 
+/**
+ * El sello de Mercado Pago solo y más grande, para el renglón del pago de la
+ * ficha. Es decorativo: el texto de al lado ya dice «Pagás con Mercado Pago».
+ */
+export function SelloMercadoPago() {
+  return (
+    <svg viewBox="0 0 46 30" width="46" height="30" aria-hidden="true" focusable="false">
+      <rect width="46" height="30" rx="5" fill="#009EE3" />
+      <svg x="9" y="3" width="28" height="24" viewBox="0 0 24 24">
+        <path d={MERCADO_PAGO} fill="#fff" />
+      </svg>
+    </svg>
+  );
+}
+
 export default function MediosDePago({ className }: { className?: string }) {
   return (
     // role="list": Safari no anuncia como lista una <ul> sin viñetas.

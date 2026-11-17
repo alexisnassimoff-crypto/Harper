@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Barlow_Condensed, Rethink_Sans, Roboto_Mono } from "next/font/google";
+import { Barlow_Condensed, Rethink_Sans } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsApp from "@/components/WhatsApp";
@@ -20,19 +20,15 @@ import { anunciosDelHeader } from "@/lib/anuncios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
 import { cuotasDeTodosYSuscriptores } from "@/lib/cuotas-servidor";
 
-// La tipografía aprobada (Ale, 07/11/2026): tres familias de Google Fonts,
-// gratis y servidas desde harper.ar por next/font, solo con los pesos que se
-// usan (cada peso de más es un archivo más que baja el celular).
+// La tipografía (Ale, 07/11/2026 y 17/11/2026): los títulos y los botones
+// son de Google Fonts, gratis y servidas desde harper.ar por next/font, solo
+// con los pesos que se usan (cada peso de más es un archivo más que baja el
+// celular).
 // - Títulos: Barlow Condensed SemiBold 600, en mayúsculas.
-// - Textos (descripciones, mensajes, precios y etiquetas): Roboto Mono
-//   Regular 400 y Medium 500.
 // - Botones: Rethink Sans 500, en mayúsculas y con espaciado amplio.
-const texto = Roboto_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  display: "swap",
-  variable: "--fuente-texto",
-});
+// - Textos (descripciones, mensajes, precios y etiquetas): Arial Unicode. No
+//   se declara acá: usa la fuente que ya trae cada dispositivo, y está en
+//   app/globals.css («Texto Harper»).
 const titulos = Barlow_Condensed({
   subsets: ["latin"],
   weight: ["600"],
@@ -140,7 +136,7 @@ export default async function RootLayout({
   ];
 
   return (
-    <html lang="es" className={`${texto.variable} ${titulos.variable} ${botones.variable}`}>
+    <html lang="es" className={`${titulos.variable} ${botones.variable}`}>
       <head>
         <script
           type="application/ld+json"

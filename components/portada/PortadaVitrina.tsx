@@ -42,6 +42,17 @@ import { categoriasParaComprar, destacadosDeLaPortada, FORMAS, fotoDeLaPortada, 
 const ESPERA_CUOTAS_MS = 3_000;
 const ESPERA_OPINIONES_MS = 9_000;
 
+/**
+ * El video del hero: tres modelos con el cristal que se oscurece al sol y se
+ * aclara adentro (public/portada). Es un archivo fijo: si alguno de los tres
+ * modelos se deja de vender, hay que rehacerlo.
+ */
+const VIDEO_PORTADA = {
+  src: "/portada/fotocromaticos.mp4",
+  imagen: "/portada/fotocromaticos.jpg",
+  descripcion: TEXTOS.inicio.video,
+};
+
 /** El color más vistoso primero: así la vitrina no abre con cuatro anteojos negros. */
 const ORDEN_DE_COLORES = ["carey", "gris", "ambar", "negro"];
 
@@ -148,6 +159,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
         bajada={config.portadaSubtitulo || TEXTOS.inicio.bajada}
         boton={TEXTOS.inicio.boton}
         foto={config.portadaImagen ? { src: config.portadaImagen, alt: "" } : fotoDeLaPortada(destacadosProductos)}
+        // El video de los cristales (Ale, 17/11/2026). Una foto cargada a propósito en Config.portada_imagen le gana.
+        video={config.portadaImagen ? null : VIDEO_PORTADA}
       />
 
       {/* 2. Comprar: cuatro destacados y un acceso por categoría. */}
