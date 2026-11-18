@@ -39,6 +39,7 @@ import { armarPaquete, type ItemAEmpacar } from "./paquete";
 import { aplicarDineroMP, type PrecioDineroMP } from "./dinero-mp";
 import {
   aplicarBeneficios,
+  BENEFICIOS_DE_SUSCRIPTOR,
   cashbackDe,
   CUPON_BIENVENIDA,
   cuotasMaximas,
@@ -178,8 +179,9 @@ export async function resolverCarrito(
     /** El código que escribió o aplicó el comprador (ver lib/cupones.ts). */
     cupon?: unknown;
     /**
-     * El suscriptor que entró con su mail (lib/suscriptores-cuenta.ts): su
-     * cupón de bienvenida, envío gratis y, si lo pide, su saldo.
+     * La cuenta que entró con su mail (lib/suscriptores-cuenta.ts). Desde el
+     * 18/11/2026 no cambia el precio ni el envío (BENEFICIOS_DE_SUSCRIPTOR):
+     * sirve para reconocer al comprador y, si le quedara, usar su saldo.
      */
     suscriptor?: SuscriptorDelCarrito | null;
     /** El comprador pidió pagar con su saldo (lo único que decide el navegador). */
@@ -298,16 +300,18 @@ export async function resolverCarrito(
   items = promocion.items;
   if (promocion.cupon?.estado === "aplicado") ahorro = promocion.cupon.ahorro;
 
-  // Suscriptores Harper (Ale, 03/11/2026): primero el cupón de bienvenida
-  // (si lo tiene y hay productos) y después el saldo (si lo pidió), cada uno
-  // repartido entre los renglones (lib/suscriptores.ts). Van antes del 10%
-  // de dinero en Mercado Pago: así el saldo que usa es el mismo pague como
-  // pague, y ese 10% corre sobre lo que queda.
+  // Suscriptores Harper: los beneficios en plata terminaron el 18/11/2026
+  // (BENEFICIOS_DE_SUSCRIPTOR, lib/suscriptores.ts). No hay cupón de
+  // bienvenida, ni envío gratis por ser suscriptor, ni cashback. Lo único que
+  // sigue es usar el saldo que alguien ya tuviera (si lo pidió), repartido
+  // entre los renglones y antes del 10% de dinero en Mercado Pago.
   const suscriptor = opciones.suscriptor ?? null;
-  // Dado de baja: solo el saldo que ya ganó, sin beneficios nuevos.
+  // La cuenta sigue suscripta a las novedades (sin baja).
   const activo = Boolean(suscriptor) && suscriptor?.activo !== false;
+  // Si la suscripción da beneficios a esta cuenta: hoy, a ninguna.
+  const conBeneficios = BENEFICIOS_DE_SUSCRIPTOR && activo;
   const beneficios = aplicarBeneficios(items, {
-    cupon: activo && suscriptor?.cuponDisponible && opciones.usarCupon !== false ? CUPON_BIENVENIDA : 0,
+    cupon: conBeneficios && suscriptor?.cuponDisponible && opciones.usarCupon !== false ? CUPON_BIENVENIDA : 0,
     saldo: suscriptor && opciones.usarSaldo ? suscriptor.saldoDisponible : 0,
   });
   items = beneficios.items;
@@ -337,7 +341,7 @@ export async function resolverCarrito(
     paquete,
     destino: opciones.destino,
     eleccion: opciones.eleccion,
-    suscriptor: activo,
+    suscriptor: conBeneficios,
   });
   const dineroMP = items.length > 0 ? aplicarDineroMP(items) : null;
   // Tarea 07: con el Dúo prendido, lo que la tienda necesita para contarlo.
@@ -365,15 +369,14 @@ export async function resolverCarrito(
       ? {
           email: suscriptor.email,
           cupon: beneficios.cupon,
-          cuponDisponible: activo && suscriptor.cuponDisponible,
+          cuponDisponible: conBeneficios && suscriptor.cuponDisponible,
           saldoUsado: beneficios.saldo,
           saldoDisponible: suscriptor.saldoDisponible,
           saldoReservado: suscriptor.saldoReservado ?? 0,
-          // El cashback es sobre lo que paga en productos: sin el envío y
-          // después del cupón y del saldo. Dado de baja, no le vuelve nada.
-          cashbackPrevisto: activo ? cashbackDe(subtotal) : 0,
-          cashbackDineroMP: activo && dineroMP ? cashbackDe(dineroMP.subtotal) : null,
-          cuotas: cuotasMaximas(activo),
+          // Sin cashback desde el 18/11/2026: no le vuelve nada como saldo.
+          cashbackPrevisto: conBeneficios ? cashbackDe(subtotal) : 0,
+          cashbackDineroMP: conBeneficios && dineroMP ? cashbackDe(dineroMP.subtotal) : null,
+          cuotas: cuotasMaximas(conBeneficios),
           activo,
         }
       : null,
@@ -544,7 +547,10 @@ async function resolverEnvio(datos: {
   paquete: Paquete | null;
   destino?: Partial<DestinoEnvio>;
   eleccion?: EleccionEnvio;
-  /** Un suscriptor reconocido: el envío es gratis en todos sus pedidos. */
+  /**
+   * Envío gratis por ser suscriptor. Desde el 18/11/2026 siempre falso
+   * (BENEFICIOS_DE_SUSCRIPTOR): el envío de una cuenta es el de cualquiera.
+   */
   suscriptor?: boolean;
 }): Promise<{
   envio: number;
@@ -556,7 +562,7 @@ async function resolverEnvio(datos: {
 }> {
   const hayItems = datos.items.length > 0;
   const umbrales = { amba: datos.config.envioGratisAmbaDesde, nacional: datos.config.envioGratisDesde };
-  // Si compra un suscriptor, el envío es gratis siempre (lib/suscriptores.ts).
+  // El envío gratis por suscriptor terminó (lib/suscriptores.ts): hoy no llega nunca en true.
   const suscriptor = Boolean(datos.suscriptor);
   const base = datos.baseEnvioGratis ?? datos.subtotal;
   const gratisEn = (zona: ZonaEnvio | null) => hayItems && (suscriptor || esEnvioGratis(base, zona, umbrales));

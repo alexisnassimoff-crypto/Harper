@@ -2,52 +2,66 @@ import { precio as formatearPrecio } from "./formato";
 import type { ItemResuelto } from "./tipos";
 
 /**
- * Suscriptores Harper (Ale, 03/11/2026): reemplaza a la membresía paga de
- * Socios Harper («nadie va a comprar eso»). La idea es armar la base de datos
- * de compradores: la suscripción es gratis, con el mail confirmado por un
- * código de 6 números, y trae:
+ * Suscriptores Harper (Ale, 03/11/2026): la suscripción gratis, con el mail
+ * confirmado por un código de 6 números. Nació con beneficios en plata (cupón
+ * de bienvenida de $ 10.000, 10% de vuelta como saldo, envío gratis siempre y
+ * 6 cuotas).
  *
- *  - Un cupón de bienvenida de $ 10.000 fijos, una sola vez, en la primera
- *    compra. Sobre los productos, nunca sobre el envío.
- *  - Cashback: el 10% de lo que paga en productos (sin el envío, después del
- *    cupón y del saldo usado) vuelve como saldo a favor en harper.ar. Se puede
- *    usar a los 30 días del pago (espera comercial, independiente de los
- *    10 días de arrepentimiento). No vence y puede cubrir la compra entera.
- *  - Envío gratis siempre.
- *  - Cuotas: 3 sin interés para todos, 6 para suscriptores (el tope de la
- *    preferencia de Mercado Pago; se anuncian solo si Mercado Pago las
- *    confirma, ver lib/cuotas.ts).
+ * Ale, 18/11/2026: esos beneficios TERMINARON para todos. El margen mínimo es
+ * 30 % y con ellos una venta dejaba entre 4 % y 19 %. Desde ese día:
+ *
+ *  - No se entrega ni se aplica el cupón de bienvenida.
+ *  - No se acredita cashback (el 10% de vuelta).
+ *  - El envío de un suscriptor es el de cualquier comprador (lib/pedidos.ts).
+ *  - Las cuotas son las mismas para todos: hasta 3 (CUOTAS_TODOS).
+ *
+ * Lo que queda de la suscripción es la cuenta (compras, favoritos, datos y
+ * direcciones) y los mails de novedades. El programa que la reemplaza es el
+ * Dúo (lib/duo.ts) y el Crédito Harper (lib/credito-harper.ts).
+ *
+ * El saldo que alguien ya hubiera ganado se sigue pudiendo usar (no había
+ * ninguno el 18/11/2026): por eso `aplicarBeneficios`, `saldoDe` y las notas
+ * del pedido siguen acá, para leer lo anterior. No se genera saldo nuevo.
  *
  * Este archivo son las cuentas, sin nada de servidor: lo usan el carrito, el
  * checkout, el webhook y también el navegador. Los montos los decide siempre
- * el servidor con lo que dice Airtable (lib/suscriptores-cuenta.ts); el
- * navegador solo pide usar o no el saldo.
+ * el servidor con lo que dice Airtable (lib/suscriptores-cuenta.ts).
  */
 
-/** Pesos fijos del cupón de bienvenida. */
+/**
+ * Si la suscripción da beneficios en plata. Falso desde el 18/11/2026 (Ale):
+ * ni cupón de bienvenida, ni cashback, ni envío gratis siempre, ni cuotas
+ * propias. Lo miran el carrito, el checkout y el alta; no hay variable ni
+ * clave de Config que lo prenda.
+ */
+export const BENEFICIOS_DE_SUSCRIPTOR: boolean = false;
+
+/** Pesos fijos del cupón de bienvenida de antes del 18/11/2026 (solo para leer pedidos anteriores). */
 export const CUPON_BIENVENIDA = 10_000;
-/** Lo que vuelve como saldo, sobre lo pagado en productos. */
+/** Lo que volvía como saldo, sobre lo pagado en productos, hasta el 18/11/2026. */
 export const CASHBACK_PORCENTAJE = 10;
-/** Días desde el pago hasta que el cashback se puede usar: el plazo de devolución. */
+/** Días desde el pago hasta que ese cashback se podía usar. */
 export const DIAS_PARA_USAR_CASHBACK = 30;
 /**
- * Cuotas sin interés para cualquier comprador: el tope de su preferencia de
- * Mercado Pago. Ale, 05/11/2026 («decisión comercial definitiva»): hasta 3
- * para todos y hasta 6 para los suscriptores con la sesión verificada y los
- * beneficios activos. En Mercado Pago quedan habilitadas las 6; el tope de
- * cada comprador lo pone la preferencia. Los montos mínimos los configura Ale
- * en Mercado Pago: acá no se fija ninguno (lib/cuotas-servidor.ts los
- * pregunta para cada importe).
+ * Cuotas sin interés: hasta 3 para todos (Ale, 18/11/2026). Es el tope de la
+ * preferencia de Mercado Pago de cualquier comprador, con o sin cuenta: nadie
+ * tiene 6. Seis cuotas le cuestan a Harper 10,3 % de lo cobrado contra 4,5 %
+ * las tres, y con ellas ninguna venta llegaba al margen mínimo. Se anuncian
+ * solo si Mercado Pago las confirma para ese importe (lib/cuotas-servidor.ts).
  */
 export const CUOTAS_TODOS = 3;
-/** Cuotas sin interés para un suscriptor con sesión verificada y beneficios activos. */
-export const CUOTAS_SUSCRIPTORES = 6;
 /**
- * Si las cuotas son un beneficio de suscriptor (más que las de todos). Falso
- * mientras sean las mismas: no se nombran en los beneficios, la barra, la
- * ficha, el checkout, los mails ni las condiciones.
+ * Las cuotas de un suscriptor: las mismas que las de todos desde el
+ * 18/11/2026. Queda la constante para que nada vuelva a darle más por error:
+ * las pruebas afirman que es igual a CUOTAS_TODOS.
  */
-export const CUOTAS_SON_BENEFICIO = CUOTAS_SUSCRIPTORES > CUOTAS_TODOS;
+export const CUOTAS_SUSCRIPTORES = CUOTAS_TODOS;
+/**
+ * Si las cuotas son un beneficio de suscriptor (más que las de todos). Falso:
+ * no se nombran en la barra, la ficha, el checkout, los mails ni las
+ * condiciones.
+ */
+export const CUOTAS_SON_BENEFICIO: boolean = CUOTAS_SUSCRIPTORES > CUOTAS_TODOS;
 
 /**
  * Minutos que vive el link de pago de un pedido que usa saldo o el cupón, y
@@ -104,20 +118,17 @@ export type ResumenSuscriptor = {
   cuotas: number;
 };
 
-/** El tope de cuotas de la preferencia de Mercado Pago para este comprador. */
+/** El tope de cuotas de la preferencia de Mercado Pago: el mismo para todos (CUOTAS_TODOS). */
 export function cuotasMaximas(esSuscriptor: boolean): number {
   return esSuscriptor ? CUOTAS_SUSCRIPTORES : CUOTAS_TODOS;
 }
 
 /**
- * Si este comprador tiene las cuotas de suscriptor (Ale, 05/11/2026). Solo
- * con un suscriptor de la sesión verificada (la cookie firmada, releída de
- * Airtable: lib/suscriptores-cuenta.ts), nunca por un mail escrito en el
- * checkout, y con los beneficios activos: quien se dio de baja compra con
- * las cuotas de todos.
+ * Si este comprador tiene cuotas de suscriptor. Desde el 18/11/2026 nadie:
+ * mientras CUOTAS_SON_BENEFICIO sea falso, contesta siempre que no.
  */
 export function tieneCuotasDeSuscriptor(suscriptor: { activo?: boolean } | null | undefined): boolean {
-  return suscriptor != null && suscriptor.activo !== false;
+  return CUOTAS_SON_BENEFICIO && suscriptor != null && suscriptor.activo !== false;
 }
 
 /** El tope de cuotas de la preferencia para el suscriptor de la sesión (null = sin sesión). */

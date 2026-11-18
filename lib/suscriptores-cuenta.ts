@@ -6,6 +6,7 @@ import { cambiarFavorito, escribirFavoritos, leerFavoritos } from "./favoritos";
 import { leerDirecciones, type DireccionGuardada } from "./mis-datos";
 import { VERSION_CONDICIONES_SUSCRIPTORES } from "./legales";
 import {
+  BENEFICIOS_DE_SUSCRIPTOR,
   beneficiosDeNotas,
   cashbackDisponibleDesde,
   fechaArgentina,
@@ -212,15 +213,16 @@ export async function reservasDe(suscriptorId: string, ahora = new Date()): Prom
 }
 
 /**
- * Lo que el carrito necesita: el cupón (solo si ese mail todavía no tiene una
- * compra confirmada, como el viejo HARPER10; el checkout lo vuelve a mirar con
- * el mail y el DNI que escribe) y el saldo que ya se puede usar, sin lo que
- * aparten sus pedidos sin pagar (reservasDe).
+ * Lo que el carrito necesita: el saldo que ya se puede usar, sin lo que
+ * aparten sus pedidos sin pagar (reservasDe). El cupón de bienvenida terminó
+ * el 18/11/2026 (BENEFICIOS_DE_SUSCRIPTOR): aunque la fila lo tenga
+ * «Disponible», no se ofrece ni se aplica.
  */
 export async function suscriptorParaElCarrito(cuenta: CuentaSuscriptor, ahora = new Date()): Promise<SuscriptorDelCarrito> {
+  const conCupon = BENEFICIOS_DE_SUSCRIPTOR && tieneCupon(cuenta);
   const [movimientos, compro, reservas] = await Promise.all([
     movimientosDe(cuenta.id),
-    tieneCupon(cuenta) ? yaCompro(cuenta.email, "") : Promise.resolve(false),
+    conCupon ? yaCompro(cuenta.email, "") : Promise.resolve(false),
     reservasDe(cuenta.id, ahora),
   ]);
   const saldo = saldoDe(movimientos, ahora).disponible;
@@ -228,7 +230,7 @@ export async function suscriptorParaElCarrito(cuenta: CuentaSuscriptor, ahora = 
   return {
     id: cuenta.id,
     email: cuenta.email,
-    cuponDisponible: activo && tieneCupon(cuenta) && !compro && !reservas.cupon,
+    cuponDisponible: activo && conCupon && !compro && !reservas.cupon,
     saldoDisponible: Math.max(0, saldo - reservas.saldo),
     saldoReservado: Math.min(saldo, reservas.saldo),
     activo,
@@ -256,10 +258,9 @@ const TTL_ALTA_MS = 20_000;
  * mismo mail (en minúsculas): con Redis, un cerrojo por mail para dos
  * confirmaciones a la vez; sin Redis, la lectura previa.
  *
- *  - Sin fila: se crea, con el cupón Disponible. Es la única vez que el cupón
- *    nace disponible.
- *  - Con baja: se reactiva (sin baja, acepta mails, condiciones de hoy). El
- *    cupón queda como estaba: si ya lo usó, no vuelve.
+ *  - Sin fila: se crea. Desde el 18/11/2026 nace sin cupón de bienvenida
+ *    (BENEFICIOS_DE_SUSCRIPTOR): el campo Cupon queda vacío.
+ *  - Con baja: se reactiva (sin baja, acepta mails, condiciones de hoy).
  *  - Activa: no cambia nada (si no tenía nombre y ahora lo dio, se completa).
  *
  * Quien llama ya comprobó el mail con el código y que la persona aceptó
@@ -313,7 +314,7 @@ export async function darDeAlta(datos: {
       Alta: ahora.toISOString(),
       Acepta_mails: true,
       Origen: datos.origen,
-      Cupon: "Disponible",
+      ...(BENEFICIOS_DE_SUSCRIPTOR ? { Cupon: "Disponible" as const } : {}),
       Version_condiciones: VERSION_CONDICIONES_SUSCRIPTORES,
     });
     return { estado: "nueva", cuenta: cuentaDe(fila) };
@@ -520,11 +521,12 @@ export async function anularCashbackPendiente(
 }
 
 /**
- * Si el cupón de bienvenida le sirve de verdad: lo tiene sin usar, sigue
- * suscripto y su mail todavía no compró (quien compró antes de suscribirse no
- * lo puede usar: el carrito no se lo aplica, así que tampoco se le promete).
+ * Si el cupón de bienvenida le sirve de verdad. Desde el 18/11/2026 no le
+ * sirve a nadie (BENEFICIOS_DE_SUSCRIPTOR): el carrito no lo aplica, así que
+ * tampoco se le promete, aunque la fila lo tenga «Disponible».
  */
 export async function cuponVigente(cuenta: CuentaSuscriptor): Promise<boolean> {
+  if (!BENEFICIOS_DE_SUSCRIPTOR) return false;
   return tieneCupon(cuenta) && estaActivo(cuenta) && !(await yaCompro(cuenta.email, ""));
 }
 
@@ -540,7 +542,7 @@ export async function resumenDeLaCuenta(cuenta: CuentaSuscriptor, ahora = new Da
     /** "Disponible": le sirve para su primera compra; "Usado": lo usó (en `cuponPedido`) o ya había comprado. */
     cupon: vigente ? ("Disponible" as const) : ("Usado" as const),
     /** No lo usó, pero su mail ya había comprado antes: el cupón es para la primera compra. */
-    cuponYaCompro: !vigente && tieneCupon(cuenta) && estaActivo(cuenta),
+    cuponYaCompro: BENEFICIOS_DE_SUSCRIPTOR && !vigente && tieneCupon(cuenta) && estaActivo(cuenta),
     cuponPedido: cuenta.cuponPedido,
     saldoDisponible: saldo.disponible,
     saldoEnCamino: saldo.enCamino,
