@@ -162,10 +162,10 @@ export default async function Terminos() {
       )}
       {minimoAmba > 0 ? (
         <p>
-          Para estos envíos, AMBA es la zona que cubre el reparto con entrega al
-          día hábil siguiente: la Ciudad Autónoma de Buenos Aires y el Gran
-          Buenos Aires. Al cargar la dirección de entrega se informa, antes de
-          pagar, si el envío es gratis para esa dirección o cuánto cuesta.
+          Para estos envíos, AMBA es la Ciudad Autónoma de Buenos Aires y el
+          Gran Buenos Aires. Al cargar la dirección de entrega se informa,
+          antes de pagar, si el envío es gratis para esa dirección o cuánto
+          cuesta.
         </p>
       ) : null}
 

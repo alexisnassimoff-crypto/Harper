@@ -61,8 +61,8 @@ export async function POST(request: Request) {
     usarCupon: usarCupon !== false,
     creditoHarper,
   });
-  // Hasta 3 cuotas sin interés para todos, hasta 6 para un suscriptor de la
-  // sesión verificada con los beneficios activos (Ale, 05/11/2026).
+  // Hasta 3 cuotas sin interés para todos, con cuenta o sin cuenta (Ale,
+  // 18/11/2026): esto contesta siempre que no (lib/suscriptores.ts).
   const esSuscriptor = tieneCuotasDeSuscriptor(suscriptor);
 
   // Las sugerencias no pueden romper el carrito: si fallan, se muestra igual.

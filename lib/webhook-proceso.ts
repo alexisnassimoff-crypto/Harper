@@ -1216,6 +1216,9 @@ async function anotarBeneficios(b: BeneficiosDelPedido, numero: string, datos: D
         );
       }
     }
+    // Solo llega con un pedido armado antes del 18/11/2026 (el checkout ya no
+    // escribe cashback, lib/suscriptores.ts): a ese comprador se le mostró que
+    // le volvía, así que se le cumple. Los pedidos nuevos nunca traen esta línea.
     if (b.cashback > 0) cashbackDesde = (await registrarCashback({ ...movimiento, monto: b.cashback })).disponibleDesde;
   } catch (error) {
     if (!esErrorPermanente(error)) throw error;

@@ -24,7 +24,7 @@
  * menos de 2) no se anuncia ninguna.
  */
 
-import { cuotasMaximas } from "./suscriptores";
+import { CUOTAS_TODOS, cuotasMaximas } from "./suscriptores";
 
 /** «0,00 %» con un espacio duro: el «%» no queda solo en el renglón de abajo. */
 export const cfteaSinCortar = (cftea: string) => cftea.replace(/ /g, "\u00a0");
@@ -53,12 +53,15 @@ export function topeDeCuotas(): number | null {
 
 /**
  * Cuántas cuotas se pueden anunciar si se piden `cuotas` (por defecto, las de
- * cualquier comprador): nunca más que el tope. `null` si no corresponde.
+ * cualquier comprador): nunca más que el tope de la variable ni que las de
+ * todos (CUOTAS_TODOS). Aunque NEXT_PUBLIC_CUOTAS diga 6 y alguien pida 6, no
+ * se anuncian más de las que Mercado Pago va a dejar elegir. `null` si no
+ * corresponde.
  */
 export function cuotasAnunciables(cuotas: number = cuotasMaximas(false)): number | null {
   const tope = topeDeCuotas();
   if (!tope) return null;
-  const n = Math.min(Math.floor(cuotas), tope);
+  const n = Math.min(Math.floor(cuotas), tope, CUOTAS_TODOS);
   return n >= 2 ? n : null;
 }
 

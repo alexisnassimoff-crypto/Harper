@@ -78,9 +78,9 @@ export type DestacadoVitrina = ModeloVitrina & {
 export type DuoVitrina = {
   /** «Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF.» */
   titulo: string;
-  /** «Dos anteojos: $ 157.325 en lugar de $ 179.800. Podés combinar modelos y colores. Se aplica solo en el carrito.» */
+  /** «Dos anteojos: $ 157.325 en lugar de $ 179.800. Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito.» */
   detalle: string;
-  /** La etiqueta junto al precio de cada tarjeta: «Dúo: 25% OFF llevando dos». */
+  /** La etiqueta junto al precio de cada tarjeta: «Dúo: 25% OFF en el segundo». */
   etiqueta: string;
 };
 

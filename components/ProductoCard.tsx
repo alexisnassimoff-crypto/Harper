@@ -25,7 +25,7 @@ export default function ProductoCard({
 }: {
   producto: Producto;
   /**
-   * «Dúo: 25% OFF llevando dos», armada en el servidor (GrillaProductos) solo
+   * «Dúo: 25% OFF en el segundo», armada en el servidor (GrillaProductos) solo
    * si el Dúo está prendido y el producto es un anteojo; null no la muestra.
    */
   etiquetaDuo?: string | null;

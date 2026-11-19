@@ -186,7 +186,7 @@ test("Dúo prendido, tres anteojos: aplicado, y el próximo suma UN anteojo más
   // Con tres, uno lleva el 25 %; con el cuarto, uno más (dos en total). Antes
   // decía «y dos pares tienen 25% OFF», que se podía leer como que los dos que
   // se suman llevan el descuento.
-  assert.equal(m.carrito?.siguiente, "Sumá otro par y otro anteojo más tiene 25% OFF.");
+  assert.equal(m.carrito?.siguiente, "Sumá otro par y otro más tiene 25% OFF.");
   assert.equal(m.barra, "Dúo aplicado. Uno más: 25% OFF en otro par.");
   // Y es lo que cobra el servidor: con cuatro, dos con el 25 %.
   const cuatro = await prendido(() => resolverCarrito([linea("amatista", 0, 2), linea("cuarzo", 1), linea("obsidiana", 2)]));
@@ -299,7 +299,7 @@ test("La ficha y los packs muestran lo que cobra el servidor por esa cantidad: �
   const oferta = ofertaDuoDeLaFicha({ porcentaje: 25, dos });
   assert.deepEqual(oferta, {
     titulo: "Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF.",
-    detalle: "Dos de este modelo: $\u00a0157.325 en lugar de $\u00a0179.800. Podés combinar modelos y colores. Se aplica solo en el carrito.",
+    detalle: "Dos de este modelo: $\u00a0157.325 en lugar de $\u00a0179.800. Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito.",
   });
   assert.doesNotMatch(`${oferta.titulo} ${oferta.detalle}`, /\bantes\b/i);
   // Sin el carrito del servidor (o si no ahorra nada), el título solo: ningún importe inventado.
@@ -351,7 +351,7 @@ test("Ficha con stock para un solo par: no anuncia el Dúo de dos (ni un tramo);
   assert.equal(conStock?.gana, "duo");
   const oferta = ofertaEnLaFicha({ duo: conStock, duoDelCarrito: null, anteojosEnCarrito: 0, esAnteojo: true, cuponPorcentaje: 0 });
   assert.deepEqual(oferta.duo?.lineas, ["Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF."]);
-  assert.equal(oferta.duo?.detalle, "Dos de este modelo: $\u00a0157.325 en lugar de $\u00a0179.800. Podés combinar modelos y colores. Se aplica solo en el carrito.");
+  assert.equal(oferta.duo?.detalle, "Dos de este modelo: $\u00a0157.325 en lugar de $\u00a0179.800. Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito.");
   assert.equal(oferta.conTramo, false);
 
   // Si en dos pares gana un tramo, la ficha cuenta el tramo y no el Dúo.

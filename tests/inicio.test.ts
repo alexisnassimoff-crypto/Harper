@@ -101,7 +101,7 @@ test("inicio: los textos presentan la marca sin frases genéricas, sin palabras 
   // El bloque de la cuenta: las novedades por mail y la cuenta, con las mismas
   // palabras que /suscriptores. Antes decía «Ser parte tiene sus ventajas.».
   const cuenta = TEXTOS.inicio.suscripcion;
-  assert.equal(cuenta.titulo, "Enterate antes que nadie.");
+  assert.equal(cuenta.titulo, "Enterate de lo nuevo.");
   assert.equal(cuenta.titulo, TEXTOS.suscriptores.titulo);
   assert.equal(cuenta.bajada, TEXTOS.suscriptores.bajada);
   assert.equal(cuenta.etiqueta, "Cuenta Harper · Es gratis");

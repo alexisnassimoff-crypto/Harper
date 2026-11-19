@@ -83,7 +83,7 @@ export const TEXTOS = {
      */
     suscripcion: {
       etiqueta: "Cuenta Harper · Es gratis",
-      titulo: "Enterate antes que nadie.",
+      titulo: "Enterate de lo nuevo.",
       bajada:
         "Dejanos tu mail y te avisamos cuando salen modelos y colores nuevos. Con ese mismo mail entrás a tu cuenta, donde seguís tus compras y guardás tus favoritos.",
       /** El enlace secundario, a /suscriptores (la clave se llama así desde antes del 18/11/2026). */
@@ -135,9 +135,9 @@ export const TEXTOS = {
       dosAnteojos: (total: string, lista: string) => `Dos anteojos: ${total} en lugar de ${lista}.`,
       /** Lo mismo en la ficha, donde el importe es el de dos de ese modelo. */
       dosDeEsteModelo: (total: string, lista: string) => `Dos de este modelo: ${total} en lugar de ${lista}.`,
-      combinar: "Podés combinar modelos y colores. Se aplica solo en el carrito.",
-      /** La etiqueta junto al precio de cada anteojo: «Dúo: 25% OFF llevando dos». */
-      etiqueta: (porcentaje: number) => `Dúo: ${porcentaje}% OFF llevando dos`,
+      combinar: "Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito.",
+      /** La etiqueta junto al precio de cada anteojo: «Dúo: 25% OFF en el segundo». */
+      etiqueta: (porcentaje: number) => `Dúo: ${porcentaje}% OFF en el segundo`,
       /** Las preguntas frecuentes. */
       pregunta: "¿Qué es el Dúo?",
       /** «Si llevás dos anteojos, el de menor precio tiene 25% OFF.» */
@@ -473,7 +473,7 @@ export const TEXTOS = {
      * La página /suscriptores (Ale, 18/11/2026): las novedades por mail y la
      * cuenta, con las mismas palabras que la portada (TEXTOS.inicio.suscripcion).
      */
-    titulo: "Enterate antes que nadie.",
+    titulo: "Enterate de lo nuevo.",
     bajada:
       "Dejanos tu mail y te avisamos cuando salen modelos y colores nuevos. Con ese mismo mail entrás a tu cuenta, donde seguís tus compras y guardás tus favoritos.",
     /** El título de la página en el navegador y su resumen para los buscadores. */

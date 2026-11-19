@@ -96,7 +96,7 @@ export function mensajesDelDuo(duo: DuoDelCarrito, contexto: "ficha" | "carrito"
         ? `Sumá otro par y el de menor precio tiene ${pct}.`
         : // Antes decía «y dos pares tienen 25% OFF», que se podía leer como
           // que los dos que se suman llevan el descuento (Ale, 18/11/2026).
-          `Sumá otro par y otro anteojo más tiene ${pct}.`
+          `Sumá otro par y otro más tiene ${pct}.`
       : null;
   return { aplicado, siguiente, tramos: duo.siguiente === "tramos" };
 }
@@ -105,7 +105,7 @@ export function mensajesDelDuo(duo: DuoDelCarrito, contexto: "ficha" | "carrito"
  * La ficha sin anteojos en el carrito: la promoción con lo que cobra el
  * servidor por dos pares de este modelo. «Dúo: llevá dos anteojos y el de
  * menor precio tiene 25% OFF.» y «Dos de este modelo: $ 157.325 en lugar de
- * $ 179.800. Podés combinar modelos y colores. Se aplica solo en el carrito.»
+ * $ 179.800. Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito.»
  * Nunca «antes»: $ 179.800 es el precio de lista de los dos, no un precio que
  * haya existido (Ale, 18/11/2026). Las frases son las de TEXTOS.programa.duo.
  */

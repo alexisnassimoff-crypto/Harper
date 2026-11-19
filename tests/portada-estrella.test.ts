@@ -102,7 +102,7 @@ test("el Dúo en las preguntas: solo con el dato del servidor, con sus importes;
   // $ 89.900 quedan en $ 157.325 y, con dinero en Mercado Pago, en $ 141.593.
   assert.equal(
     que?.respuesta,
-    "Si llevás dos anteojos, el de menor precio tiene 25% OFF. Dos anteojos: $ 157.325 en lugar de $ 179.800. Con más anteojos, el descuento va en uno de cada dos, siempre en los de menor precio. Podés combinar modelos y colores. Se aplica solo en el carrito. El 10% OFF extra por pagar con dinero en Mercado Pago se suma al Dúo: dos anteojos quedan en $ 141.593. Para el envío gratis, el mínimo se cuenta con los anteojos a precio de lista, antes de los descuentos."
+    "Si llevás dos anteojos, el de menor precio tiene 25% OFF. Dos anteojos: $ 157.325 en lugar de $ 179.800. Con más anteojos, el descuento va en uno de cada dos, siempre en los de menor precio. Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito. El 10% OFF extra por pagar con dinero en Mercado Pago se suma al Dúo: dos anteojos quedan en $ 141.593. Para el envío gratis, el mínimo se cuenta con los anteojos a precio de lista, antes de los descuentos."
   );
   assert.deepEqual(que?.enlace, { href: "/legales/terminos#duo", texto: "Ver las condiciones del Dúo" });
   // Nunca «antes $ …»: el precio de lista de dos no es un precio que haya existido.
