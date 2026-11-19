@@ -722,7 +722,7 @@ no da de alta envíos ni pide retiros: eso sigue a mano.
 | `envio_transportistas` | Con quién cotizar, separados por coma, con el código de Envia: `rueddo, andreani, correoArgentino` |
 | `envio_origen_nombre`, `_telefono`, `_calle`, `_numero`, `_piso`, `_ciudad`, `_provincia`, `_cp` | Desde dónde sale el paquete. Todos obligatorios menos el piso |
 | `envio_peso_kg` | Peso mínimo del paquete en kg (`0.5`). Si el calculado es mayor, va el calculado |
-| `envio_gratis_desde` | Desde qué subtotal el envío es gratis en todo el país (`150000`) |
+| `envio_gratis_desde` | Desde qué subtotal, a precio de lista, el envío es gratis en el resto del país (`250000` desde el 18/11/2026) |
 | `envio_gratis_amba_desde` | Desde qué subtotal es gratis en AMBA (`60000`). Vacío o 0: sin regla propia para AMBA |
 | `envio_amba_tarifas` | La tarifa de Rueddo por zona, **sin IVA**: `CABA 3709 · GBA 1 5370 · GBA 2 7500 · GBA 3 7500` (GBA 3 = zonas lejanas). Vacío: las del tarifario de octubre de 2026 |
 | `envio_amba_recargo` | Cuánto se le suma a esa tarifa con IVA, en % (`20`) |
