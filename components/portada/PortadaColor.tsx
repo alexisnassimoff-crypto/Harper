@@ -7,8 +7,8 @@ import { useState, type CSSProperties } from "react";
  * La primera pantalla (Ale, 05/11/2026): vende los anteojos. Qué son y qué
  * tienen de especial arriba; un solo par grande sobre su color, que cambia
  * tocando un círculo (nunca solo); el precio, «Ver anteojos» y, como acción
- * secundaria, los beneficios de suscribirse. Los montos vienen armados del
- * servidor.
+ * secundaria, bajar al bloque de la cuenta. Los montos vienen armados del
+ * servidor. Sin uso desde el 05/11/2026: ninguna página lo muestra.
  */
 
 export type ColorPortada = {
@@ -31,11 +31,11 @@ export type DatosPortada = {
   boton: string;
   /** "$ 89.900", o null si los modelos no cuestan lo mismo. */
   precio: string | null;
-  /** "6 cuotas sin interés de $ 14.983,33", verificada con Mercado Pago; null si no. */
+  /** "3 cuotas sin interés de $ 29.966,67", verificada con Mercado Pago; null si no. */
   cuota: string | null;
   /** "Cuotas sin interés con Visa y Mastercard · CFTEA 0,00 %"; null sin cuotas. */
   letraChica: string | null;
-  /** La acción secundaria («Conocer mis beneficios»), que baja a Suscriptores Harper; null no la muestra. */
+  /** La acción secundaria, que baja al bloque de la cuenta Harper; null no la muestra. */
   suscribite: string | null;
 };
 

@@ -60,6 +60,8 @@ export type Condicion = {
   clave: "envio" | "devolucion" | "cambios" | "garantia" | "pago";
   texto: string;
   detalle: string | null;
+  /** Una aclaración debajo del detalle; hoy, cómo se cuenta el mínimo del envío gratis. */
+  nota?: string | null;
   href: string;
   enlace: string;
 };
@@ -69,6 +71,10 @@ export type Condicion = {
  * visible. El envío y el pago salen de los mensajes de confianza (Config y
  * Mercado Pago); los plazos, de lib/confianza.ts. Si devolver y cambiar
  * tienen el mismo plazo, van en un solo renglón.
+ *
+ * Ale, 18/11/2026: el envío dice los dos mínimos (AMBA y resto del país) y
+ * que se cuentan a precio de lista; el pago, el 10 % por pagar con el dinero
+ * de la cuenta de Mercado Pago. Los dos textos vienen de lib/confianza.ts.
  */
 export function condicionesDeCompra(
   confianza: Confianza[],
@@ -84,6 +90,7 @@ export function condicionesDeCompra(
           clave: "envio",
           texto: envio.texto,
           detalle: envio.detalle ?? null,
+          nota: envio.nota ?? null,
           href: "/legales/terminos#envios",
           enlace: "Cómo son los envíos",
         }

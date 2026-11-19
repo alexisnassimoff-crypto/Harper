@@ -5,7 +5,8 @@ import EventoPixel from "@/components/EventoPixel";
 import Medir from "@/components/Medir";
 import GrillaProductos from "@/components/GrillaProductos";
 import Opiniones from "@/components/portada/Opiniones";
-import { escalaDe, getTramos, nombreDelTramo } from "@/lib/descuentos";
+import { conDescuento, escalaDe, getTramos, nombreDelTramo } from "@/lib/descuentos";
+import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { armarPack } from "@/lib/packs";
 import { enLetras, fotosDeVitrina } from "@/lib/vitrina";
@@ -18,7 +19,7 @@ import { packConDuo, porcentajeDelDuo, type PackDelServidor } from "@/lib/pedido
 import { duoDeLaFicha } from "@/lib/promocion-anteojos";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
-import { cuotasDelPrecio, verificarCuotas } from "@/lib/cuotas-servidor";
+import { verificarCuotas } from "@/lib/cuotas-servidor";
 import { netoDe } from "@/lib/impuestos";
 import { indiceVarianteInicial } from "@/lib/variantes";
 import { esCategoriaDeAnteojos, rutaDeCategoria } from "@/lib/categorias";
@@ -142,14 +143,13 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   const producto = await getProducto(slug);
   if (!producto) notFound();
 
-  const [tramos, config, delMismoTipo, { todos: cuotas, suscriptores: cuotasSuscriptor }, mercadoLibre] = await Promise.all([
+  const [tramos, config, delMismoTipo, cuotas, mercadoLibre] = await Promise.all([
     getTramos(),
     getConfig(),
     getProductos(producto.categoria),
-    // Las de todos (hasta 3) y las de suscriptor (hasta 6, Ale, 05/11/2026),
-    // confirmadas con Mercado Pago para este precio con una sola consulta.
-    // Las de suscriptor, solo si son más que las de todos.
-    cuotasDelPrecio(producto.precio),
+    // Las cuotas sin interés de este precio, confirmadas con Mercado Pago.
+    // Son las mismas para todos (Ale, 18/11/2026: hasta 3; nadie tiene más).
+    verificarCuotas(producto.precio),
     // Las opiniones de todos los productos Harper, de la copia que guarda la
     // portada: la ficha no le pregunta a Mercado Libre.
     datosGuardadosDeMercadoLibre(),
@@ -166,6 +166,10 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   // Sin un pack de dos confirmado por el servidor (sin stock para dos), no se anuncia nada.
   const duo = duoDeLaFicha(porcentajeDuo, dosConDuo);
   const pares = await paresDeLaFicha(producto, tramos, delMismoTipo, dosConDuo);
+  // Lo que cuesta pagando con el dinero de la cuenta de Mercado Pago (Ale,
+  // 18/11/2026): la misma cuenta que hace el servidor al cobrar un par
+  // (lib/dinero-mp.ts), hecha acá para que la ficha no calcule ningún importe.
+  const precioDineroMP = conDescuento(producto.precio, PORCENTAJE_DINERO_MP);
 
   const otros = delMismoTipo.filter((p) => p.id !== producto.id);
   const varianteInicial = indiceVarianteInicial(producto, color);
@@ -248,7 +252,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         varianteInicial={varianteInicial}
         confianza={mensajesDeConfianza(config, cuotas)}
         cuotas={cuotas}
-        cuotasSuscriptor={cuotasSuscriptor}
+        precioDineroMP={precioDineroMP}
         precioSinImpuestos={netoDe(config.impuestosNacionales, producto.categoria, producto.precio)}
         whatsapp={config.whatsapp || null}
         calificacion={opiniones && !esAnteojo ? { promedio: opiniones.promedio, total: opiniones.total } : null}

@@ -15,13 +15,13 @@
  * contado, cantidad y monto de cada cuota (el que calcula Mercado Pago, con
  * centavos) y el costo financiero total efectivo anual.
  *
- * Desde Suscriptores Harper (Ale, 03/11/2026; definitivo el 05/11/2026) la
- * cantidad depende de quién compra: hasta 3 cuotas para todos y hasta 6 para
- * suscriptores con la sesión verificada (lib/suscriptores.ts), que es también
- * el tope de la preferencia de Mercado Pago. Para cada importe se anuncian
- * las más que Mercado Pago confirma sin interés hasta ese tope
- * (evaluarMejoresCuotas). `NEXT_PUBLIC_CUOTAS` queda como tope y como
- * interruptor: sin cargar (o con menos de 2) no se anuncia ninguna.
+ * Ale, 18/11/2026: las cuotas son las mismas para todos, hasta 3, con o sin
+ * cuenta (lib/suscriptores.ts, CUOTAS_TODOS); es también el tope de la
+ * preferencia de Mercado Pago. Entre el 03/11 y ese día los suscriptores
+ * tenían hasta 6: ya no. Para cada importe se anuncian las más que Mercado
+ * Pago confirma sin interés hasta ese tope (evaluarMejoresCuotas).
+ * `NEXT_PUBLIC_CUOTAS` queda como tope y como interruptor: sin cargar (o con
+ * menos de 2) no se anuncia ninguna.
  */
 
 import { cuotasMaximas } from "./suscriptores";
@@ -62,7 +62,7 @@ export function cuotasAnunciables(cuotas: number = cuotasMaximas(false)): number
   return n >= 2 ? n : null;
 }
 
-/** Las cuotas que se le anuncian a este comprador: 3, o 6 si es suscriptor. `null` si no corresponde. */
+/** Las cuotas que se le anuncian a este comprador: las mismas para todos desde el 18/11/2026. `null` si no corresponde. */
 export function cuotasActivas(esSuscriptor = false): number | null {
   return cuotasAnunciables(cuotasMaximas(esSuscriptor));
 }

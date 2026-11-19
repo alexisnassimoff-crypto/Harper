@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import { duoParaAnunciar, duoParaLasPreguntas } from "@/components/portada/duoDelServidor";
 import { PreguntasFrecuentes } from "@/components/portada/SeccionesPortada";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { getProductos } from "@/lib/catalogo";
 import { esCategoriaDeAnteojos } from "@/lib/categorias";
 import { getConfig } from "@/lib/config";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA } from "@/lib/confianza";
-import { CUPON_BIENVENIDA, HAY_CUPONES } from "@/lib/cupones";
 import { NOMBRE_MARCAS } from "@/lib/cuotas";
 import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 import { fraseDeLaEscala, getTramos } from "@/lib/descuentos";
@@ -26,11 +26,20 @@ export const metadata: Metadata = {
  * Las preguntas frecuentes, en su página (Ale, 05/11/2026): salieron de la
  * portada para que quede corta. Las mismas respuestas de lib/portada.ts, con
  * los mismos datos de Config, Mercado Pago y Airtable.
+ *
+ * Ale, 18/11/2026: las cuotas y el envío son los mismos para todos; la
+ * pregunta de la suscripción con beneficios pasó a ser la de la cuenta y las
+ * novedades, y la del Dúo aparece solo si el servidor lo tiene prendido, con
+ * los importes que cobra por dos anteojos.
  */
 export default async function PaginaPreguntas() {
   const [productos, config, tramos] = await Promise.all([getProductos(), getConfig(), getTramos()]);
   const anteojos = productos.filter((p) => esCategoriaDeAnteojos(p.categoria) && paresDisponibles(p.variantes) > 0);
-  const cuotas = await conEspera(verificarCuotasPara(anteojos.map((p) => p.precio)), 3_000, null);
+  const [cuotas, duo] = await Promise.all([
+    conEspera(verificarCuotasPara(anteojos.map((p) => p.precio)), 3_000, null),
+    // Null con el Dúo apagado: la página no lo nombra.
+    duoParaAnunciar(anteojos),
+  ]);
   const confirmados = anteojos.length > 0 && anteojos.every((m) => caracteristicasDe(m) !== null);
 
   return (
@@ -50,10 +59,10 @@ export default async function PaginaPreguntas() {
         diasArrepentimiento: DIAS_ARREPENTIMIENTO,
         diasCambio: DIAS_CAMBIO,
         mesesGarantia: MESES_GARANTIA,
-        cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
         escala: fraseDeLaEscala(tramos, "Anteojos"),
         porcentajeDineroMP: PORCENTAJE_DINERO_MP,
-        suscriptores: true,
+        duo: duoParaLasPreguntas(duo),
+        cuenta: true,
       })}
     />
   );

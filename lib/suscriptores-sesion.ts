@@ -3,15 +3,20 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 /**
  * La sesión del suscriptor (Ale, 03/11/2026, como la que tenían los socios):
  * entra con su mail y el código de 6 números que le llega (el mismo mecanismo
- * de lib/reconocer-cliente.ts) y queda reconocido en ese navegador. Con la
- * sesión, la web le aplica sus beneficios: el cupón de bienvenida, el saldo,
- * el envío gratis y las 6 cuotas.
+ * de lib/reconocer-cliente.ts) y queda reconocido en ese navegador.
+ *
+ * Ale, 18/11/2026: la sesión ya no da beneficios en plata (el cupón de
+ * bienvenida, el saldo de vuelta, el envío gratis siempre y las 6 cuotas
+ * terminaron para todos, lib/suscriptores.ts). Con la sesión, la web le abre
+ * su cuenta: sus compras, sus favoritos, sus datos y sus direcciones, y le
+ * completa el checkout con lo que guardó.
  *
  * La sesión es una cookie httpOnly firmada (HMAC): qué fila de Suscriptores
  * es, con qué mail entró y hasta cuándo vale. No guarda nada en el servidor y
  * sin la clave no se puede fabricar. Igual, cada vez que se usa se vuelve a
- * mirar la fila en Airtable (lib/suscriptores-cuenta.ts): si se dio de baja o
- * el mail cambió, la sesión no sirve.
+ * mirar la fila en Airtable (lib/suscriptores-cuenta.ts): si la fila ya no
+ * existe o el mail cambió, la sesión no sirve. La de quien se dio de baja de
+ * los mails de novedades sigue sirviendo: la cuenta es la misma.
  */
 
 export const COOKIE_SUSCRIPTOR = "harper_suscriptor";
@@ -61,10 +66,10 @@ export function leerSesionSuscriptor(clave: Buffer, valor: unknown, ahora = Date
 
 /**
  * La sesión de Mi Cuenta de quien compró y no es suscriptor: solo su mail,
- * verificado con el código. No es una suscripción: no da cupón, saldo, envío
- * gratis ni ningún beneficio (el carrito y el checkout leen solo
- * COOKIE_SUSCRIPTOR) y nunca crea una fila en Suscriptores. Se firma con otra
- * etiqueta que la del suscriptor: una no sirve como la otra.
+ * verificado con el código. No es una suscripción: no recibe los mails de
+ * novedades ni tiene favoritos, datos o direcciones guardados (esas rutas
+ * leen solo COOKIE_SUSCRIPTOR) y nunca crea una fila en Suscriptores. Se firma
+ * con otra etiqueta que la del suscriptor: una no sirve como la otra.
  */
 export const COOKIE_CUENTA = "harper_cuenta";
 

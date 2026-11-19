@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { desglosar } from "@/lib/resumen";
-import { TEXTOS } from "@/lib/textos";
 import OfertaCantidad from "@/components/producto/OfertaCantidad";
 import OfertaDuo from "@/components/producto/OfertaDuo";
 import { esCategoriaDeAnteojos } from "@/lib/categorias";
@@ -20,6 +19,12 @@ import CodigoDescuento from "@/components/checkout/CodigoDescuento";
 import { buscarCupon } from "@/lib/cupones";
 import { envioEnElCarrito } from "@/lib/envio-gratis";
 
+/**
+ * La página del carrito: los productos, el resumen con «Finalizar compra» y
+ * las sugerencias. Ale, 18/11/2026: tener cuenta Harper no cambia nada del
+ * resumen. No hay renglón de cupón de bienvenida ni envío gratis por estar
+ * suscripto: la nota del envío es la de cualquier compra.
+ */
 export default function VistaCarrito({ whatsapp = "" }: { whatsapp?: string }) {
   const { items: guardados, cupon } = useCarrito();
   const { datos, cargando, actualizando, error, recargar } = useCarritoResuelto({ cuotas: true });
@@ -56,21 +61,25 @@ export default function VistaCarrito({ whatsapp = "" }: { whatsapp?: string }) {
   }
 
   const resumen = desglosar(datos);
-  // El envío gratis se mide sin el cupón, como en el servidor, y depende de
-  // la zona: acá todavía no hay dirección.
-  const envio = envioEnElCarrito(datos.subtotalSinCupon ?? datos.subtotal, resumen.envio, {
-    amba: datos.envioGratisAmbaDesde ?? 0,
-    nacional: datos.envioGratisDesde,
-  });
+  // El envío gratis se mide sobre la misma base que el servidor (sin el cupón
+  // y antes del Dúo) y depende de la zona: acá todavía no hay dirección.
+  const base = datos.subtotalSinCupon ?? datos.subtotal;
+  const umbrales = { amba: datos.envioGratisAmbaDesde ?? 0, nacional: datos.envioGratisDesde };
+  const envioSinAclarar = envioEnElCarrito(base, resumen.envio, umbrales);
 
   // Con el Dúo prendido (Tarea 07), lo que dice el servidor del Dúo; apagado, nada.
   const duo = datos.duo ? mensajesDelDuo(datos.duo, "carrito") : null;
   const notaDuo = notaEnvioGratisDelDuo({
-    base: datos.subtotalSinCupon ?? datos.subtotal,
+    base,
     items: datos.items,
-    umbral: resumen.envio === 0 ? datos.envioGratisDesde : (datos.envioGratisAmbaDesde ?? 0),
-    gratis: resumen.envio === 0 || envio.valor === "Gratis en AMBA",
+    umbral: resumen.envio === 0 ? umbrales.nacional : umbrales.amba,
+    gratis: resumen.envio === 0 || envioSinAclarar.valor === "Gratis en AMBA",
   });
+  // Con el Dúo aplicado y un mínimo sin alcanzar («Te faltan…», «Al resto del
+  // país, gratis desde…»), la nota aclara que ese mínimo se cuenta antes del
+  // descuento del Dúo (Ale, 18/11/2026). Si la nota del Dúo ya lo dice, no se
+  // repite. Sin Dúo en ningún renglón, la nota es la de siempre.
+  const envio = notaDuo ? envioSinAclarar : envioEnElCarrito(base, resumen.envio, umbrales, datos.items);
 
   // Unidades y descuento aplicado por categoría, para la línea del segundo par.
   const porCategoria = new Map<Categoria, { unidades: number; precioLista: number; descuento: number }>();
@@ -121,13 +130,6 @@ export default function VistaCarrito({ whatsapp = "" }: { whatsapp?: string }) {
         <Fila etiqueta="Subtotal" valor={formatearPrecio(resumen.lista)} />
 
         <FilasDescuento ahorro={resumen.descuento} items={datos.items} cupon={datos.cupon} />
-        {/* El cupón de bienvenida del suscriptor, en su renglón (el saldo se elige en el checkout). */}
-        {resumen.cupon > 0 ? (
-          <div className="fila" style={{ color: "var(--verde)" }}>
-            <span>{TEXTOS.suscriptores.checkoutCaja.cupon}</span>
-            <span>−{formatearPrecio(resumen.cupon)}</span>
-          </div>
-        ) : null}
         {/* El envío se cotiza en el checkout con la dirección (Envia): acá no
             se anuncia un precio que puede cambiar, salvo cuando es gratis. */}
         <Fila etiqueta="Envío a domicilio" valor={envio.valor} />
@@ -149,12 +151,13 @@ export default function VistaCarrito({ whatsapp = "" }: { whatsapp?: string }) {
           />
         ))}
 
-        {envio.nota || datos.suscriptor ? (
+        {/* La nota del envío, la misma con cuenta o sin cuenta (Ale, 18/11/2026). */}
+        {envio.nota ? (
           <p className="apagado" style={{ fontSize: "0.8125rem" }}>
-            {datos.suscriptor ? TEXTOS.suscriptores.envioGratis : envio.nota}
+            {envio.nota}
           </p>
         ) : null}
-        {notaDuo && !datos.suscriptor ? (
+        {notaDuo ? (
           <p className="apagado" style={{ fontSize: "0.8125rem" }}>
             {notaDuo}
           </p>
@@ -164,7 +167,8 @@ export default function VistaCarrito({ whatsapp = "" }: { whatsapp?: string }) {
           <span>{envio.total}</span>
           <strong style={{ fontWeight: 500 }}>{formatearPrecio(resumen.total - resumen.envio)}</strong>
         </div>
-        {/* Las cuotas para este total (Ale, 05/11/2026): hasta 3, o hasta 6 para suscriptores. */}
+        {/* Debajo del total: las cuotas confirmadas para ese importe (las mismas
+            para todos) y lo que cuesta con dinero en Mercado Pago. */}
         <CuotasDelCarrito datos={datos} monto={resumen.total - resumen.envio} />
 
         <Link href="/checkout" className="boton boton--bloque">

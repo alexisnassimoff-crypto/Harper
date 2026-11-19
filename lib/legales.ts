@@ -6,8 +6,14 @@
  * en el checkout y cuándo (Pedidos.Terminos_aceptados). Al publicar otra
  * versión de los Términos, se cambia esta fecha en el mismo commit.
  */
-// 2026-11-05: hasta 3 cuotas sin interés para todos y hasta 6 para suscriptores (Ale).
-export const VERSION_TERMINOS = "2026-11-05";
+// 2026-11-18 (Ale): las condiciones de compra son las mismas para todos. Hasta
+// 3 cuotas; el 10 % por dinero en Mercado Pago sin cupón ni saldo de por medio;
+// la regla del envío gratis con los mínimos de Config, contados a precio de
+// lista; la cláusula del Dúo, que se publica solo con HARPER_DUO_ACTIVO=1; y la
+// sección de la cuenta y las novedades en lugar de la de Suscriptores Harper,
+// cuyos beneficios en plata terminaron. Cada pedido guarda la versión aceptada:
+// por eso la fecha cambia junto con el texto.
+export const VERSION_TERMINOS = "2026-11-18";
 
 /** "22 de octubre de 2026", para mostrar en la página. */
 export function versionTerminosLegible(version = VERSION_TERMINOS): string {
@@ -25,9 +31,16 @@ export function registroAceptacion(momento: Date, version = VERSION_TERMINOS): s
 }
 
 /**
- * Versión de las condiciones de Suscriptores Harper (Ale, 03/11/2026). Cada
- * alta guarda la que aceptó en Suscriptores.Version_condiciones. Al publicar
- * otras condiciones, se cambia esta fecha en el mismo commit.
+ * Versión de las condiciones de la cuenta Harper y de los mails de novedades
+ * (app/legales/suscriptores/page.tsx; nacieron el 03/11/2026 como las de
+ * Suscriptores Harper, y la constante conserva ese nombre porque la usan el
+ * alta y los datos de prueba). Cada alta guarda la que aceptó en
+ * Suscriptores.Version_condiciones. Al publicar otras condiciones, se cambia
+ * esta fecha en el mismo commit.
  */
-// 2026-11-05: vuelve la cláusula de cuotas (hasta 3 para todos, hasta 6 para suscriptores).
-export const VERSION_CONDICIONES_SUSCRIPTORES = "2026-11-05";
+// 2026-11-18 (Ale): terminaron los beneficios en plata de la suscripción (cupón
+// de bienvenida, saldo de vuelta, envío gratis siempre y cuotas propias). Las
+// condiciones pasan a ser las de la cuenta (compras, favoritos, datos y
+// direcciones) y las de los mails de novedades. El saldo ganado antes de ese
+// día se puede seguir usando; no se genera saldo nuevo.
+export const VERSION_CONDICIONES_SUSCRIPTORES = "2026-11-18";

@@ -19,9 +19,9 @@ async function respuestasDeMercadoPago(monto: number): Promise<unknown[] | null>
 }
 
 /**
- * Para varios topes a la vez (3 y 6) con una sola consulta a Mercado Pago:
- * para cada tope, las más cuotas sin interés confirmadas para `monto` sin
- * pasarlo (lib/cuotas.ts, evaluarMejoresCuotas), o null.
+ * Para varios topes a la vez con una sola consulta a Mercado Pago: para cada
+ * tope, las más cuotas sin interés confirmadas para `monto` sin pasarlo
+ * (lib/cuotas.ts, evaluarMejoresCuotas), o null.
  */
 export async function verificarVarias(monto: number, topes: number[]): Promise<(CuotasVerificadas | null)[]> {
   const anunciables = topes.map((t) => cuotasAnunciables(t));
@@ -32,9 +32,12 @@ export async function verificarVarias(monto: number, topes: number[]): Promise<(
 
 /**
  * Las cuotas sin interés confirmadas por Mercado Pago para un monto, o null:
- * las más que confirma sin pasar de `pedidas` (3 para cualquier comprador,
- * por defecto; 6 para un suscriptor, lib/suscriptores.ts). Nunca más que el
- * tope de `NEXT_PUBLIC_CUOTAS`.
+ * las más que confirma sin pasar de `pedidas` (por defecto, las de cualquier
+ * comprador: hasta 3, las mismas para todos desde el 18/11/2026,
+ * lib/suscriptores.ts). Nunca más que el tope de `NEXT_PUBLIC_CUOTAS`.
+ *
+ * Es lo que usan la barra, la portada, la ficha, los listados y las
+ * preguntas frecuentes: una sola cantidad, sin mirar quién compra.
  */
 export async function verificarCuotas(monto: number, pedidas: number = CUOTAS_TODOS): Promise<CuotasVerificadas | null> {
   const [verificadas] = await verificarVarias(monto, [pedidas]);
@@ -54,11 +57,11 @@ function soloSiSonMas(todos: CuotasVerificadas | null, suscriptores: CuotasVerif
 }
 
 /**
- * Para anunciar las dos cantidades juntas (la barra, la portada, la ficha,
- * /suscriptores): las de cualquier comprador y las de suscriptor, cada una
- * confirmada con Mercado Pago para el mismo precio (Ale, 03/11/2026). Las de
- * suscriptor van solo si son más que las de todos. Si Mercado Pago tarda más
- * de `ms`, sin cuotas.
+ * Anterior al 18/11/2026: las dos cantidades juntas (las de cualquier
+ * comprador y las de suscriptor). Desde que las cuotas son las mismas para
+ * todos, `suscriptores` es siempre null y ninguna página la usa (la barra, la
+ * portada y la ficha piden `verificarCuotas`). Queda hasta que las pruebas
+ * dejen de llamarla; después se borra, con `cuotasDelPrecio`.
  */
 export async function cuotasDeTodosYSuscriptores(
   precios: number[],
@@ -69,7 +72,7 @@ export async function cuotasDeTodosYSuscriptores(
   return conEspera(cuotasDelPrecio(Math.min(...validos)), ms, { todos: null, suscriptores: null });
 }
 
-/** Las de todos y las de suscriptor para un mismo precio, con una sola consulta. */
+/** Anterior al 18/11/2026 (ver `cuotasDeTodosYSuscriptores`): hoy `suscriptores` es siempre null. */
 export async function cuotasDelPrecio(monto: number): Promise<{ todos: CuotasVerificadas | null; suscriptores: CuotasVerificadas | null }> {
   const [todos, suscriptores] = await verificarVarias(monto, CUOTAS_SON_BENEFICIO ? [CUOTAS_TODOS, CUOTAS_SUSCRIPTORES] : [CUOTAS_TODOS]);
   return { todos, suscriptores: soloSiSonMas(todos, suscriptores ?? null) };

@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
+import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
+
+/**
+ * La Política de privacidad. Ale, 18/11/2026: los beneficios en plata de la
+ * suscripción terminaron para todos (lib/suscriptores.ts), así que la página
+ * ya no habla de «Suscriptores Harper», de beneficios ni de los movimientos
+ * de un saldo: nombra la cuenta Harper y los mails de novedades, y dice que
+ * darse de baja de esos mails no cierra la cuenta. Lo demás quedó igual. Los
+ * días de la sesión salen de lib/suscriptores-sesion.ts.
+ */
 
 export const metadata: Metadata = {
   title: "Política de privacidad",
@@ -9,6 +19,7 @@ export const metadata: Metadata = {
 
 export default async function Privacidad() {
   const config = await getConfig();
+  const diasSesion = Math.round(DURACION_SESION_MS / (24 * 60 * 60_000));
 
   return (
     <>
@@ -29,11 +40,11 @@ export default async function Privacidad() {
         almacenamos datos de tarjetas de crédito o débito.
       </p>
       <p>
-        Si te suscribís a Suscriptores Harper, guardamos además tu mail, tu
-        nombre si lo diste, la fecha y desde dónde te suscribiste, tu
-        consentimiento para recibir mails y los movimientos de tu saldo. Para
-        reconocerte en el sitio, al entrar con tu mail guardamos en tu
-        navegador una cookie de sesión por 90 días; no se usa para publicidad.
+        Si abrís tu cuenta Harper, guardamos además tu mail, tu nombre si lo
+        diste, la fecha y desde dónde la abriste y tu consentimiento para
+        recibir mails. Para reconocerte en el sitio, al entrar con tu mail
+        guardamos en tu navegador una cookie de sesión por {diasSesion} días;
+        no se usa para publicidad.
       </p>
       <p>
         Si elegís guardar en Mi cuenta tu teléfono, DNI, direcciones de entrega
@@ -65,20 +76,23 @@ export default async function Privacidad() {
         consentimiento en cualquier momento escribiéndonos.
       </p>
 
-      <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Mails de Suscriptores Harper</h2>
+      <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Mails de novedades de Harper</h2>
       <p>
-        Si te suscribís, usamos tu mail para aplicarte los beneficios, llevar tu
-        saldo y mandarte novedades, lanzamientos y promociones de Harper. Lo
-        hacemos solo porque lo aceptaste al suscribirte, con una casilla que
-        está sin marcar hasta que la marcás vos. Te podés dar de baja cuando
-        quieras con el enlace de nuestros mails de bienvenida y de novedades, desde{" "}
+        Si abrís tu cuenta Harper, usamos tu mail para reconocerte cuando
+        entrás y para mandarte novedades, lanzamientos y promociones de Harper.
+        Esos mails te los mandamos solo porque lo aceptaste al abrir la cuenta,
+        con una casilla que está sin marcar hasta que la marcás vos. Te podés
+        dar de baja cuando quieras con el enlace de nuestros mails de bienvenida
+        y de novedades, desde{" "}
         <Link href="/suscriptores/mi-cuenta" style={{ textDecoration: "underline" }}>
           mi cuenta
         </Link>{" "}
         o escribiéndonos, y también podés pedir que te saquemos de nuestra base
-        de mails (art. 27 de la Ley 25.326). El detalle está en las{" "}
+        de mails (art. 27 de la Ley 25.326). Si te das de baja, tu cuenta sigue
+        igual y los mails de tus pedidos te siguen llegando. El detalle está en
+        las{" "}
         <Link href="/legales/suscriptores" style={{ textDecoration: "underline" }}>
-          Condiciones de Suscriptores Harper
+          Condiciones de la cuenta Harper
         </Link>
         .
       </p>

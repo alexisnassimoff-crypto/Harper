@@ -1,52 +1,66 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
-import { DIAS_ARREPENTIMIENTO } from "@/lib/confianza";
-import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
-import { precio as formatearPrecio } from "@/lib/formato";
 import { VERSION_CONDICIONES_SUSCRIPTORES, versionTerminosLegible } from "@/lib/legales";
-import {
-  CASHBACK_PORCENTAJE,
-  CUOTAS_SON_BENEFICIO,
-  CUOTAS_SUSCRIPTORES,
-  CUOTAS_TODOS,
-  CUPON_BIENVENIDA,
-  DIAS_PARA_USAR_CASHBACK,
-} from "@/lib/suscriptores";
+import { VIGENCIA_CODIGO_MS } from "@/lib/reconocer-cliente";
 import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
 
 /**
- * Las condiciones de Suscriptores Harper (Ale, 03/11/2026): gratis, con el
- * mail; el cupón de bienvenida de $ 10.000 en la primera compra, el 10% de
- * cashback como saldo (se usa a los 30 días y no vence), envío gratis
- * siempre (las cuotas, solo si son un beneficio). Los montos y plazos salen de
- * lib/suscriptores.ts, los mismos con los que cobra el servidor. Cada alta
- * guarda la versión que aceptó (lib/legales.ts): si cambian estas
+ * Las condiciones de la cuenta Harper y de los mails de novedades. La página
+ * nació el 03/11/2026 como las condiciones de Suscriptores Harper, con sus
+ * beneficios en plata (cupón de bienvenida, saldo de vuelta, envío gratis
+ * siempre y cuotas propias).
+ *
+ * Ale, 18/11/2026: esos beneficios terminaron para todos (lib/suscriptores.ts,
+ * BENEFICIOS_DE_SUSCRIPTOR). Lo que queda es la cuenta (compras, favoritos,
+ * datos y direcciones) y los mails de novedades, y esta página dice solo eso:
+ * qué es la cuenta, quién puede tenerla, cómo se abre y se entra, qué guarda,
+ * los mails de novedades y su baja, los datos personales, los cambios y el
+ * contacto. No describe ningún descuento, cuota ni envío: son los de
+ * cualquier compra y están en los Términos (app/legales/terminos/page.tsx).
+ * La dirección no cambió (/legales/suscriptores): la enlazan el formulario de
+ * alta, /suscriptores, los Términos, la Privacidad y el sitemap.
+ *
+ * Los plazos salen del código con el que trabaja el servidor: la sesión
+ * (lib/suscriptores-sesion.ts) y el código (lib/reconocer-cliente.ts). Cada
+ * alta guarda la versión que aceptó (lib/legales.ts): si cambian estas
  * condiciones, se cambia esa fecha en el mismo commit.
  */
 
 export const metadata: Metadata = {
-  title: "Condiciones de Suscriptores Harper",
+  title: "Condiciones de la cuenta Harper",
   alternates: { canonical: "/legales/suscriptores" },
 };
+
+/**
+ * El día en que la cuenta dejó de generar saldo (Ale, 18/11/2026). El que
+ * alguien hubiera ganado antes se sigue pudiendo usar (el servidor conserva
+ * ese camino, lib/pedidos.ts); ese día no había ninguno.
+ */
+const FIN_DEL_SALDO = "2026-11-18";
 
 const h2 = { fontSize: "1.25rem", marginTop: "1.5rem" } as const;
 const lista = { margin: 0, paddingLeft: "1.25rem", display: "grid", gap: "0.5rem" } as const;
 const subrayado = { textDecoration: "underline" } as const;
 
-export default async function CondicionesSuscriptores() {
+export default async function CondicionesCuenta() {
   const config = await getConfig();
-  const cupon = formatearPrecio(CUPON_BIENVENIDA);
   const diasSesion = Math.round(DURACION_SESION_MS / (24 * 60 * 60_000));
+  const minutosCodigo = Math.round(VIGENCIA_CODIGO_MS / 60_000);
   const correo = (
     <a href={`mailto:${config.emailContacto}`} style={subrayado}>
       {config.emailContacto}
     </a>
   );
+  const miCuenta = (
+    <Link href="/suscriptores/mi-cuenta" style={subrayado}>
+      Mi Cuenta
+    </Link>
+  );
 
   return (
     <>
-      <h1 className="titulo">Condiciones de Suscriptores Harper</h1>
+      <h1 className="titulo">Condiciones de la cuenta Harper</h1>
       <p className="apagado">
         Versión vigente: {versionTerminosLegible(VERSION_CONDICIONES_SUSCRIPTORES)}. Forman parte de los{" "}
         <Link href="/legales/terminos" style={subrayado}>
@@ -57,84 +71,61 @@ export default async function CondicionesSuscriptores() {
 
       <h2 style={h2}>1. Qué es</h2>
       <p>
-        Suscriptores Harper es el programa de beneficios de harper.ar, a cargo de {config.razonSocial}, CUIT {config.cuit}. Es gratis: no hay
-        que pagar nada ni comprar nada para suscribirse.
+        La cuenta Harper es tu cuenta en harper.ar, a cargo de {config.razonSocial}, CUIT {config.cuit}. Con ella seguís tus compras, guardás
+        tus favoritos, tus datos y tus direcciones, y recibís por mail las novedades de Harper. Es gratis: no hay que pagar nada ni comprar
+        nada para tenerla, y para comprar en harper.ar no hace falta tener cuenta.
       </p>
 
-      <h2 style={h2}>2. Quién puede suscribirse</h2>
+      <h2 style={h2}>2. Quién puede tenerla</h2>
       <p>
-        Cualquier persona mayor de edad, o con autorización de su representante legal, con un mail propio. La suscripción es personal: una por
+        Cualquier persona mayor de edad, o con autorización de su representante legal, con un mail propio. La cuenta es personal: una por
         mail.
       </p>
 
-      <h2 style={h2}>3. Cómo suscribirse</h2>
+      <h2 style={h2}>3. Cómo se abre y cómo se entra</h2>
       <p>
-        Escribís tu mail en harper.ar, confirmás con el código de 6 números que te mandamos y aceptás recibir nuestros mails. Sin ese
-        consentimiento no hay suscripción. El nombre es opcional.
+        Para abrirla escribís tu mail en harper.ar, lo confirmás con el código de 6 números que te mandamos y aceptás estas condiciones y
+        recibir nuestros mails de novedades (punto 5). El nombre es opcional.
+      </p>
+      <p>
+        Para entrar otra vez alcanza con tu mail y un código nuevo: la cuenta no tiene contraseña. Cada código vence a los {minutosCodigo}{" "}
+        minutos. Quedás reconocido en ese navegador por hasta {diasSesion} días; si querés salir antes, lo hacés desde {miCuenta}.
       </p>
 
-      <h2 style={h2}>4. Los beneficios</h2>
+      <h2 style={h2}>4. Qué guarda</h2>
       <ul style={lista}>
         <li>
-          <strong>Cupón de bienvenida de {cupon}.</strong> Es un descuento fijo de {cupon} en tu primera compra en harper.ar, sobre el precio de
-          los productos (no sobre el envío). Se usa una sola vez. Es una sola vez por persona: no se aplica si ya hay una compra con pago
-          acreditado hecha con ese mail o con ese DNI. No se cambia por dinero.
+          <strong>Tus compras.</strong> Los pedidos hechos con el mail de la cuenta, con su estado y el seguimiento del envío cuando está
+          cargado.
         </li>
         <li>
-          <strong>{CASHBACK_PORCENTAJE}% de vuelta como saldo.</strong> De lo que pagás en productos (sin el envío, y después del cupón y del
-          saldo que uses) te devolvemos el {CASHBACK_PORCENTAJE}% como saldo a favor para tus próximas compras en harper.ar. Se anota cuando se
-          acredita el pago y lo podés usar desde los {DIAS_PARA_USAR_CASHBACK} días del pago. Si después te arrepentís o devolvés esa compra, se
-          anula (punto 6).
-          El saldo no vence, puede cubrir una compra entera y en el checkout elegís si lo usás. No se cambia por dinero ni se transfiere a otra
-          persona.
+          <strong>Tus favoritos.</strong> Los anteojos que guardás con el corazón.
         </li>
         <li>
-          <strong>Envío gratis siempre.</strong> En todas las compras que hagas como suscriptor, a cualquier dirección de la República
-          Argentina a la que hagamos envíos, sin monto mínimo.
+          <strong>Tus datos y direcciones.</strong> Tu nombre, tu teléfono, tu DNI y tus direcciones de entrega, si elegís guardarlos, para no
+          cargarlos de nuevo en cada compra. Los actualizás desde {miCuenta}.
         </li>
-        {CUOTAS_SON_BENEFICIO ? (
-          <li>
-            <strong>Cuotas sin interés.</strong> Para cualquier comprador ofrecemos hasta {CUOTAS_TODOS} cuotas, y para suscriptores hasta{" "}
-            {CUOTAS_SUSCRIPTORES}, con las tarjetas y los bancos que Mercado Pago tenga sin interés para ese monto. Las anunciamos solo cuando
-            Mercado Pago las confirma, con el costo financiero total (CFTEA) al lado, y las ves antes de pagar.
-          </li>
-        ) : null}
       </ul>
 
-      <h2 style={h2}>5. Cómo se aplican</h2>
+      <h2 style={h2}>5. Mails de novedades</h2>
       <p>
-        Para tener los beneficios, entrá con tu mail en harper.ar antes de comprar (te mandamos un código para confirmar que sos vos). Quedás
-        reconocido en ese navegador por {diasSesion} días y los beneficios se aplican solos en el carrito. Se suman a las promociones vigentes:
-        primero va la promoción, después el cupón y después el saldo. El {PORCENTAJE_DINERO_MP}% por pagar con dinero en Mercado Pago se
-        calcula sobre lo que queda.
+        Al abrir la cuenta aceptás recibir nuestros mails con novedades, lanzamientos y promociones de Harper. Lo aceptás con una casilla que
+        está sin marcar hasta que la marcás vos.
+      </p>
+      <p>
+        Te podés dar de baja de esos mails cuando quieras, sin costo: con el enlace de nuestros mails de bienvenida y de novedades, desde{" "}
+        {miCuenta} o escribiéndonos a {correo}. Si te das de baja, dejás de recibir nuestros mails de novedades. Tu cuenta sigue igual, y los
+        mails de tus pedidos te siguen llegando. Si más adelante querés volver a recibirlos, te suscribís de nuevo con el mismo mail.
       </p>
 
-      <h2 style={h2}>6. Si cancelás o devolvés una compra</h2>
+      <h2 style={h2}>6. Tus datos</h2>
       <p>
-        Si ejercés el derecho de arrepentimiento ({DIAS_ARREPENTIMIENTO} días) o devolvés una compra, el cashback de esa compra se anula, aunque
-        ya figure en tu cuenta o ya se pueda usar; si ya lo usaste, ese monto se descuenta de tu saldo (puede quedar en negativo hasta tu
-        próximo cashback). Lo que hayas pagado con saldo en esa compra vuelve a tu saldo cuando
-        se concreta la devolución.
-      </p>
-
-      <h2 style={h2}>7. Baja</h2>
-      <p>
-        Te podés dar de baja cuando quieras, sin costo: con el enlace de nuestros mails de bienvenida y de novedades, o desde{" "}
-        <Link href="/suscriptores/mi-cuenta" style={subrayado}>
-          mi cuenta
-        </Link>
-        . Desde ese momento dejás de recibir nuestros mails y de sumar beneficios nuevos (el cupón si no lo usaste, el envío gratis y el
-        cashback de las compras que hagas después). El saldo que ya ganaste no se pierde: lo seguís pudiendo usar entrando con tu mail. Si
-        volvés a suscribirte con el mismo mail, recuperás los beneficios.
-      </p>
-
-      <h2 style={h2}>8. Tus datos</h2>
-      <p>
-        {config.razonSocial} es responsable de los datos de la suscripción, conforme a la Ley 25.326 de Protección de los Datos Personales.
-        Guardamos tu mail, tu nombre si lo diste, la fecha y desde dónde te suscribiste, tu consentimiento y los movimientos de tu saldo. Los
-        usamos para reconocerte en harper.ar, aplicar tus beneficios, llevar tu saldo y mandarte mails con novedades, lanzamientos y
-        promociones de Harper. No los vendemos ni los cedemos a terceros con fines comerciales; solo los procesan los proveedores que nos
-        prestan los servicios de almacenamiento y de envío de mails, para esos fines.
+        {config.razonSocial} es responsable de los datos de la cuenta, conforme a la Ley 25.326 de Protección de los Datos Personales.
+        Guardamos tu mail, tu nombre si lo diste, la fecha y desde dónde abriste la cuenta, tu consentimiento para recibir mails, tus
+        favoritos y los datos y las direcciones que elijas guardar. Los usamos para reconocerte en harper.ar, mostrarte tu cuenta, facilitar
+        tus próximas compras y mandarte mails con novedades, lanzamientos y promociones de Harper. No los vendemos ni los cedemos a terceros
+        con fines comerciales; solo los procesan los proveedores que nos prestan los servicios de almacenamiento y de envío de mails, para
+        esos fines.
       </p>
       <p>
         Podés acceder a tus datos, pedir que los corrijamos o que los borremos, y pedir que te saquemos de nuestra base de mails (art. 27 de la
@@ -147,13 +138,18 @@ export default async function CondicionesSuscriptores() {
         .
       </p>
 
-      <h2 style={h2}>9. Cambios</h2>
+      <h2 style={h2}>7. Cambios</h2>
       <p>
-        Si cambiamos estas condiciones, la versión nueva y su fecha se publican en esta página, y si te afecta te avisamos por mail antes de
-        que rija. El saldo que ya tengas se respeta.
+        Si cambiamos estas condiciones, la versión nueva y su fecha se publican en esta página, y si el cambio te afecta te avisamos por mail
+        antes de que rija.
+      </p>
+      {/* El saldo de antes del 18/11/2026: una sola cláusula. No se genera más; el que hubiera se puede seguir usando. */}
+      <p>
+        Si tu cuenta tenía saldo a favor ganado antes del {versionTerminosLegible(FIN_DEL_SALDO)}, lo podés seguir usando en tus compras,
+        entrando con tu mail. Desde esa fecha no se genera saldo nuevo.
       </p>
 
-      <h2 style={h2}>10. Contacto</h2>
+      <h2 style={h2}>8. Contacto</h2>
       <p>Cualquier consulta, escribinos a {correo}.</p>
     </>
   );

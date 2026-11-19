@@ -24,8 +24,10 @@ export default function LineaCarrito({
 }) {
   const { cambiarCantidad, quitar } = useCarrito();
   const lado = compacta ? "4.25rem" : "5.5rem";
-  // El cupón de bienvenida y el saldo de un suscriptor van en el resumen, cada
-  // uno en su renglón: acá el precio con sus promociones.
+  // Acá, el precio con sus promociones. El servidor ya no manda `cupon` (el
+  // cupón de bienvenida terminó el 18/11/2026) ni, en el carrito, `saldo` (el
+  // saldo a favor de antes de ese día se elige en el checkout y va en su
+  // renglón del resumen): si llegaran, no se restan dos veces.
   const subtotal = item.subtotal + (item.cupon ?? 0) + (item.saldo ?? 0);
   const tachado = item.descuento > 0;
   // Con el Dúo (Tarea 07): «Dúo · 25% OFF en 1 de 2» en vez de un porcentaje

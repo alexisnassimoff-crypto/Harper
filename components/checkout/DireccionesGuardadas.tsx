@@ -7,8 +7,8 @@ const TD = TEXTOS.suscriptores.cuenta.misDatos.direcciones;
 
 /**
  * Las direcciones guardadas en Mi cuenta, en el checkout (Ale, 05/11/2026):
- * con la sesión de suscriptor abierta, se elige una con un toque y el
- * formulario queda completo. El envío se cotiza igual que con cualquier
+ * con la cuenta abierta, se elige una con un toque y el formulario queda
+ * completo. El envío se cotiza igual que con cualquier
  * dirección: el servidor no confía en nada de esto.
  */
 export default function DireccionesGuardadas({

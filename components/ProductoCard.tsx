@@ -7,6 +7,7 @@ import Cifras from "./Cifras";
 import { useDeslizar } from "./useDeslizar";
 import { useCarrito } from "./carrito/CarritoContexto";
 import BotonFavorito from "./suscriptores/BotonFavorito";
+import EtiquetaDuo from "./producto/EtiquetaDuo";
 import { esCategoriaDeAnteojos } from "@/lib/categorias";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
@@ -20,8 +21,14 @@ export default function ProductoCard({
   prioridad = false,
   inicial = 0,
   precioSinImpuestos = null,
+  etiquetaDuo = null,
 }: {
   producto: Producto;
+  /**
+   * «Dúo: 25% OFF llevando dos», armada en el servidor (GrillaProductos) solo
+   * si el Dúo está prendido y el producto es un anteojo; null no la muestra.
+   */
+  etiquetaDuo?: string | null;
   /** El neto para la leyenda de la Res. SIyC 4/2025; null si no hay dato. */
   precioSinImpuestos?: number | null;
   /** Solo para las primeras tarjetas visibles: precarga la imagen. */
@@ -145,6 +152,8 @@ export default function ProductoCard({
             Precio sin impuestos nacionales: {precioConCentavos(precioSinImpuestos)}
           </small>
         ) : null}
+        {/* El Dúo, junto al precio: solo si el servidor mandó la etiqueta. */}
+        <EtiquetaDuo texto={etiquetaDuo} />
 
         {producto.variantes.length > 1 ? (
           <div

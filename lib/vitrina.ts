@@ -145,6 +145,13 @@ export function modoDePortada(delConfig: string): ModoPortada {
  * qué ya tiene. Sale del carrito resuelto por el servidor (tramos, cupón,
  * envío gratis), nunca de una cuenta propia: si el cupón ya da más que el
  * próximo tramo, no se promete ese descuento (nunca se suman los dos).
+ *
+ * El envío gratis (Ale, 18/11/2026): «a todo el país» se dice solo cuando la
+ * base del servidor (`subtotalSinCupon`, los anteojos a precio de lista, antes
+ * del Dúo) llega al mínimo de Config que manda el servidor
+ * (`envioGratisDesde`), o llega con un par más. Con el mínimo en $ 250.000,
+ * uno y dos pares no lo prometen y tres sí. No hay ningún caso por tener
+ * cuenta: el envío es el mismo para todos.
  */
 export function empujeDeLaBarra(datos: {
   pares: number;

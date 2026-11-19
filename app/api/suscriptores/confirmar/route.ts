@@ -1,21 +1,17 @@
 import { createHash } from "node:crypto";
 import { after, NextResponse } from "next/server";
-import { getProductos } from "@/lib/catalogo";
-import { esCategoriaDeAnteojos } from "@/lib/categorias";
 import { getConfig } from "@/lib/config";
 import { claveDeIp, consumirCuota } from "@/lib/cuota";
-import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 import { enviarMail, mailBienvenidaSuscriptor } from "@/lib/mails";
 import { claveDeCodigos, codigoCorrecto, normalizarEmail } from "@/lib/reconocer-cliente";
 import { urlDelSitio } from "@/lib/sitio";
-import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES, normalizarOrigenSuscripcion } from "@/lib/suscriptores";
+import { normalizarOrigenSuscripcion } from "@/lib/suscriptores";
 import {
   darDeAlta,
   ErrorAltaEnCurso,
   estaActivo,
   resumenDeLaCuenta,
   suscriptorPorEmail,
-  tieneCupon,
 } from "@/lib/suscriptores-cuenta";
 import {
   claveDeSesionSuscriptor,
@@ -31,18 +27,26 @@ export const dynamic = "force-dynamic";
 const MINUTO = 60_000;
 const sinCache = { "Cache-Control": "private, no-store" };
 const INCORRECTO = "El código no es correcto o ya venció. Revisalo o pedí otro.";
-/** Cuánto se espera a Mercado Pago para nombrar las cuotas en la bienvenida: si tarda, el mail sale sin ellas. */
-const ESPERA_CUOTAS_MS = 5_000;
 
 /**
  * Con el código que le llegó por mail, suscribe a la persona o, si ya estaba
  * suscripta, la reconoce (Ale, 03/11/2026). En los dos casos abre la sesión en
  * este navegador (cookie firmada, lib/suscriptores-sesion.ts).
  *
+ * Ale, 18/11/2026: suscribirse es aceptar los mails de novedades y abrir la
+ * cuenta Harper. Ya no da cupón de bienvenida, saldo, envío gratis ni cuotas
+ * propias, y la bienvenida no los promete: por eso acá ya no se leen los
+ * productos ni se verifican cuotas con Mercado Pago para escribirla.
+ *
  *   POST /api/suscriptores/confirmar
  *     { email, codigo, desafio, nombre?, aceptaMails, origen? }
- *     → 200 { estado: "nueva" | "reactivada" | "ya", suscriptor: { email, nombre, cupon, saldoDisponible, saldoEnCamino } }
+ *     → 200 { estado: "nueva" | "reactivada" | "ya" | "baja", suscriptor: { email, nombre, cupon, saldoDisponible, saldoEnCamino, activo } }
  *     → 400 { error }  (con `faltaAceptarMails: true` si hace falta la casilla para suscribirse)
+ *
+ * `cupon`, `saldoDisponible` y `saldoEnCamino` siguen en la respuesta para no
+ * cambiarle la forma al formulario: `cupon` es siempre "Usado" (no hay cupón)
+ * y los saldos son lo que la cuenta tuviera de antes del 18/11/2026 (ninguna
+ * tenía). Nada de eso se le muestra a quien se suscribe.
  *
  * Para suscribirse (o volver después de una baja) `aceptaMails` tiene que ser
  * `true`: es el consentimiento para los mails. Para entrar ya suscripto no
@@ -91,9 +95,10 @@ export async function POST(request: Request) {
   try {
     // Suscribirse (o volver después de una baja) necesita el consentimiento
     // explícito para los mails; entrar ya suscripto, no. Quien se dio de baja
-    // y entra sin volver a aceptar los mails, entra igual (estado "baja"): sin
-    // beneficios nuevos, pero con el saldo que ya ganó (darse de baja no le
-    // puede costar ese saldo, Ley 25.326, art. 27).
+    // y entra sin volver a aceptar los mails, entra igual (estado "baja"): no
+    // recibe las novedades, pero su cuenta sigue igual, con el saldo que
+    // tuviera de antes del 18/11/2026 (darse de baja de los mails no le puede
+    // costar nada, Ley 25.326, art. 27).
     const existente = await suscriptorPorEmail(email);
     if (!existente && cuerpo?.aceptaMails !== true) {
       return NextResponse.json(
@@ -130,18 +135,13 @@ export async function POST(request: Request) {
       const sitio = urlDelSitio(request);
       after(async () => {
         try {
-          const [config, productos] = await Promise.all([getConfig(), getProductos()]);
-          const precios = productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio);
-          const cuotas = CUOTAS_SON_BENEFICIO
-            ? await conEspera(verificarCuotasPara(precios, CUOTAS_SUSCRIPTORES), ESPERA_CUOTAS_MS, null)
-            : null;
+          // La bienvenida a la cuenta y a las novedades (Ale, 18/11/2026): sin
+          // cupón ni cuotas, así que solo hace falta Config (el pie del mail).
+          const config = await getConfig();
           const enviado = await enviarMail(
             mailBienvenidaSuscriptor({
               email: cuenta.email,
               nombre: cuenta.nombre,
-              // Solo si de verdad se lo aplica el carrito (no compró antes de suscribirse).
-              cuponDisponible: resumen.cupon === "Disponible",
-              cuotas,
               sitio,
               enlaceBaja: enlaceDeBaja(sitio, { suscriptorId: cuenta.id, email: cuenta.email }),
               config,

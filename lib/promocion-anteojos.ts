@@ -1,5 +1,6 @@
 import { precio as formatearPrecio } from "./formato";
 import type { Pack } from "./packs";
+import { TEXTOS } from "./textos";
 import type { DuoDelCarrito, ItemResuelto, PackDelServidor } from "./tipos";
 
 /**
@@ -93,25 +94,31 @@ export function mensajesDelDuo(duo: DuoDelCarrito, contexto: "ficha" | "carrito"
     duo.siguiente === "duo"
       ? duo.unidades === 0
         ? `Sumá otro par y el de menor precio tiene ${pct}.`
-        : `Sumá otro par y ${enLetras(duo.unidades + 1)} pares tienen ${pct}.`
+        : // Antes decía «y dos pares tienen 25% OFF», que se podía leer como
+          // que los dos que se suman llevan el descuento (Ale, 18/11/2026).
+          `Sumá otro par y otro anteojo más tiene ${pct}.`
       : null;
   return { aplicado, siguiente, tramos: duo.siguiente === "tramos" };
 }
 
 /**
  * La ficha sin anteojos en el carrito: la promoción con lo que cobra el
- * servidor por dos pares de este modelo. «Dúo: llevá dos y el de menor precio
- * tiene 25% OFF» y «Dos de este modelo: $ 157.325 (antes $ 179.800)».
+ * servidor por dos pares de este modelo. «Dúo: llevá dos anteojos y el de
+ * menor precio tiene 25% OFF.» y «Dos de este modelo: $ 157.325 en lugar de
+ * $ 179.800. Podés combinar modelos y colores. Se aplica solo en el carrito.»
+ * Nunca «antes»: $ 179.800 es el precio de lista de los dos, no un precio que
+ * haya existido (Ale, 18/11/2026). Las frases son las de TEXTOS.programa.duo.
  */
 export function ofertaDuoDeLaFicha(datos: { porcentaje: number; dos: { total: number; lista: number } | null }): {
   titulo: string;
   detalle: string | null;
 } {
+  const D = TEXTOS.programa.duo;
   return {
-    titulo: `Dúo: llevá dos anteojos y el de menor precio tiene ${textoDelDuo(datos.porcentaje)}.`,
+    titulo: `${D.regla(datos.porcentaje)}.`,
     detalle:
       datos.dos && datos.dos.lista > datos.dos.total
-        ? `Dos de este modelo: ${formatearPrecio(datos.dos.total)} (antes ${formatearPrecio(datos.dos.lista)}).`
+        ? `${D.dosDeEsteModelo(formatearPrecio(datos.dos.total), formatearPrecio(datos.dos.lista))} ${D.combinar}`
         : null,
   };
 }

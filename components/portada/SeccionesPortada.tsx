@@ -6,8 +6,9 @@ import type { Garantia, Paso, Pregunta } from "@/lib/portada";
 
 /**
  * Las piezas de texto de la portada: las garantías (debajo del botón de
- * compra), cómo es comprar y las preguntas frecuentes. Los textos los arma lib/portada.ts con datos que ya
- * son ciertos en la tienda; acá solo se dibujan.
+ * compra), el bloque de confianza, cómo es comprar y las preguntas
+ * frecuentes. Los textos los arman lib/portada.ts y lib/confianza.ts con
+ * datos que ya son ciertos en la tienda; acá solo se dibujan.
  */
 
 export function Garantias({ garantias }: { garantias: Garantia[] }) {
@@ -36,57 +37,72 @@ export function Garantias({ garantias }: { garantias: Garantia[] }) {
 }
 
 /**
- * «Comprá tranquilo» (Ale, 05/11/2026): envío, devolución, cambios, garantía,
- * pago y asesoramiento por WhatsApp, cada uno con su enlace. Son las mismas
- * condiciones de la ficha (lib/ficha.ts); el envío gratis va en promociones.
+ * Un renglón de «Comprá tranquilo»: el envío, el pago, las cuotas, la
+ * devolución o el asesoramiento, cada uno con su enlace.
  */
-/** Un renglón de «Comprá tranquilo»: envío, devolución o asesoramiento. */
 export type ItemConfianza = {
-  clave: "envio" | "devolucion" | "whatsapp";
+  clave: "envio" | "pago" | "cuotas" | "devolucion" | "whatsapp";
   texto: string;
   detalle: string | null;
+  /** Una aclaración más, debajo del detalle (cómo se cuenta el mínimo del envío). */
+  nota?: string | null;
   href: string;
   /** WhatsApp abre en otra pestaña. */
   externo?: boolean;
 };
 
 /**
- * La confianza, en un bloque compacto (Ale, 05/11/2026): envío, devolución y
- * asesoramiento, cada uno con su enlace. Los plazos y el envío salen de
- * lib/confianza.ts y de Config, como en la ficha.
+ * La confianza, en un bloque compacto (Ale, 05/11/2026), con los mismos datos
+ * que la ficha (lib/confianza.ts, Config y Mercado Pago).
+ *
+ * Ale, 18/11/2026: como la portada no lleva la barra de anuncios, las
+ * condiciones de compra se dicen acá. Va en dos filas: arriba, lo que tiene
+ * que ver con la plata (el envío gratis con sus dos mínimos, el 10 % por
+ * pagar con el dinero de la cuenta de Mercado Pago y las cuotas, si Mercado
+ * Pago las confirmó); abajo, la devolución y el asesoramiento. En el celular
+ * es una sola lista. Una fila vacía no se dibuja.
  */
-export function ConfianzaPortada({ items }: { items: ItemConfianza[] }) {
-  if (items.length === 0) return null;
+export function ConfianzaPortada({ filas }: { filas: ItemConfianza[][] }) {
+  const conItems = filas.filter((fila) => fila.length > 0);
+  if (conItems.length === 0) return null;
   return (
     <section className="confianza-inicio" aria-label={TEXTOS.inicio.confianza.titulo}>
-      <ul className="contenedor confianza-inicio__lista">
-        {items.map((c) => {
-          const contenido = (
-            <>
-              <span className="confianza-inicio__icono" aria-hidden="true">
-                <IconoCondicion clave={c.clave} />
-              </span>
-              <span className="confianza-inicio__texto">
-                <strong>{c.texto}</strong>
-                {c.detalle ? <span>{c.detalle}</span> : null}
-              </span>
-            </>
-          );
-          return (
-            <li key={c.clave}>
-              {c.externo ? (
-                <a href={c.href} target="_blank" rel="noopener noreferrer" className="confianza-inicio__item">
-                  {contenido}
-                </a>
-              ) : (
-                <Link href={c.href} className="confianza-inicio__item">
-                  {contenido}
-                </Link>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {conItems.map((fila, n) => (
+        <ul
+          key={fila[0].clave}
+          className="contenedor confianza-inicio__lista"
+          // La línea que separa una fila de la anterior (en el celular, un renglón del anterior).
+          style={n > 0 ? { borderTop: "1px solid var(--borde)" } : undefined}
+        >
+          {fila.map((c) => {
+            const contenido = (
+              <>
+                <span className="confianza-inicio__icono" aria-hidden="true">
+                  {c.clave === "cuotas" ? <IconoConfianza clave="cuotas" /> : <IconoCondicion clave={c.clave} />}
+                </span>
+                <span className="confianza-inicio__texto">
+                  <strong>{c.texto}</strong>
+                  {c.detalle ? <span>{c.detalle}</span> : null}
+                  {c.nota ? <span>{c.nota}</span> : null}
+                </span>
+              </>
+            );
+            return (
+              <li key={c.clave}>
+                {c.externo ? (
+                  <a href={c.href} target="_blank" rel="noopener noreferrer" className="confianza-inicio__item">
+                    {contenido}
+                  </a>
+                ) : (
+                  <Link href={c.href} className="confianza-inicio__item">
+                    {contenido}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ))}
     </section>
   );
 }

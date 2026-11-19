@@ -3,20 +3,22 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 /**
- * El suscriptor reconocido en este navegador (app/api/suscriptores/sesion),
- * para las páginas con cache: la portada, la ficha y /suscriptores son
- * iguales para todos, y con esto la caja de suscripción le habla a quien ya
- * es suscriptor en vez de invitarlo. Una sola consulta por visita, compartida
- * por todas las cajas de la página; después de entrar o salir se vuelve a
- * preguntar con `refrescarSuscriptor`.
+ * La cuenta reconocida en este navegador (app/api/suscriptores/sesion), para
+ * las páginas con cache: la portada, la ficha y /suscriptores son iguales
+ * para todos, y con esto la caja de suscripción le habla a quien ya entró en
+ * vez de invitarlo, y los corazones saben qué está guardado. Una sola
+ * consulta por visita, compartida por toda la página; después de entrar o
+ * salir se vuelve a preguntar con `refrescarSuscriptor`.
  */
 
 export type SuscriptorEnSesion = {
   email: string;
   nombre: string;
+  /** Siempre "Usado" desde el 18/11/2026: el cupón de bienvenida terminó. Ninguna página lo lee. */
   cupon: "Disponible" | "Usado";
+  /** El saldo de antes del 18/11/2026, si lo hubiera. Ninguna página lo muestra ya con este dato (Mi cuenta lo lee por su lado). */
   saldoDisponible: number;
-  /** Falso si se dio de baja: tiene sesión para usar su saldo, pero no beneficios nuevos. */
+  /** Falso si se dio de baja de los mails de novedades: la cuenta sigue igual. */
   activo?: boolean;
   /** Los SKU guardados con el corazón, el más reciente primero (lib/favoritos.ts). */
   favoritos?: string[];

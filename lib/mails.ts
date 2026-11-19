@@ -7,13 +7,7 @@ import { caracteristicasDe } from "./caracteristicas";
 import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "./whatsapp";
 import { pedidoParaMostrar, TEXTO_PROXIMO_PASO, type SolicitudArrepentimiento } from "./arrepentimiento";
 import { lineasDeFacturacion, type FacturacionPedido } from "./facturacion";
-import { NOMBRE_MARCAS, type CuotasVerificadas } from "./cuotas";
-import {
-  CASHBACK_PORCENTAJE,
-  CUPON_BIENVENIDA,
-  DIAS_PARA_USAR_CASHBACK,
-  fechaLegible,
-} from "./suscriptores";
+import { textoDelRenglon } from "./promocion-anteojos";
 import { TEXTOS } from "./textos";
 
 // Se puede apuntar a un Resend simulado para las pruebas de punta a punta.
@@ -135,12 +129,41 @@ function envoltorio(contenido: string, config: ConfigTienda) {
 }
 
 /**
- * "5% de descuento + 10% por dinero en Mercado Pago", "Cupón de bienvenida +
- * con tu saldo". Vacío si el ítem va a precio de lista.
+ * El Dúo de un renglón para Harper, con los pesos que descontó: «Dúo · 25% OFF
+ * en 1 de 2 (−$ 22.475)». Le sirve para resolver una devolución a mano. Null
+ * si el renglón no lleva el Dúo.
  */
-function textoDescuento(item: ItemResuelto) {
+function duoParaHarper(item: ItemResuelto): string | null {
+  const texto = textoDelRenglon(item);
+  if (!texto) return null;
+  const pesos = item.duo?.descuento;
+  return typeof pesos === "number" && pesos > 0 ? `${texto} (−${formatearPrecio(pesos)})` : texto;
+}
+
+/**
+ * Qué se descontó en el renglón, unido con « + »: «5% de descuento + 10% por
+ * dinero en Mercado Pago». Vacío si el ítem va a precio de lista.
+ *
+ * Con el Dúo (Ale, 18/11/2026) dice lo mismo que el carrito, «Dúo · 25% OFF» o
+ * «Dúo · 25% OFF en 1 de 2» (textoDelRenglon, lib/promocion-anteojos.ts), y no
+ * el porcentaje promedio del renglón («12,5% de descuento»), que no es el de
+ * ninguna promoción. El detalle `duo` lo guarda el servidor con el pedido solo
+ * si el Dúo estaba prendido y quedó en ese carrito: sin él, el renglón dice lo
+ * de siempre y el mail no nombra el Dúo. El porcentaje sale de ese detalle.
+ *
+ * «Cupón de bienvenida» y «con tu saldo» son de antes del 18/11/2026: un
+ * pedido nuevo no lleva cupón (resolverCarrito ya no lo aplica) y lleva saldo
+ * solo si la cuenta lo tenía de antes. Quedan porque el mail se arma con los
+ * renglones guardados en el pedido, y uno creado antes de ese día se puede
+ * confirmar después (un pago que se acredita tarde, o Mercado Pago que
+ * reintenta el aviso): explican el precio de ese renglón.
+ *
+ * `paraHarper`: en el aviso interno, el Dúo va con los pesos que descontó.
+ */
+function textoDescuento(item: ItemResuelto, paraHarper = false) {
+  const duo = paraHarper ? duoParaHarper(item) : textoDelRenglon(item);
   return [
-    item.descuento > 0 ? `${textoPorcentaje(item.descuento)}% de descuento` : null,
+    duo ?? (item.descuento > 0 ? `${textoPorcentaje(item.descuento)}% de descuento` : null),
     item.cupon ? "Cupón de bienvenida" : null,
     item.saldo ? "con tu saldo" : null,
     item.descuentoDineroMP ? `${item.descuentoDineroMP}% por dinero en Mercado Pago` : null,
@@ -149,7 +172,7 @@ function textoDescuento(item: ItemResuelto) {
     .join(" + ");
 }
 
-function filasDeItems(items: ItemResuelto[], sitio: string) {
+function filasDeItems(items: ItemResuelto[], sitio: string, paraHarper = false) {
   return items
     .map((item) => {
       // El catálogo usa WebP con transparencia, pero Outlook de escritorio no
@@ -158,6 +181,7 @@ function filasDeItems(items: ItemResuelto[], sitio: string) {
       const relativa = (item.foto ?? "").replace(/\.webp$/, ".jpg");
       // Las imágenes en mail necesitan URL absoluta; una relativa no carga.
       const foto = relativa.startsWith("http") ? relativa : `${sitio}${relativa}`;
+      const descuento = textoDescuento(item, paraHarper);
 
       return `<tr>
   <td width="64" style="padding:10px 12px 10px 0;vertical-align:top;">
@@ -166,14 +190,14 @@ function filasDeItems(items: ItemResuelto[], sitio: string) {
   <td style="padding:10px 0;vertical-align:top;font-size:14px;line-height:1.5;">
     <strong style="font-weight:500;">${escaparHtml(item.nombre)}</strong><br>
     <span style="color:#78756c;">${escaparHtml(item.color)} · ${item.cantidad} ${item.cantidad === 1 ? "unidad" : "unidades"}</span>${
-      textoDescuento(item)
-        ? `<br><span style="color:#004226;">${textoDescuento(item)}</span>`
+      descuento
+        ? `<br><span style="color:#004226;">${escaparHtml(descuento)}</span>`
         : ""
     }
   </td>
   <td align="right" style="padding:10px 0;vertical-align:top;font-size:14px;white-space:nowrap;">
     ${
-      textoDescuento(item)
+      descuento
         ? `<span style="color:#78756c;text-decoration:line-through;font-size:12px;">${formatearPrecio(item.precioLista * item.cantidad)}</span><br>`
         : ""
     }${formatearPrecio(item.subtotal)}
@@ -227,20 +251,34 @@ export type DatosMail = {
   } | null;
   /** Algo que Harper tiene que revisar en esta venta, ya escrito. */
   alerta?: string | null;
-  /** Si compró un suscriptor: sus beneficios en este pedido (lib/suscriptores.ts). */
+  /**
+   * Si el pedido lleva algo de la cuenta Harper con la que se compró
+   * (lib/suscriptores.ts). De esto los mails cuentan solo el saldo que el
+   * pedido usó de verdad.
+   */
   suscriptor?: BeneficiosEnElMail | null;
 };
 
-/** Los beneficios de Suscriptores Harper en un pedido, para el comprador y para Harper. */
+/**
+ * Lo que un pedido lleva de la cuenta, como lo arman el webhook
+ * (lib/webhook-proceso.ts) y el pedido en $ 0 (lib/suscriptores-sin-pago.ts).
+ *
+ * Ale, 18/11/2026: el cupón de bienvenida, el saldo de vuelta (cashback) y el
+ * envío gratis de la suscripción terminaron para todos. Un pedido nuevo trae
+ * `cupon` y `cashback` en 0, y los mails ya no los nombran: esos campos siguen
+ * en el tipo porque los pasan quienes llaman, con lo que dicen las Notas de un
+ * pedido anterior. Lo único que se cuenta es `saldoUsado`: el saldo de antes
+ * de ese día que el pedido usó (no había ninguno).
+ */
 export type BeneficiosEnElMail = {
   email: string;
-  /** Pesos del cupón de bienvenida; 0 si no lo usó. */
+  /** Pesos del cupón de bienvenida (pedidos anteriores al 18/11/2026); 0 si no lo usó. Los mails no lo leen. */
   cupon: number;
-  /** Pesos pagados con saldo. */
+  /** Pesos pagados con el saldo que la cuenta tenía de antes. */
   saldoUsado: number;
-  /** Pesos que le vuelven como saldo. */
+  /** Pesos que le volvían como saldo (pedidos anteriores al 18/11/2026). Los mails no lo leen. */
   cashback: number;
-  /** "2026-12-03": desde cuándo puede usar ese cashback. */
+  /** "2026-12-03": desde cuándo podía usar ese cashback. Los mails no lo leen. */
   cashbackDesde: string | null;
 };
 
@@ -274,54 +312,56 @@ function envioInterno(d: Pick<DatosMail, "envioDetalle" | "envio">): string | nu
   return `Envío: ${e.transportista}${e.servicio ? ` (${e.servicio})` : ""}${costo}${cobrado}${e.plazo ? ` · plazo ${e.plazo}` : ""}`;
 }
 
-/** Los renglones del suscriptor en el mail del comprador: cupón, saldo y cashback. */
-function lineasSuscriptor(d: Pick<DatosMail, "suscriptor">): string[] {
-  const b = d.suscriptor;
-  if (!b) return [];
-  return [
-    b.cupon > 0 ? `Usaste tu cupón de bienvenida: −${formatearPrecio(b.cupon)}.` : null,
-    b.saldoUsado > 0 ? `Pagaste ${formatearPrecio(b.saldoUsado)} con tu saldo.` : null,
-    b.cashback > 0
-      ? `Te vuelven ${formatearPrecio(b.cashback)} de saldo${b.cashbackDesde ? `: los podés usar desde el ${fechaLegible(b.cashbackDesde)}` : ""}.`
-      : null,
-    "Como suscriptor, el envío es gratis.",
-  ].filter((l): l is string => l !== null);
+/** Cómo se nombra la cuenta en los mails de un pedido (Ale, 18/11/2026: ya no «Suscriptores Harper»). */
+const TU_CUENTA = "Tu cuenta Harper";
+
+/** Los pesos del pedido pagados con el saldo que la cuenta tenía de antes del 18/11/2026; 0 si no usó. */
+function saldoUsadoEn(d: Pick<DatosMail, "suscriptor">): number {
+  const usado = d.suscriptor?.saldoUsado ?? 0;
+  return usado > 0 ? usado : 0;
 }
 
-/** El bloque de Suscriptores Harper en el mail del comprador. */
-function bloqueSuscriptor(d: DatosMail): string {
-  const lineas = lineasSuscriptor(d);
+/**
+ * Lo que el mail del comprador dice de su cuenta: solo el saldo que este
+ * pedido usó de verdad. Vacío si no usó (hoy, siempre: el 18/11/2026 no había
+ * ningún saldo, y no se genera más).
+ *
+ * Ale, 18/11/2026: terminaron el cupón de bienvenida, el saldo de vuelta y el
+ * envío gratis de la suscripción. El mail ya no dice «Usaste tu cupón de
+ * bienvenida», «Te vuelven $ X de saldo» ni «Como suscriptor, el envío es
+ * gratis.»: el servidor ya no hace nada de eso (y la última frase salía en
+ * todo pedido con cuenta, aunque hubiera pagado el envío).
+ */
+function lineasDelSaldoUsado(d: Pick<DatosMail, "suscriptor">): string[] {
+  const usado = saldoUsadoEn(d);
+  return usado > 0 ? [`Pagaste ${formatearPrecio(usado)} con tu saldo a favor de compras anteriores.`] : [];
+}
+
+/** El bloque de la cuenta en el mail del comprador: solo si el pedido usó saldo. */
+function bloqueSaldoUsado(d: DatosMail): string {
+  const lineas = lineasDelSaldoUsado(d);
   if (lineas.length === 0) return "";
   return `
 <div style="margin-top:28px;padding:20px;background:#004226;color:#ffffff;">
-  <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.8;margin-bottom:6px;">${escaparHtml(TEXTOS.suscriptores.etiqueta)}</div>
+  <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.8;margin-bottom:6px;">${escaparHtml(TU_CUENTA)}</div>
   ${lineas.map((l) => `<p style="margin:0 0 6px;font-size:14px;line-height:1.6;">${escaparHtml(l)}</p>`).join("\n  ")}
-  <a href="${escaparHtml(d.sitio)}/suscriptores/mi-cuenta" style="display:inline-block;margin-top:8px;font-size:13px;letter-spacing:0.5px;color:#ffffff;text-decoration:underline;">Ver mi saldo</a>
+  <a href="${escaparHtml(d.sitio)}/suscriptores/mi-cuenta" style="display:inline-block;margin-top:8px;font-size:13px;letter-spacing:0.5px;color:#ffffff;text-decoration:underline;">${escaparHtml(TEXTOS.suscriptores.verCuenta)}</a>
 </div>`;
 }
 
-/** Para Harper: qué beneficios usó y qué hay que acreditar. */
-function lineaSuscriptorInterna(d: Pick<DatosMail, "suscriptor">): string | null {
-  const b = d.suscriptor;
-  if (!b) return null;
-  return [
-    `Suscriptor: ${b.email}`,
-    b.cupon > 0 ? `cupón de bienvenida −${formatearPrecio(b.cupon)}` : null,
-    b.saldoUsado > 0 ? `saldo usado −${formatearPrecio(b.saldoUsado)}` : null,
-    b.cashback > 0 ? `cashback a acreditar ${formatearPrecio(b.cashback)}${b.cashbackDesde ? ` (se puede usar desde el ${fechaLegible(b.cashbackDesde)})` : ""}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+/**
+ * Para Harper: con qué cuenta se usó saldo y cuánto. Null si el pedido no usó
+ * saldo. Desde el 18/11/2026 (Ale) un pedido nuevo no lleva cupón de
+ * bienvenida ni cashback: el aviso ya no los nombra, ni marca el pedido como
+ * «de suscriptor».
+ */
+function lineaSaldoInterna(d: Pick<DatosMail, "suscriptor">): string | null {
+  const usado = saldoUsadoEn(d);
+  return usado > 0 && d.suscriptor ? `Cuenta Harper: ${d.suscriptor.email} · saldo usado −${formatearPrecio(usado)}` : null;
 }
 
-/** Lo que Harper tiene que hacer si el pedido de un suscriptor se devuelve: anular el cashback y devolver el saldo usado. */
-function avisoDevolucionSaldo(b: NonNullable<DatosMail["suscriptor"]>): string | null {
-  const que = [
-    b.cashback > 0 ? "el Cashback de este pedido (lo que le vuelve)" : null,
-    b.saldoUsado > 0 ? "el Uso de este pedido (así recupera el saldo que usó)" : null,
-  ].filter(Boolean);
-  return que.length ? `Si se devuelve, marcá Anulado en Saldos ${que.join(" y ")}.` : null;
-}
+/** Lo que Harper tiene que hacer si se devuelve un pedido que usó saldo: devolvérselo a la cuenta. */
+const AVISO_DEVOLUCION_SALDO = "Si se devuelve, marcá Anulado en Saldos el Uso de este pedido (así recupera el saldo que usó).";
 
 /** Un aviso corto para Harper, sin datos del comprador: qué pasó y qué hacer. */
 export function mailAlertaInterna(d: { config: ConfigTienda; asunto: string; lineas: string[]; enlace?: string | null }): Envio {
@@ -357,7 +397,7 @@ export function mailConfirmacion(d: DatosMail): Envio {
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
-${bloqueSuscriptor(d)}
+${bloqueSaldoUsado(d)}
 <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e3e0d8;">
   <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#78756c;margin-bottom:6px;">Envío a</div>
   <div style="font-size:14px;line-height:1.6;">
@@ -386,8 +426,11 @@ ${bloqueSuscriptor(d)}
 Pedido ${d.numero}
 ${d.items
   .map((i) => {
+    // Lo mismo que el HTML (textoDescuento): con el Dúo, lo que dice el
+    // carrito; sin él, el porcentaje de siempre. El cupón de bienvenida y el
+    // saldo, solo en pedidos que los traen de antes del 18/11/2026.
     const descuento = [
-      i.descuento > 0 ? `${textoPorcentaje(i.descuento)}% off` : null,
+      textoDelRenglon(i) ?? (i.descuento > 0 ? `${textoPorcentaje(i.descuento)}% off` : null),
       i.cupon ? "cupón de bienvenida" : null,
       i.saldo ? "con tu saldo" : null,
       i.descuentoDineroMP ? `${i.descuentoDineroMP}% por dinero en Mercado Pago` : null,
@@ -402,7 +445,7 @@ Subtotal: ${formatearPrecio(d.subtotal)}
 Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
 Total: ${formatearPrecio(d.total)}
 
-${lineasSuscriptor(d).length > 0 ? `${TEXTOS.suscriptores.etiqueta}\n${lineasSuscriptor(d).join("\n")}\nTu saldo: ${d.sitio}/suscriptores/mi-cuenta\n\n` : ""}Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
+${lineasDelSaldoUsado(d).length > 0 ? `${TU_CUENTA}\n${lineasDelSaldoUsado(d).join("\n")}\nTu cuenta: ${d.sitio}/suscriptores/mi-cuenta\n\n` : ""}Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
 ${graduados ? `\n${TEXTO_GRADUADOS_PEDIDO}\nWhatsApp: ${graduados}\n` : ""}
 Consultas: ${d.config.emailContacto}`;
 
@@ -421,16 +464,18 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
   // ni la dirección de entrega.
   const factura = d.facturacion ? lineasDeFacturacion(d.facturacion) : (d.lineasFacturacion ?? null);
   const aCuit = factura?.some((l) => l.startsWith("CUIT:")) ?? false;
+  // El saldo de antes del 18/11/2026 que el pedido usó, si usó (ver lineaSaldoInterna).
+  const saldo = lineaSaldoInterna(d);
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Venta nueva — ${escaparHtml(d.numero)}</h1>
 <p style="margin:0 0 24px;font-size:14px;color:#78756c;">${formatearPrecio(d.total)} · ${escaparHtml(d.cliente.provincia)}${
       d.conDineroMP ? " · dinero en Mercado Pago" : ""
     }</p>
 ${d.alerta ? `<p style="margin:0 0 24px;padding:12px 14px;border:1px solid #a1281b;color:#a1281b;font-size:14px;line-height:1.6;">${escaparHtml(d.alerta)}</p>` : ""}
-${lineaSuscriptorInterna(d) ? `<p style="margin:0 0 24px;padding:12px 14px;background:#004226;color:#ffffff;font-size:14px;line-height:1.6;">${escaparHtml(lineaSuscriptorInterna(d)!)}${d.suscriptor && avisoDevolucionSaldo(d.suscriptor) ? `<br>${escaparHtml(avisoDevolucionSaldo(d.suscriptor)!)}` : ""}</p>` : ""}
+${saldo ? `<p style="margin:0 0 24px;padding:12px 14px;background:#004226;color:#ffffff;font-size:14px;line-height:1.6;">${escaparHtml(saldo)}<br>${escaparHtml(AVISO_DEVOLUCION_SALDO)}</p>` : ""}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-  ${filasDeItems(d.items, d.sitio)}
+  ${filasDeItems(d.items, d.sitio, true)}
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
@@ -464,8 +509,8 @@ ${
   );
 
   const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " (dinero en Mercado Pago)" : ""}
-${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}${lineaSuscriptorInterna(d) ? `\n${lineaSuscriptorInterna(d)}${d.suscriptor && avisoDevolucionSaldo(d.suscriptor) ? `\n${avisoDevolucionSaldo(d.suscriptor)}` : ""}\n` : ""}
-${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})`).join("\n")}
+${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}${saldo ? `\n${saldo}\n${AVISO_DEVOLUCION_SALDO}\n` : ""}
+${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})${duoParaHarper(i) ? ` — ${duoParaHarper(i)}` : ""}`).join("\n")}
 ${d.cupon ? `Cupón ${d.cupon}\n` : ""}
 ${d.cliente.nombre}
 ${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} - CP ${d.cliente.cp}
@@ -475,7 +520,10 @@ Airtable: ${d.pedidoUrl}`;
 
   return {
     para: d.config.emailPedidos,
-    asunto: `${d.alerta ? "REVISAR " : ""}Venta ${d.numero} — ${formatearPrecio(d.total)}${d.suscriptor ? (d.total === 0 ? " · pagada con saldo" : " · suscriptor") : ""}${d.conDineroMP ? " · dinero en Mercado Pago" : ""}${aCuit ? " · factura a CUIT" : ""}`,
+    // « · pagada con saldo» y « · con saldo», solo si el pedido usó saldo de
+    // verdad. Antes del 18/11/2026 todo pedido con cuenta salía « · suscriptor»
+    // (o « · pagada con saldo» con el total en $ 0, aunque no hubiera usado).
+    asunto: `${d.alerta ? "REVISAR " : ""}Venta ${d.numero} — ${formatearPrecio(d.total)}${saldo ? (d.total === 0 ? " · pagada con saldo" : " · con saldo") : ""}${d.conDineroMP ? " · dinero en Mercado Pago" : ""}${aCuit ? " · factura a CUIT" : ""}`,
     html,
     texto,
     responderA: d.cliente.email,
@@ -535,7 +583,7 @@ export function mailCodigoDeAcceso(d: { email: string; codigo: string; config: C
 }
 
 /**
- * El código para suscribirse o entrar como suscriptor
+ * El código para suscribirse a las novedades o entrar a la cuenta
  * (app/api/suscriptores/codigo). Solo el código: ningún dato de la persona.
  */
 export function mailCodigoSuscriptor(d: { email: string; codigo: string; config: ConfigTienda }): Envio {
@@ -586,69 +634,92 @@ export function mailCodigoPanel(d: { email: string; codigo: string; config: Conf
   };
 }
 
-/** Los beneficios, en el orden y con las palabras de la web (TEXTOS.suscriptores). */
-export function beneficiosDeSuscriptor(d: { cuponDisponible: boolean; cuotas: CuotasVerificadas | null }): string[] {
-  const { beneficios } = TEXTOS.suscriptores;
-  return [
-    d.cuponDisponible ? beneficios.cupon(formatearPrecio(CUPON_BIENVENIDA)) : null,
-    beneficios.cashback(CASHBACK_PORCENTAJE, DIAS_PARA_USAR_CASHBACK),
-    beneficios.envio,
-    // Las cuotas, solo si Mercado Pago las confirmó al mandar el mail.
-    d.cuotas ? beneficios.cuotas(d.cuotas.cuotas, NOMBRE_MARCAS, d.cuotas.cftea) : null,
-  ].filter((l): l is string => l !== null);
+/**
+ * Lo que da la cuenta Harper, en el orden y con las palabras de la web
+ * (TEXTOS.suscriptores.cuentaDa, lo mismo que muestra /suscriptores):
+ * «Novedades por mail», «Tus compras», «Tus favoritos» y «Tus datos y
+ * direcciones», cada uno con su detalle.
+ *
+ * Ale, 18/11/2026: reemplaza a la lista de beneficios en plata de la
+ * bienvenida (cupón de bienvenida, saldo de vuelta, envío gratis siempre y
+ * cuotas propias), que terminaron para todos.
+ */
+export function loQueDaLaCuenta(): { titulo: string; detalle: string }[] {
+  return TEXTOS.suscriptores.cuentaDa.map(({ titulo, detalle }) => ({ titulo, detalle }));
 }
 
 /**
- * La bienvenida de un suscriptor nuevo (Ale, 03/11/2026): los beneficios,
- * cómo se usan, el enlace a su cuenta y el de la baja.
+ * Los textos propios de la bienvenida. Lo que da la cuenta, el botón y la
+ * frase de la baja son los de la web (TEXTOS.suscriptores), para decir lo
+ * mismo en los dos lados.
+ */
+const BIENVENIDA = {
+  asunto: "Tu cuenta Harper quedó abierta",
+  titulo: "Tu cuenta Harper quedó abierta.",
+  bajada: "Te suscribiste a las novedades de Harper. Con ese mismo mail entrás a tu cuenta. Esto es lo que tenés:",
+  comoEntrar: "Para entrar, escribí tu mail en harper.ar y te mandamos un código. No hace falta contraseña.",
+};
+
+/**
+ * La bienvenida de quien se acaba de suscribir (sale una sola vez, con el
+ * alta nueva: app/api/suscriptores/confirmar).
+ *
+ * Ale, 18/11/2026: es la bienvenida a la cuenta Harper y a los mails de
+ * novedades. Dice qué da la cuenta, cómo se entra, el enlace a Mi Cuenta y
+ * que la baja es solo de los mails de novedades (la cuenta sigue igual). Ya
+ * no promete cupón, saldo, envío gratis ni cuotas, que el servidor no da: por
+ * eso tampoco recibe el cupón ni las cuotas verificadas con Mercado Pago.
  */
 export function mailBienvenidaSuscriptor(d: {
   email: string;
   nombre: string;
-  cuponDisponible: boolean;
-  /** Las cuotas de suscriptor verificadas con Mercado Pago; null no las nombra. */
-  cuotas: CuotasVerificadas | null;
   sitio: string;
-  /** El enlace firmado para darse de baja (lib/suscriptores-sesion.ts). */
+  /** El enlace firmado para darse de baja de las novedades (lib/suscriptores-sesion.ts). */
   enlaceBaja: string | null;
   config: ConfigTienda;
 }): Envio {
-  const beneficios = beneficiosDeSuscriptor(d);
+  const T = TEXTOS.suscriptores;
   const cuenta = `${d.sitio}/suscriptores/mi-cuenta`;
-  const saludo = d.nombre ? `Hola, ${d.nombre.split(" ")[0]}. Desbloqueaste tus beneficios de Harper.` : "Desbloqueaste tus beneficios de Harper.";
+  const nombre = (d.nombre || "").trim().split(/\s+/)[0];
+  const saludo = nombre ? `Hola, ${nombre}. ${BIENVENIDA.titulo}` : BIENVENIDA.titulo;
+  const puntos = loQueDaLaCuenta();
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">${escaparHtml(saludo)}</h1>
-<p style="margin:0 0 20px;font-size:14px;color:#78756c;line-height:1.6;">Esto es lo que tenés:</p>
+<p style="margin:0 0 20px;font-size:14px;color:#78756c;line-height:1.6;">${escaparHtml(BIENVENIDA.bajada)}</p>
 <ul style="margin:0 0 20px;padding-left:18px;font-size:14px;line-height:1.7;">
-  ${beneficios.map((b) => `<li>${escaparHtml(b)}</li>`).join("\n  ")}
+  ${puntos.map((p) => `<li><strong style="font-weight:500;">${escaparHtml(p.titulo)}.</strong> ${escaparHtml(p.detalle)}</li>`).join("\n  ")}
 </ul>
-<p style="margin:0 0 24px;font-size:14px;line-height:1.6;">${escaparHtml(TEXTOS.suscriptores.comoUsarlos)}</p>
+<p style="margin:0 0 24px;font-size:14px;line-height:1.6;">${escaparHtml(BIENVENIDA.comoEntrar)}</p>
 <p style="margin:0 0 24px;">
-  <a href="${escaparHtml(cuenta)}" style="display:inline-block;background:#16150f;color:#faf9f6;text-decoration:none;padding:14px 24px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;">Ver mi cuenta</a>
-</p>${
-      d.enlaceBaja
-        ? `
+  <a href="${escaparHtml(cuenta)}" style="display:inline-block;background:#16150f;color:#faf9f6;text-decoration:none;padding:14px 24px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;">${escaparHtml(T.verCuenta)}</a>
+</p>
 <p style="margin:0;font-size:12px;color:#78756c;line-height:1.6;">
-  Si no querés recibir más nuestros mails, <a href="${escaparHtml(d.enlaceBaja)}" style="color:#78756c;">date de baja acá</a>. También perdés los beneficios.
-</p>`
-        : ""
-    }`,
+  ${escaparHtml(T.cuenta.bajaTexto)}
+  ${
+    d.enlaceBaja
+      ? `<a href="${escaparHtml(d.enlaceBaja)}" style="color:#78756c;">${escaparHtml(T.cuenta.baja)}</a>`
+      : `Para darte de baja, <a href="${escaparHtml(cuenta)}" style="color:#78756c;">entrá a tu cuenta</a>.`
+  }
+</p>`,
     d.config
   );
 
   return {
     para: d.email,
-    asunto: "Desbloqueaste tus beneficios de Harper",
+    asunto: BIENVENIDA.asunto,
     html,
     texto: `${saludo}
 
-Esto es lo que tenés:
-${beneficios.map((b) => `- ${b}`).join("\n")}
+${BIENVENIDA.bajada}
+${puntos.map((p) => `- ${p.titulo}. ${p.detalle}`).join("\n")}
 
-${TEXTOS.suscriptores.comoUsarlos}
+${BIENVENIDA.comoEntrar}
 
 Tu cuenta: ${cuenta}
-${d.enlaceBaja ? `\nPara darte de baja (dejás de recibir mails y perdés los beneficios): ${d.enlaceBaja}\n` : ""}
+
+${T.cuenta.bajaTexto}
+${d.enlaceBaja ? `Para darte de baja: ${d.enlaceBaja}` : "Para darte de baja, entrá a tu cuenta."}
+
 Consultas: ${d.config.emailContacto}`,
     responderA: d.config.emailContacto,
   };

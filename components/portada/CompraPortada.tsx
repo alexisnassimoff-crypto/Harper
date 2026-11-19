@@ -34,6 +34,7 @@ import { trackAgregarVarios, trackPixel } from "@/lib/pixel";
 import type { PackDelServidor, Producto } from "@/lib/tipos";
 import { packParaMostrar } from "@/lib/promocion-anteojos";
 import { indiceVarianteInicial } from "@/lib/variantes";
+import { enLetras } from "@/lib/vitrina";
 import type { Garantia } from "@/lib/portada";
 import Estrellas, { formatearPuntaje } from "./Estrellas";
 import { Garantias } from "./SeccionesPortada";
@@ -383,7 +384,8 @@ export default function CompraPortada({
                   : null;
             const descuento =
               pack.duo && pack.duo.promocion === "duo"
-                ? `Dúo · ${pack.duo.duo.porcentaje}% OFF en ${pack.duo.duo.unidades === 1 ? "uno" : pack.duo.duo.unidades}`
+                ? // «en uno», «en dos»: con letras los dos (antes «en uno» y «en 2»).
+                  `Dúo · ${pack.duo.duo.porcentaje}% OFF en ${enLetras(pack.duo.duo.unidades)}`
                 : pack.porcentaje > 0
                   ? pack.conCupon
                     ? `${pack.porcentaje}% OFF con ${CUPON_BIENVENIDA.codigo}`

@@ -21,11 +21,11 @@ export type CarritoResueltoCliente = {
   envioGratisAmbaDesde: number;
   /** Falso cuando `envio` es la tarifa plana de respaldo, no una cotización. */
   envioCotizado: boolean;
-  /** Lo que se ahorró: por volumen o con el cupón (nunca los dos). */
+  /** Lo que se ahorró: por cantidad, con el Dúo o con un cupón. */
   ahorro: number;
   /** Qué pasó con el cupón aplicado; null si no hay. */
   cupon: CuponResuelto | null;
-  /** El subtotal sin el cupón: la base del envío gratis. */
+  /** La base del envío gratis: el subtotal sin el cupón y, con el Dúo, con los anteojos a precio de lista. */
   subtotalSinCupon: number;
   /** Los productos pagados con dinero en Mercado Pago (10% más); null si no se ofrece. */
   dineroMP: { porcentaje: number; subtotal: number; ahorro: number } | null;
@@ -38,14 +38,11 @@ export type CarritoResueltoCliente = {
   /** Solo si se pidieron y hay envío: las mismas, para el total sin el envío. */
   cuotasSinEnvio?: (CuotasVerificadas & { monto: number }) | null;
   /**
-   * Solo si se pidieron y el comprador no es suscriptor: las cuotas que
-   * tendría siéndolo, para los mismos montos (con y sin envío), si son más.
-   */
-  cuotasSuscriptor?: (CuotasVerificadas & { monto: number })[];
-  /**
-   * El suscriptor que entró con su mail: el cupón y el saldo aplicados, su
-   * saldo, el cashback que le vuelve y su tope de cuotas (lib/suscriptores.ts).
-   * Null si no hay sesión.
+   * La cuenta que entró con su mail; null si no hay sesión. Desde el
+   * 18/11/2026 no cambia el precio, el envío ni las cuotas
+   * (lib/suscriptores.ts): sirve para saber con qué mail compra y, solo si
+   * tiene saldo a favor de antes de ese día, cuánto tiene y cuánto usó. Los
+   * campos del cupón y del cashback llegan en cero.
    */
   suscriptor?: ResumenSuscriptor | null;
   /** Solo con el Dúo prendido (Tarea 07): lo que descontó y qué gana con otro par. */
@@ -96,14 +93,14 @@ function resolver(cuerpo: string): Promise<CarritoResueltoCliente> {
 export function useCarritoResuelto({
   cuotas = false,
   usarSaldo,
-  usarCupon,
   usarCredito,
 }: {
   cuotas?: boolean;
-  /** El checkout: el suscriptor eligió pagar con su saldo (lib/suscriptores.ts). Sin decir, no se usa. */
+  /**
+   * El checkout: la cuenta eligió pagar con el saldo a favor que tenía de
+   * antes del 18/11/2026 (lib/suscriptores.ts). Sin decir, no se usa.
+   */
   usarSaldo?: boolean;
-  /** Falso después de que el checkout rechazó el cupón de bienvenida (ya hay una compra con ese mail o DNI). */
-  usarCupon?: boolean;
   /** Crédito Harper (paso 4): el servidor lo aplica solo con el interruptor prendido y la cuenta verificada. */
   usarCredito?: boolean;
 } = {}) {
@@ -145,7 +142,6 @@ export function useCarritoResuelto({
         cupon,
         ...(cuotas ? { cuotas: true } : {}),
         ...(usarSaldo ? { usarSaldo: true } : {}),
-        ...(usarCupon === false ? { usarCupon: false } : {}),
         ...(usarCredito ? { usarCredito: true } : {}),
       })
     )
@@ -170,7 +166,7 @@ export function useCarritoResuelto({
       vigente = false;
     };
     // `quitar` es estable (useCallback) y `items` cambia por contenido.
-  }, [items, listo, quitar, intento, cupon, cuotas, usarSaldo, usarCupon, usarCredito]);
+  }, [items, listo, quitar, intento, cupon, cuotas, usarSaldo, usarCredito]);
 
   return { datos, cargando: cargando || !listo, actualizando, error, recargar };
 }

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { precio as formatearPrecio } from "@/lib/formato";
 import type { OrigenSuscripcion } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import FormularioSuscripcion from "./FormularioSuscripcion";
@@ -10,8 +9,12 @@ import { useSuscriptor } from "./useSuscriptor";
 
 /**
  * El formulario de suscripción de las páginas con cache (la portada y
- * /suscriptores): a quien ya es suscriptor en este navegador no se lo invita,
- * se le dice que ya lo es y se lo lleva a su cuenta.
+ * /suscriptores): a quien ya está suscripto y entró en este navegador no se
+ * lo invita, se le dice que ya lo está, con qué mail, y se lo lleva a su
+ * cuenta.
+ *
+ * Ale, 18/11/2026: ese aviso no habla de beneficios ni de saldo (terminaron
+ * para todos): solo el mail y el enlace a Mi cuenta.
  */
 export default function CajaSuscripcion({
   origen,
@@ -20,7 +23,7 @@ export default function CajaSuscripcion({
 }: {
   origen: OrigenSuscripcion;
   conNombre?: boolean;
-  /** Un título arriba del formulario (la portada); no sale si ya es suscriptor. */
+  /** Un título arriba del formulario (la portada); no sale si ya está suscripto. */
   encabezado?: { titulo: string; bajada: string } | null;
 }) {
   const { suscriptor } = useSuscriptor();
@@ -31,10 +34,7 @@ export default function CajaSuscripcion({
     return (
       <div className="suscripcion suscripcion--listo">
         <p className="suscripcion__listo">{TEXTOS.suscriptores.ficha.suscripto}</p>
-        <p className="suscripcion__nota">
-          {suscriptor.email}
-          {suscriptor.saldoDisponible > 0 ? ` · ${TEXTOS.suscriptores.ficha.saldo(formatearPrecio(suscriptor.saldoDisponible))}` : ""}
-        </p>
+        <p className="suscripcion__nota">{suscriptor.email}</p>
         <div className="suscripcion__acciones">
           <Link href="/#los-modelos" className="boton">
             {TEXTOS.suscriptores.elegir}

@@ -4,9 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useCarrito } from "@/components/carrito/CarritoContexto";
+import EtiquetaDuo from "@/components/producto/EtiquetaDuo";
+import OfertaDuo from "@/components/producto/OfertaDuo";
 import BotonFavorito from "@/components/suscriptores/BotonFavorito";
-import { useSuscriptor } from "@/components/suscriptores/useSuscriptor";
-import { tieneCuotasDeSuscriptor } from "@/lib/suscriptores";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { TEXTOS } from "@/lib/textos";
@@ -19,8 +19,11 @@ import { TEXTOS } from "@/lib/textos";
  * carrito sin salir de la portada. Donde hay fotos al sol, el interruptor
  * «Al sol | Adentro».
  *
- * Todo lo que es plata (precio, cuotas) viene armado del servidor: acá no se
- * calcula ningún monto.
+ * Todo lo que es plata (precio, cuotas, el Dúo) viene armado del servidor:
+ * acá no se calcula ningún monto. Ale, 18/11/2026: las cuotas son las mismas
+ * para todos, con sus condiciones una vez para toda la sección, y el Dúo se
+ * muestra debajo del título y junto a cada precio solo si el servidor dice
+ * que está prendido (llega en `duo`; sin él, no se nombra).
  */
 
 export type ColorVitrina = {
@@ -66,13 +69,30 @@ export type DestacadoVitrina = ModeloVitrina & {
   categoria: string;
   /** "3 cuotas sin interés de $ 29.966,67", verificada para su precio; null si no. */
   cuota: string | null;
-  /** Las de suscriptor (hasta 6), verificadas; solo para quien tiene la sesión abierta. Null si no son más. */
-  cuotaSuscriptor?: string | null;
+};
+
+/**
+ * El Dúo en la portada, con los textos ya armados en el servidor
+ * (PortadaVitrina): el porcentaje y los importes son los que cobra.
+ */
+export type DuoVitrina = {
+  /** «Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF.» */
+  titulo: string;
+  /** «Dos anteojos: $ 157.325 en lugar de $ 179.800. Podés combinar modelos y colores. Se aplica solo en el carrito.» */
+  detalle: string;
+  /** La etiqueta junto al precio de cada tarjeta: «Dúo: 25% OFF llevando dos». */
+  etiqueta: string;
 };
 
 export type DatosVitrina = {
   /** "También: estuches y paños", con sus enlaces. */
   complementos: { nombre: string; slug: string }[];
+  /**
+   * Las condiciones de las cuotas de las tarjetas, una vez para toda la
+   * sección (tarjetas, CFTEA y precio de contado); null si ninguna tarjeta
+   * anuncia cuotas.
+   */
+  condicionesCuotas?: string | null;
 };
 
 type Estado = "sol" | "adentro";
@@ -83,12 +103,15 @@ export default function Vitrina({
   destacados,
   categorias,
   datos,
+  duo = null,
 }: {
   /** Cuatro como mucho (lib/vitrina.ts, destacadosDeLaPortada). */
   destacados: DestacadoVitrina[];
   /** Las categorías de anteojos con stock, para ir a ver todos los modelos de cada una. */
   categorias: CategoriaVitrina[];
   datos: DatosVitrina;
+  /** El Dúo, solo si el servidor lo tiene prendido; null: la sección no lo nombra. */
+  duo?: DuoVitrina | null;
 }) {
   const { items, agregar, abrirPanel } = useCarrito();
   // Cuántos de cada color hay en el carrito: el número va arriba del color, como en la ficha.
@@ -99,8 +122,6 @@ export default function Vitrina({
   const [sumados, setSumados] = useState<Record<string, boolean>>({});
   const [aviso, setAviso] = useState("");
   const hayAlSol = destacados.some((m) => m.colores.some((c) => c.alSol));
-  // Al suscriptor con la sesión abierta, sus cuotas (Ale, 05/11/2026); al resto, las de todos.
-  const esSuscriptor = tieneCuotasDeSuscriptor(useSuscriptor().suscriptor);
   const variasCategorias = categorias.length > 1;
 
   function elegirColor(slug: string, indice: number) {
@@ -127,6 +148,8 @@ export default function Vitrina({
           <h2 id="comprar-titulo" className="titulo-serif">
             {T.titulo}
           </h2>
+          {/* El Dúo, debajo del título y antes de elegir: solo prendido. */}
+          {duo ? <OfertaDuo lineas={[duo.titulo]} detalle={duo.detalle} /> : null}
         </div>
 
         <div className="comprar__fila">
@@ -189,6 +212,7 @@ export default function Vitrina({
                     </h3>
                     <span className="tarjeta-inicio__precio">{formatearPrecio(m.precio)}</span>
                   </div>
+                  <EtiquetaDuo texto={duo?.etiqueta} />
                   {m.colores.length > 1 ? (
                     <div className="tarjeta-inicio__colores" role="radiogroup" aria-label={`Color de ${m.nombre}`}>
                       {m.colores.map((c, j) => {
@@ -218,9 +242,8 @@ export default function Vitrina({
                     </div>
                   ) : null}
                   <p className="tarjeta-inicio__color">{color.color}</p>
-                  {(esSuscriptor && m.cuotaSuscriptor) || m.cuota ? (
-                    <p className="tarjeta-inicio__cuota">{(esSuscriptor && m.cuotaSuscriptor) || m.cuota}</p>
-                  ) : null}
+                  {/* Las mismas cuotas para todos; sus condiciones, debajo de la grilla. */}
+                  {m.cuota ? <p className="tarjeta-inicio__cuota">{m.cuota}</p> : null}
                   <button
                     type="button"
                     className="boton boton--bloque boton--chico tarjeta-inicio__sumar"
@@ -234,6 +257,14 @@ export default function Vitrina({
             );
           })}
         </div>
+
+        {/* Las condiciones de las cuotas de las tarjetas (Res. SIyC 4/2025):
+            con qué tarjetas, el CFTEA y el precio de contado. */}
+        {datos.condicionesCuotas ? (
+          <p className="cuotas-condiciones" style={{ marginTop: "1.25rem", textAlign: "center" }}>
+            {datos.condicionesCuotas}
+          </p>
+        ) : null}
 
         {datos.complementos.length > 0 ? (
           <p className="comprar__complementos">

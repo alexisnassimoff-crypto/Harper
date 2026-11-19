@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
-import { precio as formatearPrecio } from "@/lib/formato";
-import { CUPON_BIENVENIDA, type OrigenSuscripcion } from "@/lib/suscriptores";
+import type { OrigenSuscripcion } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
 import { emailValido } from "@/lib/validacion";
 import { refrescarSuscriptor } from "./useSuscriptor";
 
 const { form: T } = TEXTOS.suscriptores;
 
-/** Lo que contesta /api/suscriptores/confirmar cuando sale bien. */
+/**
+ * Lo que contesta /api/suscriptores/confirmar cuando sale bien. `cupon` y los
+ * saldos siguen viniendo en la respuesta, pero desde el 18/11/2026 el
+ * formulario no los mira ni los muestra: ya no hay cupón ni saldo que prometer.
+ */
 export type SuscripcionConfirmada = {
   estado: "nueva" | "reactivada" | "ya" | "baja";
   suscriptor: {
@@ -19,7 +22,7 @@ export type SuscripcionConfirmada = {
     cupon: "Disponible" | "Usado";
     saldoDisponible: number;
     saldoEnCamino: number;
-    /** Falso si entró alguien que se dio de baja: solo su saldo, sin beneficios nuevos. */
+    /** Falso si entró alguien que se dio de baja de los mails de novedades. */
     activo?: boolean;
   };
 };
@@ -27,15 +30,19 @@ export type SuscripcionConfirmada = {
 type Modo = "suscribir" | "entrar";
 
 /**
- * Suscribirse o entrar como suscriptor (Ale, 03/11/2026): el mail, el código
- * de 6 números que le llega y listo (app/api/suscriptores/codigo y
- * confirmar). Es el mismo camino para las dos cosas: si el mail ya está
- * suscripto, entra; si no, se suscribe, siempre con la casilla de los mails
- * marcada por la persona (sin marcar de entrada). La sesión queda en una
- * cookie que solo lee el servidor; acá no se guarda nada.
+ * Suscribirse a las novedades o entrar a la cuenta (Ale, 03/11/2026): el
+ * mail, el código de 6 números que le llega y listo (app/api/suscriptores/codigo
+ * y confirmar). Es el mismo camino para las dos cosas: si el mail ya tiene
+ * cuenta, entra; si no, se suscribe y la cuenta queda abierta, siempre con la
+ * casilla de los mails marcada por la persona (sin marcar de entrada). La
+ * sesión queda en una cookie que solo lee el servidor; acá no se guarda nada.
  *
- * Lo usan la portada, /suscriptores, «mi cuenta», la ficha y el checkout. En
- * el checkout el mail es el que ya escribió (`email`) y no se vuelve a pedir.
+ * Ale, 18/11/2026: suscribirse ya no da beneficios en plata. Al terminar, el
+ * formulario dice que quedó suscripto y con la cuenta abierta, sin cupón,
+ * envío, saldo ni cuotas.
+ *
+ * Lo usan la portada, /suscriptores, «mi cuenta» y el checkout. En el
+ * checkout el mail es el que ya escribió (`email`) y no se vuelve a pedir.
  */
 export default function FormularioSuscripcion({
   origen,
@@ -62,7 +69,7 @@ export default function FormularioSuscripcion({
   /** Falso cuando quien lo usa muestra el resultado a su manera (el checkout recalcula el carrito). */
   mostrarListo?: boolean;
   textoBoton?: string;
-  /** «¿Ya sos suscriptor? Entrá con tu mail» debajo del formulario. */
+  /** «¿Ya tenés cuenta? Entrá con tu mail» debajo del formulario. */
   conCambioDeModo?: boolean;
   /**
    * Dentro de otro formulario (el checkout): sin <form> propio, que no se
@@ -76,8 +83,12 @@ export default function FormularioSuscripcion({
    * que nunca da de alta ni pide la casilla de las novedades.
    */
   soloCuenta?: boolean;
-  /** Con `soloCuenta`: entró. */
-  alEntrar?: () => void;
+  /**
+   * Con `soloCuenta`: entró. `estado` es el de /api/cuenta/entrar: "ya" o
+   * "baja" si ese mail tiene su fila de cuenta (con favoritos, datos y
+   * direcciones), "cuenta" si entró solo con el mail.
+   */
+  alEntrar?: (estado: string) => void;
 }) {
   const id = useId();
   const [modo, setModo] = useState<Modo>(modoInicial);
@@ -89,7 +100,7 @@ export default function FormularioSuscripcion({
   const [error, setError] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [listo, setListo] = useState<SuscripcionConfirmada | null>(null);
-  // Quiso entrar con un mail que no estaba suscripto: la casilla aparece junto al código.
+  // Quiso entrar con un mail que todavía no tenía cuenta: la casilla aparece junto al código.
   const [faltabaCasilla, setFaltabaCasilla] = useState(false);
 
   const email = (emailDado ?? emailPropio).trim().toLowerCase();
@@ -135,7 +146,7 @@ export default function FormularioSuscripcion({
         const cuerpo = (await r.json().catch(() => ({}))) as { estado?: string; error?: string };
         if (!r.ok || !cuerpo.estado) throw new Error(cuerpo.error ?? "No pudimos confirmar tu mail. Probá de nuevo.");
         void refrescarSuscriptor();
-        alEntrar?.();
+        alEntrar?.(cuerpo.estado);
       } catch (e) {
         setError(e instanceof Error ? e.message : "No pudimos confirmar tu mail.");
       } finally {
@@ -157,8 +168,8 @@ export default function FormularioSuscripcion({
         }),
       });
       const cuerpo = (await r.json().catch(() => ({}))) as Partial<SuscripcionConfirmada> & { error?: string; faltaAceptarMails?: boolean };
-      // Quiso entrar con un mail que no está suscripto: el mismo código sirve
-      // para suscribirse, con la casilla.
+      // Quiso entrar con un mail que todavía no tiene cuenta: el mismo código
+      // sirve para suscribirse (y abrirla), con la casilla.
       if (r.status === 400 && cuerpo.faltaAceptarMails) {
         setModo("suscribir");
         setFaltabaCasilla(true);
@@ -229,14 +240,12 @@ export default function FormularioSuscripcion({
 
   if (listo) {
     if (!mostrarListo) return null;
+    // Ale, 18/11/2026: solo el resultado («Ya estás suscripto y tu cuenta quedó
+    // abierta»). Antes seguía una línea con el cupón, el envío gratis o «tus
+    // beneficios», que el servidor ya no da.
     return (
       <div className="suscripcion suscripcion--listo" role="status">
         <p className="suscripcion__listo">{T.listo[listo.estado]}</p>
-        {listo.estado === "baja" ? null : (
-          <p className="suscripcion__nota">
-            {listo.suscriptor.cupon === "Disponible" ? T.listoCupon(formatearPrecio(CUPON_BIENVENIDA)) : T.listoSinCupon}
-          </p>
-        )}
         <div className="suscripcion__acciones">
           <Link href="/#los-modelos" className="boton">
             {TEXTOS.suscriptores.elegir}
@@ -270,7 +279,7 @@ export default function FormularioSuscripcion({
             onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))}
           />
         </label>
-        {/* Quiso entrar y el mail no estaba suscripto: la casilla aparece acá. */}
+        {/* Quiso entrar y el mail no tenía cuenta: la casilla aparece acá. */}
         {suscribe && faltabaCasilla ? casilla : null}
         {aviso}
         <button

@@ -10,6 +10,9 @@ const { baja: T } = TEXTOS.suscriptores;
 /**
  * La baja desde el enlace de un mail: abrir la página no da de baja (los
  * antivirus de los mails abren los enlaces solos), hace falta tocar el botón.
+ * Es la baja de los mails de novedades (Ale, 18/11/2026): al terminar dice
+ * que esos mails no llegan más, no «más mails de Harper» (los de los pedidos
+ * siguen).
  */
 export default function BotonBaja({ token }: { token: string }) {
   const [estado, setEstado] = useState<"listo" | "ocupado" | null>(null);

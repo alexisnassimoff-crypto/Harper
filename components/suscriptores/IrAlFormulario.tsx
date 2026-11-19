@@ -4,10 +4,10 @@ import { TEXTOS } from "@/lib/textos";
 import { useSuscriptor } from "./useSuscriptor";
 
 /**
- * «Suscribirme gratis» (Ale, 04/11/2026): en el celular, el formulario de la
- * portada queda debajo de los beneficios. Este botón lleva directo y deja el
- * cursor en el mail. Sin JavaScript es un enlace común a #suscribirme. A quien
- * ya es suscriptor no se lo muestra: la tarjeta de abajo ya se lo dice.
+ * «Suscribirme gratis» (Ale, 04/11/2026): un botón que lleva directo al
+ * formulario de la portada y deja el cursor en el mail. Sin JavaScript es un
+ * enlace común a #suscribirme. A quien ya está suscripto no se lo muestra: la
+ * caja de abajo ya se lo dice. Hoy no lo usa ninguna página.
  */
 export default function IrAlFormulario({ destino = "suscribirme", texto = TEXTOS.suscriptores.portada.cta }: { destino?: string; texto?: string }) {
   const { suscriptor } = useSuscriptor();
