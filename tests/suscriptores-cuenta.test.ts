@@ -3,11 +3,18 @@ import assert from "node:assert/strict";
 
 // La cuenta del suscriptor contra el Airtable de prueba (Ale, 03/11/2026): la
 // sesión firmada, el alta y la baja, el cupón, los movimientos de saldo, el
-// carrito con sus beneficios, el pedido pagado entero con saldo y el
-// arrepentimiento que anula un cashback pendiente.
+// carrito, el pedido pagado entero con saldo y el arrepentimiento que anula
+// un cashback pendiente.
+//
+// Ale, 18/11/2026: los beneficios en plata de la suscripción terminaron para
+// todos. El alta ya no da cupón, el carrito de una cuenta es el de cualquiera
+// (sin cupón, sin envío gratis, sin cashback, con las cuotas de todos) y lo
+// único que sigue es usar el saldo que alguien tuviera de antes. Las pruebas
+// del cupón, del cashback y de sus movimientos quedan para lo que el código
+// todavía lee de los pedidos y las filas anteriores a ese día.
 process.env.HARPER_FIXTURES = "1";
 process.env.MP_WEBHOOK_SECRET = "secreto-de-prueba";
-// Con el mínimo de producción, un par paga envío: así se ve el envío gratis del suscriptor.
+// Con este mínimo un par paga envío: así se ve que una cuenta ya no tiene envío gratis por serlo.
 process.env.HARPER_FIXTURES_ENVIO_GRATIS_DESDE = "150000";
 process.env.HARPER_FIXTURES_ENVIO_GRATIS_AMBA_DESDE = "150000";
 delete process.env.VERCEL;
@@ -20,11 +27,13 @@ import { cerrojoEnMemoria, reiniciarRedis } from "../lib/fixtures/redis";
 import { SUSCRIPTOR_ANA, SUSCRIPTOR_BETO, SUSCRIPTOR_CARLA } from "../lib/fixtures/datos";
 import { interceptar, reiniciar, RespuestaFixture } from "../lib/fixtures/servidor";
 import { resolverCarrito } from "../lib/pedidos";
-import { MINUTOS_RESERVA, notasDeBeneficios, sumarDias, fechaArgentina } from "../lib/suscriptores";
+import { VERSION_CONDICIONES_SUSCRIPTORES } from "../lib/legales";
+import { MINUTOS_RESERVA, notasDeBeneficios, sumarDias, fechaArgentina, type SuscriptorDelCarrito } from "../lib/suscriptores";
 import { emailCanonico, guardarCliente, yaCompro } from "../lib/clientes";
 import {
   anularCashbackPendiente,
   claveSuscriptor,
+  cuponVigente,
   darDeAlta,
   darDeBaja,
   ErrorAltaEnCurso,
@@ -33,6 +42,7 @@ import {
   registrarCupon,
   registrarUso,
   reservasDe,
+  resumenDeLaCuenta,
   suscriptorDeLaSesion,
   suscriptorParaElCarrito,
   suscriptorPorEmail,
@@ -131,15 +141,29 @@ test("la sesión vale si la fila existe, con el mismo mail; dado de baja, solo c
   assert.equal(await suscriptorDeLaSesion(fantasma, ahora), null);
 });
 
-test("el alta es por mail en minúsculas: nunca dos filas, y el cupón nace disponible solo la primera vez", async () => {
-  const ahora = new Date("2026-11-03T15:00:00Z");
+test("el alta es por mail en minúsculas: nunca dos filas, y la fila nueva nace sin cupón de bienvenida (Ale, 18/11/2026)", async () => {
+  const ahora = new Date("2026-11-18T15:00:00Z");
   const nueva = await darDeAlta({ email: "Nuevo@Ejemplo.com ", nombre: "Nico", origen: "Portada", ahora, cerrojo: null });
   assert.equal(nueva.estado, "nueva");
   const fila = await getRecord<Record<string, unknown>>(TABLAS.suscriptores, nueva.cuenta.id);
+  assert.equal(VERSION_CONDICIONES_SUSCRIPTORES, "2026-11-18");
   assert.deepEqual(
-    [fila.fields.Email, fila.fields.Nombre, fila.fields.Alta, fila.fields.Acepta_mails, fila.fields.Origen, fila.fields.Cupon, fila.fields.Version_condiciones],
-    ["nuevo@ejemplo.com", "Nico", "2026-11-03T15:00:00.000Z", true, "Portada", "Disponible", "2026-11-05"]
+    [fila.fields.Email, fila.fields.Nombre, fila.fields.Alta, fila.fields.Acepta_mails, fila.fields.Origen, fila.fields.Version_condiciones],
+    ["nuevo@ejemplo.com", "Nico", "2026-11-18T15:00:00.000Z", true, "Portada", VERSION_CONDICIONES_SUSCRIPTORES]
   );
+  // Sin cupón: el campo ni se escribe (antes nacía «Disponible»), y nada lo ofrece.
+  assert.equal("Cupon" in fila.fields, false, "la fila nueva no tiene Cupon");
+  assert.equal("Cupon_pedido" in fila.fields, false);
+  assert.equal(nueva.cuenta.cupon, "");
+  assert.equal(await cuponVigente(nueva.cuenta), false);
+  assert.deepEqual(await suscriptorParaElCarrito(nueva.cuenta), {
+    id: nueva.cuenta.id,
+    email: "nuevo@ejemplo.com",
+    cuponDisponible: false,
+    saldoDisponible: 0,
+    saldoReservado: 0,
+    activo: true,
+  });
 
   // Otra vez (otra pestaña, otro día): la misma fila.
   const otra = await darDeAlta({ email: "NUEVO@ejemplo.com", origen: "Checkout", cerrojo: null });
@@ -147,21 +171,26 @@ test("el alta es por mail en minúsculas: nunca dos filas, y el cupón nace disp
   const filas = await listRecords<{ Email?: string }>(TABLAS.suscriptores, { filterByFormula: "LOWER({Email}) = 'nuevo@ejemplo.com'" });
   assert.equal(filas.length, 1);
 
-  // Usa el cupón, se da de baja y vuelve: se reactiva la misma fila y el cupón sigue usado.
-  assert.equal((await registrarCupon({ suscriptorId: nueva.cuenta.id, numeroPedido: "HARPER-A" })).estado, "registrado");
+  // Se da de baja y vuelve: se reactiva la misma fila, y sigue sin cupón (volver no regala nada).
   assert.equal(await darDeBaja({ suscriptorId: nueva.cuenta.id, ahora }), "baja");
   assert.equal(await darDeBaja({ suscriptorId: nueva.cuenta.id, ahora }), "ya");
   const baja = await cuenta(nueva.cuenta.id);
   assert.ok(baja.baja);
   assert.equal(baja.aceptaMails, false);
   const vuelve = await darDeAlta({ email: "nuevo@ejemplo.com", origen: "Suscriptores", cerrojo: null });
-  assert.deepEqual([vuelve.estado, vuelve.cuenta.id, vuelve.cuenta.baja, vuelve.cuenta.cupon], ["reactivada", nueva.cuenta.id, null, "Usado"]);
+  assert.deepEqual([vuelve.estado, vuelve.cuenta.id, vuelve.cuenta.baja, vuelve.cuenta.cupon], ["reactivada", nueva.cuenta.id, null, ""]);
+  assert.equal("Cupon" in (await getRecord<Record<string, unknown>>(TABLAS.suscriptores, nueva.cuenta.id)).fields, false);
   assert.match((await getRecord<{ Notas?: string }>(TABLAS.suscriptores, nueva.cuenta.id)).fields.Notas ?? "", /Volvió a suscribirse/);
 
-  // Carla (de baja, sin usar el cupón) vuelve con su cupón.
+  // Carla se suscribió antes del 18/11 y su fila dice «Disponible». Vuelve de
+  // la baja: la fila queda como estaba, pero ese cupón ya no vale ni se ofrece.
   const carla = await darDeAlta({ email: "carla@ejemplo.com", origen: "Portada", cerrojo: null });
   assert.deepEqual([carla.estado, carla.cuenta.id, carla.cuenta.cupon], ["reactivada", SUSCRIPTOR_CARLA, "Disponible"]);
   assert.equal((await suscriptorPorEmail("CARLA@ejemplo.com"))?.baja, null);
+  assert.equal(await cuponVigente(carla.cuenta), false);
+  assert.equal((await suscriptorParaElCarrito(carla.cuenta)).cuponDisponible, false);
+  const resumen = await resumenDeLaCuenta(carla.cuenta);
+  assert.deepEqual([resumen.cupon, resumen.cuponYaCompro], ["Usado", false], "Mi cuenta y la sesión nunca anuncian un cupón que el carrito no aplica");
 });
 
 test("dos altas del mismo mail a la vez: con el cerrojo, la segunda contesta «en curso» y no crea otra fila", async () => {
@@ -200,13 +229,19 @@ test("el cupón se anota una sola vez: el mismo pedido es idempotente y otro ped
   assert.equal((await registrarCupon({ suscriptorId: "recFIX99999999999", numeroPedido: "H-C" })).estado, "sin-suscriptor");
 });
 
-test("lo que ve el carrito: el saldo de Ana, el cupón de Beto, y sin cupón si ese mail ya compró", async () => {
+test("lo que ve el carrito: el saldo que Ana tenía de antes, y ningún cupón, aunque la fila de Beto lo tenga «Disponible» (Ale, 18/11/2026)", async () => {
   const ana = await suscriptorParaElCarrito(await cuenta(SUSCRIPTOR_ANA));
   assert.deepEqual(ana, { id: SUSCRIPTOR_ANA, email: "ana@ejemplo.com", cuponDisponible: false, saldoDisponible: 92081, saldoReservado: 0, activo: true });
-  const beto = await suscriptorParaElCarrito(await cuenta(SUSCRIPTOR_BETO));
-  assert.deepEqual(beto, { id: SUSCRIPTOR_BETO, email: "beto@ejemplo.com", cuponDisponible: true, saldoDisponible: 0, saldoReservado: 0, activo: true });
+  // Beto se suscribió antes del 18/11: su fila conserva el cupón «Disponible» y
+  // su mail nunca compró. Antes el carrito se lo ofrecía; ya no.
+  const filaDeBeto = await cuenta(SUSCRIPTOR_BETO);
+  assert.equal(filaDeBeto.cupon, "Disponible");
+  assert.equal(await cuponVigente(filaDeBeto), false);
+  const beto = await suscriptorParaElCarrito(filaDeBeto);
+  assert.deepEqual(beto, { id: SUSCRIPTOR_BETO, email: "beto@ejemplo.com", cuponDisponible: false, saldoDisponible: 0, saldoReservado: 0, activo: true });
+  assert.deepEqual([(await resumenDeLaCuenta(filaDeBeto)).cupon, (await resumenDeLaCuenta(filaDeBeto)).cuponYaCompro], ["Usado", false]);
 
-  // Beto ya tiene una compra confirmada con su mail (como el viejo HARPER10): sin cupón.
+  // Con una compra confirmada con su mail, tampoco (como siempre).
   await createRecord(TABLAS.clientes, { Email: "Beto@ejemplo.com", Primera_compra: "2026-10-01" });
   assert.equal((await suscriptorParaElCarrito(await cuenta(SUSCRIPTOR_BETO))).cuponDisponible, false);
 });
@@ -246,47 +281,69 @@ test("anular el cashback pendiente de un pedido; el que ya se puede usar no se t
   assert.deepEqual([fila.fields.Anulado, fila.fields.Notas], [true, "Anulado por prueba"]);
 });
 
-test("el carrito de un suscriptor: cupón, envío gratis, cashback previsto y su tope de 6 cuotas", async () => {
+test("el carrito de una cuenta es el de cualquiera: sin cupón de bienvenida, sin envío gratis, sin cashback y con el tope de 3 cuotas (Ale, 18/11/2026)", async () => {
   const sinSesion = await resolverCarrito([await par()]);
   assert.deepEqual([sinSesion.subtotal, sinSesion.envio > 0, sinSesion.suscriptor], [89900, true, null]);
 
+  // Beto: recién suscripto, con el cupón «Disponible» en su fila (de antes del 18/11).
   const beto = await suscriptorParaElCarrito(await cuenta(SUSCRIPTOR_BETO));
   const c = await resolverCarrito([await par()], { suscriptor: beto });
-  assert.deepEqual([c.subtotal, c.envio, c.total], [79900, 0, 79900]);
-  assert.equal(c.items[0].cupon, 10000);
-  assert.equal(c.subtotalSinCupon, 89900, "el envío gratis se mide sin el cupón, como siempre");
+  // Paga lo mismo que sin sesión: el par a precio de lista y el envío.
+  assert.deepEqual(c.items, sinSesion.items);
+  assert.deepEqual([c.subtotal, c.envio, c.total], [sinSesion.subtotal, sinSesion.envio, sinSesion.total]);
+  assert.deepEqual([c.subtotal, c.envio, c.total], [89900, 10100, 100000]);
+  assert.equal(c.envioBonificado, false);
+  assert.equal(c.items[0].cupon, undefined);
+  assert.equal(c.subtotalSinCupon, 89900);
   assert.deepEqual(c.suscriptor, {
     email: "beto@ejemplo.com",
-    cupon: 10000,
-    cuponDisponible: true,
+    cupon: 0,
+    cuponDisponible: false,
     saldoUsado: 0,
     saldoDisponible: 0,
     saldoReservado: 0,
-    cashbackPrevisto: 7990,
-    cashbackDineroMP: 7191,
-    cuotas: 6,
+    cashbackPrevisto: 0,
+    cashbackDineroMP: null,
+    cuotas: 3,
     activo: true,
   });
-  // El 10% de dinero en Mercado Pago corre sobre lo que queda después del cupón.
-  assert.equal(c.dineroMP?.subtotal, 71910);
+  // El 10% de dinero en Mercado Pago, sobre el precio de cualquiera.
+  assert.equal(c.dineroMP?.subtotal, 80910);
+  assert.equal(c.dineroMP?.subtotal, sinSesion.dineroMP?.subtotal);
 
-  // Sin el cupón (el checkout lo rechazó): precio de lista, envío gratis igual.
-  const sinCupon = await resolverCarrito([await par()], { suscriptor: beto, usarCupon: false });
-  assert.deepEqual([sinCupon.subtotal, sinCupon.envio, sinCupon.suscriptor?.cupon, sinCupon.suscriptor?.cashbackPrevisto], [89900, 0, 0, 8990]);
+  // Aunque al carrito le llegara «cupón disponible» (una fila de antes, o un
+  // pedido que lo fuerce), no lo aplica, ni pidiéndolo ni sin pedirlo.
+  const conCuponALaFuerza: SuscriptorDelCarrito = { ...beto, cuponDisponible: true };
+  for (const usarCupon of [undefined, true, false]) {
+    const forzado = await resolverCarrito([await par()], { suscriptor: conCuponALaFuerza, usarCupon, paraCobrar: true });
+    assert.deepEqual([forzado.subtotal, forzado.envio, forzado.total], [89900, 10100, 100000], `usarCupon=${usarCupon}`);
+    assert.deepEqual([forzado.suscriptor?.cupon, forzado.suscriptor?.cuponDisponible, forzado.suscriptor?.cashbackPrevisto], [0, false, 0]);
+  }
+
+  // Donde el envío es gratis, lo es por el mínimo (acá, $ 150.000) y para cualquiera: no por tener cuenta.
+  const dosSinSesion = await resolverCarrito([await par("citrino", 2)]);
+  const dosConCuenta = await resolverCarrito([await par("citrino", 2)], { suscriptor: beto });
+  assert.deepEqual([dosConCuenta.subtotal, dosConCuenta.envio, dosConCuenta.total], [179800, 0, 179800]);
+  assert.deepEqual([dosConCuenta.subtotal, dosConCuenta.envio, dosConCuenta.total], [dosSinSesion.subtotal, dosSinSesion.envio, dosSinSesion.total]);
 });
 
-test("el saldo solo si lo pide: puede cubrir la compra entera, y el cashback es sobre lo que paga", async () => {
+test("el saldo de antes, solo si lo pide: cubre los productos, no el envío, y ninguna compra devuelve cashback (Ale, 18/11/2026)", async () => {
   const ana = await suscriptorParaElCarrito(await cuenta(SUSCRIPTOR_ANA));
+  // Sin pedirlo, Ana paga como cualquiera (un par no llega al mínimo de este archivo: paga el envío).
   const sinPedir = await resolverCarrito([await par()], { suscriptor: ana });
-  assert.deepEqual([sinPedir.total, sinPedir.suscriptor?.saldoUsado, sinPedir.suscriptor?.cashbackPrevisto], [89900, 0, 8990]);
+  assert.deepEqual([sinPedir.subtotal, sinPedir.envio, sinPedir.total], [89900, 10100, 100000]);
+  assert.deepEqual([sinPedir.suscriptor?.saldoUsado, sinPedir.suscriptor?.cashbackPrevisto, sinPedir.suscriptor?.cashbackDineroMP], [0, 0, null]);
 
+  // Con su saldo paga el par entero; el envío lo paga aparte, porque ya no es gratis por tener cuenta.
   const entero = await resolverCarrito([await par()], { suscriptor: ana, usarSaldo: true });
-  assert.deepEqual([entero.subtotal, entero.envio, entero.total], [0, 0, 0]);
-  assert.deepEqual([entero.suscriptor?.saldoUsado, entero.suscriptor?.cashbackPrevisto], [89900, 0]);
+  assert.deepEqual([entero.subtotal, entero.envio, entero.total], [0, 10100, 10100]);
+  assert.deepEqual([entero.suscriptor?.saldoUsado, entero.suscriptor?.cashbackPrevisto, entero.suscriptor?.cashbackDineroMP], [89900, 0, null]);
   assert.equal(entero.dineroMP?.subtotal, 0);
 
+  // Dos pares llegan al mínimo ($ 150.000 acá): envío gratis como para cualquiera, y el saldo cubre una parte.
   const dos = await resolverCarrito([await par("citrino", 2)], { suscriptor: ana, usarSaldo: true });
-  assert.deepEqual([dos.subtotal, dos.suscriptor?.saldoUsado, dos.suscriptor?.cashbackPrevisto], [87719, 92081, 8772]);
+  assert.deepEqual([dos.subtotal, dos.envio, dos.total], [87719, 0, 87719]);
+  assert.deepEqual([dos.suscriptor?.saldoUsado, dos.suscriptor?.cashbackPrevisto, dos.suscriptor?.cashbackDineroMP], [92081, 0, null]);
   // Sin sesión, `usarSaldo` no hace nada.
   assert.equal((await resolverCarrito([await par()], { usarSaldo: true })).subtotal, 89900);
 });
@@ -303,9 +360,29 @@ const CLIENTE: DatosCliente = {
   aceptaPromos: false,
 };
 
+/**
+ * El carrito de Ana pagado entero con el saldo que tenía de antes. Para que
+ * quede en $ 0 el envío tiene que ser gratis: el saldo paga productos, no el
+ * envío, y desde el 18/11/2026 una cuenta no tiene envío gratis por serlo.
+ * Acá, con un mínimo que un par alcanza (como hoy en AMBA), solo mientras se
+ * arma este carrito.
+ */
+async function carritoEnCero() {
+  const fila = (await listRecords<{ Clave?: string; Valor?: string }>(TABLAS.config)).find((f) => f.fields.Clave === "envio_gratis_desde")!;
+  const antes = fila.fields.Valor;
+  await updateRecord(TABLAS.config, fila.id, { Valor: "80000" });
+  try {
+    const ana = await suscriptorParaElCarrito(await cuenta(SUSCRIPTOR_ANA));
+    const carrito = await resolverCarrito([await par()], { suscriptor: ana, usarSaldo: true, paraCobrar: true });
+    assert.deepEqual([carrito.subtotal, carrito.envio, carrito.total], [0, 0, 0], "sin nada que pagar: no pasa por Mercado Pago");
+    return { ana, carrito };
+  } finally {
+    await updateRecord(TABLAS.config, fila.id, { Valor: antes });
+  }
+}
+
 async function pedidoSinPago(numero: string, cerrojo = cerrojoEnMemoria()) {
-  const ana = await suscriptorParaElCarrito(await cuenta(SUSCRIPTOR_ANA));
-  const carrito = await resolverCarrito([await par()], { suscriptor: ana, usarSaldo: true, paraCobrar: true });
+  const { ana, carrito } = await carritoEnCero();
   const anulados: string[] = [];
   const resultado = await confirmarPedidoSinPago({
     suscriptor: ana,
@@ -380,8 +457,7 @@ test("el pedido sin pago con el cerrojo tomado espera; si anotar el saldo falla,
     if (method === "POST" && decodeURIComponent(path) === TABLAS.saldos) throw new RespuestaFixture(429, "TOO_MANY_REQUESTS");
   });
   const r = await (async () => {
-    const ana = await suscriptorParaElCarrito(await cuenta(SUSCRIPTOR_ANA));
-    const carrito = await resolverCarrito([await par()], { suscriptor: ana, usarSaldo: true, paraCobrar: true });
+    const { ana, carrito } = await carritoEnCero();
     return confirmarPedidoSinPago({
       suscriptor: ana,
       numero: "H-FALLA-2",

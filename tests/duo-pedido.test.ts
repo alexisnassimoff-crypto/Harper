@@ -179,37 +179,54 @@ test("Dúo prendido: con dos renglones descontados y con varias unidades del mis
   assert.ok(!itemsDelPedido(uno.items).includes('"duo"'));
 });
 
-test("Dúo prendido con suscriptor y dinero en Mercado Pago: el registro no cambia y las Notas se siguen leyendo", async () => {
+test("Dúo prendido con una cuenta y dinero en Mercado Pago: sin cupón de bienvenida, el registro es el de cualquiera y las Notas se siguen leyendo (Ale, 18/11/2026)", async () => {
   const { amatistaNegro, cuarzoAmbar } = await variantes();
+  // La cuenta como la traería una fila de antes del 18/11, con el cupón «Disponible».
   const suscriptor: SuscriptorDelCarrito = { id: "recPRUEBA", email: "prueba@harper.ar", cuponDisponible: true, saldoDisponible: 0, activo: true };
-  const carrito = await prendido(() => resolverCarrito([linea(amatistaNegro), linea(cuarzoAmbar)], { suscriptor, paraCobrar: true }));
+  const items = [linea(amatistaNegro), linea(cuarzoAmbar)];
+  const visitante = await prendido(() => resolverCarrito(items, { paraCobrar: true }));
+  const carrito = await prendido(() => resolverCarrito(items, { suscriptor, paraCobrar: true }));
 
-  // El cupón de bienvenida del suscriptor va después del Dúo y no lo borra.
-  assert.equal(carrito.suscriptor?.cupon, 10_000);
+  // El cupón de bienvenida terminó: la cuenta cobra los mismos renglones que un visitante.
+  assert.equal(carrito.suscriptor?.cupon, 0);
+  assert.deepEqual(importesDe(carrito.items), importesDe(visitante.items));
+  assert.deepEqual(cobroDe(carrito), cobroDe(visitante));
   assert.equal(registroDelDuo(carrito.items)?.descuento, 22_475);
-  // Con dinero en Mercado Pago (los renglones que cobra el checkout), tampoco.
+  assert.deepEqual(registroDelDuo(carrito.items), registroDelDuo(visitante.items));
+  // Con dinero en Mercado Pago (los renglones que cobra el checkout), tampoco cambia.
   assert.ok(carrito.dineroMP);
   assert.deepEqual(registroDelDuo(carrito.dineroMP.items), registroDelDuo(carrito.items));
+  assert.equal(carrito.dineroMP.subtotal, 141_593, "el 10 % va sobre lo que queda con el Dúo");
 
-  // Las Notas como las arma el checkout: facturación, cupón y medio primero;
-  // después el suscriptor y el Dúo (crearPedido en app/api/checkout/route.ts).
-  const beneficios = { email: "prueba@harper.ar", suscriptorId: "recPRUEBA00000001", cupon: 10_000, saldoUsado: 0, cashback: 0 };
-  const notasSuscriptor = notasDeBeneficios(beneficios).join("\n");
-  const extra = notasDelPedido(notasSuscriptor, carrito.dineroMP.items)!;
-  assert.equal(extra, `${notasSuscriptor}\n\n${PREFIJO_NOTA_DUO} 25 % · −$${NBSP}22.475 · AMATISTA Negro (1 de 1)`);
-
-  const factura = `${ENCABEZADO_NOTAS}\nFactura A a nombre de un titular con CUIT\nCUIT: 20-12345678-6`;
-  const notas = [factura, "Cupón: PRUEBA", NOTA_DINERO_MP, extra].join("\n\n");
-  assert.deepEqual(lineasDeNotas(notas), ["Factura A a nombre de un titular con CUIT", "CUIT: 20-12345678-6"]);
-  assert.equal(cuponDeNotas(notas), "PRUEBA");
-  assert.equal(esPedidoConDineroMP({ Notas: notas }), true);
-  assert.deepEqual(beneficiosDeNotas(notas), beneficios);
-  // Sin el suscriptor, la línea del Dúo no se confunde con ninguna de esas.
-  const soloDuo = notasDelPedido(null, carrito.items)!;
+  // Sin cupón, sin saldo usado y sin cashback, el checkout no escribe ninguna
+  // línea de suscriptor (app/api/checkout/route.ts): las Notas llevan solo el Dúo.
+  const soloDuo = notasDelPedido(null, carrito.dineroMP.items)!;
+  assert.equal(soloDuo, `${PREFIJO_NOTA_DUO} 25 % · −$${NBSP}22.475 · AMATISTA Negro (1 de 1)`);
   assert.equal(beneficiosDeNotas(soloDuo), null);
   assert.equal(cuponDeNotas(soloDuo), null);
   assert.equal(lineasDeNotas(soloDuo), null);
   assert.equal(esPedidoConDineroMP({ Notas: soloDuo }), false);
+
+  // Lo único que la cuenta puede dejar en las Notas de un pedido nuevo es el
+  // saldo que tenía de antes y usó. Se arman como en el checkout: facturación,
+  // cupón y medio primero; después la cuenta y el Dúo.
+  const conSaldo = { email: "prueba@harper.ar", suscriptorId: "recPRUEBA00000001", cupon: 0, saldoUsado: 5_000, cashback: 0 };
+  // Y un pedido de antes del 18/11 (con cupón de bienvenida y cashback) se tiene que seguir leyendo igual.
+  const deAntes = { email: "prueba@harper.ar", suscriptorId: "recPRUEBA00000001", cupon: 10_000, saldoUsado: 0, cashback: 14_733 };
+  const cobrados = carrito.dineroMP.items;
+  for (const beneficios of [conSaldo, deAntes]) {
+    const notasSuscriptor: string = notasDeBeneficios(beneficios).join("\n");
+    const extra: string = notasDelPedido(notasSuscriptor, cobrados)!;
+    assert.equal(extra, `${notasSuscriptor}\n\n${PREFIJO_NOTA_DUO} 25 % · −$${NBSP}22.475 · AMATISTA Negro (1 de 1)`);
+
+    const factura = `${ENCABEZADO_NOTAS}\nFactura A a nombre de un titular con CUIT\nCUIT: 20-12345678-6`;
+    const notas = [factura, "Cupón: PRUEBA", NOTA_DINERO_MP, extra].join("\n\n");
+    assert.deepEqual(lineasDeNotas(notas), ["Factura A a nombre de un titular con CUIT", "CUIT: 20-12345678-6"]);
+    assert.equal(cuponDeNotas(notas), "PRUEBA");
+    assert.equal(esPedidoConDineroMP({ Notas: notas }), true);
+    assert.deepEqual(beneficiosDeNotas(notas), beneficios);
+  }
+  assert.deepEqual(notasDeBeneficios(conSaldo).length, 2, "la cuenta y el saldo usado: ni cupón ni cashback");
 });
 
 test("Un cupón que reemplaza la promoción saca el Dúo del registro; uno que no conviene lo deja", async () => {

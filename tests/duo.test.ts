@@ -459,20 +459,73 @@ test("Dúo frente a los tramos de Airtable: queda el que deja el total más bajo
   assert.throws(() => elegirPromocionAnteojos(lista, [conTramo(0)[1], conTramo(0)[0]]));
 });
 
-test("Dúo: solo lo usa el servidor (resolverCarrito) y el modelo financiero", () => {
+test("Dúo: lo calculan solo el servidor (resolverCarrito) y el modelo financiero; las páginas del servidor solo leen si está prendido y el porcentaje (Ale, 18/11/2026)", () => {
   const raiz = path.resolve(__dirname, "..", "..");
-  const permitidos = new Set([path.join("lib", "duo.ts"), path.join("lib", "contribucion.ts"), path.join("lib", "pedidos.ts")]);
-  const usos: string[] = [];
+  // Los que calculan: el motor, el carrito del servidor y el modelo financiero.
+  const calculan = new Set([path.join("lib", "duo.ts"), path.join("lib", "contribucion.ts"), path.join("lib", "pedidos.ts")]);
+  // Los que solo LEEN el interruptor y el porcentaje para decirlo (Ale,
+  // 18/11/2026: con el Dúo prendido, los Términos publican su cláusula). Para
+  // entrar acá un archivo tiene que ser del servidor (sin "use client": el
+  // navegador no ve HARPER_DUO_ACTIVO y leería siempre «apagado») y no calcular
+  // ningún precio. Las demás páginas preguntan por lib/pedidos.ts
+  // (`porcentajeDelDuo`, `packConDuo`), que ya está entre los que calculan.
+  const soloLeen = new Set([path.join("app", "legales", "terminos", "page.tsx")]);
+  const LECTURA = new Set(["duoActivo", "PORCENTAJE_DUO"]);
+
+  // `[^;]*?`: cada importación termina en «;», así que no se mezcla con la anterior.
+  const importaElDuo = /import\s+(type\s+)?([^;]*?)\s+from\s+["'](?:\.\.?\/|@\/lib\/|(?:\.\.\/)+lib\/)duo["']/g;
+  const esDeCliente = (texto: string) => /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*["']use client["']/.test(texto);
+  const archivos: { relativo: string; texto: string }[] = [];
   const recorrer = (dir: string) => {
     for (const entrada of fs.readdirSync(path.join(raiz, dir), { withFileTypes: true })) {
       const relativo = path.join(dir, entrada.name);
       if (entrada.isDirectory()) recorrer(relativo);
-      else if (/\.(ts|tsx)$/.test(entrada.name) && !permitidos.has(relativo)) {
-        const texto = fs.readFileSync(path.join(raiz, relativo), "utf8");
-        if (/from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)duo["']/.test(texto)) usos.push(relativo);
-      }
+      else if (/\.(ts|tsx)$/.test(entrada.name)) archivos.push({ relativo, texto: fs.readFileSync(path.join(raiz, relativo), "utf8") });
     }
   };
   for (const dir of ["app", "components", "lib"]) recorrer(dir);
+  assert.ok(archivos.length > 100, "se recorrieron app/, components/ y lib/");
+
+  const usos: string[] = [];
+  const lectores: string[] = [];
+  for (const { relativo, texto } of archivos) {
+    if (calculan.has(relativo)) continue;
+    const importaciones = [...texto.matchAll(importaElDuo)];
+    if (importaciones.length === 0) continue;
+    if (!soloLeen.has(relativo)) {
+      usos.push(relativo);
+      continue;
+    }
+    lectores.push(relativo);
+    assert.ok(!esDeCliente(texto), `${relativo}: un componente de cliente no puede leer el interruptor del Dúo`);
+    for (const importacion of importaciones) {
+      const nombres = /^\{([\s\S]*)\}$/.exec(importacion[2].trim());
+      assert.ok(nombres, `${relativo}: importa de lib/duo por nombre, no todo el módulo`);
+      for (const nombre of nombres[1].split(",").map((n) => n.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0]).filter(Boolean)) {
+        assert.ok(LECTURA.has(nombre), `${relativo}: solo puede leer ${[...LECTURA].join(" y ")} de lib/duo, no «${nombre}»`);
+      }
+    }
+    // Lee el porcentaje para escribirlo, no para hacer cuentas con él.
+    assert.doesNotMatch(texto, /PORCENTAJE_DUO\s*[*/]|[*/-]\s*PORCENTAJE_DUO/, `${relativo}: no calcula nada con el porcentaje`);
+  }
   assert.deepEqual(usos, [], "ninguna página, componente ni otra ruta lo calcula por su cuenta");
+  assert.deepEqual(lectores.sort(), [...soloLeen].sort(), "la lista de los que solo leen está al día");
+
+  // El interruptor se lee en un solo lugar (duoActivo, lib/duo.ts): nadie más mira la variable.
+  const leenLaVariable = archivos
+    .filter(({ relativo, texto }) => relativo !== path.join("lib", "duo.ts") && /process\.env(?:\.HARPER_DUO_ACTIVO|\[\s*["']HARPER_DUO_ACTIVO)|VARIABLE_DUO/.test(texto))
+    .map(({ relativo }) => relativo);
+  assert.deepEqual(leenLaVariable, [], "la variable HARPER_DUO_ACTIVO se lee solo en lib/duo.ts");
+
+  // Y ningún componente de cliente pregunta por el Dúo: ni a lib/duo, ni al
+  // carrito del servidor (lib/pedidos), ni al ayudante de la portada. El
+  // navegador recibe el dato ya resuelto (el porcentaje, la etiqueta, los importes).
+  const preguntaAlServidor = /import\s+(?!type\s)[^;]*?\s+from\s+["'][^"';]*(?:lib\/duo|lib\/pedidos|duoDelServidor)["']/;
+  const clientes = archivos.filter(({ texto }) => esDeCliente(texto));
+  assert.ok(clientes.length > 20, "se reconocen los componentes de cliente");
+  assert.deepEqual(
+    clientes.filter(({ texto }) => preguntaAlServidor.test(texto)).map(({ relativo }) => relativo),
+    [],
+    "ningún componente de cliente lee el interruptor ni los importes del Dúo por su cuenta"
+  );
 });

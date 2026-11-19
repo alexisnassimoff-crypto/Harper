@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  aclaracionDelMinimoConDuo,
   cotizacionParaComprador,
   envioEnElCarrito,
   esEnvioGratis,
@@ -69,11 +70,47 @@ test("el plazo respeta la unidad del transportista: horas son horas, y lo que no
   }
 });
 
-test("la regla en una frase, según lo que haya en Config", () => {
-  assert.match(sinEspacios(textoEnvioGratis(U)), /^Envío gratis en AMBA desde \$ 60\.000 y a todo el país desde \$ 150\.000\.$/);
+test("la regla, con los dos mínimos de Config: AMBA y, aparte, el resto del país (Ale, 18/11/2026)", () => {
+  assert.match(sinEspacios(textoEnvioGratis(U)), /^Envío gratis en AMBA desde \$ 60\.000\. Al resto del país, gratis desde \$ 150\.000\.$/);
+  // Con los mínimos de hoy: un anteojo ya tiene envío gratis en AMBA; al resto del país, desde $ 250.000.
+  assert.match(sinEspacios(textoEnvioGratis({ amba: 60000, nacional: 250000 })), /^Envío gratis en AMBA desde \$ 60\.000\. Al resto del país, gratis desde \$ 250\.000\.$/);
   assert.match(sinEspacios(textoEnvioGratis({ amba: 0, nacional: 150000 })), /^Envío a domicilio\. Gratis desde \$ 150\.000\.$/);
   assert.match(sinEspacios(textoEnvioGratis({ amba: 60000, nacional: 0 })), /^Envío gratis en AMBA desde \$ 60\.000\.$/);
   assert.equal(textoEnvioGratis({ amba: 0, nacional: 0 }), "Envío a domicilio.");
+  // Si el de AMBA no es más bajo que el del resto del país, hay uno solo y no se nombra AMBA.
+  assert.match(sinEspacios(textoEnvioGratis({ amba: 250000, nacional: 250000 })), /^Envío a domicilio\. Gratis desde \$ 250\.000\.$/);
+  // Solo importes: nunca «con tantos anteojos», ni «siempre», ni nada por tener cuenta.
+  for (const u of [U, { amba: 60000, nacional: 250000 }, { amba: 0, nacional: 150000 }, { amba: 60000, nacional: 0 }, { amba: 0, nacional: 0 }]) {
+    assert.doesNotMatch(textoEnvioGratis(u), /anteojos|pares|siempre|suscri|cuenta|Dúo/i);
+  }
+});
+
+test("con el Dúo aplicado y un mínimo sin alcanzar, la nota aclara que se cuenta antes del Dúo; sin el Dúo, ni se lo nombra (Ale, 18/11/2026)", () => {
+  const u = { amba: 60000, nacional: 250000 };
+  // Lo que manda el servidor: algún renglón con el detalle del Dúo (solo con el Dúo prendido).
+  const conDuo = [{ duo: { porcentaje: 25, unidades: 1, descuento: 22475 } }, {}];
+  const sinDuo = [{}, {}];
+  const ACLARACION = "El mínimo se cuenta con los anteojos a precio de lista, antes del descuento del Dúo.";
+  assert.equal(aclaracionDelMinimoConDuo(conDuo), ACLARACION);
+  assert.equal(aclaracionDelMinimoConDuo(sinDuo), null);
+  assert.equal(aclaracionDelMinimoConDuo([]), null);
+
+  // Dos anteojos ($ 179.800 de lista): gratis en AMBA, y al resto del país todavía no.
+  const dos = envioEnElCarrito(179800, 10100, u, conDuo);
+  assert.equal(dos.valor, "Gratis en AMBA");
+  assert.equal(sinEspacios(dos.nota), `Al resto del país, gratis desde $ 250.000. ${ACLARACION}`);
+  // Sin AMBA: «Te faltan…» se mide sobre la lista ($ 250.000 − $ 179.800), y se aclara por qué.
+  const falta = envioEnElCarrito(179800, 10100, { amba: 0, nacional: 250000 }, conDuo);
+  assert.equal(sinEspacios(falta.nota), `Te faltan $ 70.200 para el envío gratis. ${ACLARACION}`);
+  // Tres anteojos ($ 269.700 de lista, $ 247.225 con el Dúo): gratis, sin nota.
+  assert.deepEqual(envioEnElCarrito(269700, 0, u, conDuo), { valor: "Gratis", nota: null, total: "Total" });
+
+  // Con el Dúo apagado el servidor no manda ese detalle: las mismas notas, sin nombrarlo.
+  for (const items of [sinDuo, [], undefined]) {
+    const nota = envioEnElCarrito(179800, 10100, u, items).nota;
+    assert.equal(sinEspacios(nota), "Al resto del país, gratis desde $ 250.000.");
+    assert.doesNotMatch(envioEnElCarrito(179800, 10100, { amba: 0, nacional: 250000 }, items).nota ?? "", /Dúo/);
+  }
 });
 
 test("en el carrito, sin dirección: gratis en AMBA o cuánto falta", () => {

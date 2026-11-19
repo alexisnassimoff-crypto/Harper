@@ -177,14 +177,21 @@ test("Dúo prendido, dos anteojos: Dúo aplicado, con el ahorro y el renglón qu
   assert.equal(estuches.ahorro, 22_475 + tramoEstuches, "las filas suman el ahorro del servidor");
 });
 
-test("Dúo prendido, tres anteojos: aplicado y el próximo par suma otro con el 25 %", async () => {
+test("Dúo prendido, tres anteojos: aplicado, y el próximo suma UN anteojo más con el 25 % (no «dos pares») (Ale, 18/11/2026)", async () => {
   const { linea } = await catalogo();
   const c = await prendido(() => resolverCarrito([linea("amatista"), linea("cuarzo", 1), linea("obsidiana", 2)]));
   assert.equal(c.duo?.unidades, 1);
   assert.equal(c.duo?.siguiente, "duo");
   const m = loQueSeMuestra(c);
-  assert.equal(m.carrito?.siguiente, "Sumá otro par y dos pares tienen 25% OFF.");
+  // Con tres, uno lleva el 25 %; con el cuarto, uno más (dos en total). Antes
+  // decía «y dos pares tienen 25% OFF», que se podía leer como que los dos que
+  // se suman llevan el descuento.
+  assert.equal(m.carrito?.siguiente, "Sumá otro par y otro anteojo más tiene 25% OFF.");
   assert.equal(m.barra, "Dúo aplicado. Uno más: 25% OFF en otro par.");
+  // Y es lo que cobra el servidor: con cuatro, dos con el 25 %.
+  const cuatro = await prendido(() => resolverCarrito([linea("amatista", 0, 2), linea("cuarzo", 1), linea("obsidiana", 2)]));
+  assert.equal(cuatro.duo?.unidades, 2);
+  assert.equal(cuatro.duo?.ahorro, 2 * 22_475);
 });
 
 test("Envío gratis antes del descuento: se dice claro y nunca «te faltan»", async () => {
@@ -271,7 +278,7 @@ test("Las sugerencias: el segundo par con el Dúo, solo si el servidor lo confir
 
 // ---------- La ficha y los packs: lo que cobra el servidor ----------
 
-test("La ficha y los packs muestran lo que cobra el servidor por esa cantidad", async () => {
+test("La ficha y los packs muestran lo que cobra el servidor por esa cantidad: «$ X en lugar de $ Y», nunca «antes» (Ale, 18/11/2026)", async () => {
   const { p, linea } = await catalogo();
   const amatista: Producto = p("amatista");
 
@@ -287,10 +294,17 @@ test("La ficha y los packs muestran lo que cobra el servidor por esa cantidad", 
   assert.equal(dos.total, carrito.subtotal);
   assert.equal(dos.totalDineroMP, carrito.dineroMP?.subtotal);
 
-  assert.deepEqual(ofertaDuoDeLaFicha({ porcentaje: 25, dos }), {
+  // Ale, 18/11/2026: «en lugar de», nunca «antes»: $ 179.800 es el precio de
+  // lista de los dos, no un precio que haya existido. Y que se pueden combinar.
+  const oferta = ofertaDuoDeLaFicha({ porcentaje: 25, dos });
+  assert.deepEqual(oferta, {
     titulo: "Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF.",
-    detalle: "Dos de este modelo: $ 157.325 (antes $ 179.800).",
+    detalle: "Dos de este modelo: $\u00a0157.325 en lugar de $\u00a0179.800. Podés combinar modelos y colores. Se aplica solo en el carrito.",
   });
+  assert.doesNotMatch(`${oferta.titulo} ${oferta.detalle}`, /\bantes\b/i);
+  // Sin el carrito del servidor (o si no ahorra nada), el título solo: ningún importe inventado.
+  assert.deepEqual(ofertaDuoDeLaFicha({ porcentaje: 25, dos: null }), { titulo: "Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF.", detalle: null });
+  assert.equal(ofertaDuoDeLaFicha({ porcentaje: 25, dos: { total: 179_800, lista: 179_800 } }).detalle, null);
 
   const cuatro = await prendido(() => packConDuo(amatista, 4));
   assert.equal(cuatro?.total, 314_650);
@@ -319,7 +333,7 @@ async function anteojoConUnoSolo(): Promise<Producto> {
   return (await getProductos()).find((p) => p.slug === "unico")!;
 }
 
-test("Ficha con stock para un solo par: no anuncia el Dúo de dos (ni un tramo)", async () => {
+test("Ficha con stock para un solo par: no anuncia el Dúo de dos (ni un tramo); con stock, lo que cobra el servidor, «en lugar de» (Ale, 18/11/2026)", async () => {
   const unico = await anteojoConUnoSolo();
   assert.equal(unico.variantes.reduce((n, v) => n + v.stock, 0), 1);
 
@@ -337,7 +351,7 @@ test("Ficha con stock para un solo par: no anuncia el Dúo de dos (ni un tramo)"
   assert.equal(conStock?.gana, "duo");
   const oferta = ofertaEnLaFicha({ duo: conStock, duoDelCarrito: null, anteojosEnCarrito: 0, esAnteojo: true, cuponPorcentaje: 0 });
   assert.deepEqual(oferta.duo?.lineas, ["Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF."]);
-  assert.equal(oferta.duo?.detalle, "Dos de este modelo: $\u00a0157.325 (antes $\u00a0179.800).");
+  assert.equal(oferta.duo?.detalle, "Dos de este modelo: $\u00a0157.325 en lugar de $\u00a0179.800. Podés combinar modelos y colores. Se aplica solo en el carrito.");
   assert.equal(oferta.conTramo, false);
 
   // Si en dos pares gana un tramo, la ficha cuenta el tramo y no el Dúo.

@@ -1075,18 +1075,25 @@ test("el gancho de venta confirmada recibe el pedido y, si falla, no toca la ven
 });
 
 // ---- Suscriptores Harper (Ale, 03/11/2026) ----
+//
+// Ale, 18/11/2026: los beneficios en plata terminaron. Un pedido de hoy lleva
+// en sus Notas, como mucho, el saldo de antes que usó (las dos primeras
+// pruebas). `pedidoDeSuscriptor` arma un pedido como los de ANTES de ese día,
+// con cupón y cashback en las Notas: el webhook los sigue leyendo de ahí para
+// un pedido creado antes que se paga después (un link que todavía cobra, un
+// pago en revisión), y las pruebas que lo usan cuidan que eso no se duplique.
 
 type FilaSuscriptorPrueba = { Email?: string; Cupon?: string; Cupon_pedido?: string };
 type FilaSaldoPrueba = { Tipo?: string; Monto?: number; Pedido?: string; Disponible_desde?: string; Suscriptor_id?: string; Anulado?: boolean };
 
-/** Un suscriptor con el cupón disponible y $ 20.000 de saldo para usar. */
+/** Una fila de antes del 18/11/2026: con el cupón disponible y $ 20.000 de saldo para usar. */
 async function suscriptorConSaldo(campos: Partial<FilaSuscriptorPrueba> = {}) {
   const fila = await createRecord<FilaSuscriptorPrueba>(TABLAS.suscriptores, { Email: "prueba@harper.ar", Cupon: "Disponible", ...campos });
   await createRecord(TABLAS.saldos, { Suscriptor_id: fila.id, Email: "prueba@harper.ar", Tipo: "Ajuste", Monto: 20000, Movimiento: "Ajuste" });
   return fila.id;
 }
 
-/** Un par de $ 89.900 con el cupón ($ 10.000) y $ 5.000 de saldo: se pagan $ 74.900 y vuelven $ 7.490. */
+/** Un pedido de antes del 18/11/2026: un par de $ 89.900 con el cupón ($ 10.000) y $ 5.000 de saldo; se pagan $ 74.900 y sus Notas prometen $ 7.490 de cashback. */
 async function pedidoDeSuscriptor(suscriptorId: string, numero = "HARPER-T1") {
   const par: ItemResuelto = { ...item(AMATISTA_NEGRO, "AMATISTA-NEGRO"), cupon: 10000, saldo: 5000, subtotal: 74900, precioUnitario: 74900 };
   const notas = notasDeBeneficios({ suscriptorId, email: "prueba@harper.ar", cupon: 10000, saldoUsado: 5000, cashback: 7490 }).join("\n");
@@ -1100,36 +1107,78 @@ async function saldosDe(suscriptorId: string) {
     .map((f) => [f.Tipo, f.Monto, f.Pedido, f.Disponible_desde ?? null, f.Anulado === true]);
 }
 
-test("Suscriptores: el pago aprobado anota el cupón, el saldo usado y el cashback una sola vez, y los mails lo cuentan", async () => {
-  const suscriptorId = await suscriptorConSaldo();
-  const { pedidoId } = await pedidoDeSuscriptor(suscriptorId);
-  const { deps, mails } = armarDeps({ "111": pago(pedidoId, { transaction_amount: 74900 }) });
+/**
+ * Un pedido de hoy (Ale, 18/11/2026) de una cuenta con saldo a favor de antes:
+ * un par de $ 89.900 con $ 5.000 de saldo, se pagan $ 84.900. Sin cupón de
+ * bienvenida y sin cashback: el checkout ya no los escribe en las Notas
+ * (app/api/checkout/route.ts), y la cuenta nueva no tiene el campo Cupon.
+ */
+async function pedidoConSaldoDeAntes(numero = "HARPER-T1") {
+  const fila = await createRecord<FilaSuscriptorPrueba>(TABLAS.suscriptores, { Email: "prueba@harper.ar" });
+  await createRecord(TABLAS.saldos, { Suscriptor_id: fila.id, Email: "prueba@harper.ar", Tipo: "Ajuste", Monto: 20000, Movimiento: "Ajuste" });
+  const par: ItemResuelto = { ...item(AMATISTA_NEGRO, "AMATISTA-NEGRO"), saldo: 5000, subtotal: 84900, precioUnitario: 84900 };
+  const notas = notasDeBeneficios({ suscriptorId: fila.id, email: "prueba@harper.ar", cupon: 0, saldoUsado: 5000, cashback: 0 }).join("\n");
+  assert.doesNotMatch(notas, /Cupón de bienvenida|Cashback/);
+  const { pedidoId } = await crearPedido({ Numero: numero, Items: JSON.stringify([par]), Subtotal: 84900, Total: 84900, Notas: notas });
+  return { suscriptorId: fila.id, pedidoId };
+}
+
+test("Cuenta con saldo de antes: el pago aprobado anota solo el saldo usado, una sola vez; ni cupón ni cashback, y los mails cuentan solo eso (Ale, 18/11/2026)", async () => {
+  const { suscriptorId, pedidoId } = await pedidoConSaldoDeAntes();
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId, { transaction_amount: 84900 }) });
 
   const r = await como("A", () => procesarNotificacion("111", deps));
   assert.equal(r.cuerpo.estado, "pagado");
 
+  // La fila de la cuenta no gana ni usa ningún cupón, y en Saldos queda solo el Uso: nada de saldo nuevo.
   const fila = await getRecord<FilaSuscriptorPrueba>(TABLAS.suscriptores, suscriptorId);
-  assert.deepEqual([fila.fields.Cupon, fila.fields.Cupon_pedido], ["Usado", "HARPER-T1"]);
-  // AHORA es el 20/10/2025 a las 19:40 en Buenos Aires: el cashback se usa desde el 19/11.
-  assert.deepEqual(await saldosDe(suscriptorId), [
-    ["Uso", -5000, "HARPER-T1", null, false],
-    ["Cashback", 7490, "HARPER-T1", "2025-11-19", false],
-  ]);
+  assert.deepEqual([fila.fields.Cupon, fila.fields.Cupon_pedido], [undefined, undefined]);
+  assert.deepEqual(await saldosDe(suscriptorId), [["Uso", -5000, "HARPER-T1", null, false]]);
 
+  // El mail del comprador: con qué pagó, nombrando su cuenta y no el programa de antes.
   const cliente = mails.find((m) => m.mail.para === "prueba@harper.ar")!.mail;
-  assert.match(cliente.texto, /Usaste tu cupón de bienvenida: −\$\s10\.000/);
-  assert.match(cliente.texto, /Pagaste \$\s5\.000 con tu saldo/);
-  assert.match(cliente.texto, /Te vuelven \$\s7\.490 de saldo: los podés usar desde el 19\/11\/2025/);
-  assert.match(cliente.html, /Suscriptores Harper/);
+  assert.match(cliente.texto, /Tu cuenta Harper\nPagaste \$\s5\.000 con tu saldo a favor de compras anteriores\.\nTu cuenta: https:\/\/harper\.ar\/suscriptores\/mi-cuenta/);
+  assert.match(cliente.html, /Tu cuenta Harper/);
+  assert.match(cliente.html, /Pagaste \$(?:\s|&nbsp;)5\.000 con tu saldo a favor de compras anteriores\./);
+  // Lo que terminó no se le dice a nadie: ni cupón, ni «te vuelven», ni envío gratis por ser suscriptor.
+  for (const cuerpo of [cliente.asunto, cliente.texto, cliente.html]) {
+    assert.doesNotMatch(cuerpo, /cupón de bienvenida|Te vuelven|cashback|Como suscriptor|envío es gratis|Suscriptores Harper|Ver mi saldo/i);
+  }
+
+  // El aviso a Harper: que usó saldo, cuánto, y qué hacer si se devuelve. No es «de suscriptor».
   const interno = mails.find((m) => m.mail.para !== "prueba@harper.ar")!.mail;
-  assert.match(interno.asunto, /^Venta HARPER-T1 — .* · suscriptor$/);
-  assert.match(interno.texto, /Suscriptor: prueba@harper\.ar · cupón de bienvenida −\$\s10\.000 · saldo usado −\$\s5\.000 · cashback a acreditar \$\s7\.490/);
-  assert.match(interno.texto, /Si se devuelve, marcá Anulado en Saldos/);
+  assert.match(interno.asunto, /^Venta HARPER-T1 — .* · con saldo$/);
+  assert.match(interno.texto, /Cuenta Harper: prueba@harper\.ar · saldo usado −\$\s5\.000\nSi se devuelve, marcá Anulado en Saldos el Uso de este pedido \(así recupera el saldo que usó\)\./);
+  for (const cuerpo of [interno.asunto, interno.texto, interno.html]) {
+    assert.doesNotMatch(cuerpo, /cupón de bienvenida|cashback|Suscriptor:|· suscriptor/i);
+  }
 
   // Mercado Pago avisa otra vez: nada se duplica.
   await como("B", () => procesarNotificacion("111", deps));
-  assert.equal((await saldosDe(suscriptorId)).length, 2);
+  assert.deepEqual(await saldosDe(suscriptorId), [["Uso", -5000, "HARPER-T1", null, false]]);
   assert.equal(mails.length, 2);
+});
+
+test("Una compra con cuenta que no usa saldo es una venta como cualquiera: sin línea de la cuenta en los mails ni « · suscriptor» en el asunto (Ale, 18/11/2026)", async () => {
+  // Así queda hoy el pedido de una cuenta sin saldo: el checkout no escribe
+  // ninguna línea de suscriptor en las Notas (sin cupón, sin saldo y sin cashback).
+  const cuenta = await createRecord<FilaSuscriptorPrueba>(TABLAS.suscriptores, { Email: "prueba@harper.ar" });
+  const { pedidoId } = await crearPedido();
+  const { deps, mails } = armarDeps({ "111": pago(pedidoId) });
+  const saldosAntes = (await listRecords(TABLAS.saldos)).length;
+
+  const r = await como("A", () => procesarNotificacion("111", deps));
+  assert.equal(r.cuerpo.estado, "pagado");
+  assert.equal((await listRecords(TABLAS.saldos)).length, saldosAntes, "ninguna compra genera saldo nuevo");
+  assert.deepEqual(await saldosDe(cuenta.id), []);
+  assert.equal((await getRecord<FilaSuscriptorPrueba>(TABLAS.suscriptores, cuenta.id)).fields.Cupon, undefined);
+
+  const cliente = mails.find((m) => m.mail.para === "prueba@harper.ar")!.mail;
+  const interno = mails.find((m) => m.mail.para !== "prueba@harper.ar")!.mail;
+  for (const cuerpo of [cliente.texto, cliente.html, interno.asunto, interno.texto, interno.html]) {
+    assert.doesNotMatch(cuerpo, /Tu cuenta Harper|Cuenta Harper:|saldo|cupón de bienvenida|cashback|Te vuelven|Como suscriptor|suscriptor/i);
+  }
+  assert.match(interno.asunto, /^Venta HARPER-T1 — \$\s[\d.]+$/);
 });
 
 test("Suscriptores: una caída antes de los mails no duplica nada al retomar (cada paso es idempotente por pedido y tipo)", async () => {
