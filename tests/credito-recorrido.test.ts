@@ -120,6 +120,25 @@ const peticionCon = (email: string) =>
   new Request("https://harper.ar/api/checkout", { method: "POST", headers: { cookie: `${COOKIE_CUENTA}=${crearSesionCuenta(claveDeSesionCuenta()!, email)}` } });
 
 /**
+ * Cambia el mínimo del envío gratis en el Config de prueba solo durante
+ * `hacer` (como `conConfig` en tests/duo-envio.test.ts). Para la compra de
+ * $ 0: el crédito se usa solo en anteojos y nunca paga el envío, así que el
+ * total llega a $ 0 únicamente si el envío es gratis. Con esto la prueba no
+ * depende del mínimo por defecto de los datos de prueba (Ale, 18/11/2026:
+ * $ 250.000 al resto del país), y las demás pruebas del archivo siguen con él.
+ */
+async function conEnvioGratisDesde<T>(minimo: number, hacer: () => Promise<T>): Promise<T> {
+  const fila = (await listRecords<{ Clave?: string; Valor?: string }>(TABLAS.config)).find((f) => f.fields.Clave === "envio_gratis_desde")!;
+  const antes = fila.fields.Valor;
+  await updateRecord(TABLAS.config, fila.id, { Valor: String(minimo) });
+  try {
+    return await hacer();
+  } finally {
+    await updateRecord(TABLAS.config, fila.id, { Valor: antes });
+  }
+}
+
+/**
  * Lo que hace el checkout (app/api/checkout/route.ts), con las mismas
  * funciones: el crédito que ofrece el carrito a la cuenta verificada, el
  * carrito del servidor, la reserva con la cuenta tomada ANTES de crear el
@@ -312,7 +331,9 @@ test("Compra de $ 0 pagada entera con el crédito: sin Mercado Pago, «Usado», 
   /** El camino de $ 0 del checkout: confirmarPedidoSinPago con la cuenta todavía tomada. */
   async function sinPago(fallar: boolean) {
     const creditoHarper = await creditoParaElCarrito(peticionCon(MAIL), true);
-    const carrito = await resolverCarrito([linea("obsidiana")], { paraCobrar: true, creditoHarper });
+    // Un anteojo con envío gratis (como hoy en AMBA): el crédito lo cubre entero y no queda nada por pagar.
+    const carrito = await conEnvioGratisDesde(80_000, () => resolverCarrito([linea("obsidiana")], { paraCobrar: true, creditoHarper }));
+    assert.equal(carrito.envio, 0);
     assert.equal(carrito.total, 0);
     const numero = `HARPER-Z${++secuencia}`;
     const abierta = await abrirCuentaDeCredito(MAIL, t.uso);

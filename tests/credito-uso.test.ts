@@ -528,9 +528,20 @@ test("Pedido en $ 0: si el crédito no se confirma como se reservó, no hay comp
   const { deps } = armarUso();
   const credito = await ganado(MAIL, { Monto: 200_000 });
   const linea = await lineas();
-  const carrito = await resolverCarrito([linea("amatista")], { paraCobrar: true, creditoHarper: { usable: 200_000, pedido: null } });
+  // Un anteojo con envío gratis (como hoy en AMBA): el crédito se usa solo en
+  // anteojos y nunca paga el envío, así que el total llega a $ 0 únicamente si
+  // el envío es gratis. El mínimo se fija solo para este carrito, para no
+  // depender del mínimo por defecto de los datos de prueba (Ale, 18/11/2026:
+  // $ 250.000 al resto del país).
+  const filaMinimo = (await listRecords<{ Clave?: string; Valor?: string }>(TABLAS.config)).find((f) => f.fields.Clave === "envio_gratis_desde")!;
+  const minimoAntes = filaMinimo.fields.Valor;
+  await updateRecord(TABLAS.config, filaMinimo.id, { Valor: "80000" });
+  const carrito = await resolverCarrito([linea("amatista")], { paraCobrar: true, creditoHarper: { usable: 200_000, pedido: null } }).finally(() =>
+    updateRecord(TABLAS.config, filaMinimo.id, { Valor: minimoAntes })
+  );
   const monto = carrito.creditoHarper!.usado;
   assert.ok(monto > 0);
+  assert.equal(carrito.envio, 0);
   assert.equal(carrito.total, 0);
   const variante = carrito.items[0].varianteId;
   const stockDe = async () => (await getRecord<{ Stock?: number; Stock_pedidos?: string }>(TABLAS.variantes, variante)).fields;

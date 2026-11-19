@@ -14,7 +14,7 @@ import { getProductos } from "../lib/catalogo";
 import { conDescuento, totalConDescuento } from "../lib/descuentos";
 import { unidadesParaCobrar } from "../lib/dinero-mp";
 import { resolverCarrito, type CarritoResuelto } from "../lib/pedidos";
-import { cashbackDe, type SuscriptorDelCarrito } from "../lib/suscriptores";
+import type { SuscriptorDelCarrito } from "../lib/suscriptores";
 import type { ItemCarrito } from "../lib/tipos";
 
 /** Integración del Dúo en resolverCarrito (Tarea 04), con el interruptor apagado y prendido. */
@@ -150,16 +150,42 @@ test("Dúo prendido: cuatro del mismo modelo y color, dos con el 25 %", async ()
   assert.equal(sumaParaMercadoPago(con), 314_650, "se manda partido en pesos enteros");
 });
 
-test("Dúo prendido con un suscriptor: primero el Dúo, después el cupón de bienvenida", async () => {
+test("Dúo prendido con una cuenta: el Dúo y nada más. Sin cupón de bienvenida, sin cashback y con el envío de cualquiera (Ale, 18/11/2026)", async () => {
   const { amatistaNegro, cuarzoAmbar } = await variantes();
+  // La cuenta como la traería una fila de antes del 18/11, con el cupón «Disponible».
   const suscriptor: SuscriptorDelCarrito = { id: "recPRUEBA", email: "prueba@harper.ar", cuponDisponible: true, saldoDisponible: 0, activo: true };
-  const con = await prendido(() => resolverCarrito([linea(amatistaNegro), linea(cuarzoAmbar)], { suscriptor }));
-  assert.equal(con.subtotal + con.suscriptor!.cupon, 157_325, "el cupón va sobre lo que ya tiene el Dúo");
-  assert.equal(con.subtotalSinCupon, 179_800, "el envío gratis se mide antes del Dúo y del cupón");
-  assert.equal(con.suscriptor?.cupon, 10_000);
-  assert.equal(con.subtotal, 147_325);
-  assert.equal(con.envio, 0, "el suscriptor tiene envío gratis, como hoy");
-  assert.equal(con.total, 147_325);
-  assert.equal(con.suscriptor?.cashbackPrevisto, cashbackDe(147_325), "el cashback de hoy, sobre lo que paga");
+  const items = [linea(amatistaNegro), linea(cuarzoAmbar)];
+  const visitante = await prendido(() => resolverCarrito(items));
+  const con = await prendido(() => resolverCarrito(items, { suscriptor }));
+
+  // Los mismos importes que sin cuenta, renglón por renglón.
+  assert.deepEqual(importes(con), importes(visitante));
+  assert.equal(con.subtotal, 157_325, "dos anteojos de $ 89.900 con el Dúo");
+  assert.equal(con.subtotalSinCupon, 179_800, "el envío gratis se mide antes del Dúo");
+  assert.equal(con.total, 157_325);
+  // El 10 % por dinero en Mercado Pago, sobre lo que queda con el Dúo.
+  assert.equal(con.dineroMP?.subtotal, 141_593);
+  // Lo que el carrito dice de la cuenta: ni cupón, ni cashback, ni cuotas propias.
+  assert.deepEqual(con.suscriptor, {
+    email: "prueba@harper.ar",
+    cupon: 0,
+    cuponDisponible: false,
+    saldoUsado: 0,
+    saldoDisponible: 0,
+    saldoReservado: 0,
+    cashbackPrevisto: 0,
+    cashbackDineroMP: null,
+    cuotas: 3,
+    activo: true,
+  });
+  assert.ok(con.items.every((i) => i.cupon === undefined && i.saldo === undefined));
   assert.equal(sumaParaMercadoPago(con), con.subtotal);
+
+  // Sin envío gratis por tener cuenta: un anteojo solo no llega al mínimo
+  // ($ 160.000 en este archivo) y paga el mismo envío que un visitante.
+  const unoVisitante = await prendido(() => resolverCarrito([linea(amatistaNegro)]));
+  const unoConCuenta = await prendido(() => resolverCarrito([linea(amatistaNegro)], { suscriptor }));
+  assert.ok(unoVisitante.envio > 0);
+  assert.deepEqual(importes(unoConCuenta), importes(unoVisitante));
+  assert.equal(unoConCuenta.envioBonificado, false);
 });
