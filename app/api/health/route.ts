@@ -5,7 +5,6 @@ import { verificarRedis } from "@/lib/cerrojo";
 import { getConfig } from "@/lib/config";
 import { enviaConfigurado, entornoEnvia } from "@/lib/envia";
 import { diagnosticarCuotas } from "@/lib/cuotas-servidor";
-import { CUOTAS_SON_BENEFICIO, CUOTAS_SUSCRIPTORES } from "@/lib/suscriptores";
 import { configuracionDirecciones } from "@/lib/direcciones-servidor";
 import { blobConfigurado } from "@/lib/media";
 import { mailsConfigurados } from "@/lib/mails";
@@ -48,15 +47,11 @@ export async function GET() {
   const redis = await verificarRedis();
 
   // Las cuotas sin interés se anuncian solo si Mercado Pago las confirma:
-  // acá se ve qué contesta para el anteojo más barato publicado.
+  // acá se ve qué contesta para el anteojo más barato publicado. Son las
+  // mismas para todos (Ale, 18/11/2026): el diagnóstico aparte de las cuotas
+  // de suscriptor salió, porque ya no existen.
   const anteojos = (await getProductos("Anteojos").catch(() => [])).map((p) => p.precio).filter((p) => p > 0);
   const cuotas = anteojos.length ? await diagnosticarCuotas(Math.min(...anteojos)) : { anunciadas: null };
-  // Las de los suscriptores se verifican aparte (pueden estar unas y no las
-  // otras), solo mientras sean más que las de todos.
-  const cuotasSuscriptores =
-    CUOTAS_SON_BENEFICIO && anteojos.length
-      ? await diagnosticarCuotas(Math.min(...anteojos), CUOTAS_SUSCRIPTORES)
-      : { anunciadas: null, beneficio: CUOTAS_SON_BENEFICIO };
   // La portada las verifica con lo más barato publicado de todo el catálogo.
   const todo = (await getProductos().catch(() => [])).map((p) => p.precio).filter((p) => p > 0);
   const cuotasPortada = todo.length ? await diagnosticarCuotas(Math.min(...todo)) : { anunciadas: null };
@@ -123,7 +118,6 @@ export async function GET() {
     },
     redis,
     cuotas,
-    cuotasSuscriptores,
     cuotasPortada,
     mercadoLibre,
     envia,

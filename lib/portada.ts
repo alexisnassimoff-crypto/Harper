@@ -1,5 +1,4 @@
-import { precio as formatearPrecio } from "./formato";
-import { CASHBACK_PORCENTAJE, CUPON_BIENVENIDA, DIAS_PARA_USAR_CASHBACK } from "./suscriptores";
+import { TEXTOS } from "./textos";
 
 /**
  * Textos de la portada y de los metadatos del sitio.
@@ -62,36 +61,56 @@ const minuscula = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice
 const conPunto = (texto: string) => (/[.!?]$/.test(texto) ? texto : `${texto}.`);
 
 /**
+ * El Dúo para las preguntas, con lo que dijo el servidor: el porcentaje y, si
+ * pudo resolver un carrito de dos anteojos, lo que cobra por los dos (con y
+ * sin el 10 % de Mercado Pago) y su precio de lista, ya formateados. Null con
+ * el Dúo apagado: no se pregunta ni se nombra.
+ */
+export type DuoParaPreguntas = {
+  porcentaje: number;
+  dos: { total: string; lista: string; totalDineroMP: string | null } | null;
+};
+
+/**
  * Las preguntas frecuentes de la portada. Cada respuesta sale de algo que ya
- * es cierto en la tienda (lib/confianza.ts, lib/cupones.ts, lib/dinero-mp.ts,
+ * es cierto en la tienda (lib/confianza.ts, lib/dinero-mp.ts, lib/duo.ts,
  * Config): lo que no está confirmado no se pregunta. Sin plazos de entrega.
+ *
+ * Ale, 18/11/2026: las condiciones de compra son las mismas para todos. Las
+ * cuotas son hasta 3 para cualquier comprador, el envío es gratis solo desde
+ * los mínimos de Config (contados a precio de lista) y el 10 % por pagar con
+ * el dinero de la cuenta de Mercado Pago se suma al Dúo. Tener cuenta no
+ * cambia nada de eso: la cuenta es para seguir las compras y recibir las
+ * novedades. Salieron la pregunta de la suscripción con beneficios y la del
+ * cupón de primera compra.
  */
 export function preguntasDePortada(datos: {
   /** Lo que incluye cada par, de Airtable. Vacío = no se pregunta. */
   incluye: string[];
   /** Las características confirmadas del modelo, o null. */
   caracteristicas: readonly string[] | null;
+  /** Las cuotas sin interés que Mercado Pago confirmó (las mismas para todos); null no las nombra. */
   cuotas: { cuotas: number; cftea: string } | null;
   nombreMarcas: string;
   envioGratisDesde: number;
   envioGratisTexto: string;
-  /** El mínimo de envío gratis en AMBA, ya formateado; null si no hay uno más bajo que el de todo el país. */
+  /** El mínimo de envío gratis en AMBA, ya formateado; null si no hay uno más bajo que el del resto del país. */
   envioGratisAmbaTexto?: string | null;
   hayWhatsapp: boolean;
   diasArrepentimiento: number;
   diasCambio: number;
   mesesGarantia: number;
-  /** El cupón de primera compra; null si no hay (desde el 30/10/2026). */
-  cupon: { codigo: string; porcentaje: number } | null;
-  /** La escala de anteojos, "llevá 3 y pagá 2, o llevá 5 y pagá 3"; null si no hay. */
+  /** La escala de anteojos, "llevá 3 y pagá 2, o llevá 5 y pagá 3"; null si Airtable no tiene ninguna (hoy, ninguna). */
   escala?: string | null;
   porcentajeDineroMP: number;
-  /** Las cuotas de suscriptor confirmadas por Mercado Pago, si son más que las de todos; null no las nombra. */
-  cuotasSuscriptor?: { cuotas: number; cftea: string } | null;
-  /** Suscriptores Harper (Ale, 03/11/2026): la pregunta y el envío gratis siempre. */
-  suscriptores?: boolean;
+  /** El Dúo, solo si el servidor lo tiene prendido; null o sin el dato, ni se nombra. */
+  duo?: DuoParaPreguntas | null;
+  /** La pregunta de la cuenta Harper y las novedades (en /preguntas-frecuentes). */
+  cuenta?: boolean;
 }): Pregunta[] {
   const preguntas: Pregunta[] = [];
+  const P = TEXTOS.programa;
+  const duo = datos.duo ?? null;
 
   // Lo que tienen y lo que viene en la caja, en una sola pregunta (menos texto, 30/10/2026).
   const tienen =
@@ -116,34 +135,33 @@ export function preguntasDePortada(datos: {
     pregunta: "¿Cómo puedo pagar?",
     respuesta: [
       "Con Mercado Pago: tarjeta, débito o dinero en tu cuenta.",
+      // Las cuotas, solo si Mercado Pago las confirmó. Son para cualquier comprador.
       datos.cuotas
-        ? `En anteojos tenés ${datos.cuotas.cuotas} cuotas sin interés con ${datos.nombreMarcas} (CFTEA ${datos.cuotas.cftea})${
-            datos.cuotasSuscriptor ? `, y ${datos.cuotasSuscriptor.cuotas} si sos suscriptor` : ""
-          }; el valor de cada cuota está junto al precio.`
-        : datos.cuotasSuscriptor
-          ? `Si sos suscriptor, en anteojos tenés ${datos.cuotasSuscriptor.cuotas} cuotas sin interés con ${datos.nombreMarcas} (CFTEA ${datos.cuotasSuscriptor.cftea}).`
-          : null,
-      `Si en el checkout elegís «Dinero en Mercado Pago» y pagás con el saldo de tu cuenta, tenés ${datos.porcentajeDineroMP}% OFF extra.`,
+        ? `En anteojos tenés ${P.cuotas.sinInteres(datos.cuotas.cuotas)} con ${datos.nombreMarcas} (CFTEA ${datos.cuotas.cftea}); el valor de cada cuota está junto al precio. ${P.cuotas.paraTodos}`
+        : null,
+      `Si en el checkout elegís «Dinero en Mercado Pago» y pagás con el dinero de tu cuenta, en un pago, tenés ${datos.porcentajeDineroMP}% OFF extra. No se aplica al envío.`,
+      duo ? P.dineroMP.seSumaAlDuo : null,
     ]
       .filter(Boolean)
       .join(" "),
   });
 
+  // El envío: gratis solo desde los mínimos de Config. Donde se dice un
+  // mínimo, se aclara que se cuenta a precio de lista (el servidor lo mide
+  // antes del Dúo y del 10 % de Mercado Pago).
+  const hayMinimo = datos.envioGratisDesde > 0 || Boolean(datos.envioGratisAmbaTexto);
   preguntas.push({
     pregunta: "¿Cuánto cuesta el envío?",
     respuesta: [
       datos.envioGratisAmbaTexto
         ? datos.envioGratisDesde > 0
-          ? `Es gratis en AMBA en compras desde ${datos.envioGratisAmbaTexto} y en todo el país desde ${datos.envioGratisTexto}. Si no, el costo aparece en el checkout apenas ponés tu dirección, antes de pagar.`
-          : `Es gratis en AMBA en compras desde ${datos.envioGratisAmbaTexto}. Al resto del país, el costo aparece en el checkout apenas ponés tu dirección, antes de pagar.`
+          ? `${P.envio.amba(datos.envioGratisAmbaTexto)}. ${P.envio.resto(datos.envioGratisTexto)}. ${P.envio.minimo} Si tu compra no llega al mínimo, el costo aparece en el checkout apenas ponés tu dirección, antes de pagar.`
+          : `${P.envio.amba(datos.envioGratisAmbaTexto)}. ${P.envio.minimo} Al resto del país, el costo aparece en el checkout apenas ponés tu dirección, antes de pagar.`
         : datos.envioGratisDesde > 0
-          ? `Es gratis en compras desde ${datos.envioGratisTexto}. Si no, el costo aparece en el checkout antes de pagar.`
+          ? `${P.envio.unico(datos.envioGratisTexto)}. ${P.envio.minimo} Si tu compra no llega al mínimo, el costo aparece en el checkout antes de pagar.`
           : "El costo aparece en el checkout antes de pagar.",
-      datos.suscriptores ? "Si sos suscriptor, es gratis siempre." : null,
       "Despachamos de lunes a viernes.",
-    ]
-      .filter(Boolean)
-      .join(" "),
+    ].join(" "),
   });
 
   preguntas.push({
@@ -156,29 +174,44 @@ export function preguntasDePortada(datos: {
     enlace: { href: "/legales/devoluciones", texto: "Ver la política de cambios" },
   });
 
-  if (datos.cupon) {
+  // El Dúo (Ale, 18/11/2026), solo prendido: qué es, que se combinan modelos
+  // y colores, que el 10 % de Mercado Pago se suma y cómo se cuenta el envío
+  // gratis. El porcentaje y los importes son los del servidor.
+  if (duo) {
     preguntas.push({
-      pregunta: "¿Hay descuento en la primera compra?",
-      respuesta: `Sí: con el código ${datos.cupon.codigo} tenés ${datos.cupon.porcentaje}% OFF en tu primera compra. No se suma a la promoción por cantidad: se aplica la que más te conviene. El ${datos.porcentajeDineroMP}% extra por pagar con dinero en Mercado Pago sí se suma.`,
+      pregunta: P.duo.pregunta,
+      respuesta: [
+        P.duo.respuesta(duo.porcentaje),
+        duo.dos ? P.duo.dosAnteojos(duo.dos.total, duo.dos.lista) : null,
+        P.duo.conMas,
+        P.duo.combinar,
+        P.duo.conDineroMP(datos.porcentajeDineroMP, duo.dos?.totalDineroMP ?? null),
+        hayMinimo ? `Para el envío gratis, ${minuscula(P.envio.minimo)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      // La sección del Dúo de los Términos, que también existe solo con el Dúo prendido.
+      enlace: { href: "/legales/terminos#duo", texto: "Ver las condiciones del Dúo" },
     });
-  } else if (datos.escala) {
+  }
+
+  // Solo si Airtable tuviera una escala activa (hoy no hay ninguna): el
+  // servidor la aplicaría, así que se explica.
+  if (datos.escala) {
     preguntas.push({
       pregunta: "¿Hay descuento por llevar más de un par?",
       respuesta: `Sí: ${datos.escala}. Podés mezclar modelos y colores, y se aplica solo en el carrito. El ${datos.porcentajeDineroMP}% extra por pagar con dinero en Mercado Pago también se suma.`,
     });
   }
 
-  if (datos.suscriptores) {
-    const beneficios = enumerar([
-      `${formatearPrecio(CUPON_BIENVENIDA)} de descuento en tu primera compra`,
-      `el ${CASHBACK_PORCENTAJE}% de lo que pagás en productos de vuelta como saldo (lo usás a los ${DIAS_PARA_USAR_CASHBACK} días y no vence)`,
-      "envío gratis siempre",
-      ...(datos.cuotasSuscriptor ? [`${datos.cuotasSuscriptor.cuotas} cuotas sin interés (CFTEA ${datos.cuotasSuscriptor.cftea})`] : []),
-    ]);
+  // La cuenta y las novedades, en lugar de la suscripción con beneficios
+  // (Ale, 18/11/2026). Se dice claro que no cambia las cuotas ni el envío.
+  if (datos.cuenta) {
     preguntas.push({
-      pregunta: "¿Qué es Suscriptores Harper?",
-      respuesta: `Es gratis: te suscribís con tu mail y tenés ${beneficios}. Te das de baja cuando quieras.`,
-      enlace: { href: "/suscriptores", texto: "Suscribirme" },
+      pregunta: "¿Para qué sirve la cuenta Harper?",
+      respuesta:
+        "Es gratis. Dejás tu mail y te avisamos cuando salen modelos y colores nuevos. Con ese mismo mail entrás a tu cuenta, donde seguís tus compras y guardás tus favoritos, tus datos y tus direcciones. Las cuotas y el envío son los mismos para todos, con cuenta o sin cuenta. Si te das de baja, dejás de recibir nuestros mails de novedades. Tu cuenta sigue igual, y los mails de tus pedidos te siguen llegando.",
+      enlace: { href: "/suscriptores", texto: "Conocer la cuenta Harper" },
     });
   }
 
@@ -187,7 +220,10 @@ export function preguntasDePortada(datos: {
 
 export type Paso = { titulo: string; texto: string };
 
-/** "Cómo es comprar en Harper", en cuatro pasos. Sin plazos de entrega. */
+/**
+ * "Cómo es comprar en Harper", en cuatro pasos. Sin plazos de entrega. Las
+ * cuotas son las de cualquier comprador y los mínimos del envío, los de Config.
+ */
 export function pasosDeCompra(datos: {
   cuotas: { cuotas: number; cftea: string } | null;
   nombreMarcas: string;
@@ -212,11 +248,11 @@ export function pasosDeCompra(datos: {
     {
       titulo: "Lo despachamos",
       texto: datos.envioGratisAmbaTexto
-        ? `Preparamos tu pedido de lunes a viernes. Envío gratis en AMBA desde ${datos.envioGratisAmbaTexto}${
-            datos.envioGratisDesde > 0 ? ` y en todo el país desde ${datos.envioGratisTexto}` : ""
-          }.`
+        ? `Preparamos tu pedido de lunes a viernes. ${TEXTOS.programa.envio.amba(datos.envioGratisAmbaTexto)}.${
+            datos.envioGratisDesde > 0 ? ` ${TEXTOS.programa.envio.resto(datos.envioGratisTexto)}.` : ""
+          }`
         : datos.envioGratisDesde > 0
-          ? `Preparamos tu pedido de lunes a viernes. Envío gratis desde ${datos.envioGratisTexto}.`
+          ? `Preparamos tu pedido de lunes a viernes. ${TEXTOS.programa.envio.unico(datos.envioGratisTexto)}.`
           : "Preparamos tu pedido y lo despachamos de lunes a viernes.",
     },
     {
@@ -259,16 +295,21 @@ export function garantiasDePortada(datos: {
       texto: "Pagás en Mercado Pago: Harper nunca ve los datos de tu tarjeta.",
     },
     {
+      // Los dos mínimos de Config y, donde se dice el del resto del país, que
+      // se cuenta a precio de lista (Ale, 18/11/2026).
       clave: "envio",
       titulo: datos.envioGratisAmbaTexto
-        ? `Envío gratis en AMBA desde ${datos.envioGratisAmbaTexto}`
+        ? TEXTOS.programa.envio.amba(datos.envioGratisAmbaTexto)
         : datos.envioGratisDesde > 0
-          ? `Envío gratis desde ${datos.envioGratisTexto}`
+          ? TEXTOS.programa.envio.unico(datos.envioGratisTexto)
           : "Envío a domicilio",
-      texto:
-        datos.envioGratisAmbaTexto && datos.envioGratisDesde > 0
-          ? `En todo el país, gratis desde ${datos.envioGratisTexto}. Despachamos de lunes a viernes.`
-          : "Despachamos de lunes a viernes.",
+      texto: [
+        datos.envioGratisAmbaTexto && datos.envioGratisDesde > 0 ? `${TEXTOS.programa.envio.resto(datos.envioGratisTexto)}.` : null,
+        datos.envioGratisDesde > 0 ? TEXTOS.programa.envio.minimo : null,
+        "Despachamos de lunes a viernes.",
+      ]
+        .filter(Boolean)
+        .join(" "),
     },
   ];
 }

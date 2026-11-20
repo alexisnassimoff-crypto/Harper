@@ -18,7 +18,8 @@ import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import { anunciosDelHeader } from "@/lib/anuncios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
-import { cuotasDeTodosYSuscriptores } from "@/lib/cuotas-servidor";
+import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
+import { porcentajeDelDuo } from "@/lib/pedidos";
 
 // La tipografía (Ale, 07/11/2026 y 17/11/2026): los títulos y los botones
 // son de Google Fonts, gratis y servidas desde harper.ar por next/font, solo
@@ -90,12 +91,17 @@ export default async function RootLayout({
   // las previstas (sol, Clip-On, receta) aparecen solas cuando tengan.
   const categorias = categoriasConProductos(productos).map((c) => ({ nombre: c.nombre, slug: c.slug }));
   // La barra de arriba anuncia las cuotas solo si Mercado Pago las confirma
-  // para el anteojo más barato; si tarda, sale sin ellas. Las de todos (3) y
-  // las de suscriptor (6), cada una confirmada aparte.
-  const cuotas = await cuotasDeTodosYSuscriptores(
-    productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio),
-    2_000
+  // para el anteojo más barato; si tarda, sale sin ellas. Son las mismas para
+  // todos (Ale, 18/11/2026: hasta 3; nadie tiene más).
+  const cuotas = await conEspera(
+    verificarCuotasPara(productos.filter((p) => esCategoriaDeAnteojos(p.categoria)).map((p) => p.precio)),
+    2_000,
+    null
   );
+  // El Dúo se anuncia solo si el servidor lo tiene prendido (HARPER_DUO_ACTIVO):
+  // apagado, la barra no lo nombra. Se pregunta acá, en el servidor, por la
+  // misma puerta que la ficha y la portada (lib/pedidos.ts), y viaja como dato.
+  const duo = porcentajeDelDuo();
 
   // Identidad del negocio para Google: es de donde sale el panel de marca en
   // los resultados, y el buscador interno del sitio.
@@ -159,10 +165,12 @@ export default async function RootLayout({
           <Header
             anuncios={anunciosDelHeader({
               banner: config.bannerTexto,
-              cuotas: cuotas.todos,
-              cuotasSuscriptor: cuotas.suscriptores,
+              cuotas,
               escala: escalaDe(tramos, "Anteojos"),
-              suscriptores: true,
+              duo,
+              // El envío gratis de la barra sale de los dos mínimos de Config.
+              envioGratisDesde: config.envioGratisDesde,
+              envioGratisAmbaDesde: config.envioGratisAmbaDesde,
             })}
             categorias={categorias}
           />

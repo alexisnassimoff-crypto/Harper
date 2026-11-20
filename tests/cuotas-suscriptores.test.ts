@@ -16,11 +16,14 @@ import { suscriptorDelCarritoDeLaPeticion } from "../lib/suscriptores-cuenta";
 import { claveDeSesionSuscriptor, COOKIE_SUSCRIPTOR, crearSesionSuscriptor } from "../lib/suscriptores-sesion";
 
 /**
- * Cuotas exclusivas (Ale, 05/11/2026): hasta 3 sin interés para todos y hasta
- * 6 para suscriptores con la sesión verificada y los beneficios activos.
- * Cada importe se verifica con Mercado Pago: acá, uno de prueba con mínimos
- * propios (3 sin interés desde $ 70.000 y 6 desde $ 80.000). Los mínimos
- * reales los pone Ale en Mercado Pago y no están en el código.
+ * Las cuotas por comprador. Entre el 05/11 y el 18/11/2026 eran «exclusivas»:
+ * hasta 3 sin interés para todos y hasta 6 para suscriptores con la sesión
+ * verificada. Ale, 18/11/2026: son las mismas para todos, hasta 3, con cuenta
+ * o sin cuenta; nadie tiene 6. Cada importe se sigue verificando con Mercado
+ * Pago: acá, uno de prueba con mínimos propios (3 sin interés desde $ 70.000
+ * y 6 desde $ 80.000, para ver que las 6 no se anuncian aunque Mercado Pago
+ * las dé). Los mínimos reales los pone Ale en Mercado Pago y no están en el
+ * código.
  */
 
 const MINIMOS = { 3: 70_000, 6: 80_000 } as Record<number, number>;
@@ -63,7 +66,7 @@ beforeEach(() => {
   }) as typeof fetch;
 });
 
-test("cuotas: con el monto debajo del mínimo de 6, el suscriptor ve las 3 que sí son sin interés", () => {
+test("cuotas: de un tope para abajo, las más que Mercado Pago confirma sin interés para ese importe", () => {
   const conSeis = [respuestaMP(89_900), respuestaMP(89_900)];
   assert.equal(evaluarMejoresCuotas(conSeis, 6, 89_900)?.cuotas, 6);
   assert.equal(evaluarMejoresCuotas(conSeis, 3, 89_900)?.cuotas, 3);
@@ -75,21 +78,19 @@ test("cuotas: con el monto debajo del mínimo de 6, el suscriptor ve las 3 que s
   assert.equal(evaluarMejoresCuotas(ninguna, 3, 50_000), null);
 });
 
-test("cuotas: a cada comprador las suyas, y a quien no es suscriptor las que tendría (si son más)", async () => {
-  // $ 89.900: 3 para todos, 6 para suscriptores.
-  assert.deepEqual(
-    Object.fromEntries(Object.entries(await cuotasParaComprador(89_900, false)).map(([k, v]) => [k, v?.cuotas ?? null])),
-    { suyas: 3, deSuscriptor: 6 }
-  );
-  const suscriptor = await cuotasParaComprador(89_900, true);
-  assert.equal(suscriptor.suyas?.cuotas, 6);
-  assert.equal(suscriptor.suyas?.montoCuota, 14983.33);
-  assert.equal(suscriptor.deSuscriptor, null);
-  // $ 79.900 (debajo del mínimo de 6): todos tienen 3 y no hay nada más que ofrecer.
-  const debajo = await cuotasParaComprador(79_900, false);
-  assert.equal(debajo.suyas?.cuotas, 3);
-  assert.equal(debajo.deSuscriptor, null);
-  assert.equal((await cuotasParaComprador(79_900, true)).suyas?.cuotas, 3);
+test("cuotas: las mismas para todos, hasta 3, aunque Mercado Pago dé 6 sin interés para ese importe (Ale, 18/11/2026)", async () => {
+  // $ 89.900: este Mercado Pago da 6 sin interés, pero la tienda anuncia 3 a
+  // cualquiera, y a nadie le ofrece «las de suscriptor».
+  const visitante = await cuotasParaComprador(89_900, false);
+  const conCuenta = await cuotasParaComprador(89_900, true);
+  assert.deepEqual(visitante, { suyas: { cuotas: 3, montoCuota: 29966.67, cftea: "0,00 %" }, deSuscriptor: null });
+  assert.deepEqual(conCuenta, visitante, "con cuenta o sin cuenta, lo mismo");
+  // $ 79.900 (debajo del mínimo de 6 de este Mercado Pago): 3, igual.
+  for (const esSuscriptor of [false, true]) {
+    const debajo = await cuotasParaComprador(79_900, esSuscriptor);
+    assert.equal(debajo.suyas?.cuotas, 3);
+    assert.equal(debajo.deSuscriptor, null);
+  }
   // $ 50.000: ninguna sin interés, para nadie.
   assert.deepEqual(await cuotasParaComprador(50_000, true), { suyas: null, deSuscriptor: null });
   assert.deepEqual(await cuotasParaComprador(50_000, false), { suyas: null, deSuscriptor: null });
@@ -117,42 +118,65 @@ function peticion(cookie?: string, cuerpo: unknown = {}) {
 }
 const sesionDe = (suscriptorId: string, email: string) => crearSesionSuscriptor(claveDeSesionSuscriptor()!, { suscriptorId, email });
 
-test("cuotas: las 6 salen de la sesión verificada y activa, nunca del mail que se escribe", async () => {
-  const tope = async (r: Request) => cuotasDelComprador(await suscriptorDelCarritoDeLaPeticion(r));
-  // Ana entró con su mail y su código: su cookie firmada vale 6.
-  assert.equal(await tope(peticion(sesionDe(SUSCRIPTOR_ANA, "ana@ejemplo.com"))), 6);
-  // Sin cookie, aunque el formulario traiga el mail de Ana: 3.
-  assert.equal(await tope(peticion(undefined, { cliente: { email: "ana@ejemplo.com" } })), 3);
-  // Una cookie falsificada o de otra clave: 3.
-  assert.equal(await tope(peticion("v1.recSUSCANA0000001.ana@ejemplo.com.9999999999999.firma")), 3);
+test("cuotas: ninguna sesión da más de 3: ni la verificada, ni la falsificada, ni la de quien se dio de baja (Ale, 18/11/2026)", async () => {
+  const comprador = async (r: Request) => {
+    const cuenta = await suscriptorDelCarritoDeLaPeticion(r);
+    return { email: cuenta?.email ?? null, tope: cuotasDelComprador(cuenta) };
+  };
+  // Ana entró con su mail y su código: la cookie firmada la reconoce (para su
+  // cuenta y su saldo), pero ya no le da 6 cuotas.
+  assert.deepEqual(await comprador(peticion(sesionDe(SUSCRIPTOR_ANA, "ana@ejemplo.com"))), { email: "ana@ejemplo.com", tope: 3 });
+  // Sin cookie, aunque el formulario traiga el mail de Ana: nadie, y 3.
+  assert.deepEqual(await comprador(peticion(undefined, { cliente: { email: "ana@ejemplo.com" } })), { email: null, tope: 3 });
+  // Una cookie falsificada o de otra clave: nadie, y 3.
+  assert.deepEqual(await comprador(peticion("v1.recSUSCANA0000001.ana@ejemplo.com.9999999999999.firma")), { email: null, tope: 3 });
   const otraClave = crearSesionSuscriptor(Buffer.from("otra-clave-de-32-caracteres-minimo-xx"), { suscriptorId: SUSCRIPTOR_ANA, email: "ana@ejemplo.com" });
-  assert.equal(await tope(peticion(otraClave)), 3);
-  // La firma de Ana con el mail de otra persona no coincide con la fila: 3.
-  assert.equal(await tope(peticion(sesionDe(SUSCRIPTOR_ANA, "otra@ejemplo.com"))), 3);
-  // Carla se dio de baja: su sesión le sirve para el saldo, pero las cuotas son las de todos.
-  assert.equal(await tope(peticion(sesionDe(SUSCRIPTOR_CARLA, "carla@ejemplo.com"))), 3);
+  assert.deepEqual(await comprador(peticion(otraClave)), { email: null, tope: 3 });
+  // La firma de Ana con el mail de otra persona no coincide con la fila: nadie, y 3.
+  assert.deepEqual(await comprador(peticion(sesionDe(SUSCRIPTOR_ANA, "otra@ejemplo.com"))), { email: null, tope: 3 });
+  // Carla se dio de baja de las novedades: su cuenta sigue, con las cuotas de todos.
+  assert.deepEqual(await comprador(peticion(sesionDe(SUSCRIPTOR_CARLA, "carla@ejemplo.com"))), { email: "carla@ejemplo.com", tope: 3 });
+  // Y lo que resuelve el carrito para cada una: 3.
+  for (const [id, email] of [[SUSCRIPTOR_ANA, "ana@ejemplo.com"], [SUSCRIPTOR_BETO, "beto@ejemplo.com"], [SUSCRIPTOR_CARLA, "carla@ejemplo.com"]] as const) {
+    const suscriptor = await suscriptorDelCarritoDeLaPeticion(peticion(sesionDe(id, email)));
+    const carrito = await resolverCarrito([{ productoSlug: "citrino", varianteId: "rec5h3kW0JBY8Wd7y", cantidad: 1 }], { suscriptor });
+    assert.equal(carrito.suscriptor?.cuotas, 3, email);
+  }
 });
 
-test("cuotas: se verifican con el importe final, después del cupón y del saldo", async () => {
+test("cuotas: se verifican con el importe final; la cuenta no baja el precio (sin cupón de bienvenida) y el saldo de antes, sí (Ale, 18/11/2026)", async () => {
   const items = [{ productoSlug: "citrino", varianteId: "rec5h3kW0JBY8Wd7y", cantidad: 1 }];
-  // Beto, recién suscripto: el cupón de bienvenida baja el par a $ 79.900,
-  // debajo del mínimo de 6 de este Mercado Pago de prueba: ve 3, no 6.
+  const visitante = await resolverCarrito(items);
+  // Beto tiene en su fila el cupón de bienvenida «Disponible» (se suscribió
+  // antes del 18/11): ya no se aplica, ni pidiéndolo. Paga lo mismo que un
+  // visitante, envío incluido, y sus cuotas se verifican con ese total.
   const beto = await suscriptorDelCarritoDeLaPeticion(peticion(sesionDe(SUSCRIPTOR_BETO, "beto@ejemplo.com")));
   assert.ok(beto);
-  const conCupon = await resolverCarrito(items, { suscriptor: beto, usarCupon: true });
-  assert.equal(conCupon.total, 79_900);
-  const deBeto = await cuotasParaComprador(conCupon.total, true);
+  assert.equal(beto.cuponDisponible, false);
+  const deBetoElCarrito = await resolverCarrito(items, { suscriptor: beto, usarCupon: true });
+  assert.equal(deBetoElCarrito.suscriptor?.cupon, 0);
+  assert.deepEqual(
+    [deBetoElCarrito.subtotal, deBetoElCarrito.envio, deBetoElCarrito.total],
+    [visitante.subtotal, visitante.envio, visitante.total]
+  );
+  assert.equal(deBetoElCarrito.subtotal, 89_900);
+  montosConsultados = [];
+  const deBeto = await cuotasParaComprador(deBetoElCarrito.total, true);
+  assert.deepEqual(montosConsultados, [deBetoElCarrito.total, deBetoElCarrito.total], "una consulta por marca, con el total de cualquier comprador");
   assert.equal(deBeto.suyas?.cuotas, 3);
-  assert.equal(deBeto.suyas?.montoCuota, 26633.33);
-  // Ana paga parte con su saldo: las cuotas son para lo que queda.
+  assert.equal(deBeto.suyas?.montoCuota, Math.round((deBetoElCarrito.total / 3) * 100) / 100);
+  assert.deepEqual(deBeto, await cuotasParaComprador(visitante.total, false));
+  // Ana paga parte con el saldo que tenía de antes: las cuotas son para lo que queda, y nunca 6.
   const ana = await suscriptorDelCarritoDeLaPeticion(peticion(sesionDe(SUSCRIPTOR_ANA, "ana@ejemplo.com")));
   assert.ok(ana && ana.saldoDisponible > 0);
   const dos = [{ ...items[0], cantidad: 2 }];
   const conSaldo = await resolverCarrito(dos, { suscriptor: ana, usarSaldo: true });
   assert.ok(conSaldo.suscriptor && conSaldo.suscriptor.saldoUsado > 0);
   assert.equal(conSaldo.total, conSaldo.subtotal + conSaldo.envio);
+  assert.ok(conSaldo.total >= MINIMOS[6], "un total con el que este Mercado Pago daría 6 sin interés");
   montosConsultados = [];
   const deAna = await cuotasParaComprador(conSaldo.total, true);
   assert.deepEqual(montosConsultados, [conSaldo.total, conSaldo.total], "una consulta por marca, con el total después del saldo");
-  assert.equal(deAna.suyas?.cuotas, conSaldo.total >= MINIMOS[6] ? 6 : conSaldo.total >= MINIMOS[3] ? 3 : undefined);
+  assert.equal(deAna.suyas?.cuotas, 3);
+  assert.equal(deAna.deSuscriptor, null);
 });

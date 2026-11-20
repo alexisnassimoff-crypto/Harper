@@ -29,9 +29,10 @@ import { urlDelSitio } from "@/lib/sitio";
 import { leerMedioPago, MEDIO_DINERO_MP, NOTA_DINERO_MP } from "@/lib/dinero-mp";
 import { normalizarCliente, validarCliente } from "@/lib/validacion";
 import {
+  BENEFICIOS_DE_SUSCRIPTOR,
   cashbackDe,
   constanciaDelCuponDeBienvenida,
-  cuotasDelComprador,
+  CUOTAS_TODOS,
   MINUTOS_RESERVA,
   notasDeBeneficios,
   type BeneficiosDelPedido,
@@ -160,10 +161,11 @@ export async function POST(request: Request) {
   const eleccion = leerEleccionEnvio(cuerpo.envio);
 
   try {
-    // El suscriptor que entró con su mail (Ale, 03/11/2026): su cupón, su
-    // saldo, el envío gratis y las 6 cuotas. La fila y el saldo se leen
-    // frescos y sin red de contención, como el catálogo: si Airtable falla,
-    // no se cobra (lib/suscriptores-cuenta.ts).
+    // La cuenta que entró con su mail. Desde el 18/11/2026 no trae cupón,
+    // envío gratis, cashback ni cuotas propias (lib/suscriptores.ts): solo el
+    // saldo que le hubiera quedado. La fila y el saldo se leen frescos y sin
+    // red de contención, como el catálogo: si Airtable falla, no se cobra
+    // (lib/suscriptores-cuenta.ts).
     const sesion = leerCookie(request.headers.get("cookie"), COOKIE_SUSCRIPTOR);
     const cuenta = sesion ? await suscriptorDeLaSesion(sesion) : null;
 
@@ -398,18 +400,20 @@ export async function POST(request: Request) {
       Terminos_aceptados: registroAceptacion(ahora),
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     };
-    // Lo que el suscriptor usó y lo que le vuelve, para el pedido (Notas y
-    // Cupon) y para el webhook, que lo anota después del pago. El cashback es
-    // sobre lo que paga en productos, con el medio de pago que eligió.
+    // Lo que la cuenta usó de su saldo anterior, para el pedido (Notas) y para
+    // el webhook, que lo anota después del pago. Desde el 18/11/2026 no hay
+    // cupón ni cashback (BENEFICIOS_DE_SUSCRIPTOR): si no usó saldo, el pedido
+    // no lleva ninguna línea de suscriptor y es un pedido como cualquiera
+    // (con el Crédito Harper prendido, del régimen nuevo: §17.9).
+    const cashback = BENEFICIOS_DE_SUSCRIPTOR && carrito.suscriptor?.activo ? cashbackDe(cobro.subtotal) : 0;
     const beneficios: BeneficiosDelPedido | null =
-      suscriptor && carrito.suscriptor
+      suscriptor && carrito.suscriptor && (carrito.suscriptor.cupon > 0 || carrito.suscriptor.saldoUsado > 0 || cashback > 0)
         ? {
             suscriptorId: suscriptor.id,
             email: suscriptor.email,
             cupon: carrito.suscriptor.cupon,
             saldoUsado: carrito.suscriptor.saldoUsado,
-            // Dado de baja no suma cashback: solo usa el saldo que ya tenía.
-            cashback: carrito.suscriptor.activo ? cashbackDe(cobro.subtotal) : 0,
+            cashback,
           }
         : null;
     const cupon =
@@ -518,11 +522,9 @@ export async function POST(request: Request) {
       sitio: urlDelSitio(request),
       // Con "Dinero en Mercado Pago", Mercado Pago ofrece solo el saldo de la cuenta.
       soloDineroEnCuenta: Boolean(dineroMP),
-      // El tope de cuotas de este comprador (Ale, 05/11/2026): hasta 3, o hasta
-      // 6 si es un suscriptor de la sesión verificada (la cookie firmada,
-      // releída de Airtable arriba) con los beneficios activos. Nunca por el
-      // mail que se escribió en el formulario (lib/suscriptores.ts).
-      cuotasMaximas: cuotasDelComprador(suscriptor),
+      // El tope de cuotas (Ale, 18/11/2026): hasta 3 para todos, con o sin
+      // cuenta. Nadie tiene 6 (lib/suscriptores.ts).
+      cuotasMaximas: CUOTAS_TODOS,
       // Si usa saldo, el cupón o Crédito Harper, los aparta mientras su link cobra: un link corto.
       ...((beneficios && (beneficios.saldoUsado > 0 || beneficios.cupon > 0)) || reservaCredito ? { venceEnMinutos: MINUTOS_RESERVA } : {}),
     });

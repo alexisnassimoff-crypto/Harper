@@ -7,7 +7,7 @@ import { useCarrito } from "@/components/carrito/CarritoContexto";
 import { useCarritoResuelto } from "@/components/carrito/useCarritoResuelto";
 import { componerDireccion, faltantes, type Faltante } from "@/lib/direcciones";
 import { NOMBRE_MARCAS } from "@/lib/cuotas";
-import { esEnvioGratis, textoEnvioGratis } from "@/lib/envio-gratis";
+import { aclaracionDelMinimoConDuo, esEnvioGratis, textoEnvioGratis } from "@/lib/envio-gratis";
 import {
   CONDICIONES_IVA,
   CONSUMIDOR_FINAL,
@@ -37,7 +37,6 @@ import { PROVINCIAS } from "./provincias";
 import ReconocerComprador from "./ReconocerComprador";
 import SuscriptorEnCheckout from "./SuscriptorEnCheckout";
 import CreditoEnCheckout from "./CreditoEnCheckout";
-import { DIAS_PARA_USAR_CASHBACK } from "@/lib/suscriptores";
 import { marcarCuponBienvenidaUsado } from "@/components/carrito/cuponUsado";
 import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import { useCotizacionEnvio, type Cotizacion } from "./useEnvio";
@@ -101,9 +100,7 @@ type RespuestaCheckout = {
   envio?: Cotizacion;
   /** El cupón no corresponde (por ejemplo, no es la primera compra). */
   cuponRechazado?: string;
-  /** El cupón de bienvenida del suscriptor no corresponde: ya hay una compra con ese mail o DNI. */
-  cuponBienvenidaRechazado?: boolean;
-  /** La sesión de suscriptor no es la misma con la que vio el total. */
+  /** La cuenta abierta no es la misma con la que vio el total (entró o salió). */
   suscriptorCambio?: boolean;
   /** Crédito Harper (paso 4): no se pudo usar (sin sesión, otro mail, sin Redis) o cambió lo disponible. */
   creditoRechazado?: boolean;
@@ -168,12 +165,13 @@ export default function FormularioCheckout({
   whatsapp?: string;
 }) {
   const { items, quitar, cupon, quitarCupon } = useCarrito();
-  // Suscriptores Harper (Ale, 03/11/2026): el saldo se usa salvo que lo
-  // desmarque, y el cupón de bienvenida se deja de pedir si el checkout lo
-  // rechaza (ya hay una compra con ese mail o DNI). `sesion` cambia al entrar
-  // o salir: la cookie es otra y el envío se vuelve a cotizar.
+  // La cuenta Harper. Ale, 18/11/2026: tener cuenta ya no cambia el precio,
+  // el envío ni las cuotas, y no hay cupón de bienvenida que pedir. De antes
+  // queda solo el saldo a favor que alguien ya tuviera: se usa salvo que lo
+  // desmarque, y el servidor lo aplica solo a la cuenta que de verdad lo
+  // tiene (hoy, ninguna). `sesion` cambia al salir: la cookie es otra y el
+  // total y el envío se vuelven a pedir.
   const [usarSaldo, setUsarSaldo] = useState(true);
-  const [usarCupon, setUsarCupon] = useState(true);
   // Crédito Harper (paso 4): se usa salvo que lo desmarque. Solo existe si el
   // servidor lo ofrece (interruptor prendido y cuenta verificada).
   const [usarCredito, setUsarCredito] = useState(true);
@@ -187,7 +185,7 @@ export default function FormularioCheckout({
     actualizando,
     error: errorCarrito,
     recargar,
-  } = useCarritoResuelto({ cuotas: true, usarSaldo, usarCupon, usarCredito: pedirCredito });
+  } = useCarritoResuelto({ cuotas: true, usarSaldo, usarCredito: pedirCredito });
   const hayCredito = Boolean(carrito?.creditoHarper);
   useEffect(() => {
     if (hayCredito) setCreditoOfrecido(true);
@@ -249,7 +247,7 @@ export default function FormularioCheckout({
     listo: envioListo,
     recotizar,
     adoptar: adoptarEnvio,
-  } = useCotizacionEnvio(destino, cupon, cotizaEnvio, { usarSaldo, usarCupon, sesion, usarCredito: pedirCredito });
+  } = useCotizacionEnvio(destino, cupon, cotizaEnvio, { usarSaldo, sesion, usarCredito: pedirCredito });
   // Si toca Pagar mientras se calcula el envío de su dirección, se guarda el
   // total que estaba viendo: al llegar la cotización se sigue solo si el
   // total no cambió.
@@ -300,15 +298,16 @@ export default function FormularioCheckout({
     : null;
   const resumen = medioPago === "dineroMP" && resumenDineroMP ? resumenDineroMP : resumenMercadoPago;
 
-  // Las cuotas sin interés, solo si Mercado Pago las confirmó para el total
-  // exacto de esta compra con tarjeta: las del envío a esta dirección, las
-  // del carrito con la tarifa plana o las del total sin envío (todavía sin
-  // dirección). Si el total es otro, no se anuncian.
+  // Las cuotas sin interés (las mismas para todos desde el 18/11/2026), solo
+  // si Mercado Pago las confirmó para el total exacto de esta compra con
+  // tarjeta: las del envío a esta dirección, las del carrito con la tarifa
+  // plana o las del total sin envío (todavía sin dirección). Si el total es
+  // otro, no se anuncian.
   const cuotas =
     [cotizacion?.cuotas, carrito?.cuotas, carrito?.cuotasSinEnvio].find(
       (c) => c && c.monto === resumenMercadoPago.total
     ) ?? null;
-  const cuotaTexto = cuotas ? `${cuotas.cuotas} cuotas sin interés de ${precioConCentavos(cuotas.montoCuota)}` : null;
+  const cuotaTexto = cuotas ? `${TEXTOS.programa.cuotas.sinInteres(cuotas.cuotas)} de ${precioConCentavos(cuotas.montoCuota)}` : null;
   const cuotaCondiciones = cuotas
     ? `Precio de contado ${formatearPrecio(cuotas.monto)} · CFTEA ${cuotas.cftea} · ${NOMBRE_MARCAS}`
     : null;
@@ -412,8 +411,8 @@ export default function FormularioCheckout({
   // Sin una base legal y el consentimiento que correspondan, quien no
   // terminó la compra no recibe campañas de recuperación ni promociones.
 
-  // Un suscriptor reconocido que todavía no escribió su mail: se completa con
-  // el de su cuenta (lo puede cambiar).
+  // Con la cuenta abierta y el mail todavía sin escribir: se completa con el
+  // de su cuenta (lo puede cambiar).
   const emailSuscriptor = carrito?.suscriptor?.email ?? null;
   useEffect(() => {
     if (emailSuscriptor) setForm((f) => (f.email.trim() ? f : { ...f, email: emailSuscriptor }));
@@ -816,12 +815,11 @@ export default function FormularioCheckout({
           cupon,
           // Solo cómo paga: el 10% por dinero en Mercado Pago también lo calcula el servidor.
           medioPago,
-          // El suscriptor: si usa su saldo y si sigue pidiendo el cupón. Los montos, del servidor.
+          // Si usa el saldo a favor que tuviera de antes del 18/11/2026. El monto, del servidor.
           usarSaldo,
-          usarCupon,
           // Crédito Harper (paso 4): solo si el servidor lo ofreció. El monto lo calcula y lo aparta el servidor.
           ...(carrito?.creditoHarper && pedirCredito ? { usarCredito: true } : {}),
-          // Con qué sesión de suscriptor vio ese total (o sin ninguna).
+          // Con qué cuenta abierta vio ese total (o sin ninguna).
           suscriptorVisto: carrito?.suscriptor?.email ?? null,
         }),
       });
@@ -860,18 +858,6 @@ export default function FormularioCheckout({
         return;
       }
 
-      // El cupón de bienvenida del suscriptor no corresponde: se deja de pedir
-      // (el carrito y el envío se vuelven a pedir solos sin él) y ve el
-      // total nuevo antes de pagar. Sigue con el envío gratis y las cuotas.
-      if (respuesta.status === 409 && cuerpo.cuponBienvenidaRechazado) {
-        setUsarCupon(false);
-        setFallo(`${cuerpo.error ?? TEXTOS.suscriptores.cuponRechazado} Revisá el total antes de pagar.`);
-        setEnviando(false);
-        return;
-      }
-
-      // La sesión de suscriptor cambió: se vuelve a pedir el carrito (con o sin
-      // beneficios) y ve el total nuevo antes de pagar.
       // Crédito Harper (paso 4): sin él, o con el total nuevo, revisa antes de pagar.
       if ((respuesta.status === 409 || respuesta.status === 503) && (cuerpo.creditoRechazado || cuerpo.creditoCambio)) {
         if (cuerpo.creditoRechazado) setUsarCredito(false);
@@ -881,6 +867,8 @@ export default function FormularioCheckout({
         return;
       }
 
+      // Entró o salió de su cuenta después de ver el total: se vuelve a pedir
+      // el carrito y ve el total antes de pagar.
       if (respuesta.status === 409 && cuerpo.suscriptorCambio) {
         recargar();
         setFallo(cuerpo.error ?? TEXTOS.suscriptores.sesionCambio);
@@ -959,18 +947,37 @@ export default function FormularioCheckout({
   // El envío gratis según la zona: en AMBA desde un mínimo, en todo el país
   // desde otro (los dos sobre el subtotal sin el cupón, como el servidor).
   const umbrales = { amba: carrito.envioGratisAmbaDesde ?? 0, nacional: carrito.envioGratisDesde };
-  const gratisEnAmba = esEnvioGratis(carrito.subtotalSinCupon ?? carrito.subtotal, "amba", umbrales);
-  // Un suscriptor tiene el envío gratis siempre (lib/suscriptores.ts): no hay mínimo que anunciar.
-  const conSuscriptor = Boolean(carrito.suscriptor);
-  // Lo que le vuelve como saldo, con el medio de pago elegido (el 10% de dinero
-  // en Mercado Pago baja lo que paga en productos, y con eso el cashback).
-  const cashback = carrito.suscriptor
-    ? medioPago === "dineroMP"
-      ? (carrito.suscriptor.cashbackDineroMP ?? carrito.suscriptor.cashbackPrevisto)
-      : carrito.suscriptor.cashbackPrevisto
-    : 0;
-  // Todo pagado con el saldo del suscriptor: no hay nada que pagar y no pasa por Mercado Pago.
-  const sinPago = resumen.total === 0 && conSuscriptor;
+  // La base del envío gratis, la del servidor: sin el cupón y, con el Dúo,
+  // con los anteojos a precio de lista.
+  const baseEnvio = carrito.subtotalSinCupon ?? carrito.subtotal;
+  const gratisEnAmba = esEnvioGratis(baseEnvio, "amba", umbrales);
+  // Hay una cuenta abierta. Desde el 18/11/2026 no cambia el precio, el envío
+  // ni las cuotas (paga el envío como cualquiera): acá solo decide si se
+  // pregunta por los mails de novedades.
+  const conCuenta = Boolean(carrito.suscriptor);
+  // El Dúo quedó aplicado en este carrito: algún renglón trae su detalle, que
+  // el servidor manda solo con el Dúo prendido. Apagado, nunca.
+  const duoAplicado = carrito.items.some((i) => Boolean(i.duo));
+
+  // Un pedido que queda en $ 0 no pasa por Mercado Pago: el servidor lo
+  // confirma solo (app/api/checkout/route.ts). Antes del 18/11/2026 esto
+  // pedía una sesión de suscriptor; ahora alcanza con que no quede nada por
+  // pagar, tenga o no cuenta, y se dice con qué quedó cubierto según lo que
+  // contestó el servidor: el saldo a favor de antes de ese día, el Crédito
+  // Harper (solo con su interruptor prendido) o los dos. Mientras no se sabe
+  // el envío (falta la dirección o se está calculando), el total que se ve es
+  // sin el envío: todavía no se puede decir que no hay nada que pagar.
+  const saldoUsado = carrito.suscriptor?.saldoUsado ?? 0;
+  const creditoUsado = carrito.creditoHarper?.usado ?? 0;
+  const sinPago = resumen.total === 0 && !envioPorConocer;
+  const textoSinPago =
+    saldoUsado > 0 && creditoUsado > 0
+      ? TEXTOS.suscriptores.sinPagoSaldoYCredito
+      : creditoUsado > 0
+        ? TEXTOS.suscriptores.sinPagoCredito
+        : saldoUsado > 0
+          ? TEXTOS.suscriptores.sinPago
+          : TEXTOS.suscriptores.sinPagoSinMas;
 
   // Con envío gratis y cotizado, el precio real tachado: lo paga Harper.
   // Mientras se cotiza la dirección, no se anuncia un precio que va a cambiar.
@@ -993,23 +1000,29 @@ export default function FormularioCheckout({
   ) : (
     formatearPrecio(resumen.envio)
   );
-  const notaEnvio = opcionEnvio
-    ? (opcionEnvio.plazo ? `${opcionEnvio.plazo}.` : "Envío a domicilio.") +
-      (cotizacion && !cotizacion.bonificado && cotizacion.gratisDesde > 0 ? ` Gratis desde ${formatearPrecio(cotizacion.gratisDesde)}.` : "")
-    : conSuscriptor
-      ? TEXTOS.suscriptores.envioGratis
-      : // Sin cotizar para una dirección que no se sabe si es AMBA: no se le
-        // anuncia el mínimo de AMBA al lado de un envío que se cobra.
-        textoEnvioGratis(cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales);
+  // La nota del envío del resumen, mientras no hay una cotización para
+  // mostrar (con la cotización, el plazo y el precio están en la caja de
+  // Entrega): los mínimos de Config, los mismos con cuenta o sin cuenta (Ale,
+  // 18/11/2026). Sin cotizar para una dirección que no se sabe si es AMBA, no
+  // se anuncia el mínimo de AMBA al lado de un envío que se cobra.
+  const umbralesNota = cotizacion && !cotizacion.cotizado && cotizacion.zona !== "amba" ? { ...umbrales, amba: 0 } : umbrales;
+  const notaEnvio = textoEnvioGratis(umbralesNota);
   // Con el Dúo (Tarea 07): si el envío es gratis solo porque el mínimo se
   // cuenta antes del 25 %, se aclara. Sin Dúo, null y nada cambia.
-  const notaDuo = conSuscriptor
-    ? null
-    : cotizacion?.bonificado
-      ? notaEnvioGratisDelDuo({ base: carrito.subtotalSinCupon ?? carrito.subtotal, items: carrito.items, umbral: cotizacion.gratisDesde, gratis: true })
-      : envioPorConocer
-        ? notaEnvioGratisDelDuo({ base: carrito.subtotalSinCupon ?? carrito.subtotal, items: carrito.items, umbral: umbrales.amba, gratis: gratisEnAmba })
-        : notaEnvioGratisDelDuo({ base: carrito.subtotalSinCupon ?? carrito.subtotal, items: carrito.items, umbral: umbrales.nacional, gratis: resumen.envio === 0 });
+  const notaDuo = cotizacion?.bonificado
+    ? notaEnvioGratisDelDuo({ base: baseEnvio, items: carrito.items, umbral: cotizacion.gratisDesde, gratis: true })
+    : envioPorConocer
+      ? notaEnvioGratisDelDuo({ base: baseEnvio, items: carrito.items, umbral: umbrales.amba, gratis: gratisEnAmba })
+      : notaEnvioGratisDelDuo({ base: baseEnvio, items: carrito.items, umbral: umbrales.nacional, gratis: resumen.envio === 0 });
+  // Con el Dúo aplicado y un mínimo todavía sin alcanzar, junto a «gratis
+  // desde…» y a «Agregá $ X más…» se aclara que ese mínimo se cuenta antes del
+  // descuento del Dúo (Ale, 18/11/2026): si no, quien mira el total hace la
+  // cuenta y no le cierra. Null sin Dúo en ningún renglón.
+  const aclaracionMinimo = aclaracionDelMinimoConDuo(carrito.items);
+  // En la nota del resumen, solo si alguno de los mínimos que nombra le falta
+  // (y la nota del Dúo no lo dijo ya).
+  const aclaracionEnLaNota =
+    !notaDuo && [umbralesNota.amba, umbralesNota.nacional].some((minimo) => minimo > 0 && baseEnvio < minimo) ? aclaracionMinimo : null;
   // El total del botón: mientras falta saber el envío, se aclara que se suma.
   const totalBoton = `${formatearPrecio(resumen.total)}${envioPorConocer && !gratisEnAmba ? " + envío" : ""}`;
   const listaItems = (
@@ -1029,7 +1042,9 @@ export default function FormularioCheckout({
             {/* Qué producto llevó el Dúo (Tarea 07); sin Dúo, nada. */}
             {textoDelRenglon(item) ? <div style={{ color: "var(--verde)" }}>{textoDelRenglon(item)}</div> : null}
           </div>
-          {/* Con sus promociones; el cupón y el saldo del suscriptor van en su renglón. */}
+          {/* Con sus promociones. El saldo a favor de antes del 18/11/2026 va en
+              su renglón del resumen; un cupón de esa época, con los descuentos
+              (lib/resumen.ts). */}
           <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal + (item.cupon ?? 0) + (item.saldo ?? 0))}</span>
         </li>
       ))}
@@ -1055,7 +1070,7 @@ export default function FormularioCheckout({
             <span className="checkout__ver">Ver detalle</span>
           </summary>
           <ul>{listaItems}</ul>
-          <LineasSuscriptor cupon={resumen.cupon} saldo={resumen.saldo} />
+          <LineaSaldo saldo={resumen.saldo} />
           {resumen.dineroMP > 0 ? (
             <div className="fila" style={{ color: "var(--verde)" }}>
               <span>Dinero en Mercado Pago ({carrito.dineroMP?.porcentaje}%)</span>
@@ -1136,21 +1151,15 @@ export default function FormularioCheckout({
           )}
         </section>
 
-        {/* Suscriptores Harper: la invitación con el mail de arriba, o con qué
-            mail compra y si usa su saldo. */}
+        {/* La cuenta Harper (Ale, 18/11/2026): solo con la sesión abierta, con
+            qué mail compra y, si tuviera saldo a favor de antes de ese día,
+            si lo usa. Sin sesión no se muestra nada: ya no se invita a
+            suscribirse a cambio de un descuento. */}
         <SuscriptorEnCheckout
-          suscriptor={carrito.suscriptor ?? null}
-          email={form.email}
-          nombre={form.nombre}
-          // Sin cuotas en la invitación (Ale, 05/11/2026): promete el cupón «en
-          // esta compra», y con el cupón el total baja y podría quedar debajo
-          // del mínimo que Mercado Pago pide para 6. Las 6 se anuncian en la
-          // ficha, el carrito y los beneficios, cada una para su importe.
-          cuotasSuscriptor={null}
+          cuenta={carrito.suscriptor ?? null}
           usarSaldo={usarSaldo}
           alCambiarSaldo={setUsarSaldo}
           alCambiarSesion={() => {
-            setUsarCupon(true);
             setSesion((n) => n + 1);
             recargar();
           }}
@@ -1328,16 +1337,19 @@ export default function FormularioCheckout({
               ) : null}
               {/* Un solo aviso, siempre montado mientras se ve el envío: así el
                   lector de pantalla anuncia cuando pasa de «Calculando…» a
-                  «¡Tu envío es gratis!» o a cuánto le falta. */}
+                  «¡Tu envío es gratis!» o a cuánto le falta. Con el Dúo
+                  aplicado, las dos frases aclaran que el mínimo se cuenta
+                  antes de su descuento: cuando el envío es gratis solo por
+                  eso, y cuando todavía le falta (lo que falta se mide así). */}
               <p className={opcionEnvio && cotizacion ? "envio-gratis-falta" : "apagado checkout__envio-nota"} role="status">
                 {!opcionEnvio || !cotizacion
                   ? "Calculando el envío a tu dirección…"
                   : cotizacion.bonificado
                     ? notaDuo
-                      ? `¡Tu envío es gratis! ${notaDuo}`
+                      ? `¡Tu envío es gratis! ${TEXTOS.checkout.minimoAntesDelDuo}`
                       : "¡Tu envío es gratis!"
                     : cotizacion.falta > 0
-                      ? `Agregá ${formatearPrecio(cotizacion.falta)} más y tu envío es gratis.`
+                      ? `Agregá ${formatearPrecio(cotizacion.falta)} más y tu envío es gratis.${aclaracionMinimo ? ` ${aclaracionMinimo}` : ""}`
                       : null}
               </p>
             </div>
@@ -1352,7 +1364,7 @@ export default function FormularioCheckout({
           {/* Medio de pago. Cada opción muestra su total, y el resumen y el
               botón cambian al instante. Las dos se pagan en Mercado Pago. */}
           {sinPago ? (
-            <p className="apagado">{TEXTOS.suscriptores.sinPago}</p>
+            <p className="apagado">{textoSinPago}</p>
           ) : resumenDineroMP && carrito.dineroMP ? (
             // Mientras se envía, no se cambia: lo que se ve es lo que se cobra.
             <fieldset className="medio-pago" disabled={enviando}>
@@ -1390,9 +1402,15 @@ export default function FormularioCheckout({
                 <span className="medio-pago__texto">
                   <span className="medio-pago__nombre">
                     Dinero en Mercado Pago
-                    <span className="medio-pago__extra">{carrito.dineroMP.porcentaje}% OFF adicional</span>
+                    <span className="medio-pago__extra">{carrito.dineroMP.porcentaje}% OFF extra</span>
                   </span>
-                  <span className="medio-pago__detalle">Solo con el saldo de tu cuenta.</span>
+                  {/* El detalle, dicho igual que en el resto de la tienda (Ale,
+                      18/11/2026). «Se suma al Dúo.» solo si el Dúo quedó
+                      aplicado en este carrito: lo dice el servidor. */}
+                  <span className="medio-pago__detalle">
+                    {TEXTOS.programa.dineroMP.detalle}
+                    {duoAplicado ? ` ${TEXTOS.programa.dineroMP.seSumaAlDuo}` : ""}
+                  </span>
                   <span className="medio-pago__ahorro">Ahorrás {formatearPrecio(resumenDineroMP.ahorroTotal)}</span>
                 </span>
                 <span className="medio-pago__precio">{formatearPrecio(resumenDineroMP.total)}</span>
@@ -1495,8 +1513,9 @@ export default function FormularioCheckout({
           </p>
         </div>
 
-        {/* Un suscriptor ya aceptó los mails al suscribirse. */}
-        {conSuscriptor ? null : (
+        {/* Con la cuenta abierta no se pregunta: los mails de novedades se
+            aceptan (o se dejan) desde la cuenta. */}
+        {conCuenta ? null : (
           <label className="checkout__promos">
             <input
               type="checkbox"
@@ -1532,7 +1551,7 @@ export default function FormularioCheckout({
         </div>
 
         <FilasDescuento ahorro={resumen.descuento} items={carrito.items} cupon={carrito.cupon} />
-        <LineasSuscriptor cupon={resumen.cupon} saldo={resumen.saldo} />
+        <LineaSaldo saldo={resumen.saldo} />
 
         {resumen.dineroMP > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
@@ -1546,7 +1565,12 @@ export default function FormularioCheckout({
           <span>{envioTexto}</span>
         </div>
         {/* Con el envío cotizado, el plazo ya está en la caja de Entrega. */}
-        {opcionEnvio ? null : <p className="apagado checkout__envio-nota">{notaEnvio}</p>}
+        {opcionEnvio ? null : (
+          <p className="apagado checkout__envio-nota">
+            {notaEnvio}
+            {aclaracionEnLaNota ? ` ${aclaracionEnLaNota}` : ""}
+          </p>
+        )}
         {opcionEnvio || !notaDuo ? null : <p className="apagado checkout__envio-nota">{notaDuo}</p>}
 
         <div className="fila fila--total">
@@ -1563,10 +1587,6 @@ export default function FormularioCheckout({
 
         {resumen.ahorroTotal > 0 ? (
           <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.ahorroTotal)}!</p>
-        ) : null}
-
-        {cashback > 0 ? (
-          <p className="checkout__cashback">{TEXTOS.suscriptores.checkoutCaja.cashback(formatearPrecio(cashback), DIAS_PARA_USAR_CASHBACK)}</p>
         ) : null}
 
         {fallo ? (
@@ -1597,7 +1617,7 @@ export default function FormularioCheckout({
         {sinPago ? null : (
           <p className="apagado checkout__pago-nota">
             {medioPago === "dineroMP"
-              ? "Pagás en Mercado Pago, solo con el saldo de tu cuenta."
+              ? "Pagás en Mercado Pago, solo con el dinero de tu cuenta."
               : "Pagás en Mercado Pago. Las cuotas y su costo los ves ahí antes de confirmar."}
           </p>
         )}
@@ -1620,23 +1640,18 @@ export default function FormularioCheckout({
   );
 }
 
-/** El cupón de bienvenida y el saldo del suscriptor, cada uno en su renglón del resumen. */
-function LineasSuscriptor({ cupon, saldo }: { cupon: number; saldo: number }) {
+/**
+ * El saldo a favor de antes del 18/11/2026, en su renglón del resumen: solo
+ * si la cuenta lo tenía y lo usó en esta compra (hoy, ninguna). El cupón de
+ * bienvenida terminó ese día y ya no tiene renglón.
+ */
+function LineaSaldo({ saldo }: { saldo: number }) {
+  if (saldo <= 0) return null;
   return (
-    <>
-      {cupon > 0 ? (
-        <div className="fila" style={{ color: "var(--verde)" }}>
-          <span>{TEXTOS.suscriptores.checkoutCaja.cupon}</span>
-          <span>−{formatearPrecio(cupon)}</span>
-        </div>
-      ) : null}
-      {saldo > 0 ? (
-        <div className="fila" style={{ color: "var(--verde)" }}>
-          <span>{TEXTOS.suscriptores.checkoutCaja.saldo}</span>
-          <span>−{formatearPrecio(saldo)}</span>
-        </div>
-      ) : null}
-    </>
+    <div className="fila" style={{ color: "var(--verde)" }}>
+      <span>{TEXTOS.suscriptores.checkoutCaja.saldo}</span>
+      <span>−{formatearPrecio(saldo)}</span>
+    </div>
   );
 }
 
@@ -1658,11 +1673,14 @@ function Resumido({ lineas, etiqueta, onCambiar }: { lineas: string[]; etiqueta:
   );
 }
 
-/** El precio del envío que paga Harper, tachado (y dicho como "antes" para lectores de pantalla). */
+/**
+ * El precio del envío que paga Harper, tachado. Para los lectores de pantalla
+ * se dice qué es («Precio del envío»), no «antes»: no es un precio anterior.
+ */
 function PrecioTachado({ precio }: { precio: number }) {
   return (
     <s className="apagado">
-      <span className="visualmente-oculto">Antes </span>
+      <span className="visualmente-oculto">Precio del envío: </span>
       {formatearPrecio(precio)}
     </s>
   );

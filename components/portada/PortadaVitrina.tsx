@@ -2,13 +2,15 @@ import BarraTusPares from "./BarraTusPares";
 import Opiniones from "./Opiniones";
 import PortadaHero from "./PortadaHero";
 import { ConfianzaPortada, type ItemConfianza } from "./SeccionesPortada";
-import Vitrina, { type CategoriaVitrina, type DestacadoVitrina } from "./Vitrina";
+import Vitrina, { type CategoriaVitrina, type DestacadoVitrina, type DuoVitrina } from "./Vitrina";
+import { duoParaAnunciar } from "./duoDelServidor";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias";
 import type { ConfigTienda } from "@/lib/config";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, mensajesDeConfianza } from "@/lib/confianza";
-import { type CuotasVerificadas } from "@/lib/cuotas";
-import { conEspera, cuotasDelPrecio } from "@/lib/cuotas-servidor";
+import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
+import { conEspera, verificarCuotas } from "@/lib/cuotas-servidor";
+import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { condicionesDeCompra } from "@/lib/ficha";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { datosDeMercadoLibre, ultimoDeMercadoLibre } from "@/lib/ml-resenas-servidor";
@@ -28,15 +30,25 @@ import { categoriasParaComprar, destacadosDeLaPortada, FORMAS, fotoDeLaPortada, 
  *    del anteojo entero y «Explorar anteojos».
  * 2. Comprar: cuatro modelos destacados como mucho y un acceso por cada
  *    categoría de anteojos con stock (las vacías no se muestran).
- * 3. Confianza: envío, devolución y asesoramiento, compacto.
- * 4. Suscriptores: «Ser parte tiene sus ventajas.», una bajada breve y el
- *    formulario a la vista; los beneficios, a un enlace.
+ * 3. Confianza: las condiciones de compra (envío, pago y cuotas), la
+ *    devolución y el asesoramiento, compacto.
+ * 4. La cuenta Harper y las novedades: un título, una bajada breve y el
+ *    formulario a la vista; qué trae la cuenta, a un enlace.
  * 5. Opiniones: solo de anteojos, reales; sin ninguna, no aparece.
  *
  * Lo largo (cómo funcionan los cristales, qué trae la caja, las preguntas)
  * quedó en las fichas y en /preguntas-frecuentes. Los montos salen de
  * Airtable y de Mercado Pago (cuotas verificadas), nada que no esté
  * confirmado se afirma y no se nombra a Mercado Libre.
+ *
+ * Ale, 18/11/2026: la portada va sin la barra de anuncios, así que las
+ * condiciones de compra se dicen acá, las mismas para todos: el envío gratis
+ * con los dos mínimos de Config, el 10 % por pagar con el dinero de la cuenta
+ * de Mercado Pago y las cuotas que Mercado Pago confirmó. El Dúo se muestra
+ * en «Comprar» (debajo del título y junto a cada precio) solo si el servidor
+ * dice que está prendido, con lo que cobra por dos anteojos; apagado, la
+ * portada no lo nombra. La sección 4 ya no promete beneficios: es la cuenta
+ * y los mails de novedades.
  */
 
 const ESPERA_CUOTAS_MS = 3_000;
@@ -88,16 +100,33 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const precios = [...new Set(destacadosProductos.map((p) => p.precio))];
   const precioPar = todos.length > 0 ? Math.min(...todos.map((m) => m.precio)) : null;
 
-  // Las cuotas de cada precio que se muestra, confirmadas con Mercado Pago:
-  // las de todos (hasta 3) y las de suscriptor (hasta 6, Ale, 05/11/2026),
-  // que la tarjeta muestra solo a quien tiene la sesión abierta.
-  const [verificadas, mercadoLibre] = await Promise.all([
-    conEspera(Promise.all(precios.map(async (p) => [p, await cuotasDelPrecio(p)] as const)), ESPERA_CUOTAS_MS, []),
+  // Las cuotas de cada precio que se muestra, confirmadas con Mercado Pago.
+  // Son las mismas para todos (Ale, 18/11/2026: hasta 3; nadie tiene más).
+  // El Dúo, solo si el servidor lo tiene prendido: null y la portada no lo nombra.
+  const [verificadas, mercadoLibre, duoAnunciado] = await Promise.all([
+    conEspera(Promise.all(precios.map(async (p) => [p, await verificarCuotas(p)] as const)), ESPERA_CUOTAS_MS, []),
     conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, ultimoDeMercadoLibre()),
+    duoParaAnunciar(todos),
   ]);
-  const cuotasDe = (precio: number | null) => (precio === null ? null : (verificadas.find(([p]) => p === precio)?.[1].todos ?? null));
-  const cuotasDeSuscriptorDe = (precio: number) => verificadas.find(([p]) => p === precio)?.[1].suscriptores ?? null;
+  const cuotasDe = (precio: number | null) => (precio === null ? null : (verificadas.find(([p]) => p === precio)?.[1] ?? null));
   const cuotasAnteojos = cuotasDe(precioPar);
+
+  // El Dúo en «Comprar»: la regla, lo que cobra el servidor por dos anteojos
+  // (solo si todos cuestan lo mismo y pudo armar ese carrito) y la etiqueta
+  // de cada tarjeta. Los textos, de TEXTOS.programa; los números, del servidor.
+  const D = TEXTOS.programa.duo;
+  const duo: DuoVitrina | null = duoAnunciado
+    ? {
+        titulo: `${D.regla(duoAnunciado.porcentaje)}.`,
+        detalle: [
+          duoAnunciado.dos ? D.dosAnteojos(formatearPrecio(duoAnunciado.dos.total), formatearPrecio(duoAnunciado.dos.lista)) : null,
+          D.combinar,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        etiqueta: D.etiqueta(duoAnunciado.porcentaje),
+      }
+    : null;
 
   // 2. Comprar: los destacados, cada uno con su color inicial, su fondo y sus cuotas.
   const iniciales = coloresIniciales(destacadosProductos);
@@ -111,7 +140,6 @@ export default async function PortadaVitrina({ productos, config }: { productos:
     inicial: iniciales[i],
     categoria: categorias.find((c) => c.nombre === m.categoria)?.titulo ?? m.categoria,
     cuota: textoCuota(cuotasDe(m.precio)),
-    cuotaSuscriptor: textoCuota(cuotasDeSuscriptorDe(m.precio)),
     colores: m.variantes.map((v, j) => ({
       id: v.id,
       sku: v.sku,
@@ -126,8 +154,21 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   const accesos: CategoriaVitrina[] = categorias.map((c) => ({ slug: c.slug, titulo: c.titulo, enlace: c.enlace, cantidad: c.productos.length }));
   const complementos = categoriasConProductos(productos).filter((c) => !esCategoriaDeAnteojos(c.nombre));
 
-  // 3. Confianza: envío, devolución y asesoramiento (los mismos plazos y enlaces que la ficha).
-  const envio = mensajesDeConfianza(config).find((m) => m.clave === "envio");
+  // Las condiciones de las cuotas de las tarjetas, una vez para la sección
+  // (Res. SIyC 4/2025): tarjetas, CFTEA y precio de contado. El importe va
+  // solo si todos los destacados cuestan lo mismo.
+  const cuotasDeTarjetas = destacadosProductos.map((m) => cuotasDe(m.precio)).find((c) => c !== null) ?? null;
+  const condicionesCuotas = cuotasDeTarjetas
+    ? TEXTOS.programa.cuotas.deLaSeccion(NOMBRE_MARCAS, cuotasDeTarjetas.cftea, precios.length === 1 ? formatearPrecio(precios[0]) : null)
+    : null;
+
+  // 3. Confianza. Arriba, las condiciones de compra, las mismas para todos:
+  // el envío con los dos mínimos de Config (y cómo se cuentan), el 10 % por
+  // pagar con el dinero de la cuenta de Mercado Pago y las cuotas confirmadas.
+  // Abajo, la devolución y el asesoramiento (los mismos plazos y enlaces que la ficha).
+  const mensajes = mensajesDeConfianza(config, cuotasAnteojos, "en anteojos");
+  const envio = mensajes.find((m) => m.clave === "envio");
+  const cuotas = mensajes.find((m) => m.clave === "cuotas");
   const hayEnvioGratis = config.envioGratisDesde > 0 || config.envioGratisAmbaDesde > 0;
   const devolucion = condicionesDeCompra([], {
     diasArrepentimiento: DIAS_ARREPENTIMIENTO,
@@ -135,13 +176,21 @@ export default async function PortadaVitrina({ productos, config }: { productos:
     mesesGarantia: MESES_GARANTIA,
   }).find((c) => c.clave === "devolucion");
   const whatsapp = enlaceWhatsApp(config.whatsapp, "Hola, Harper. Quiero consultar por los anteojos.");
-  const confianza: ItemConfianza[] = [
+  const M = TEXTOS.programa.dineroMP;
+  const condiciones: ItemConfianza[] = [
+    hayEnvioGratis && envio
+      ? { clave: "envio", texto: envio.texto, detalle: envio.detalle ?? null, nota: envio.nota ?? null, href: "/legales/terminos#envios" }
+      : { clave: "envio", texto: TEXTOS.inicio.confianza.envio, detalle: TEXTOS.inicio.confianza.envioDetalle, href: "/legales/terminos#envios" },
     {
-      clave: "envio",
-      texto: TEXTOS.inicio.confianza.envio,
-      detalle: hayEnvioGratis && envio ? envio.texto : TEXTOS.inicio.confianza.envioDetalle,
-      href: "/legales/terminos#envios",
+      clave: "pago",
+      texto: M.barra(PORCENTAJE_DINERO_MP),
+      // «Se suma al Dúo.» solo con el Dúo prendido.
+      detalle: duo ? `${M.detalle} ${M.seSumaAlDuo}` : M.detalle,
+      href: "/preguntas-frecuentes",
     },
+    ...(cuotas ? [{ clave: "cuotas" as const, texto: cuotas.texto, detalle: cuotas.detalle ?? null, href: "/preguntas-frecuentes" }] : []),
+  ];
+  const servicio: ItemConfianza[] = [
     ...(devolucion ? [{ clave: "devolucion" as const, texto: devolucion.texto, detalle: devolucion.detalle, href: devolucion.href }] : []),
     ...(whatsapp
       ? [{ clave: "whatsapp" as const, texto: TEXTOS.inicio.confianza.whatsapp, detalle: TEXTOS.inicio.confianza.whatsappDetalle, href: whatsapp, externo: true }]
@@ -164,13 +213,19 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       />
 
       {/* 2. Comprar: cuatro destacados y un acceso por categoría. */}
-      <Vitrina destacados={destacados} categorias={accesos} datos={{ complementos: complementos.map((c) => ({ nombre: c.nombre, slug: c.slug })) }} />
+      <Vitrina
+        destacados={destacados}
+        categorias={accesos}
+        datos={{ complementos: complementos.map((c) => ({ nombre: c.nombre, slug: c.slug })), condicionesCuotas }}
+        duo={duo}
+      />
 
-      {/* 3. Confianza. */}
-      <ConfianzaPortada items={confianza} />
+      {/* 3. Confianza: las condiciones de compra y, debajo, la devolución y el asesoramiento. */}
+      <ConfianzaPortada filas={[condiciones, servicio]} />
 
-      {/* 4. Suscriptores: breve. Título, bajada, los beneficios con sus condiciones
-          a un enlace y el formulario justo debajo, con su «Suscribirme gratis». */}
+      {/* 4. La cuenta Harper y las novedades: breve. Título, bajada, qué trae la
+          cuenta a un enlace y el formulario justo debajo. Sin beneficios en
+          plata (Ale, 18/11/2026); los textos, en TEXTOS.inicio.suscripcion. */}
       <section id="suscriptores" className="suscripcion-inicio" aria-labelledby="suscripcion-inicio-titulo">
         <div className="contenedor suscripcion-inicio__grilla">
           <div className="suscripcion-inicio__texto">

@@ -18,7 +18,7 @@ export type OpcionPares = {
   tachado: string | null;
   /** "Cada par $ 59.933"; null en 1 par. */
   porPar: string | null;
-  /** "6 cuotas sin interés de $ 29.966,67", verificada; null si no. */
+  /** "3 cuotas sin interés de $ 59.933,33", verificada para ese total; null si no. */
   cuota: string | null;
 };
 
@@ -34,8 +34,8 @@ export default function OpcionesPares({
   return (
     <fieldset className="opciones-pares">
       <legend className="solo-lectores">Cuántos pares</legend>
-      {/* El stock es limitado de verdad (Ale, 30/10/2026). */}
-      <p className="etiqueta-mono opciones-pares__aviso">Stock limitado</p>
+      {/* Sin «Stock limitado» (Ale, 18/11/2026): era un aviso fijo, que nadie
+          comprobaba contra el stock. Lo que queda de cada color lo dice la ficha. */}
       {opciones.map((o) => (
         <label key={o.cantidad} className="opcion-pares" data-elegida={o.cantidad === elegida || undefined}>
           <input

@@ -9,6 +9,7 @@ import CompraPortada from "@/components/portada/CompraPortada";
 import PortadaVitrina from "@/components/portada/PortadaVitrina";
 import Opiniones from "@/components/portada/Opiniones";
 import { ComoComprar, PreguntasFrecuentes } from "@/components/portada/SeccionesPortada";
+import { duoParaAnunciar, duoParaLasPreguntas } from "@/components/portada/duoDelServidor";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos, rutaDeCategoria } from "@/lib/categorias";
@@ -108,8 +109,8 @@ async function PortadaEstrella({
 
   const [tramos, cuotasAnteojos, mercadoLibre] = await Promise.all([
     getTramos(),
-    // Para los textos generales ("6 cuotas sin interés en anteojos"): con el
-    // anteojo más barato, como la portada de catálogo.
+    // Para los textos generales ("3 cuotas sin interés en anteojos", las
+    // mismas para todos): con el anteojo más barato, como la portada de catálogo.
     conEspera(verificarCuotasPara(anteojos.map((p) => p.precio)), ESPERA_CUOTAS_MS, null),
     conEspera(datosDeMercadoLibre(), ESPERA_OPINIONES_MS, ultimoDeMercadoLibre()),
   ]);
@@ -119,6 +120,8 @@ async function PortadaEstrella({
   // Con el Dúo prendido (Tarea 07): lo que cobra el servidor por cada pack de
   // cada modelo, con y sin el estuche. Apagado, null y todo como siempre.
   const packsDuo = porcentajeDelDuo() === null ? null : await packsConDuo(modelos, estuche);
+  // El Dúo para las preguntas de abajo (Ale, 18/11/2026): solo prendido.
+  const duoAnunciado = await duoParaAnunciar(modelos);
 
   // Las cuotas de cada total que la compra puede mostrar (de cualquier
   // modelo), confirmadas una por una con Mercado Pago: el anuncio de cada
@@ -285,8 +288,8 @@ async function PortadaEstrella({
           diasArrepentimiento: DIAS_ARREPENTIMIENTO,
           diasCambio: DIAS_CAMBIO,
           mesesGarantia: MESES_GARANTIA,
-          cupon: HAY_CUPONES ? CUPON_BIENVENIDA : null,
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
+          duo: duoParaLasPreguntas(duoAnunciado),
         })}
       />
     </>

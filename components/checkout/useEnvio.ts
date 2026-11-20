@@ -23,8 +23,8 @@ function normalizar(texto: string) {
 
 /**
  * La clave de una cotización: lo que cambia el precio (los cuatro números del
- * CP, la provincia, la localidad y el partido), el carrito, el cupón y los
- * beneficios del suscriptor. La calle y el número viajan en la consulta, pero
+ * CP, la provincia, la localidad y el partido), el carrito, el cupón y lo que
+ * eligió usar la cuenta. La calle y el número viajan en la consulta, pero
  * corregirlos no vuelve a cotizar: el servidor tampoco los firma en el
  * comprobante.
  */
@@ -38,19 +38,21 @@ function claveDe(destino: DestinoEnvio, items: unknown, cupon: unknown, benefici
     items,
     cupon ?? null,
     beneficios.usarSaldo,
-    beneficios.usarCupon,
     beneficios.sesion,
     beneficios.usarCredito ?? false,
   ]);
 }
 
 /**
- * Lo que pidió el suscriptor (Ale, 03/11/2026): usar su saldo y su cupón, que
- * cambian el total y con él las cuotas. `sesion` cambia cuando entra o sale:
- * la cookie cambió y con ella el envío (gratis para suscriptores).
+ * Lo que eligió la cuenta y cambia el total (y con él las cuotas): usar el
+ * saldo a favor que tuviera de antes del 18/11/2026 y, con su interruptor
+ * prendido, el Crédito Harper. `sesion` cambia cuando entra o sale: la cookie
+ * es otra y el total se vuelve a pedir. Desde el 18/11/2026 la cuenta no
+ * cambia el envío (se cobra igual que a cualquiera) y ya no hay cupón de
+ * bienvenida que pedir.
  */
-export type Beneficios = { usarSaldo: boolean; usarCupon: boolean; sesion: number; /** Crédito Harper (paso 4). */ usarCredito?: boolean };
-const SIN_BENEFICIOS: Beneficios = { usarSaldo: false, usarCupon: true, sesion: 0 };
+export type Beneficios = { usarSaldo: boolean; sesion: number; /** Crédito Harper (paso 4). */ usarCredito?: boolean };
+const SIN_BENEFICIOS: Beneficios = { usarSaldo: false, sesion: 0 };
 
 /**
  * Cotiza el envío con Envia para la dirección que está cargando el
@@ -94,7 +96,6 @@ export function useCotizacionEnvio(destino: DestinoEnvio | null, cupon: unknown,
           items,
           cupon,
           usarSaldo: beneficios.usarSaldo,
-          usarCupon: beneficios.usarCupon,
           ...(beneficios.usarCredito ? { usarCredito: true } : {}),
         }),
         signal: controlador.signal,

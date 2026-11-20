@@ -94,17 +94,30 @@ test("inicio: las opiniones son solo de anteojos, reales y sin repetir a la mism
   assert.ok(reales.length > 0 && reales.length <= 3 && reales.every((x) => x.producto?.startsWith("Modelo ")));
 });
 
-test("inicio: los textos presentan la marca sin frases genéricas, sin exagerar y sin palabras que Harper evita", () => {
+test("inicio: los textos presentan la marca sin frases genéricas, sin palabras que Harper evita, y la cuenta sin prometer ventajas en plata (Ale, 18/11/2026)", () => {
   const todo = JSON.stringify(TEXTOS.inicio).toLowerCase();
   assert.equal(TEXTOS.inicio.producto, "Anteojos de diseño");
   assert.equal(TEXTOS.inicio.boton, "Explorar anteojos");
-  assert.equal(TEXTOS.inicio.suscripcion.titulo, "Ser parte tiene sus ventajas.");
-  // Un solo «Suscribirme gratis», el del formulario (Ale, 05/11/2026); los beneficios, a un enlace aparte.
-  assert.ok(!("cta" in TEXTOS.inicio.suscripcion));
+  // El bloque de la cuenta: las novedades por mail y la cuenta, con las mismas
+  // palabras que /suscriptores. Antes decía «Ser parte tiene sus ventajas.».
+  const cuenta = TEXTOS.inicio.suscripcion;
+  assert.equal(cuenta.titulo, "Enterate de lo nuevo.");
+  assert.equal(cuenta.titulo, TEXTOS.suscriptores.titulo);
+  assert.equal(cuenta.bajada, TEXTOS.suscriptores.bajada);
+  assert.equal(cuenta.etiqueta, "Cuenta Harper · Es gratis");
+  assert.match(cuenta.bajada, /te avisamos cuando salen modelos y colores nuevos/);
+  assert.match(cuenta.bajada, /entrás a tu cuenta, donde seguís tus compras y guardás tus favoritos/);
+  // Un solo «Suscribirme gratis», el del formulario (Ale, 05/11/2026); qué da la cuenta, a un enlace aparte.
+  assert.ok(!("cta" in cuenta));
   assert.equal(TEXTOS.suscriptores.form.suscribirme, "Suscribirme gratis");
-  assert.match(TEXTOS.inicio.suscripcion.beneficios, /beneficios y sus condiciones/);
+  assert.equal(cuenta.beneficios, "Conocé la cuenta Harper y sus condiciones");
+  // Los beneficios en plata terminaron: el bloque no nombra ninguno, ni el programa por su nombre de antes.
+  const delBloque = Object.values(cuenta).join(" ").toLowerCase();
+  for (const palabra of ["ventaja", "beneficio", "descuento", "cupón", "envío", "cuotas", "saldo", "de vuelta", "desbloque", "bienvenida", "suscriptores harper", "dúo", "%", "$"]) {
+    assert.ok(!delBloque.includes(palabra), `el bloque de la cuenta no dice «${palabra}»`);
+  }
   // Nada técnico en la presentación: lo del código aparece recién cuando se manda.
-  assert.ok(!JSON.stringify(TEXTOS.inicio.suscripcion).toLowerCase().includes("código"));
+  assert.ok(!delBloque.includes("código"));
   assert.ok(!("notaCodigo" in TEXTOS.suscriptores.form));
   for (const palabra of ["para todos los días", "premium", "lujo", "calidad superior", "canchero", "onda", "accesible", "fachero", "cura", "previene", "médic", "salud"]) {
     assert.ok(!todo.includes(palabra), `no dice «${palabra}»`);

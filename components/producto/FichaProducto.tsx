@@ -23,7 +23,7 @@ import { parrafosDe } from "@/lib/descripcion";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, type Confianza } from "@/lib/confianza";
 import { condicionesDeCompra, talleDe } from "@/lib/ficha";
 import { TEXTOS } from "@/lib/textos";
-import type { CuotasVerificadas } from "@/lib/cuotas";
+import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { precio as formatearPrecio, precioConCentavos } from "@/lib/formato";
 import { trackAgregarAlCarrito } from "@/lib/pixel";
 import { fotosDeGaleria } from "@/lib/galeria";
@@ -31,10 +31,6 @@ import { indiceVarianteInicial } from "@/lib/variantes";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import Estrellas, { formatearPuntaje } from "@/components/portada/Estrellas";
-import SuscriptoresEnLaFicha from "@/components/suscriptores/SuscriptoresEnLaFicha";
-import { useSuscriptor } from "@/components/suscriptores/useSuscriptor";
-import CuotasDeLaCompra from "@/components/CuotasDeLaCompra";
-import { tieneCuotasDeSuscriptor } from "@/lib/suscriptores";
 import BotonFavorito from "@/components/suscriptores/BotonFavorito";
 import Cifras from "@/components/Cifras";
 
@@ -46,7 +42,7 @@ export default function FichaProducto({
   varianteInicial,
   confianza = [],
   cuotas = null,
-  cuotasSuscriptor = null,
+  precioDineroMP = null,
   precioSinImpuestos = null,
   whatsapp = null,
   calificacion = null,
@@ -58,13 +54,16 @@ export default function FichaProducto({
   /** Índice del color con el que abre. Lo decide el servidor según la URL. */
   varianteInicial?: number;
   confianza?: Confianza[];
-  /** Cuotas sin interés confirmadas por Mercado Pago para este precio, o null. */
+  /**
+   * Cuotas sin interés confirmadas por Mercado Pago para este precio, o null.
+   * Son las mismas para todos (Ale, 18/11/2026: hasta 3; nadie tiene más).
+   */
   cuotas?: CuotasVerificadas | null;
   /**
-   * Las de suscriptor para este precio (6), confirmadas aparte con Mercado
-   * Pago; solo si son más que las de todos (Ale, 03/11/2026). Null no las nombra.
+   * Lo que cuesta pagando con el dinero de la cuenta de Mercado Pago, ya
+   * calculado en el servidor (app/producto/[slug]/ficha.tsx); null no lo nombra.
    */
-  cuotasSuscriptor?: CuotasVerificadas | null;
+  precioDineroMP?: number | null;
   /** El neto para la leyenda de la Res. SIyC 4/2025; null si no hay dato. */
   precioSinImpuestos?: number | null;
   /** WhatsApp de la tienda, para la consulta por cristales graduados. */
@@ -194,17 +193,6 @@ export default function FichaProducto({
     iniciarTransicion(() => router.push("/checkout"));
   }
 
-  // Las cuotas de quien mira (Ale, 05/11/2026): hasta 3 para todos y hasta 6
-  // para un suscriptor con la sesión abierta y los beneficios activos. La
-  // página es la misma para todos; quién es se sabe en el navegador
-  // (useSuscriptor), pero cobrar, cobra el servidor con su propio tope.
-  // Res. SIyC 4/2025, art. 2 inc. d: cantidad y monto de cada cuota (el de
-  // Mercado Pago, con centavos), precio de contado y CFTEA.
-  const { suscriptor } = useSuscriptor();
-  const esSuscriptor = tieneCuotasDeSuscriptor(suscriptor);
-  const cuotasSuyas = esSuscriptor ? (cuotasSuscriptor ?? cuotas) : cuotas;
-  const cuotasDeSuscriptor = esSuscriptor ? null : cuotasSuscriptor;
-
   // Medidas y talle: en los anteojos, con la guía aunque falten las medidas (lib/ficha.ts).
   const conTalle = esCategoriaDeAnteojos(producto.categoria);
   const talle = talleDe(producto.medidas);
@@ -298,9 +286,10 @@ export default function FichaProducto({
       </div>
 
       {/* ---------- Datos y compra ----------
-          Orden pensado para el celular: el cupón; nombre, precio, color,
-          botón; después lo que da confianza; después lo que da más
-          información. */}
+          Orden pensado para el celular: el cupón; nombre, precio (con sus
+          cuotas, el precio con dinero en Mercado Pago y el Dúo si está
+          prendido), color, botón; después lo que da confianza; después lo
+          que da más información. */}
       <div className="pila surge surge-1 ficha-producto__datos">
         {/* El beneficio de primera compra, arriba de todo (Ale, 30/10/2026):
             se ve sin buscarlo, se aplica con un toque y no se mete entre el
@@ -348,16 +337,40 @@ export default function FichaProducto({
             </small>
           ) : null}
 
-          {/* Hasta 3 cuotas para todos y hasta 6 para suscriptores, cada una
-              con su monto (las condiciones valen para las dos: el CFTEA es el mismo). */}
-          <CuotasDeLaCompra
-            suyas={cuotasSuyas}
-            deSuscriptor={cuotasDeSuscriptor}
-            esSuscriptor={esSuscriptor}
-            precioContado={producto.precio}
-            enlace="#suscriptor-ficha-titulo"
-            className="cuotas-compra--ficha"
-          />
+          {/* Las cuotas son las mismas para todos (Ale, 18/11/2026: hasta 3),
+              solo si Mercado Pago las confirmó para este precio. Res. SIyC
+              4/2025, art. 2 inc. d: cantidad y monto de cada cuota (el de
+              Mercado Pago, con centavos), precio de contado y CFTEA. Debajo,
+              lo que cuesta con el dinero de la cuenta de Mercado Pago: el
+              importe llega calculado del servidor. */}
+          {cuotas || precioDineroMP !== null ? (
+            <div className="cuotas-compra cuotas-compra--ficha">
+              {cuotas ? (
+                <>
+                  <p className="cuotas-compra__suyas">
+                    {TEXTOS.programa.cuotas.sinInteres(cuotas.cuotas)} de {precioConCentavos(cuotas.montoCuota)}
+                  </p>
+                  <p className="cuotas-condiciones">
+                    Precio de contado {formatearPrecio(producto.precio)} · CFTEA {cuotas.cftea} · {NOMBRE_MARCAS}
+                  </p>
+                </>
+              ) : null}
+              {precioDineroMP !== null ? (
+                <p style={{ fontSize: "0.8125rem", color: "var(--verde)" }}>
+                  {TEXTOS.programa.dineroMP.precio(formatearPrecio(precioDineroMP))}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* El Dúo, pegado al precio y antes de los botones (Ale, 18/11/2026):
+              solo si el servidor dice que está prendido, y solo en anteojos.
+              Va adentro de este bloque para que en el celular quede debajo del
+              precio y no después de comprar. Con la escala de Airtable, las
+              opciones de pares ya lo cuentan. */}
+          {pares || !lineasDuo ? null : (
+            <OfertaDuo lineas={lineasDuo.lineas} detalle={lineasDuo.detalle} estilo={{ marginTop: "0.4rem" }} />
+          )}
         </div>
 
         {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}
@@ -451,19 +464,17 @@ export default function FichaProducto({
         </div>
 
         {/* Después de comprar, lo que da confianza: envío, devolución, cambios,
-            garantía y pago (Ale, 08/11/2026). La consulta y Suscriptores, después. */}
+            garantía y pago (Ale, 08/11/2026). La consulta, después. La caja de
+            la suscripción salió el 18/11/2026: sus beneficios terminaron. */}
         <CondicionesCompra condiciones={condiciones} />
 
         {/* Solo en los modelos cuyo armazón admite cristales graduados
             (confirmados en lib/caracteristicas.ts): una consulta, no una venta. */}
         {caracteristicas ? <ConsultaGraduados modelo={producto.nombre} whatsapp={whatsapp} /> : null}
 
-        {/* Suscriptores Harper (Ale, 03/11/2026): solo en anteojos, que es lo que vende la web. */}
-        {producto.categoria === "Anteojos" ? <SuscriptoresEnLaFicha cuotas={cuotasSuscriptor} /> : null}
-
-        {/* Sin escala, la promoción del segundo par en una línea (solo
-            anteojos); con la escala, las opciones de arriba ya la cuentan. */}
-        {pares || !lineasDuo ? null : <OfertaDuo lineas={lineasDuo.lineas} detalle={lineasDuo.detalle} />}
+        {/* Solo si Airtable tuviera un descuento por cantidad en anteojos (hoy
+            no hay ninguno): la promoción del segundo par en una línea. El Dúo
+            va arriba, junto al precio. */}
         {pares || !conTramo ? null : (
           <OfertaCantidad
             tramos={tramos}

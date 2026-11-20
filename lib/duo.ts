@@ -43,11 +43,18 @@ export const VARIABLE_DUO = "HARPER_DUO_ACTIVO";
 /**
  * Si el Dúo está prendido: solo con HARPER_DUO_ACTIVO="1". Sin la variable,
  * vacía o con cualquier otro valor ("0", "true"), está apagado y el carrito
- * cobra exactamente lo de siempre. Es del servidor: en Vercel se puede
- * prender primero solo en las vistas previas y después en producción.
+ * cobra exactamente lo de siempre.
+ *
+ * Sin `entorno` se lee `process.env.HARPER_DUO_ACTIVO`, escrito así, entero,
+ * a propósito: next.config.ts le pasa a Next el valor que tiene al armar el
+ * sitio (`env`) y Next lo deja fijo en el código. Así la página que anuncia
+ * el Dúo y el carrito que lo cobra salen siempre del mismo valor, aunque la
+ * función de Vercel que atiende el carrito no lea .env.production. Para
+ * cambiarlo hay que volver a desplegar (ver .env.production).
  */
-export function duoActivo(entorno: Record<string, string | undefined> = process.env): boolean {
-  return entorno[VARIABLE_DUO]?.trim() === "1";
+export function duoActivo(entorno?: Record<string, string | undefined>): boolean {
+  const valor = entorno ? entorno[VARIABLE_DUO] : process.env.HARPER_DUO_ACTIVO;
+  return valor?.trim() === "1";
 }
 
 /** Cuántos anteojos llevan el descuento: la mitad, redondeada hacia abajo. */

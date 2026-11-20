@@ -23,9 +23,9 @@ export default async function PaginaCheckout({
   // intenta cotizar y se ve como siempre, con la tarifa plana.
   const config = await getConfig();
   const cotizaEnvio = puedeCotizar(config);
-  // Las cuotas de suscriptor de la invitación se confirman en el formulario
-  // con el total exacto de esta compra (Ale, 05/11/2026), no con el precio
-  // de un anteojo.
+  // Las cuotas sin interés (las mismas para todos desde el 18/11/2026) las
+  // confirma el formulario con el total exacto de esta compra, no con el
+  // precio de un anteojo.
 
   // InitiateCheckout lo dispara el formulario, cuando el carrito ya está
   // resuelto (con valor e ítems) y solo si de verdad hay algo para comprar y
@@ -40,7 +40,7 @@ export default async function PaginaCheckout({
       {error === "pago" ? (
         <p role="alert" className="checkout__aviso">
           {conDineroMP
-            ? "El pago no se pudo completar y no te cobramos nada. Revisá que tengas saldo en tu cuenta de Mercado Pago o probá con otro medio de pago."
+            ? "El pago no se pudo completar y no te cobramos nada. Revisá que tengas dinero disponible en tu cuenta de Mercado Pago o probá con otro medio de pago."
             : "El pago no se pudo completar y no te cobramos nada. Revisá los datos de la tarjeta o probá con otro medio de pago."}{" "}
           {TEXTOS.checkout.siguenAca}
         </p>

@@ -33,10 +33,13 @@ export type FilaDeADos = {
 /** Lo de arriba de las filas; sin él, el de siempre («De a dos»). */
 export type EncabezadoDeADos = { etiqueta: string; titulo: string; bajada: string };
 
+// Sin uso desde el 05/11/2026 (ninguna página muestra este bloque). El texto
+// ya no promete ningún descuento (Ale, 18/11/2026): el único por cantidad es
+// el Dúo, y lo anuncia el servidor cuando está prendido.
 const ENCABEZADO_DE_SIEMPRE: EncabezadoDeADos = {
   etiqueta: "De a dos",
   titulo: "Uno está bien. Dos, mejor.",
-  bajada: "Uno para la semana, otro para el finde. Mezclá modelos y colores: el descuento se aplica solo.",
+  bajada: "Uno para la semana, otro para el finde. Podés combinar modelos y colores.",
 };
 
 export default function DeADos({

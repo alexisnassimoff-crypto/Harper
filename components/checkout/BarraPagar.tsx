@@ -31,7 +31,7 @@ export default function BarraPagar({
    * espera. El botón no se deshabilita, para no perder el foco.
    */
   esperando?: string;
-  /** Otro texto para el botón, cuando no hay nada que pagar (todo con el saldo de un suscriptor). */
+  /** Otro texto para el botón, cuando el pedido queda en $ 0 y no hay nada que pagar («Confirmar pedido»). */
   texto?: string;
 }) {
   const [montado, setMontado] = useState(false);

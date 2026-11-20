@@ -56,7 +56,14 @@ test("ficha: envío, devolución, cambios, garantía y pago, cada uno con su enl
     ["envio", "devolucion", "cambios", "garantia", "pago"]
   );
   assert.match(c[0].texto, /Envío gratis en AMBA desde \$\s?60\.000/);
+  // Ale, 18/11/2026: el del resto del país va aparte, con la aclaración de cómo se cuenta el mínimo.
+  assert.match(c[0].detalle ?? "", /^Al resto del país, gratis desde \$\s?150\.000$/);
+  assert.equal(c[0].nota, TEXTOS.programa.envio.minimo);
   assert.equal(c[0].href, "/legales/terminos#envios");
+  // El pago dice el 10 % por pagar con el dinero de la cuenta de Mercado Pago.
+  assert.match(c[4].detalle ?? "", /10% OFF extra pagando con dinero en Mercado Pago/);
+  // Nada por tener cuenta: ni «siempre», ni suscriptores, ni cupón.
+  assert.doesNotMatch(JSON.stringify(c), /siempre|suscri|cupón|bienvenida/i);
   assert.equal(c[1].texto, "10 días corridos para devolverlo sin costo");
   assert.equal(c[1].href, "/legales/devoluciones");
   assert.equal(c[2].texto, "Cambios de color o modelo hasta 30 días");
@@ -90,7 +97,7 @@ test("ficha: los textos nuevos no prometen nada médico ni usan las palabras que
   assert.match(todo, /filtran parte de la luz azul/);
 });
 
-test("ficha (Ale, 08/11/2026): compra directa, el color a la vista y la confianza antes que las promociones", async () => {
+test("ficha (Ale, 08/11/2026 y 18/11/2026): compra directa, el color a la vista, la confianza antes que las promociones y sin invitación a suscribirse", async () => {
   const { readFileSync } = await import("node:fs");
   const { join } = await import("node:path");
   const ficha = readFileSync(join(__dirname, "../../components/producto/FichaProducto.tsx"), "utf8");
@@ -104,11 +111,17 @@ test("ficha (Ale, 08/11/2026): compra directa, el color a la vista y la confianz
   assert.match(ficha, /role="status"/);
   assert.match(ficha, /Agregaste \{producto\.nombre\} · \{variante\.color\} al carrito\./);
   assert.match(ficha, /href="\/carrito"/);
-  // Después de comprar: envío, devoluciones, cambios y garantía; la consulta y Suscriptores, después.
+  // Después de comprar: envío, devoluciones, cambios y garantía; la consulta, después.
   const condiciones = ficha.indexOf("<CondicionesCompra");
   const graduados = ficha.indexOf("<ConsultaGraduados");
-  const suscriptores = ficha.indexOf("<SuscriptoresEnLaFicha");
-  assert.ok(condiciones > 0 && condiciones < graduados && graduados < suscriptores);
+  assert.ok(condiciones > 0 && condiciones < graduados);
+  // Ale, 18/11/2026: la ficha ya no invita a suscribirse (el recuadro prometía
+  // el cupón de bienvenida, el envío gratis y las cuotas de suscriptor, que
+  // terminaron). Ni el componente ni sus textos vuelven a la ficha.
+  assert.doesNotMatch(ficha, /SuscriptoresEnLaFicha|CajaSuscripcion|FormularioSuscripcion/);
+  assert.doesNotMatch(ficha, /TEXTOS\.suscriptores\.(beneficios|tarjetas|anuncio|enlacePortada|cuotasSuscriptor|cuotasBeneficio)/);
+  const { existsSync } = await import("node:fs");
+  assert.equal(existsSync(join(__dirname, "../../components/suscriptores/SuscriptoresEnLaFicha.tsx")), false, "el recuadro de la ficha se borró");
   // Cristales: el acceso abre la sección verificada.
   assert.match(ficha, /abrirSeccion\("cristales"\)/);
   assert.match(ficha, /<Acordeon id="cristales"/);

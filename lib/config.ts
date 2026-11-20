@@ -115,7 +115,10 @@ export type ConfigTienda = {
  */
 const POR_DEFECTO: ConfigTienda = {
   costoEnvio: 10100,
-  envioGratisDesde: 80000,
+  // El mínimo del envío gratis al resto del país (Ale, 18/11/2026: $ 250.000).
+  // Antes era 80000: si Airtable no contestaba, o la clave quedaba vacía, la
+  // tienda anunciaba y daba envío gratis a todo el país con un solo anteojo.
+  envioGratisDesde: 250000,
   envioGratisAmbaDesde: 0,
   envioAmbaTarifas: TARIFAS_RUEDDO_POR_DEFECTO,
   envioAmbaRecargo: RECARGO_AMBA_POR_DEFECTO,

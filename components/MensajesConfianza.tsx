@@ -8,7 +8,8 @@ import type { Confianza } from "@/lib/confianza";
  *  - `lista`: renglones apilados debajo del botón de compra de la ficha.
  *
  * Los textos los arma `mensajesDeConfianza` en el servidor a partir de Config
- * y de la política de cambios; acá solo se dibujan.
+ * y de la política de cambios; acá solo se dibujan. Los importes del envío
+ * gratis son los de Config y el 10 % del pago, el de lib/dinero-mp.ts.
  */
 export default function MensajesConfianza({
   mensajes,
@@ -30,6 +31,9 @@ export default function MensajesConfianza({
             <span className="confianza__texto">
               <span>{m.texto}</span>
               {m.detalle ? <small>{m.detalle}</small> : null}
+              {/* Cómo se cuenta el mínimo del envío gratis. En la tira del
+                  celular no se ve, igual que el detalle. */}
+              {m.nota ? <small>{m.nota}</small> : null}
             </span>
           </>
         );

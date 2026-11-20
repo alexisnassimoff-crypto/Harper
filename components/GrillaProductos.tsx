@@ -1,6 +1,9 @@
 import ProductoCard from "./ProductoCard";
+import { esCategoriaDeAnteojos } from "@/lib/categorias";
 import { getConfig } from "@/lib/config";
+import { porcentajeDelDuo } from "@/lib/pedidos";
 import { netoDe } from "@/lib/impuestos";
+import { TEXTOS } from "@/lib/textos";
 import Revelar from "./Revelar";
 import type { Producto } from "@/lib/tipos";
 
@@ -17,6 +20,12 @@ import type { Producto } from "@/lib/tipos";
  *    el contenido principal tiene que verse aunque el JavaScript tarde.
  *  - `precargar`: cuántas fotos se piden con prioridad. Solo las que quedan
  *    arriba del fold; el resto compite con ellas y las demora.
+ *
+ * Con el Dúo prendido (Ale, 18/11/2026), cada anteojo lleva la etiqueta del
+ * Dúo junto al precio. La grilla es del servidor: acá se pregunta si está
+ * prendido (porcentajeDelDuo, lib/pedidos.ts) y la tarjeta, que corre en el
+ * navegador, recibe el texto ya armado. Apagado, no se le pasa nada y no se
+ * nombra.
  */
 export default async function GrillaProductos({
   productos,
@@ -40,6 +49,9 @@ export default async function GrillaProductos({
   const iniciales = coloresIniciales(productos);
   // "Precio sin impuestos nacionales" debajo de cada precio, si el dato está en Config.
   const { impuestosNacionales } = await getConfig();
+  // La etiqueta del Dúo, con el porcentaje del servidor; null con el Dúo apagado.
+  const porcentajeDuo = porcentajeDelDuo();
+  const etiquetaDuo = porcentajeDuo === null ? null : TEXTOS.programa.duo.etiqueta(porcentajeDuo);
 
   return (
     <div className={compacta ? "grilla grilla--compacta" : "grilla"}>
@@ -50,6 +62,7 @@ export default async function GrillaProductos({
             prioridad={i < precargar}
             inicial={iniciales[i]}
             precioSinImpuestos={netoDe(impuestosNacionales, p.categoria, p.precio)}
+            etiquetaDuo={esCategoriaDeAnteojos(p.categoria) && !p.agotado ? etiquetaDuo : null}
           />
         );
 

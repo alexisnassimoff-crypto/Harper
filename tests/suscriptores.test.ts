@@ -4,14 +4,26 @@ import assert from "node:assert/strict";
 // Las cuentas de Suscriptores Harper (Ale, 03/11/2026), sin servidor: el
 // reparto del cupón y del saldo, el cashback, las fechas en Buenos Aires y lo
 // que el pedido guarda en Notas.
+//
+// Ale, 18/11/2026: los beneficios en plata terminaron para todos. Estas
+// funciones quedan para usar el saldo que alguien tuviera de antes y para leer
+// los pedidos anteriores (lib/suscriptores.ts); el carrito ya no aplica el
+// cupón ni calcula cashback (tests/suscriptores-cuenta.test.ts y
+// tests/reglas-18-11.test.ts). Las dos últimas pruebas son de las reglas nuevas.
 
 import {
   aplicarBeneficios,
   beneficiosDeNotas,
+  BENEFICIOS_DE_SUSCRIPTOR,
   cashbackDe,
   cashbackDisponibleDesde,
   CUPON_BIENVENIDA,
+  CUOTAS_SON_BENEFICIO,
+  CUOTAS_SUSCRIPTORES,
+  CUOTAS_TODOS,
+  cuotasDelComprador,
   cuotasMaximas,
+  tieneCuotasDeSuscriptor,
   fechaArgentina,
   normalizarOrigenSuscripcion,
   notasDeBeneficios,
@@ -170,34 +182,65 @@ test("lo que el pedido guarda en Notas se lee igual, aunque haya facturación an
   assert.equal(beneficiosDeNotas(undefined), null);
 });
 
-test("el origen de la suscripción y el tope de cuotas por comprador", () => {
+test("el origen de la suscripción, y el tope de cuotas, que es el mismo con cuenta o sin cuenta: 3 (Ale, 18/11/2026)", () => {
   assert.equal(normalizarOrigenSuscripcion("checkout"), "Checkout");
   assert.equal(normalizarOrigenSuscripcion(" Portada "), "Portada");
   assert.equal(normalizarOrigenSuscripcion("instagram"), "Otro");
   assert.equal(normalizarOrigenSuscripcion(undefined), "Otro");
-  // Ale, 05/11/2026: hasta 3 para todos y hasta 6 para suscriptores.
-  assert.deepEqual([cuotasMaximas(false), cuotasMaximas(true)], [3, 6]);
+  // Ale, 18/11/2026: hasta 3 para todos; nadie tiene 6. La suscripción ya no da nada en plata.
+  assert.equal(BENEFICIOS_DE_SUSCRIPTOR, false);
+  assert.deepEqual([CUOTAS_TODOS, CUOTAS_SUSCRIPTORES, CUOTAS_SON_BENEFICIO], [3, 3, false]);
+  assert.deepEqual([cuotasMaximas(false), cuotasMaximas(true)], [3, 3]);
+  for (const cuenta of [null, undefined, {}, { activo: true }, { activo: false }]) {
+    assert.deepEqual([tieneCuotasDeSuscriptor(cuenta), cuotasDelComprador(cuenta)], [false, 3], JSON.stringify(cuenta));
+  }
 });
 
-test("los mails: el código, y la bienvenida con las cuotas solo si Mercado Pago las confirmó", async () => {
-  const { mailBienvenidaSuscriptor, mailCodigoSuscriptor } = await import("../lib/mails");
+test("los mails: el código, y la bienvenida a la cuenta y a las novedades, sin cupón, saldo, envío gratis ni cuotas (Ale, 18/11/2026)", async () => {
+  const { loQueDaLaCuenta, mailBienvenidaSuscriptor, mailCodigoSuscriptor } = await import("../lib/mails");
+  const { TEXTOS } = await import("../lib/textos");
   const config = { razonSocial: "FOCUS VISION SRL", cuit: "30-1", emailContacto: "hola@harper.ar", emailPedidos: "pedidos@harper.ar", whatsapp: "" } as Parameters<typeof mailCodigoSuscriptor>[0]["config"];
   const codigo = mailCodigoSuscriptor({ email: "ana@ejemplo.com", codigo: "123456", config });
   assert.equal(codigo.asunto, "123456 es tu código de Harper");
   assert.ok(!/ana@ejemplo\.com/.test(codigo.texto), "el código no lleva datos de la persona");
 
   const base = { email: "ana@ejemplo.com", nombre: "Ana Pérez", sitio: "https://harper.ar", enlaceBaja: "https://harper.ar/suscriptores/baja?t=abc", config };
-  const sinCuotas = mailBienvenidaSuscriptor({ ...base, cuponDisponible: true, cuotas: null });
-  assert.equal(sinCuotas.asunto, "Desbloqueaste tus beneficios de Harper");
-  assert.match(sinCuotas.texto, /^Hola, Ana\. Desbloqueaste tus beneficios de Harper\./);
-  assert.match(sinCuotas.texto, /\$\s10\.000 de descuento en tu primera compra\./);
-  assert.match(sinCuotas.texto, /Te devolvemos el 10% de lo que pagás en productos como saldo para tus próximas compras\. Lo podés usar a los 30 días y no vence\./);
-  assert.match(sinCuotas.texto, /Envío gratis siempre/);
-  assert.ok(!/cuotas/i.test(sinCuotas.texto), "sin verificar, no se nombran cuotas");
-  assert.match(sinCuotas.texto, /https:\/\/harper\.ar\/suscriptores\/mi-cuenta/);
-  assert.match(sinCuotas.html, /suscriptores\/baja\?t=abc/);
+  const bienvenida = mailBienvenidaSuscriptor(base);
+  assert.equal(bienvenida.para, "ana@ejemplo.com");
+  assert.equal(bienvenida.asunto, "Tu cuenta Harper quedó abierta");
+  assert.match(bienvenida.texto, /^Hola, Ana\. Tu cuenta Harper quedó abierta\.\n\nTe suscribiste a las novedades de Harper\. Con ese mismo mail entrás a tu cuenta\./);
+  // Lo que da la cuenta, con las mismas palabras que /suscriptores.
+  assert.deepEqual(loQueDaLaCuenta(), TEXTOS.suscriptores.cuentaDa);
+  assert.deepEqual(
+    loQueDaLaCuenta().map((p) => p.titulo),
+    ["Novedades por mail", "Tus compras", "Tus favoritos", "Tus datos y direcciones"]
+  );
+  for (const punto of loQueDaLaCuenta()) {
+    assert.ok(bienvenida.texto.includes(`- ${punto.titulo}. ${punto.detalle}`), punto.titulo);
+    assert.ok(bienvenida.html.includes(punto.detalle), punto.titulo);
+  }
+  // Cómo se entra, el enlace a la cuenta y la baja, que es solo de los mails de novedades.
+  assert.match(bienvenida.texto, /escribí tu mail en harper\.ar y te mandamos un código/);
+  assert.match(bienvenida.texto, /Tu cuenta: https:\/\/harper\.ar\/suscriptores\/mi-cuenta/);
+  assert.match(bienvenida.texto, /Si te das de baja, dejás de recibir nuestros mails de novedades\. Tu cuenta sigue igual, y los mails de tus pedidos te siguen llegando\.\nPara darte de baja: https:\/\/harper\.ar\/suscriptores\/baja\?t=abc/);
+  assert.match(bienvenida.html, /suscriptores\/baja\?t=abc/);
+  assert.match(bienvenida.html, /suscriptores\/mi-cuenta/);
 
-  const conCuotas = mailBienvenidaSuscriptor({ ...base, cuponDisponible: false, cuotas: { cuotas: 6, montoCuota: 14983.33, cftea: "0,00 %" } });
-  assert.match(conCuotas.texto, /6 cuotas sin interés con Visa y Mastercard · CFTEA 0,00 %\./);
-  assert.ok(!/primera compra/.test(conCuotas.texto), "sin el cupón (ya compró), no se lo promete");
+  // Sin nombre y sin enlace de baja: el saludo sin nombre, y la baja desde la cuenta.
+  const sinNombre = mailBienvenidaSuscriptor({ ...base, nombre: "  ", enlaceBaja: null });
+  assert.match(sinNombre.texto, /^Tu cuenta Harper quedó abierta\.\n/);
+  assert.match(sinNombre.texto, /Para darte de baja, entrá a tu cuenta\./);
+
+  // La bienvenida ya no promete nada en plata: ni el asunto «Desbloqueaste tus
+  // beneficios de Harper», ni $ 10.000 de descuento, ni el 10 % de vuelta, ni
+  // envío gratis siempre, ni cuotas. Y no nombra el programa «Suscriptores Harper».
+  for (const mail of [bienvenida, sinNombre]) {
+    for (const cuerpo of [mail.asunto, mail.texto, mail.html.replace(/<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ")]) {
+      assert.doesNotMatch(cuerpo, /desbloque|beneficio|descuento|cupón|primera compra|\$\s?\d|\d\s?%|de vuelta|saldo|envío gratis|gratis siempre|cuotas|sin interés|Suscriptores Harper|perdés/i);
+    }
+  }
+  // Aunque quien llama mande los datos de antes (el cupón y las 6 cuotas), el mail es el mismo.
+  const conDatosDeAntes = mailBienvenidaSuscriptor({ ...base, ...({ cuponDisponible: true, cuotas: { cuotas: 6, montoCuota: 14983.33, cftea: "0,00 %" } } as object) });
+  assert.equal(conDatosDeAntes.texto, bienvenida.texto);
+  assert.equal(conDatosDeAntes.html, bienvenida.html);
 });

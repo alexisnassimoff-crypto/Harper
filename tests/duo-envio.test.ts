@@ -239,7 +239,7 @@ test("AMBA y tarifa plana: igual que hoy (en la Ciudad, gratis desde $ 60.000 co
   assert.equal(sinDestino.total, 157_325);
 });
 
-test("Dinero en Mercado Pago y suscriptores no cambian quién tiene envío gratis", async () => {
+test("Dinero en Mercado Pago y la cuenta no cambian quién tiene envío gratis: con cuenta se paga el mismo envío que sin ella (Ale, 18/11/2026)", async () => {
   reiniciar();
   await conConfig("envio_gratis_desde", "180000", async () => {
     // El 10 % va sobre lo que queda con el Dúo; el envío es el mismo.
@@ -247,10 +247,28 @@ test("Dinero en Mercado Pago y suscriptores no cambian quién tiene envío grati
     assert.equal(con.dineroMP?.subtotal, conDescuento(157_325, 10));
     assert.equal(con.envio, ENVIO_CORDOBA);
 
-    // Un suscriptor tiene envío gratis siempre, con o sin Dúo.
-    const suscriptor: SuscriptorDelCarrito = { id: "recPRUEBA", email: "prueba@harper.ar", cuponDisponible: false, saldoDisponible: 0, activo: true };
-    const conSuscriptor = await prendido(() => resolverCarrito(DOS_PARES, { destino: CORDOBA, suscriptor }));
-    assert.equal(conSuscriptor.envio, 0);
-    assert.equal(conSuscriptor.total, 157_325);
+    // Con cuenta ya no hay envío gratis «siempre»: si la compra no llega al
+    // mínimo, paga el envío como cualquiera, con el Dúo prendido o apagado.
+    // (La cuenta, como la traería una fila de antes del 18/11.)
+    const suscriptor: SuscriptorDelCarrito = { id: "recPRUEBA", email: "prueba@harper.ar", cuponDisponible: true, saldoDisponible: 0, activo: true };
+    const conCuenta = await prendido(() => resolverCarrito(DOS_PARES, { destino: CORDOBA, suscriptor }));
+    assert.equal(conCuenta.envio, ENVIO_CORDOBA);
+    assert.equal(conCuenta.envioBonificado, false);
+    assert.equal(conCuenta.total, 157_325 + ENVIO_CORDOBA);
+    assert.deepEqual(envioDe(conCuenta), envioDe(con));
+
+    const sinDuo = await apagado(() => resolverCarrito(DOS_PARES, { destino: CORDOBA }));
+    const sinDuoConCuenta = await apagado(() => resolverCarrito(DOS_PARES, { destino: CORDOBA, suscriptor }));
+    assert.equal(sinDuoConCuenta.envio, ENVIO_CORDOBA);
+    assert.equal(sinDuoConCuenta.total, 179_800 + ENVIO_CORDOBA);
+    assert.deepEqual(envioDe(sinDuoConCuenta), envioDe(sinDuo));
   });
+
+  // Y donde la compra sí llega al mínimo, el envío gratis es el de cualquiera (no un beneficio de la cuenta).
+  reiniciar();
+  const suscriptor: SuscriptorDelCarrito = { id: "recPRUEBA", email: "prueba@harper.ar", cuponDisponible: true, saldoDisponible: 0, activo: true };
+  const gratis = await prendido(() => resolverCarrito(DOS_PARES, { destino: CORDOBA }));
+  const gratisConCuenta = await prendido(() => resolverCarrito(DOS_PARES, { destino: CORDOBA, suscriptor }));
+  assert.equal(gratis.envio, 0);
+  assert.deepEqual(envioDe(gratisConCuenta), envioDe(gratis));
 });

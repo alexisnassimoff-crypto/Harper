@@ -16,9 +16,15 @@ const { cuenta: T } = TEXTOS.suscriptores;
 export function EntrarACuenta({ guardar = null, soloCuenta = false }: { guardar?: string | null; soloCuenta?: boolean }) {
   const router = useRouter();
 
-  async function alEntrar() {
-    // Sin suscripción no hay favoritos guardados: solo se vuelve a armar la página.
-    if (!guardar || soloCuenta) {
+  /**
+   * `conFila`: el mail que entró tiene su fila de cuenta, que es donde se
+   * guardan los favoritos. Con `soloCuenta` (Crédito Harper prendido) también
+   * entra quien no la tiene: ahí no hay dónde guardar y solo se vuelve a
+   * armar la página. Antes (hasta el 18/11/2026) con `soloCuenta` el favorito
+   * pendiente no se guardaba nunca, ni siquiera a quien sí tenía su fila.
+   */
+  async function alEntrar(conFila: boolean) {
+    if (!guardar || !conFila) {
       router.refresh();
       return;
     }
@@ -32,25 +38,27 @@ export function EntrarACuenta({ guardar = null, soloCuenta = false }: { guardar?
     router.replace("/suscriptores/mi-cuenta#mis-favoritos");
   }
 
-  // Sin «quiero suscribirme»: debajo está el enlace a los beneficios, y si el
-  // mail no está suscripto, el mismo formulario le pide la casilla.
+  // Sin «quiero suscribirme»: debajo está el enlace a /suscriptores, y si el
+  // mail todavía no tiene cuenta, el mismo formulario le pide la casilla.
   return (
     <FormularioSuscripcion
       origen="Suscriptores"
       modoInicial="entrar"
       mostrarListo={false}
       conCambioDeModo={false}
-      alListo={() => void alEntrar()}
+      alListo={() => void alEntrar(true)}
       soloCuenta={soloCuenta}
-      alEntrar={() => void alEntrar()}
+      // /api/cuenta/entrar contesta "cuenta" a quien entró sin fila de cuenta.
+      alEntrar={(estado) => void alEntrar(estado !== "cuenta")}
     />
   );
 }
 
 /**
- * Salir de este navegador y darse de baja. La baja pide confirmación: deja
- * de recibir mails y pierde los beneficios (app/api/suscriptores/baja, con la
- * sesión). Ninguna de las dos borra el saldo.
+ * Salir de este navegador y darse de baja. La baja pide confirmación y es
+ * solo de los mails de novedades (Ale, 18/11/2026; app/api/suscriptores/baja,
+ * con la sesión): la cuenta sigue igual y los mails de los pedidos siguen
+ * llegando. Ya no hay beneficios que se pierdan.
  */
 export function AccionesCuenta({ activo = true, email = "", soloSalir = false }: { activo?: boolean; email?: string; soloSalir?: boolean }) {
   const router = useRouter();
@@ -86,14 +94,17 @@ export function AccionesCuenta({ activo = true, email = "", soloSalir = false }:
       <section className="cuenta-suscriptor__baja" role="status">
         <p className="suscripcion__listo">{TEXTOS.suscriptores.baja.listo}</p>
         <p>{TEXTOS.suscriptores.baja.listoDetalle}</p>
+        {/* La baja no cierra la sesión (Ale, 18/11/2026): al volver, la página
+            trae la cuenta de baja y este bloque se arma de nuevo (la página le
+            cambia la clave), con «Volver a suscribirme» y «Salir». */}
         <button type="button" className="suscripcion__enlace" onClick={() => router.refresh()}>
-          Volver
+          {T.volverACuenta}
         </button>
       </section>
     );
   }
 
-  // La cuenta sin suscripción (Crédito Harper, paso 3): no hay suscripción que dar de baja.
+  // La cuenta sin suscripción (Crédito Harper, paso 3): no hay mails de novedades que dar de baja.
   if (soloSalir) {
     return (
       <button type="button" className="enlace-accion cuenta-suscriptor__salir" onClick={salir} disabled={ocupado !== null}>
@@ -102,7 +113,7 @@ export function AccionesCuenta({ activo = true, email = "", soloSalir = false }:
     );
   }
 
-  // Se dio de baja: tiene su saldo y la opción de volver a suscribirse.
+  // Se dio de baja de las novedades: la cuenta sigue, con la opción de volver a suscribirse.
   if (!activo) {
     return (
       <>

@@ -29,9 +29,9 @@ export default function BarraTusPares({
   /** El id del elemento que, al salir de pantalla, hace aparecer la barra. */
   despuesDe: string;
   /**
-   * El id de una sección donde la barra no va (Suscriptores, Ale 05/11/2026):
-   * mientras se ve, la barra se va y el botón de WhatsApp también, para no
-   * tapar ni competir con el formulario.
+   * El id de una sección donde la barra no va (la de la cuenta Harper, Ale
+   * 05/11/2026): mientras se ve, la barra se va y el botón de WhatsApp
+   * también, para no tapar ni competir con el formulario.
    */
   ocultarEn?: string;
   /**
@@ -39,7 +39,7 @@ export default function BarraTusPares({
    * elegido no hay barra fija con promociones; con pares, es el carrito.
    */
   soloConCarrito?: boolean;
-  /** Sin nada en el carrito: "Dos pares, en 6 cuotas sin interés de $ 28.468". */
+  /** Sin nada en el carrito: "$ 89.900 · 3 cuotas sin interés de $ 29.966,67". */
   invitacion: string;
   precioPar: number;
 }) {
@@ -110,7 +110,8 @@ export default function BarraTusPares({
       })
     : null;
   // Sin dirección todavía el envío no se sabe: se muestran los productos y
-  // sus cuotas (las verificadas para ese monto, sin el envío).
+  // sus cuotas (las verificadas para ese monto, sin el envío). Las cuotas son
+  // las que manda el servidor, las mismas para todos (Ale, 18/11/2026).
   const productos = conDatos ? datos.total - datos.envio : 0;
   const cuota = conDatos ? ((datos.envio > 0 ? datos.cuotasSinEnvio : datos.cuotas) ?? null) : null;
 

@@ -26,8 +26,12 @@ export const TEXTOS = {
     tituloSinConfirmar: "Anteojos de diseño.",
     descripcion:
       "Fotocromáticos con filtro de luz azul y UV400: al sol se oscurecen y adentro vuelven a aclararse.",
-    /** La acción secundaria: baja a Suscriptores Harper. */
-    beneficios: "Conocer mis beneficios",
+    /**
+     * La acción secundaria de la portada de antes, que bajaba al bloque de la
+     * cuenta. Sin uso (PortadaColor no está en ninguna página); la clave se
+     * llama así desde antes del 18/11/2026.
+     */
+    beneficios: "Abrir mi cuenta",
     /** La frase de antes de la portada; ahora abre «Un mismo par». */
     sensacion: "Salís a la calle y se oscurecen solos.",
     etiqueta: "Harper · Colección fotocromática",
@@ -71,19 +75,21 @@ export const TEXTOS = {
       whatsappDetalle: "Modelo, talle o cristales con aumento",
     },
     /**
-     * Suscriptores (Ale, 05/11/2026): breve, para dar curiosidad. Título,
-     * una bajada y el formulario a mano; los beneficios y sus condiciones, a
-     * un enlace (/suscriptores). Nada técnico: lo del código aparece recién
-     * cuando se manda.
+     * La cuenta Harper y las novedades (Ale, 18/11/2026: los beneficios en
+     * plata de la suscripción terminaron para todos; quedan la cuenta y los
+     * mails de novedades). Breve: título, una bajada y el formulario a mano;
+     * qué trae la cuenta y sus condiciones, a un enlace (/suscriptores). Nada
+     * técnico: lo del código aparece recién cuando se manda.
      */
     suscripcion: {
-      etiqueta: "Suscriptores Harper · Es gratis",
-      titulo: "Ser parte tiene sus ventajas.",
-      bajada: "Unite gratis y descubrí los beneficios que preparamos para vos.",
-      /** El enlace secundario, a /suscriptores. */
-      beneficios: "Conocé los beneficios y sus condiciones",
-      /** La caja de la ficha. */
-      boton: "Descubrir mis beneficios",
+      etiqueta: "Cuenta Harper · Es gratis",
+      titulo: "Enterate de lo nuevo.",
+      bajada:
+        "Dejanos tu mail y te avisamos cuando salen modelos y colores nuevos. Con ese mismo mail entrás a tu cuenta, donde seguís tus compras y guardás tus favoritos.",
+      /** El enlace secundario, a /suscriptores (la clave se llama así desde antes del 18/11/2026). */
+      beneficios: "Conocé la cuenta Harper y sus condiciones",
+      /** La caja de la ficha, que desde el 18/11/2026 no se muestra. */
+      boton: "Abrir mi cuenta gratis",
       condiciones: "Ver las condiciones completas",
     },
   },
@@ -94,12 +100,89 @@ export const TEXTOS = {
     envio: { texto: "Envíos a domicilio a todo el país", detalle: "Lo despachamos cuando se acredita el pago." },
     whatsapp: { texto: "Te asesoramos por WhatsApp", detalle: "Para elegir modelo, color o talle, o consultar por cristales con aumento.", enlace: "Escribinos" },
   },
-  /** Las promociones de compra vigentes, en un solo lugar. */
+  /**
+   * Anterior al 18/11/2026 y sin uso: el bloque «Promociones» que salió de la
+   * portada el 05/11/2026. Lo que hoy se dice de las condiciones de compra
+   * está en `programa`, acá abajo. No usar en nada nuevo.
+   */
   promos: {
     etiqueta: "Promociones vigentes",
-    titulo: "Beneficios al comprar.",
+    titulo: "Condiciones de compra.",
     dineroMP: "OFF extra pagando con dinero en tu cuenta de Mercado Pago.",
     envioGratis: "Envío gratis",
+  },
+  /**
+   * Las condiciones de compra (Ale, 18/11/2026), dichas igual en todos lados:
+   * la barra de anuncios, la portada, la ficha, las tarjetas y las preguntas
+   * frecuentes. Son cuatro y no hay otra: el Dúo, el 10 % por pagar con el
+   * dinero de la cuenta de Mercado Pago, las cuotas sin interés y el envío
+   * gratis por zona. Tener cuenta no cambia ninguna.
+   *
+   * Acá no se escribe ningún importe, porcentaje ni cantidad de cuotas: llegan
+   * siempre como parámetro, del servidor (lib/pedidos.ts, lib/duo.ts,
+   * lib/dinero-mp.ts), de Mercado Pago (las cuotas verificadas) o de Config
+   * (los mínimos del envío). El Dúo se nombra solo cuando el servidor dice que
+   * está prendido (HARPER_DUO_ACTIVO): apagado, ninguna de sus frases se usa.
+   */
+  programa: {
+    duo: {
+      /** «Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF». Sin punto final: va en la barra y, con punto, de título. */
+      regla: (porcentaje: number) => `Dúo: llevá dos anteojos y el de menor precio tiene ${porcentaje}% OFF`,
+      /**
+       * «Dos anteojos: $ 157.325 en lugar de $ 179.800.» Los dos importes son
+       * los del carrito del servidor. Nunca «antes»: ese precio no existió.
+       */
+      dosAnteojos: (total: string, lista: string) => `Dos anteojos: ${total} en lugar de ${lista}.`,
+      /** Lo mismo en la ficha, donde el importe es el de dos de ese modelo. */
+      dosDeEsteModelo: (total: string, lista: string) => `Dos de este modelo: ${total} en lugar de ${lista}.`,
+      combinar: "Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito.",
+      /** La etiqueta junto al precio de cada anteojo: «Dúo: llevá dos y uno tiene 25% OFF». */
+      etiqueta: (porcentaje: number) => `Dúo: llevá dos y uno tiene ${porcentaje}% OFF`,
+      /** Las preguntas frecuentes. */
+      pregunta: "¿Qué es el Dúo?",
+      /** «Si llevás dos anteojos, el de menor precio tiene 25% OFF.» */
+      respuesta: (porcentaje: number) => `Si llevás dos anteojos, el de menor precio tiene ${porcentaje}% OFF.`,
+      /** Con tres, uno; con cuatro, dos: el servidor descuenta la mitad de los anteojos, los de menor precio (lib/duo.ts). */
+      conMas: "Con más anteojos, el descuento va en uno de cada dos, siempre en los de menor precio.",
+      /** «El 10% OFF extra por pagar con dinero en Mercado Pago se suma al Dúo: dos anteojos quedan en $ 141.593.» El importe, del servidor; sin él, sin la cuenta. */
+      conDineroMP: (porcentaje: number, dosAnteojos: string | null) =>
+        `El ${porcentaje}% OFF extra por pagar con dinero en Mercado Pago se suma al Dúo${dosAnteojos ? `: dos anteojos quedan en ${dosAnteojos}` : ""}.`,
+    },
+    dineroMP: {
+      /** La barra de anuncios y los títulos: «10% OFF extra pagando con dinero en Mercado Pago». */
+      barra: (porcentaje: number) => `${porcentaje}% OFF extra pagando con dinero en Mercado Pago`,
+      detalle: "Pagando con el dinero de tu cuenta de Mercado Pago, en un pago. No se aplica al envío.",
+      /** Solo con el Dúo prendido. */
+      seSumaAlDuo: "Se suma al Dúo.",
+      /** Debajo del precio: «o $ 80.910 con dinero en Mercado Pago». El importe lo calcula el servidor. */
+      precio: (monto: string) => `o ${monto} con dinero en Mercado Pago`,
+    },
+    cuotas: {
+      /** «3 cuotas sin interés»: solo las que Mercado Pago confirmó para ese importe. */
+      sinInteres: (cuotas: number) => `${cuotas} cuotas sin interés`,
+      /** «Visa y Mastercard · CFTEA 0,00 %»: las condiciones, siempre al lado de las cuotas. */
+      condiciones: (marcas: string, cftea: string) => `${marcas} · CFTEA ${cftea}`,
+      /**
+       * Las condiciones de las cuotas de las tarjetas de la portada, una vez
+       * para todas: «Cuotas sin interés con Visa y Mastercard · CFTEA 0,00 % ·
+       * Precio de contado $ 89.900». Si los modelos no cuestan lo mismo, sin
+       * el importe: el precio de contado es el de cada uno.
+       */
+      deLaSeccion: (marcas: string, cftea: string, contado: string | null) =>
+        `Cuotas sin interés con ${marcas} · CFTEA ${cftea} · ${contado ? `Precio de contado ${contado}` : "El precio de contado es el de cada anteojo"}`,
+      /** Las cuotas son de cualquier comprador (Ale, 18/11/2026: nadie tiene más). */
+      paraTodos: "Son las mismas para todos: no hace falta tener cuenta.",
+    },
+    envio: {
+      /** «Envío gratis en AMBA desde $ 60.000». El mínimo, de Config (envio_gratis_amba_desde). */
+      amba: (monto: string) => `Envío gratis en AMBA desde ${monto}`,
+      /** «Al resto del país, gratis desde $ 250.000». El mínimo, de Config (envio_gratis_desde). */
+      resto: (monto: string) => `Al resto del país, gratis desde ${monto}`,
+      /** Sin un mínimo propio para AMBA hay uno solo: «Envío gratis desde $ 250.000». */
+      unico: (monto: string) => `Envío gratis desde ${monto}`,
+      /** Va donde se dice el mínimo: el servidor lo mide antes del Dúo y del 10 % de Mercado Pago. */
+      minimo: "El mínimo se cuenta con los anteojos a precio de lista.",
+    },
   },
   lineas: {
     titulo: "Un par para cada ocasión.",
@@ -129,7 +212,8 @@ export const TEXTOS = {
     aumento: "¿Usás aumento? Te ponemos los cristales oftálmicos.",
   },
   pack: {
-    bajada: "Uno para la semana, otro para el finde y otro para regalar. Podés mezclar modelos y colores, y el descuento se aplica solo.",
+    /** Sin uso desde que salió el descuento por cantidad: no promete ninguno (Ale, 18/11/2026). */
+    bajada: "Uno para la semana y otro para el finde. Podés combinar modelos y colores.",
   },
   viene: {
     titulo: "Esto recién empieza.",
@@ -199,7 +283,7 @@ export const TEXTOS = {
   pie: {
     lema: "Diseño para todos los días.",
   },
-  /** El checkout (recorrido móvil, Ale, 08/11/2026). */
+  /** El carrito y el checkout (recorrido móvil, Ale, 08/11/2026). */
   checkout: {
     /** Cuando el pedido no llega al servidor (sin conexión): en vez del «Failed to fetch» del navegador. */
     sinConexion: "No pudimos conectarnos. Revisá tu conexión y tocá Pagar de nuevo: tu carrito y tus datos siguen acá.",
@@ -207,6 +291,15 @@ export const TEXTOS = {
     siguenAca: "Tu carrito y tus datos siguen acá.",
     dudas: "¿Dudas antes de pagar?",
     escribinos: "Escribinos por WhatsApp",
+    /**
+     * Con el Dúo aplicado y sin llegar todavía al mínimo del envío gratis (Ale,
+     * 18/11/2026), junto a «Te faltan…», «gratis desde…» y «Agregá $ X más…»:
+     * el servidor mide el mínimo antes del descuento del Dúo, y sin decirlo la
+     * cuenta no le cierra a quien mira el total. Se muestra solo si algún
+     * renglón trae el Dúo del servidor (lib/envio-gratis.ts): con el Dúo
+     * apagado, nunca.
+     */
+    minimoAntesDelDuo: "El mínimo se cuenta con los anteojos a precio de lista, antes del descuento del Dúo.",
   },
   /**
    * Quiénes somos (Ale, 04/11/2026: sin «Los anteojos también se eligen como
@@ -285,13 +378,25 @@ export const TEXTOS = {
     pendiente: (que: string) => `Entrá con tu mail y guardamos ${que} en tus favoritos.`,
   },
   /**
-   * Suscriptores Harper (Ale, 03/11/2026, lib/suscriptores.ts). Los montos,
-   * el porcentaje, los días y las cuotas los pone el código; las cuotas, solo
-   * si Mercado Pago las confirmó y con el CFTEA al lado.
+   * La cuenta Harper y los mails de novedades (lo que nació el 03/11/2026
+   * como Suscriptores Harper, lib/suscriptores.ts). Ale, 18/11/2026: los
+   * beneficios en plata terminaron para todos (cupón de bienvenida, saldo de
+   * vuelta, envío gratis siempre y cuotas propias). Quedan la cuenta (compras,
+   * favoritos, datos y direcciones) y los mails de novedades, y así se dice:
+   * «tu cuenta Harper», «las novedades de Harper»; el nombre del programa ya
+   * no se le muestra a nadie. Los montos, porcentajes y días los pone el
+   * código, nunca el texto.
+   *
+   * Las claves que hablan de cupón, cashback, envío gratis o cuotas de
+   * suscriptor son de antes de ese día: ninguna página de la cuenta las usa y
+   * se borran en la limpieza. No usarlas en nada nuevo.
    */
   suscriptores: {
-    etiqueta: "Suscriptores Harper",
-    /** Los beneficios, uno por renglón y en este orden: la web y el mail de bienvenida dicen lo mismo. */
+    etiqueta: "Cuenta Harper",
+    /**
+     * Anterior al 18/11/2026: los cuatro beneficios, uno por renglón. Hoy solo
+     * los lee el mail de bienvenida (lib/mails.ts), que se reescribe aparte.
+     */
     beneficios: {
       /** «$ 10.000 de descuento en tu primera compra.» */
       cupon: (monto: string) => `${monto} de descuento en tu primera compra.`,
@@ -302,31 +407,54 @@ export const TEXTOS = {
       cuotas: (cuotas: number, marcas: string, cftea: string) => `${cuotas} cuotas sin interés con ${marcas} · CFTEA ${cftea}.`,
     },
     comoUsarlos: "Entrá con tu mail en harper.ar antes de comprar: los beneficios se aplican solos en el carrito.",
-    envioGratis: "Por ser suscriptor, el envío es gratis a todo el país.",
-    /** En el checkout, con la sesión abierta. */
-    checkout: (email: string) => `Comprás como suscriptor con ${email}.`,
-    /** Entró alguien que se dio de baja: solo su saldo. */
-    checkoutBaja: (email: string) => `Entraste con ${email}. Te diste de baja, así que no tenés beneficios nuevos, pero podés usar tu saldo.`,
-    /** El pedido que se paga entero con saldo: no pasa por Mercado Pago. */
-    sinPago: "No tenés que pagar nada: lo cubre tu saldo.",
+    /**
+     * Sin uso desde el 18/11/2026: la cuenta ya no tiene envío gratis, y el
+     * carrito y el checkout muestran la nota de envío de cualquier compra
+     * (lib/envio-gratis.ts). Antes decía que el envío era gratis por estar suscripto.
+     */
+    envioGratis: "El envío es gratis desde el mínimo de cada zona, con cuenta o sin cuenta.",
+    /**
+     * En el checkout, con la cuenta abierta (Ale, 18/11/2026): solo con qué
+     * mail compra, seguido de «¿No sos vos? Salir» (checkoutCaja.salir). La
+     * cuenta no cambia el precio, el envío ni las cuotas.
+     */
+    checkout: (email: string) => `Comprás con tu cuenta ${email}.`,
+    /** Sin uso desde el 18/11/2026: quien se dio de baja de las novedades ve la misma línea que cualquier cuenta. */
+    checkoutBaja: (email: string) => `Comprás con tu cuenta ${email}.`,
+    /**
+     * El pedido que queda en $ 0 (Ale, 18/11/2026): no pasa por Mercado Pago,
+     * el servidor lo confirma solo. El checkout dice con qué quedó cubierto,
+     * según lo que contesta el servidor: el saldo a favor de antes del
+     * 18/11/2026 (`sinPago`), el Crédito Harper (solo con su interruptor
+     * prendido), los dos, o sin decir con qué si el servidor no informa ninguno.
+     */
+    sinPago: "No tenés que pagar nada: lo cubre tu saldo a favor.",
+    sinPagoCredito: "No tenés que pagar nada: lo cubre tu Crédito Harper.",
+    sinPagoSaldoYCredito: "No tenés que pagar nada: lo cubren tu saldo a favor y tu Crédito Harper.",
+    sinPagoSinMas: "No tenés que pagar nada por este pedido.",
+    /** El botón de ese pedido, en lugar de «Pago seguro». */
     confirmar: "Confirmar pedido",
-    /** El checkout rechazó el cupón (ya hay una compra confirmada con ese mail o DNI). */
+    /**
+     * Anterior al 18/11/2026: el cupón de bienvenida terminó y el servidor ya
+     * no llega a este aviso (app/api/checkout/route.ts conserva la rama, que
+     * hoy no se alcanza). Se borra en la limpieza, junto con esa rama.
+     */
     cuponRechazado: "El cupón de bienvenida es para la primera compra, y ya hay una compra con este mail o DNI.",
-    saldoCambio: "Tu saldo cambió mientras comprabas. Revisá el total antes de confirmar.",
-    /** El cupón de bienvenida se usa comprando con el mail con el que se suscribió. */
+    /** El saldo a favor de antes del 18/11/2026 cambió entre que vio el total y confirmó. */
+    saldoCambio: "Tu saldo a favor cambió mientras comprabas. Revisá el total antes de confirmar.",
+    /** Anterior al 18/11/2026, como `cuponRechazado`: el servidor ya no llega a este aviso. */
     cuponOtroMail: (email: string) => `El cupón de bienvenida es para comprar con el mail con el que te suscribiste (${email}).`,
-    /** Otro pago del mismo suscriptor se está creando en este momento (otra pestaña). */
+    /** Otro pago de la misma cuenta se está creando en este momento (otra pestaña). */
     otroPagoEnCurso: "Ya estamos preparando otro pago tuyo. Esperá unos segundos y probá de nuevo.",
-    /** El saldo que aparta un pedido sin pagar. */
+    /** El saldo a favor de antes del 18/11/2026 que aparta un pedido sin pagar. */
     saldoReservado: (monto: string, minutos: number) =>
-      `Tenés ${monto} apartados en un pedido que todavía no pagaste: si no lo pagás, vuelven a tu saldo en ${minutos} minutos.`,
-    /** La sesión de suscriptor cambió entre que vio el total y apretó pagar. */
-    sesionCambio: "Tu sesión de suscriptor cambió mientras comprabas. Revisá el total y tus beneficios antes de pagar.",
+      `Tenés ${monto} apartados en un pedido que todavía no pagaste: si no lo pagás, vuelven a tu saldo a favor en ${minutos} minutos.`,
+    /** Entró o salió de su cuenta entre que vio el total y apretó pagar (Ale, 18/11/2026: sin «suscriptor» ni «beneficios»). */
+    sesionCambio: "Entraste o saliste de tu cuenta mientras comprabas. Revisá el total antes de pagar.",
 
     /**
-     * Los mismos cuatro beneficios con un título corto, para la web (la
-     * portada, /suscriptores y la ficha). Las reglas son las de
-     * lib/suscriptores.ts, dichas simple.
+     * Anterior al 18/11/2026: los mismos beneficios con un título corto. Ya no
+     * los muestra ninguna página (/suscriptores muestra `cuentaDa`).
      */
     tarjetas: {
       cupon: (monto: string) => ({ titulo: `${monto} de bienvenida`, detalle: "De descuento en tu primera compra. Una sola vez por persona." }),
@@ -341,12 +469,34 @@ export const TEXTOS = {
         detalle: `Con ${marcas} · CFTEA ${cftea}.${todos ? ` Sin suscribirte,\u00a0${todos}.` : ""}`,
       }),
     },
-    /** La sección de la portada y la página /suscriptores. */
-    // Como «One free account. Endless member rewards.» de On (Ale, 04/11/2026):
-    // una suscripción gratis que desbloquea beneficios.
-    titulo: "Suscribite gratis y desbloqueá tus beneficios.",
-    bajada: "Solo necesitás tu mail. Los beneficios se desbloquean apenas te suscribís, y te das de baja cuando quieras.",
-    /** El enlace de la portada, debajo del botón de comprar. */
+    /**
+     * La página /suscriptores (Ale, 18/11/2026): las novedades por mail y la
+     * cuenta, con las mismas palabras que la portada (TEXTOS.inicio.suscripcion).
+     */
+    titulo: "Enterate de lo nuevo.",
+    bajada:
+      "Dejanos tu mail y te avisamos cuando salen modelos y colores nuevos. Con ese mismo mail entrás a tu cuenta, donde seguís tus compras y guardás tus favoritos.",
+    /** El título de la página en el navegador y su resumen para los buscadores. */
+    paginaTitulo: "Tu cuenta y las novedades",
+    paginaDescripcion:
+      "Dejanos tu mail y te avisamos cuando salen modelos y colores nuevos de Harper. Con ese mismo mail entrás a tu cuenta, donde seguís tus compras y guardás tus favoritos. Es gratis.",
+    /** Lo que da la cuenta, en /suscriptores: donde antes iban los beneficios. */
+    cuentaDa: [
+      { titulo: "Novedades por mail", detalle: "Te avisamos cuando salen modelos y colores nuevos." },
+      { titulo: "Tus compras", detalle: "Ves tus pedidos y seguís cada envío." },
+      { titulo: "Tus favoritos", detalle: "Guardás con el corazón los anteojos que te gustan." },
+      { titulo: "Tus datos y direcciones", detalle: "Los guardás una vez y no los cargás de nuevo en cada compra." },
+    ],
+    pasosTitulo: "Cómo funciona",
+    /** El último dice que la baja es solo de los mails de novedades. */
+    pasos: [
+      "Dejás tu mail y lo confirmás con el código que te mandamos.",
+      "Desde ese momento te avisamos por mail cuando salen modelos y colores nuevos.",
+      "Con ese mismo mail entrás a tu cuenta cuando quieras: ahí están tus compras, tus favoritos, tus datos y tus direcciones.",
+      "Si no querés recibir más los mails de novedades, te das de baja cuando quieras. Tu cuenta sigue igual.",
+    ],
+    condicionesCuenta: "Condiciones de la cuenta Harper",
+    /** Anterior al 18/11/2026, sin uso. El enlace de la portada, debajo del botón de comprar. */
     enlacePortada: (monto: string) => `Suscribite gratis y desbloqueá ${monto} de bienvenida`,
     /** La barra de anuncios. */
     anuncio: (monto: string) => `Suscribite gratis y desbloqueá ${monto} de bienvenida y envío gratis siempre`,
@@ -363,17 +513,21 @@ export const TEXTOS = {
       tuyo: "Beneficio de suscriptor",
     },
     condiciones: "Ver las condiciones",
-    /** El formulario de suscripción (components/suscriptores/FormularioSuscripcion.tsx). */
-    /** La sección de la portada (Ale, 04/11/2026): un botón que lleva al formulario y el registro separado de los beneficios. */
+    /** Anterior al 18/11/2026, sin uso (components/suscriptores/IrAlFormulario.tsx no está en ninguna página). */
     portada: {
       cta: "Suscribirme gratis",
       beneficios: "Tus beneficios",
       formTitulo: "Suscribite con tu mail",
     },
+    /**
+     * El formulario para suscribirse o entrar (components/suscriptores/FormularioSuscripcion.tsx).
+     * Suscribirse es aceptar los mails de novedades y abre la cuenta; entrar
+     * no pide nada más que el mail y el código.
+     */
     form: {
       email: "Tu mail",
       nombre: "Tu nombre (opcional)",
-      acepto: "Acepto las condiciones de Suscriptores Harper y recibir sus mails con novedades, lanzamientos y promociones.",
+      acepto: "Acepto las condiciones de la cuenta Harper y recibir sus mails con novedades, lanzamientos y promociones.",
       faltaAcepto: "Para suscribirte, marcá que aceptás recibir nuestros mails.",
       suscribirme: "Suscribirme gratis",
       pedirCodigo: "Mandame el código",
@@ -381,40 +535,48 @@ export const TEXTOS = {
       codigo: "Código",
       confirmar: "Confirmar",
       otroMail: "Usar otro mail",
-      /** Quiso entrar con un mail que no está suscripto (o se dio de baja). */
-      noSuscripto: "Ese mail no está suscripto. Para suscribirte, aceptá recibir nuestros mails y confirmá.",
-      yaSos: "¿Ya sos suscriptor?",
+      /** Quiso entrar con un mail que todavía no tiene cuenta: el mismo código la abre, con la casilla. */
+      noSuscripto: "Todavía no hay una cuenta con ese mail. Para abrirla, marcá que aceptás recibir nuestros mails y confirmá.",
+      yaSos: "¿Ya tenés cuenta?",
       entrar: "Entrá con tu mail",
       quieroSuscribirme: "Todavía no: quiero suscribirme",
+      /** Después de confirmar el código (Ale, 18/11/2026): sin cupón, envío, saldo ni beneficios. */
       listo: {
-        nueva: "¡Listo! Desbloqueaste tus beneficios.",
-        reactivada: "¡Volviste! Tus beneficios están desbloqueados otra vez.",
-        ya: "Ya sos suscriptor: entraste con tu mail.",
-        baja: "Entraste con tu mail. Como te diste de baja, no tenés beneficios nuevos, pero el saldo que ganaste lo podés seguir usando.",
+        nueva: "¡Listo! Ya estás suscripto y tu cuenta quedó abierta.",
+        reactivada: "¡Listo! Ya estás suscripto otra vez a las novedades de Harper.",
+        ya: "Ya estabas suscripto: entraste a tu cuenta.",
+        baja: "Entraste a tu cuenta. Como te diste de baja, no te mandamos los mails de novedades.",
       },
-      /** «Tu cupón de $ 10.000 se aplica solo en el carrito.» */
+      /** Anteriores al 18/11/2026, sin uso: lo que decía el formulario del cupón y de los beneficios. */
       listoCupon: (monto: string) => `Tu cupón de ${monto} y el envío gratis se aplican solos en el carrito.`,
       listoSinCupon: "Tus beneficios se aplican solos en el carrito.",
     },
     elegir: "Elegir mis anteojos",
     verCuenta: "Ver mi cuenta",
-    /** «Mi cuenta» (/suscriptores/mi-cuenta). */
+    /** «Mi cuenta» (/suscriptores/mi-cuenta). Arriba de la página va `etiquetaCuenta`: «Mi Cuenta Harper». */
     cuenta: {
       titulo: "Mi cuenta",
       hola: (nombre: string) => `Hola, ${nombre}.`,
       entrarTitulo: "Entrá a tu cuenta",
-      entrarBajada: "Escribí el mail con el que te suscribiste y te mandamos un código.",
-      noSuscripto: "¿Todavía no sos suscriptor?",
-      verBeneficios: "Desbloqueá tus beneficios",
+      entrarBajada: "Escribí tu mail y te mandamos un código para entrar.",
+      /** Debajo del formulario de entrada, con el enlace a /suscriptores (Ale, 18/11/2026: sin «beneficios»). */
+      noSuscripto: "¿Todavía no tenés cuenta?",
+      verBeneficios: "Mirá qué incluye y abrila gratis",
+      /**
+       * El saldo de antes del 18/11/2026 (lo que volvía de cada compra). Ya no
+       * se genera: estos textos salen solo en la cuenta que de verdad tiene
+       * saldo o movimientos, y ese día no había ninguna.
+       */
       disponible: "Saldo disponible",
       disponibleDetalle: "Se descuenta solo en el checkout. No vence.",
       enCamino: "En camino",
       /** «$ 7.191 desde el 23/11/2026». */
       enCaminoDesde: (monto: string, fecha: string) => `${monto} desde el ${fecha}`,
-      /** Con un solo cashback en camino. */
+      /** Con un solo saldo en camino. */
       enCaminoFecha: (fecha: string) => `Lo podés usar desde el ${fecha}.`,
-      enCaminoDetalle: (dias: number) => `Es el cashback de tus compras: se usa a los ${dias} días del pago.`,
+      enCaminoDetalle: (dias: number) => `Viene de compras anteriores: se puede usar a los ${dias} días del pago.`,
       sinEnCamino: "Nada por ahora.",
+      /** Anteriores al 18/11/2026, sin uso: el cupón de bienvenida terminó y Mi cuenta ya no lo muestra. */
       cupon: "Cupón de bienvenida",
       cuponDisponible: (monto: string) => `${monto} de descuento en tu primera compra. Se aplica solo en el carrito.`,
       cuponUsado: (pedido: string) => (pedido ? `Ya lo usaste, en el pedido ${pedido}.` : "Ya lo usaste."),
@@ -521,17 +683,17 @@ export const TEXTOS = {
         },
       },
       movimientos: "Movimientos",
-      /** Las pestañas de Mi cuenta (Ale, 05/11/2026). */
+      /** Las pestañas de Mi cuenta (Ale, 05/11/2026). «Movimientos», solo en la cuenta con saldo de antes del 18/11/2026. */
       pestanas: { compras: "Compras", favoritos: "Favoritos", movimientos: "Movimientos", datos: "Mis datos", credito: "Crédito Harper" },
+      /** La etiqueta de Mi cuenta, para todos y con o sin sesión (Ale, 18/11/2026). */
+      etiquetaCuenta: "Mi Cuenta Harper",
+      /** Arriba del saldo de antes del 18/11/2026, solo en la cuenta que lo tiene: no es el Crédito Harper. */
+      saldoAnterior: "Saldo a favor de compras anteriores",
       /**
        * Crédito Harper, paso 3: solo con HARPER_CREDITO_ACTIVO=1. Apagado,
-       * ninguno de estos textos se muestra.
+       * ni `entrarBajadaCuenta` ni los textos de `credito` se muestran.
        */
-      /** La etiqueta de la cuenta de quien no es suscriptor. */
-      etiquetaCuenta: "Mi Cuenta Harper",
       entrarBajadaCuenta: "Escribí el mail con el que compraste y te mandamos un código. No hace falta suscribirse.",
-      /** Arriba del saldo de siempre, para no confundirlo con el Crédito Harper. */
-      saldoAnterior: "Saldo de Suscriptores Harper",
       credito: {
         titulo: "Mi Crédito Harper",
         bajada: "Lo ganás con tus compras de anteojos. Se usa solo en anteojos y no vence.",
@@ -574,58 +736,79 @@ export const TEXTOS = {
         anulado: "El pedido se canceló o se devolvió.",
         enRevisionNota: "Lo estamos revisando.",
       },
-      sinMovimientos: "Todavía no hay movimientos. Con tu primera compra empieza a volver el 10%.",
+      /** Sin uso desde el 18/11/2026: la pestaña «Movimientos» sale solo si hay alguno. */
+      sinMovimientos: "Todavía no hay movimientos.",
+      /** Los movimientos del saldo de antes del 18/11/2026 (las claves son los tipos de la tabla Saldos). */
       movimiento: {
-        Cashback: (pedido: string) => (pedido ? `Cashback del pedido ${pedido}` : "Cashback"),
+        Cashback: (pedido: string) => (pedido ? `Saldo a favor por el pedido ${pedido}` : "Saldo a favor"),
         Uso: (pedido: string) => (pedido ? `Usado en el pedido ${pedido}` : "Saldo usado"),
         Ajuste: "Ajuste de Harper",
       },
-      /** Junto a un cashback que todavía no se puede usar. */
+      /** Junto a un saldo que todavía no se puede usar. */
       desde: (fecha: string) => `desde el ${fecha}`,
       salir: "Salir",
-      bajaTitulo: "Mails y baja",
-      bajaTexto:
-        "Si te das de baja, dejás de recibir nuestros mails y de sumar beneficios nuevos (cupón, envío gratis y cashback). El saldo que ya ganaste no se pierde: lo seguís pudiendo usar entrando con este mail.",
+      /**
+       * La baja (Ale, 18/11/2026): es solo de los mails de novedades. La cuenta
+       * sigue y los mails de los pedidos también.
+       */
+      bajaTitulo: "Mails de novedades",
+      bajaTexto: "Si te das de baja, dejás de recibir nuestros mails de novedades. Tu cuenta sigue igual, y los mails de tus pedidos te siguen llegando.",
       /** Mi cuenta de alguien que se dio de baja. */
-      deBaja: "Te diste de baja: no recibís nuestros mails ni beneficios nuevos. El saldo que ya ganaste lo podés seguir usando en tus compras.",
+      deBaja: "Te diste de baja de los mails de novedades. Tu cuenta sigue igual, y los mails de tus pedidos te siguen llegando.",
       volver: "Volver a suscribirme",
       baja: "Darme de baja",
       bajaConfirmar: "Sí, darme de baja",
       cancelar: "No, seguir suscripto",
+      /** Después de darse de baja desde Mi cuenta. */
+      volverACuenta: "Volver a mi cuenta",
     },
-    /** La página del enlace de baja de los mails (/suscriptores/baja). */
+    /** La página del enlace de baja de los mails (/suscriptores/baja): la baja es solo de las novedades. */
     baja: {
+      etiqueta: "Novedades de Harper",
       titulo: "Darte de baja",
-      texto: "Vas a dejar de recibir nuestros mails y de sumar beneficios nuevos. El saldo que ya ganaste no se pierde: lo seguís pudiendo usar entrando con tu mail.",
+      texto: "Si te das de baja, dejás de recibir nuestros mails de novedades. Tu cuenta sigue igual, y los mails de tus pedidos te siguen llegando.",
       boton: "Darme de baja",
       listo: "Listo, te diste de baja.",
-      listoDetalle: "No vas a recibir más mails de Harper. Si cambiás de idea, te podés volver a suscribir con el mismo mail.",
+      listoDetalle: "Ya no te mandamos mails de novedades. Si cambiás de idea, te podés volver a suscribir con el mismo mail.",
       invalido: "El enlace no es válido. Escribinos y te damos de baja.",
       sinEnlace: "Para darte de baja, usá el enlace de nuestros mails de bienvenida y de novedades, o entrá a tu cuenta.",
     },
-    /** La caja de la ficha. */
+    /** A quien ya está suscripto y entró en este navegador, en lugar del formulario (la portada y /suscriptores). */
     ficha: {
-      suscripto: "Sos suscriptor: tus beneficios se aplican solos en el carrito.",
-      /** «Tenés $ 2.181 de saldo para usar.» */
+      suscripto: "Ya estás suscripto a las novedades de Harper.",
+      /** Anterior al 18/11/2026, sin uso. */
       saldo: (monto: string) => `Tenés ${monto} de saldo para usar.`,
     },
-    /** El checkout. */
+    /**
+     * La cuenta en el checkout (components/checkout/SuscriptorEnCheckout.tsx).
+     * Ale, 18/11/2026: ya no se invita a suscribirse a cambio de un descuento
+     * ni se promete nada por tener cuenta. Queda una línea que dice con qué
+     * cuenta se compra (`checkout`, más arriba, y `salir`) y, solo en la
+     * cuenta que de verdad tiene saldo a favor de antes de ese día, la casilla
+     * para usarlo y su renglón en el resumen (`usarSaldo`, `saldo`).
+     */
     checkoutCaja: {
-      /** «Suscribite gratis con este mail y desbloqueá $ 10.000 de descuento en esta compra, envío sin cargo y 6 cuotas sin interés.» */
+      /**
+       * Anteriores al 18/11/2026, sin uso: la invitación a suscribirse por el
+       * cupón, el envío sin cargo y las cuotas, que el checkout ya no muestra.
+       * Se borran en la limpieza. No usarlas en nada nuevo.
+       */
       invitacion: (monto: string, cuotas: number | null) =>
         cuotas
           ? `Suscribite gratis con este mail y desbloqueá ${monto} de descuento en esta compra, envío sin cargo y ${cuotas} cuotas sin interés.`
           : `Suscribite gratis con este mail y desbloqueá ${monto} de descuento en esta compra y envío sin cargo.`,
       nota: "Es gratis. El cupón es para tu primera compra en Harper.",
       escribiMail: "Escribí tu mail arriba y te mandamos el código.",
-      /** Lo que abre la invitación plegada. */
       abrir: "Quiero suscribirme",
       suscribirme: "Suscribirme con este mail",
+      /** Solo en la cuenta con saldo a favor de antes del 18/11/2026. */
       usarSaldo: (monto: string) => `Usar mi saldo a favor (${monto})`,
-      /** «Con esta compra te vuelven $ 7.990 de saldo, para usar desde los 30 días del pago.» */
+      /** Anterior al 18/11/2026, sin uso: ninguna compra devuelve saldo. Se borra en la limpieza. */
       cashback: (monto: string, dias: number) => `Con esta compra te vuelven ${monto} de saldo, para usar desde los ${dias} días del pago.`,
+      /** Anterior al 18/11/2026, sin uso: el cupón de bienvenida terminó y no tiene renglón en el resumen. */
       cupon: "Cupón de bienvenida",
-      saldo: "Pagado con tu saldo",
+      /** El renglón del resumen, solo si se usó saldo a favor de antes del 18/11/2026. */
+      saldo: "Pagado con tu saldo a favor",
       salir: "¿No sos vos? Salir",
     },
   },

@@ -255,12 +255,15 @@ function config(clave: string, valor: string): RegistroFixture {
 
 export const CONFIG: RegistroFixture[] = [
   config("costo_envio", "10100"),
-  // Una prueba puede usar el mínimo de producción (HARPER_FIXTURES_ENVIO_GRATIS_DESDE=150000)
-  // para que 1 par pague envío y 2 pares no.
-  config("envio_gratis_desde", process.env.HARPER_FIXTURES_ENVIO_GRATIS_DESDE || "80000"),
+  // El mínimo de producción desde el 18/11/2026 (Ale): $ 250.000 al resto del
+  // país, así que 1 y 2 pares pagan envío fuera de AMBA y 3 no. Una prueba
+  // puede usar otro con HARPER_FIXTURES_ENVIO_GRATIS_DESDE.
+  config("envio_gratis_desde", process.env.HARPER_FIXTURES_ENVIO_GRATIS_DESDE || "250000"),
   // Envío gratis en AMBA (donde llega el reparto de 24 h): más bajo que el del país.
   config("envio_gratis_amba_desde", process.env.HARPER_FIXTURES_ENVIO_GRATIS_AMBA_DESDE ?? "60000"),
-  config("banner_texto", "Envio gratis en compras superiores a $80.000"),
+  // Vacío: el envío gratis de la barra lo arma el código con los dos mínimos
+  // (lib/anuncios.ts); este texto queda para una línea libre, si hace falta.
+  config("banner_texto", ""),
   config("plazo_entrega", "3 a 7 dias habiles"),
   config("whatsapp", "5491173555065"),
   config("email_contacto", "harpercaseseyewear@gmail.com"),

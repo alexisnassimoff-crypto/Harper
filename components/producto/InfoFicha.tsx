@@ -48,7 +48,8 @@ export function Acordeon({
 /**
  * Envío, devolución, cambios, garantía y pago, cada uno con su enlace a la
  * vista. El pago va aparte (Ale, 17/11/2026): el sello de Mercado Pago más
- * grande y el texto abajo.
+ * grande y el texto abajo, que desde el 18/11/2026 nombra el 10 % por pagar
+ * con el dinero de la cuenta.
  */
 export function CondicionesCompra({ condiciones }: { condiciones: Condicion[] }) {
   if (condiciones.length === 0) return null;
@@ -69,6 +70,8 @@ export function CondicionesCompra({ condiciones }: { condiciones: Condicion[] })
             <span className="condiciones__texto">
               <span>{c.texto}</span>
               {c.detalle ? <small>{c.detalle}</small> : null}
+              {/* Cómo se cuenta el mínimo del envío gratis (Ale, 18/11/2026). */}
+              {c.nota ? <small>{c.nota}</small> : null}
               <Link href={c.href} className="condiciones__enlace">
                 {c.enlace}
               </Link>

@@ -86,15 +86,30 @@ test("carrito y checkout: en celular el WhatsApp flotante se guarda y la consult
   assert.match(leer("app/carrito/page.tsx"), /whatsapp=\{config\.whatsapp \?\? ""\}/);
 });
 
-test("checkout: la invitación a Suscriptores se pliega sin esconder la oferta ni la CFTEA", () => {
+test("checkout: ya no invita a suscribirse ni promete nada por tener cuenta; con sesión, una línea con el mail y «Salir», y el saldo solo si existe (Ale, 18/11/2026)", () => {
   const caja = sinComentarios(leer("components/checkout/SuscriptorEnCheckout.tsx"));
-  const invitacion = caja.slice(caja.indexOf("checkout__suscriptor--invitacion"));
-  const pliegue = invitacion.indexOf('<details className="checkout__suscriptor-pliegue">');
-  assert.ok(pliegue > 0);
-  // La oferta y la nota (con la CFTEA cuando se nombran cuotas) quedan antes del pliegue, a la vista.
-  assert.ok(invitacion.indexOf("checkoutCaja.invitacion(") < pliegue);
-  assert.ok(invitacion.indexOf("CFTEA") < pliegue);
-  // El formulario, adentro.
-  assert.ok(invitacion.indexOf("<FormularioSuscripcion") > pliegue);
-  assert.equal(TEXTOS.suscriptores.checkoutCaja.abrir, "Quiero suscribirme");
+  // Sin sesión no se muestra nada: la invitación («Suscribite gratis con este
+  // mail y desbloqueá $ 10.000 de descuento…, envío sin cargo y 6 cuotas»), su
+  // pliegue y su formulario salieron del checkout.
+  assert.match(caja, /if \(!cuenta\) return null;/);
+  assert.doesNotMatch(caja, /checkout__suscriptor--invitacion|<details|FormularioSuscripcion|CFTEA/);
+  assert.doesNotMatch(caja, /checkoutCaja\.(invitacion|nota|escribiMail|abrir|suscribirme|cashback|cupon)\b/);
+  assert.doesNotMatch(caja, /cashback|cuponDisponible|cuotas|envioGratis|\.cupon\b/i);
+  // Con la cuenta abierta: con qué mail compra y cómo salir. Nada más.
+  assert.match(caja, /T\.checkout\(cuenta\.email\)/);
+  assert.match(caja, /T\.checkoutCaja\.salir/);
+  assert.equal(TEXTOS.suscriptores.checkout("ana@ejemplo.com"), "Comprás con tu cuenta ana@ejemplo.com.");
+  assert.equal(TEXTOS.suscriptores.checkoutCaja.salir, "¿No sos vos? Salir");
+  // El saldo a favor de antes del 18/11: la casilla y el aviso, solo en la cuenta que de verdad lo tiene.
+  assert.match(caja, /\{cuenta\.saldoDisponible > 0 \? \([\s\S]{0,400}T\.checkoutCaja\.usarSaldo\(/);
+  assert.match(caja, /\{cuenta\.saldoReservado > 0 \? \([\s\S]{0,200}T\.saldoReservado\(/);
+
+  // El formulario del checkout tampoco muestra lo que terminó: ni el renglón
+  // del cupón de bienvenida, ni «te vuelven $ X de saldo», ni el envío gratis
+  // «por estar suscripto». El único renglón de la cuenta es el del saldo usado.
+  const formulario = sinComentarios(leer("components/checkout/FormularioCheckout.tsx"));
+  assert.doesNotMatch(formulario, /checkoutCaja\.(invitacion|nota|cashback|cupon)\b/);
+  assert.doesNotMatch(formulario, /cashbackPrevisto|cashbackDineroMP|suscriptores\.envioGratis|usarCupon/);
+  assert.match(formulario, /TEXTOS\.suscriptores\.checkoutCaja\.saldo/);
+  assert.equal(TEXTOS.suscriptores.checkoutCaja.saldo, "Pagado con tu saldo a favor");
 });

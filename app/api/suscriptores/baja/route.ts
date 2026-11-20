@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { claveDeIp, consumirCuota } from "@/lib/cuota";
 import { darDeBaja, suscriptorDeLaPeticion } from "@/lib/suscriptores-cuenta";
-import {
-  claveDeSesionSuscriptor,
-  COOKIE_SUSCRIPTOR,
-  leerCookie,
-  leerSesionSuscriptor,
-  leerTokenDeBaja,
-  opcionesDeCookie,
-} from "@/lib/suscriptores-sesion";
+import { leerTokenDeBaja } from "@/lib/suscriptores-sesion";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +9,11 @@ const HORA = 60 * 60_000;
 const sinCache = { "Cache-Control": "private, no-store" };
 
 /**
- * La baja de Suscriptores Harper (Ale, 03/11/2026): deja de recibir mails y
- * pierde los beneficios. Sin entrar: con el enlace firmado de cualquier mail
- * (lib/suscriptores-sesion.ts, `enlaceDeBaja`), o con la sesión abierta
- * desde «mi cuenta».
+ * La baja de las novedades (Ale, 03/11/2026 y 18/11/2026): deja de recibir
+ * los mails de novedades. La cuenta sigue igual (compras, favoritos, datos y
+ * direcciones) y los mails de sus pedidos le siguen llegando. Sin entrar: con
+ * el enlace firmado de cualquier mail (lib/suscriptores-sesion.ts,
+ * `enlaceDeBaja`), o con la sesión abierta desde «mi cuenta».
  *
  *   POST /api/suscriptores/baja  { token }   → 200 { ok: true }
  *   POST /api/suscriptores/baja  (con la cookie de sesión) → 200 { ok: true }
@@ -56,14 +50,11 @@ export async function POST(request: Request) {
       : await darDeBaja({ suscriptorId: deLaSesion!.id });
     if (resultado === "baja") console.info("[suscriptores] una baja");
 
-    const respuesta = NextResponse.json({ ok: true }, { headers: sinCache });
-    // Si ese suscriptor estaba reconocido en este navegador, deja de estarlo.
-    const clave = claveDeSesionSuscriptor();
-    const sesion = clave ? leerSesionSuscriptor(clave, leerCookie(request.headers.get("cookie"), COOKIE_SUSCRIPTOR)) : null;
-    if (deLaSesion || (sesion && delEnlace && sesion.suscriptorId === delEnlace.suscriptorId)) {
-      respuesta.cookies.set(COOKIE_SUSCRIPTOR, "", opcionesDeCookie(0, 0));
-    }
-    return respuesta;
+    // La sesión no se toca (Ale, 18/11/2026): darse de baja de las novedades
+    // no cierra la cuenta, así que quien estaba adentro sigue adentro. Antes
+    // se borraba la cookie y la página decía «tu cuenta sigue igual» justo
+    // después de sacarlo de su cuenta.
+    return NextResponse.json({ ok: true }, { headers: sinCache });
   } catch (error) {
     console.error("[suscriptores] no se pudo dar de baja:", error instanceof Error ? error.message : error);
     return NextResponse.json({ error: "No pudimos darte de baja. Probá en un rato." }, { status: 503, headers: sinCache });

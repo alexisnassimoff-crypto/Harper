@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, mensajesDeConfianza } from "../lib/confianza";
+import { PORCENTAJE_DINERO_MP } from "../lib/dinero-mp";
+import { TEXTOS } from "../lib/textos";
 
 const config = { envioGratisDesde: 80000 };
 
@@ -71,11 +73,37 @@ test("ningún mensaje afirma algo que la tienda no puede probar, ni promete plaz
   delete process.env.NEXT_PUBLIC_CUOTAS;
 });
 
-test("con envío gratis en AMBA más bajo, se anuncia ese y el de todo el país abajo", () => {
-  const envio = mensajesDeConfianza({ envioGratisDesde: 150000, envioGratisAmbaDesde: 60000 }).find((x) => x.clave === "envio");
+test("con envío gratis en AMBA más bajo, se anuncia ese y abajo el del resto del país, con la aclaración del precio de lista (Ale, 18/11/2026)", () => {
+  const envio = mensajesDeConfianza({ envioGratisDesde: 250000, envioGratisAmbaDesde: 60000 }).find((x) => x.clave === "envio");
   assert.match(envio?.texto ?? "", /^Envío gratis en AMBA desde \$\s?60\.000$/);
-  assert.match(envio?.detalle ?? "", /^En todo el país desde \$\s?150\.000$/);
+  assert.match(envio?.detalle ?? "", /^Al resto del país, gratis desde \$\s?250\.000$/);
+  // Donde se dice un mínimo, se aclara cómo se cuenta: el servidor lo mide con
+  // los anteojos a precio de lista, antes del Dúo (lib/pedidos.ts).
+  assert.equal(envio?.nota, TEXTOS.programa.envio.minimo);
+  assert.match(envio?.nota ?? "", /anteojos a precio de lista/);
   // Si el de AMBA no es más bajo, no tiene sentido nombrarlo.
   const igual = mensajesDeConfianza({ envioGratisDesde: 60000, envioGratisAmbaDesde: 60000 }).find((x) => x.clave === "envio");
   assert.match(igual?.texto ?? "", /^Envío gratis desde/);
+  assert.equal(igual?.nota, TEXTOS.programa.envio.minimo);
+  // Solo AMBA: el resto del país no tiene mínimo que aclarar.
+  const soloAmba = mensajesDeConfianza({ envioGratisDesde: 0, envioGratisAmbaDesde: 60000 }).find((x) => x.clave === "envio");
+  assert.match(soloAmba?.texto ?? "", /^Envío gratis en AMBA desde \$\s?60\.000$/);
+  assert.equal(soloAmba?.detalle, "A domicilio");
+  // Sin ningún mínimo, ni se promete envío gratis ni hay nada que aclarar.
+  const sinMinimo = mensajesDeConfianza({ envioGratisDesde: 0 }).find((x) => x.clave === "envio");
+  assert.equal(sinMinimo?.nota, undefined);
+});
+
+test("el pago dice el 10 % por dinero en Mercado Pago, y ningún mensaje promete nada por tener cuenta (Ale, 18/11/2026)", () => {
+  process.env.NEXT_PUBLIC_CUOTAS = "3";
+  const m = mensajesDeConfianza({ envioGratisDesde: 250000, envioGratisAmbaDesde: 60000 }, VERIFICADAS, "en anteojos");
+  // El porcentaje es el que aplica el servidor (lib/dinero-mp.ts).
+  assert.equal(m.find((x) => x.clave === "pago")?.detalle, `Tarjeta, débito o dinero en cuenta. ${PORCENTAJE_DINERO_MP}% OFF extra pagando con dinero en Mercado Pago.`);
+  const todo = m.flatMap((x) => [x.texto, x.detalle ?? "", x.nota ?? ""]).join(" ").toLowerCase();
+  // Las cuotas y el envío son los mismos para todos: ni suscriptores, ni
+  // «siempre», ni cupón, ni saldo de vuelta. Y el Dúo no se nombra acá.
+  for (const prohibida of ["suscri", "siempre", "cupón", "de vuelta", "desbloque", "bienvenida", "dúo", "6 cuotas"]) {
+    assert.ok(!todo.includes(prohibida), `no debería decir "${prohibida}"`);
+  }
+  delete process.env.NEXT_PUBLIC_CUOTAS;
 });

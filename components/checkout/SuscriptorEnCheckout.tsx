@@ -1,136 +1,81 @@
 "use client";
 
 import { useState } from "react";
-import FormularioSuscripcion from "@/components/suscriptores/FormularioSuscripcion";
 import { refrescarSuscriptor } from "@/components/suscriptores/useSuscriptor";
-import { cfteaSinCortar, NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
 import { precio as formatearPrecio } from "@/lib/formato";
-import { CUPON_BIENVENIDA, MINUTOS_RESERVA, type ResumenSuscriptor } from "@/lib/suscriptores";
+import { MINUTOS_RESERVA, type ResumenSuscriptor } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
-import { emailValido } from "@/lib/validacion";
 
 const T = TEXTOS.suscriptores;
 
 /**
- * Suscriptores Harper en el checkout (Ale, 03/11/2026).
+ * La cuenta Harper en el checkout.
  *
- *  - Sin sesión: la invitación a suscribirse con el mail que ya escribió,
- *    con el código ahí mismo (sin salir del checkout). Al confirmar, el
- *    carrito se vuelve a pedir y aparecen el cupón, el envío gratis y las 6
- *    cuotas: los montos los pone siempre el servidor.
- *  - Con sesión: con qué mail compra, la casilla para usar el saldo (marcada
- *    de entrada; viaja al servidor como `usarSaldo`) y «salir».
+ * Ale, 18/11/2026: los beneficios en plata de la suscripción terminaron para
+ * todos, así que tener cuenta no cambia el precio, el envío ni las cuotas. Por
+ * eso acá ya no se invita a suscribirse a cambio de un descuento (sin sesión
+ * no se muestra nada) y, con la cuenta abierta, queda una sola línea: con qué
+ * mail compra y «¿No sos vos? Salir». La sesión sigue sirviendo para lo que el
+ * checkout hace con ella: completar el mail y ofrecer los datos y las
+ * direcciones guardadas (FormularioCheckout).
  *
- * Va dentro del formulario del checkout: el de suscripción no lleva su propio
- * <form>.
+ * El saldo a favor de antes de ese día no se genera más. La casilla para
+ * usarlo (marcada de entrada; viaja al servidor como `usarSaldo`) y el aviso
+ * del saldo apartado se muestran solo en la cuenta que de verdad lo tiene, y
+ * hoy no hay ninguna: es un camino que queda dormido.
  */
 export default function SuscriptorEnCheckout({
-  suscriptor,
-  email,
-  nombre,
-  cuotasSuscriptor,
+  cuenta,
   usarSaldo,
   alCambiarSaldo,
   alCambiarSesion,
   bloqueado,
 }: {
-  suscriptor: ResumenSuscriptor | null;
-  /** El mail del checkout. */
-  email: string;
-  nombre: string;
-  /** Las 6 cuotas confirmadas para los anteojos, para nombrarlas en la invitación; null no las nombra. */
-  cuotasSuscriptor: CuotasVerificadas | null;
+  /** La cuenta de la sesión, como la contesta el servidor con el carrito; null sin sesión. */
+  cuenta: ResumenSuscriptor | null;
   usarSaldo: boolean;
   alCambiarSaldo: (usar: boolean) => void;
-  /** Entró o salió: el carrito y el envío se vuelven a pedir con la cookie nueva. */
+  /** Salió: el carrito y el envío se vuelven a pedir con la cookie nueva. */
   alCambiarSesion: () => void;
   /** Mientras se manda el pedido, nada cambia. */
   bloqueado: boolean;
 }) {
-  const [recien, setRecien] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
 
   async function salir() {
     setSaliendo(true);
     await fetch("/api/suscriptores/salir", { method: "POST" }).catch(() => null);
-    setRecien(false);
     await refrescarSuscriptor();
     alCambiarSesion();
     setSaliendo(false);
   }
 
-  if (suscriptor) {
-    return (
-      <section className="checkout__suscriptor" aria-label={T.etiqueta}>
-        <p className="etiqueta-mono">{T.etiqueta}</p>
-        {recien ? (
-          <p className="checkout__suscriptor-listo" role="status">
-            {T.form.listo.nueva}
-          </p>
-        ) : null}
-        <p className="checkout__suscriptor-texto">
-          {suscriptor.activo === false ? T.checkoutBaja(suscriptor.email) : T.checkout(suscriptor.email)}{" "}
-          <button type="button" className="suscripcion__enlace" onClick={salir} disabled={saliendo || bloqueado}>
-            {T.checkoutCaja.salir}
-          </button>
-        </p>
-        {suscriptor.saldoDisponible > 0 ? (
-          <label className="checkout__promos checkout__saldo">
-            <input
-              id="usarSaldo"
-              type="checkbox"
-              checked={usarSaldo}
-              disabled={bloqueado}
-              onChange={(e) => alCambiarSaldo(e.target.checked)}
-            />
-            <span>{T.checkoutCaja.usarSaldo(formatearPrecio(suscriptor.saldoDisponible))}</span>
-          </label>
-        ) : null}
-        {suscriptor.saldoReservado > 0 ? (
-          <p className="checkout__suscriptor-texto apagado">{T.saldoReservado(formatearPrecio(suscriptor.saldoReservado), MINUTOS_RESERVA)}</p>
-        ) : null}
-      </section>
-    );
-  }
+  if (!cuenta) return null;
 
-  const listo = emailValido(email);
   return (
-    <section className="checkout__suscriptor checkout__suscriptor--invitacion" aria-labelledby="checkout-suscribite">
-      <p className="etiqueta-mono">{T.etiqueta}</p>
-      <p id="checkout-suscribite" className="checkout__suscriptor-titulo">
-        {T.checkoutCaja.invitacion(formatearPrecio(CUPON_BIENVENIDA), cuotasSuscriptor?.cuotas ?? null)}
+    <section className="checkout__suscriptor" aria-label={T.etiqueta}>
+      <p className="checkout__suscriptor-texto">
+        {T.checkout(cuenta.email)}{" "}
+        <button type="button" className="suscripcion__enlace" onClick={salir} disabled={saliendo || bloqueado}>
+          {T.checkoutCaja.salir}
+        </button>
       </p>
-      <p className="checkout__suscriptor-nota">
-        {T.checkoutCaja.nota}
-        {cuotasSuscriptor ? ` Cuotas con ${NOMBRE_MARCAS} · CFTEA ${cfteaSinCortar(cuotasSuscriptor.cftea)}.` : ""}
-      </p>
-      {/* Plegada (recorrido móvil, Ale, 08/11/2026): abierta, la casilla, el
-          código y el botón ocupaban media pantalla del celular entre «Tus
-          datos» y «Entrega». La oferta y su nota quedan a la vista; el
-          formulario, a un toque. Plegado no se desmonta: un código pedido
-          sigue ahí. */}
-      <details className="checkout__suscriptor-pliegue">
-        <summary className="checkout__suscriptor-abrir">{T.checkoutCaja.abrir}</summary>
-        {listo ? (
-          <FormularioSuscripcion
-            // Otro mail, otro formulario: no se arrastra un código pedido para el anterior.
-            key={email.trim().toLowerCase()}
-            origen="Checkout"
-            email={email}
-            nombre={nombre}
-            conNombre={false}
-            anidado
-            mostrarListo={false}
-            textoBoton={T.checkoutCaja.suscribirme}
-            alListo={() => {
-              setRecien(true);
-              alCambiarSesion();
-            }}
+      {/* Solo la cuenta con saldo a favor de antes del 18/11/2026. */}
+      {cuenta.saldoDisponible > 0 ? (
+        <label className="checkout__promos checkout__saldo">
+          <input
+            id="usarSaldo"
+            type="checkbox"
+            checked={usarSaldo}
+            disabled={bloqueado}
+            onChange={(e) => alCambiarSaldo(e.target.checked)}
           />
-        ) : (
-          <p className="checkout__suscriptor-nota">{T.checkoutCaja.escribiMail}</p>
-        )}
-      </details>
+          <span>{T.checkoutCaja.usarSaldo(formatearPrecio(cuenta.saldoDisponible))}</span>
+        </label>
+      ) : null}
+      {cuenta.saldoReservado > 0 ? (
+        <p className="checkout__suscriptor-texto apagado">{T.saldoReservado(formatearPrecio(cuenta.saldoReservado), MINUTOS_RESERVA)}</p>
+      ) : null}
     </section>
   );
 }

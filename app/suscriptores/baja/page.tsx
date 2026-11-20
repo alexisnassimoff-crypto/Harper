@@ -5,16 +5,20 @@ import { leerTokenDeBaja } from "@/lib/suscriptores-sesion";
 import { TEXTOS } from "@/lib/textos";
 
 /**
- * A donde lleva «darte de baja» de los mails de Suscriptores Harper (Ale,
- * 03/11/2026). El enlace está firmado y no vence (lib/suscriptores-sesion.ts);
- * la página no da de baja sola: confirma con un botón, que llama a
- * /api/suscriptores/baja. No muestra de quién es el enlace.
+ * A donde lleva «darte de baja» de los mails de Harper (Ale, 03/11/2026). El
+ * enlace está firmado y no vence (lib/suscriptores-sesion.ts); la página no
+ * da de baja sola: confirma con un botón, que llama a /api/suscriptores/baja.
+ * No muestra de quién es el enlace.
+ *
+ * Ale, 18/11/2026: la baja es solo de los mails de novedades. La página lo
+ * dice así: la cuenta sigue igual y los mails de los pedidos siguen llegando.
+ * Ya no habla de beneficios ni de saldo.
  */
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Darte de baja",
+  title: TEXTOS.suscriptores.baja.titulo,
   robots: { index: false, follow: false },
 };
 
@@ -26,7 +30,7 @@ export default async function Baja({ searchParams }: { searchParams: Promise<{ t
 
   return (
     <section className="contenedor seccion baja-suscriptor" aria-labelledby="baja-titulo">
-      <p className="etiqueta-mono">{TEXTOS.suscriptores.etiqueta}</p>
+      <p className="etiqueta-mono">{T.etiqueta}</p>
       <h1 id="baja-titulo" className="titulo-serif">
         {T.titulo}
       </h1>
