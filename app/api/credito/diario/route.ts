@@ -6,8 +6,8 @@ import { controlDiarioActivo, correrDiario, cronAutorizado, dependenciasCorridaR
  * después de la entrega confirmada (lib/credito-diario.ts,
  * docs/plan-programa-harper.md §17.9 y §18.2).
  *
- * NO tiene cron todavía: no está en vercel.json. Activarlo es parte del corte
- * y requiere autorización. Además:
+ * Corre todos los días a las 10:17 UTC, 7:17 en Buenos Aires (vercel.json,
+ * Ale, 20/11/2026). Además:
  *  - solo entra el cron de Vercel (`Authorization: Bearer <CRON_SECRET>`);
  *  - con HARPER_CREDITO_ACTIVO apagado contesta sin leer ni escribir nada.
  *
