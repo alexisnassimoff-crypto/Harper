@@ -495,9 +495,11 @@ async function conCreditoHarper(pagoId: string, hoy: Resultado, credito: Depende
     }
     const alerta = uso && "alerta" in uso ? uso.alerta : null;
     if (uso && alerta) {
-      const avisado = await avisarAHarper(deps, async () =>
-        mailAlertaInterna({ config: await getConfig(), asunto: `REVISAR Crédito Harper usado — pedido ${uso.numero}`, lineas: [alerta] })
-      );
+      // El crédito usado que volvió solo por un reembolso total es un aviso, no
+      // algo para revisar: el asunto no dice «REVISAR» (20/11/2026).
+      const informativo = uso.accion === "devolver" && uso.resultado.estado === "devuelto";
+      const asunto = informativo ? `Crédito Harper devuelto — pedido ${uso.numero}` : `REVISAR Crédito Harper usado — pedido ${uso.numero}`;
+      const avisado = await avisarAHarper(deps, async () => mailAlertaInterna({ config: await getConfig(), asunto, lineas: [alerta] }));
       if (!avisado) {
         return {
           status: 503,

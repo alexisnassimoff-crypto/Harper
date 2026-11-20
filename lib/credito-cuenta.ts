@@ -5,6 +5,7 @@ import {
   lectorPedidosDeUsosAirtable,
   saldoDeCredito,
   type AlmacenUsos,
+  type CreditoConSaldo,
   type FilaUso,
   type LectorPedidosDeUsos,
   type SaldoDeCredito,
@@ -221,39 +222,60 @@ export async function atenderEntrada(
 /**
  * «vencido» (Ale, 18/11/2026): un crédito disponible que venció con algo sin
  * usar. Si venció después de usarse entero, queda «usado».
+ *
+ * Un crédito disponible (ganado o devuelto) al que no le queda nada
+ * (20/11/2026) no se ve «disponible»: «reservado» si lo tomó, aunque sea en
+ * parte, una compra que todavía se está pagando (si no se paga, vuelve), y
+ * «usado» si no.
  */
 export type EstadoMovimientoCredito = "disponible" | "pendiente" | "en-revision" | "anulado" | "usado" | "reservado" | "vencido";
 
 export type MovimientoCredito = {
-  /** «ganado»: el crédito de una compra. «uso»: lo que se usó en una compra (paso 4). */
-  tipo: "ganado" | "uso";
+  /**
+   * «ganado»: el crédito de una compra. «uso»: lo que se usó en una compra
+   * (paso 4). «devuelto» (20/11/2026): el crédito que se usó en una compra
+   * que después se reembolsó entera y volvió a la cuenta; `pedido` es esa
+   * compra, y tiene su propio vencimiento (6 meses desde que volvió).
+   */
+  tipo: "ganado" | "uso" | "devuelto";
   pedido: string;
   monto: number;
-  /** 0 en un uso. */
+  /** 0 en un uso y en uno devuelto. */
   porcentaje: number;
+  /**
+   * En uno ganado o devuelto: «disponible», «reservado», «usado», «vencido»
+   * (y, en uno ganado, también «pendiente», «en-revision» o «anulado»). En un
+   * uso: «reservado» (la compra se está pagando) o «usado».
+   */
   estado: EstadoMovimientoCredito;
-  /** El día en Buenos Aires en que se anotó ("AAAA-MM-DD"). */
+  /** El día en Buenos Aires en que se anotó ("AAAA-MM-DD"); en uno devuelto, el día en que volvió ("" si no se sabe). */
   fecha: string;
   /**
    * Desde qué día se puede usar ("AAAA-MM-DD"), si ya hay entrega confirmada.
    * En uno pendiente es el día previsto; en uno disponible, el día real en que
-   * quedó disponible.
+   * quedó disponible; en uno devuelto, el día en que volvió a la cuenta.
    */
   disponibleDesde: string | null;
   /**
    * Hasta qué día se puede usar, inclusive ("AAAA-MM-DD"; Ale, 18/11/2026): 6
    * meses después de `disponibleDesde`. En uno pendiente es el previsto (si
    * se libera más tarde, vence más tarde). Null en un uso, en uno anulado o
-   * sin fecha (una fila disponible sin fecha no vence).
+   * sin fecha (una fila disponible, o un devuelto, sin fecha no vence).
    */
   venceEl: string | null;
   /**
-   * Lo que queda sin usar de un crédito disponible, del mismo cálculo que
-   * `disponible` (si venció, lo que se perdió). Null en los demás.
+   * Lo que queda sin usar de un crédito disponible o devuelto, del mismo
+   * cálculo que `disponible` (si venció, lo que se perdió). Null en los demás.
    */
   restante: number | null;
-  /** Pendiente con una devolución, reclamo o contracargo abierto; en un uso, en revisión por un reembolso. */
+  /** Pendiente con una devolución, reclamo o contracargo abierto; en un uso, en revisión por un contracargo. */
   conGestionAbierta: boolean;
+  /**
+   * Solo en un uso: la compra se reembolsó entera y ese crédito volvió a la
+   * cuenta (es el movimiento «devuelto» del mismo pedido). El uso se sigue
+   * viendo «usado»: lo que volvió es un crédito aparte. False en los demás.
+   */
+  devuelto: boolean;
 };
 
 export type BilleteraCredito = {
@@ -285,6 +307,19 @@ const diaDe = (iso: string) => {
 const momentoDe = (hoy: Date | string) => (typeof hoy === "string" ? new Date(`${hoy}T12:00:00.000-03:00`) : hoy);
 
 /**
+ * El estado de un crédito con su reparto (ganado o devuelto). Vencido: con
+ * algo sin usar, «vencido»; usado entero antes de vencer, «usado» (Ale,
+ * 18/11/2026). Sin vencer y sin nada que le quede (20/11/2026): «reservado»
+ * si lo tomó una compra que todavía se está pagando, «usado» si no; nunca
+ * «disponible» con $ 0.
+ */
+function estadoDelReparto(c: CreditoConSaldo): EstadoMovimientoCredito {
+  if (c.vencido) return c.restante > 0 ? "vencido" : "usado";
+  if (c.restante > 0) return "disponible";
+  return c.reservado > 0 ? "reservado" : "usado";
+}
+
+/**
  * La billetera de un mail con sus filas de Créditos. Lo pendiente y lo que
  * está en revisión son los de `saldosDeLaCuenta` (un pedido con dos filas
  * cuenta una vez; lo anulado no suma). Lo disponible, lo vencido, el próximo
@@ -296,8 +331,11 @@ const momentoDe = (hoy: Date | string) => (typeof hoy === "string" ? new Date(`$
  * mientras es reciente). `uso.usable` ya no se lee: queda por compatibilidad.
  *
  * Con `uso` (paso 4) se suman los usos: «usado» y «reservado» (una compra en
- * curso); lo liberado o devuelto no se muestra. Las filas de otro mail o sin
- * monto no se muestran. No mira Saldos: el saldo de Suscriptores va aparte.
+ * curso); lo liberado no se muestra. Un uso «Devuelto» (la compra se
+ * reembolsó entera, 20/11/2026) se sigue viendo «usado», con `devuelto`, y lo
+ * que volvió es un movimiento aparte, de tipo «devuelto», con lo que le queda
+ * y su vencimiento. Las filas de otro mail o sin monto no se muestran. No
+ * mira Saldos: el saldo de Suscriptores va aparte.
  */
 export function billeteraDeCredito(
   filas: readonly FilaCredito[],
@@ -319,9 +357,8 @@ export function billeteraDeCredito(
     .map((f) => {
       const repartido = calculo.get(f.id) ?? null;
       // Disponible con una incidencia abierta (paso 5): retenido, se ve en revisión.
-      let estado: EstadoMovimientoCredito = creditoRetenido(f) ? "en-revision" : ESTADOS[f.estado];
-      // Vencido (Ale, 18/11/2026): con algo sin usar, «vencido»; usado entero antes de vencer, «usado».
-      if (repartido?.vencido) estado = repartido.restante > 0 ? "vencido" : "usado";
+      // Con su reparto (disponible y sin incidencia): lo que le queda dice el estado.
+      const estado: EstadoMovimientoCredito = repartido ? estadoDelReparto(repartido) : creditoRetenido(f) ? "en-revision" : ESTADOS[f.estado];
       const vence = repartido ? repartido.venceEl : f.estado !== "Anulado" && esFechaValida(f.disponibleDesde) ? venceEl(f.disponibleDesde) : null;
       return {
         tipo: "ganado" as const,
@@ -334,12 +371,13 @@ export function billeteraDeCredito(
         venceEl: vence,
         restante: repartido ? repartido.restante : null,
         conGestionAbierta: (f.estado === "Pendiente" || f.estado === "Disponible") && f.incidenciaAbierta,
+        devuelto: false,
         orden: f.generadoEl,
       };
     });
   const vencidas = new Set((uso?.vencidas ?? saldo.vencidas).map((u) => u.id));
   const usados = usosPropios
-    .filter((u) => u.monto > 0 && !vencidas.has(u.id) && (u.estado === "Usado" || u.estado === "A revisar" || u.estado === "Reservado"))
+    .filter((u) => u.monto > 0 && !vencidas.has(u.id) && (u.estado === "Usado" || u.estado === "A revisar" || u.estado === "Reservado" || u.estado === "Devuelto"))
     .map((u) => ({
       tipo: "uso" as const,
       pedido: u.pedido,
@@ -351,9 +389,35 @@ export function billeteraDeCredito(
       venceEl: null,
       restante: null,
       conGestionAbierta: u.estado === "A revisar",
+      devuelto: u.estado === "Devuelto",
       orden: u.generadoEl,
     }));
-  const movimientos = [...ganados, ...usados].sort((a, b) => b.orden.localeCompare(a.orden)).map(({ orden: _orden, ...m }) => m);
+  // Lo que volvió por un reembolso total (20/11/2026): un crédito más, con su
+  // reparto. Sin fecha (marcado a mano) va junto a su uso, arriba de él.
+  const propiosPorId = new Map(usosPropios.map((u) => [u.id, u]));
+  const devueltos = saldo.porCredito
+    .filter((c) => c.origen === "devuelto" && propiosPorId.has(c.id))
+    .map((c) => {
+      const delUso = propiosPorId.get(c.id) as FilaUso;
+      const volvio = c.disponibleDesde ? `${c.disponibleDesde}T15:00:00.000Z` : delUso.generadoEl;
+      return {
+        tipo: "devuelto" as const,
+        pedido: c.pedido,
+        monto: c.monto,
+        porcentaje: 0,
+        estado: estadoDelReparto(c),
+        fecha: c.disponibleDesde ?? "",
+        disponibleDesde: c.disponibleDesde,
+        venceEl: c.venceEl,
+        restante: c.restante,
+        conGestionAbierta: false,
+        devuelto: false,
+        // Nunca antes que el uso del que salió.
+        orden: volvio > delUso.generadoEl ? volvio : delUso.generadoEl,
+      };
+    });
+  // Con la misma fecha, el devuelto va antes que su uso (el orden es estable).
+  const movimientos = [...ganados, ...devueltos, ...usados].sort((a, b) => b.orden.localeCompare(a.orden)).map(({ orden: _orden, ...m }) => m);
   return {
     disponible: saldo.usable,
     pendiente: credito.pendiente,

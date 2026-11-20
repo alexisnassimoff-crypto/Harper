@@ -1615,8 +1615,9 @@ export default function FormularioCheckout({
         ) : null}
 
         {/* El Crédito Harper que suma esta compra con el medio de pago elegido
-            (Ale, 18/11/2026): solo si el servidor lo mandó. */}
-        <CreditoQueSuma monto={creditoQueSuma} />
+            (Ale, 18/11/2026): solo si el servidor lo mandó. Un solo importe
+            (conDineroMP null): acá ya se eligió cómo pagar. */}
+        <CreditoQueSuma monto={creditoQueSuma} conDineroMP={null} />
 
         {resumen.ahorroTotal > 0 ? (
           <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.ahorroTotal)}!</p>

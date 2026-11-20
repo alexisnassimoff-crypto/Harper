@@ -193,38 +193,58 @@ export const TEXTOS = {
      * (`creditoQueSuma`, la misma cuenta que anota el webhook).
      */
     credito: {
-      /** La barra: «Crédito Harper: 5% de vuelta con un anteojo y 10% llevando dos, para tu próxima compra». Sin punto final. */
+      /**
+       * La barra: «Crédito Harper: 5% de vuelta con un anteojo y 10% con dos o
+       * más, para tu próxima compra de anteojos». Sin punto final. «Con dos o
+       * más» y no «llevando dos»: con tres o cuatro también es el 10 %, y el
+       * crédito se usa solo en anteojos (revisión de textos, 20/11/2026).
+       */
       barra: (unAnteojo: number, varios: number) =>
-        `Crédito Harper: ${unAnteojo}% de vuelta con un anteojo y ${varios}% llevando dos, para tu próxima compra`,
+        `Crédito Harper: ${unAnteojo}% de vuelta con un anteojo y ${varios}% con dos o más, para tu próxima compra de anteojos`,
       /**
        * La ficha, debajo del precio con dinero en Mercado Pago. Lo que suma
        * depende del medio de pago (es un porcentaje de lo que se paga), así que
        * van los dos importes: «Con este anteojo sumás $ 4.495 de Crédito Harper
-       * para tu próxima compra ($ 4.046 si pagás con dinero en Mercado Pago).»
+       * para tu próxima compra de anteojos ($ 4.046 si pagás con dinero en
+       * Mercado Pago).» Es lo que suma este anteojo SOLO: con anteojos ya en el
+       * carrito la ficha no lo muestra (components/producto/FichaProducto.tsx).
        */
       ficha: (monto: string, conDineroMP: string | null) =>
-        `Con este anteojo sumás ${monto} de Crédito Harper para tu próxima compra${conDineroMP ? ` (${conDineroMP} si pagás con dinero en Mercado Pago)` : ""}.`,
+        `Con este anteojo sumás ${monto} de Crédito Harper para tu próxima compra de anteojos${conDineroMP ? ` (${conDineroMP} si pagás con dinero en Mercado Pago)` : ""}.`,
       /** A continuación, solo si la ficha muestra el Dúo: «Llevando dos, sumás $ 15.733 ($ 14.159 con dinero en Mercado Pago).» Del carrito de dos de ese modelo. */
       fichaDos: (monto: string, conDineroMP: string | null) =>
         `Llevando dos, sumás ${monto}${conDineroMP ? ` (${conDineroMP} con dinero en Mercado Pago)` : ""}.`,
-      /** Carrito, panel lateral y checkout, debajo del total (en el checkout, con el medio de pago elegido). */
-      carrito: (monto: string) => `Con esta compra sumás ${monto} de Crédito Harper para tu próxima compra de anteojos.`,
+      /**
+       * Carrito, panel lateral y checkout, debajo del total: «Con esta compra
+       * sumás $ 15.733 de Crédito Harper para tu próxima compra de anteojos
+       * ($ 14.159 si pagás con dinero en Mercado Pago).» Como en la ficha, van
+       * los dos importes donde todavía no se eligió cómo pagar (el carrito y el
+       * panel, justo debajo de «o $ X con dinero en Mercado Pago»). El checkout
+       * pasa null: ahí el importe ya es el del medio de pago elegido.
+       */
+      carrito: (monto: string, conDineroMP: string | null) =>
+        `Con esta compra sumás ${monto} de Crédito Harper para tu próxima compra de anteojos${conDineroMP ? ` (${conDineroMP} si pagás con dinero en Mercado Pago)` : ""}.`,
       /** El renglón del resumen del checkout cuando se usa crédito: «Crédito Harper −$ 4.495». */
       renglon: "Crédito Harper",
       /** En el checkout, sin una cuenta abierta: «¿Tenés Crédito Harper? Entrá a tu cuenta con tu mail para usarlo.» */
       entrarPregunta: "¿Tenés Crédito Harper?",
       entrarEnlace: "Entrá a tu cuenta con tu mail para usarlo.",
-      /** /gracias, con el pedido confirmado. Solo el importe: el número de pedido se puede adivinar. */
+      /**
+       * /gracias (y el mail de confirmación), con el pedido confirmado. Solo el
+       * importe: el número de pedido se puede adivinar. «Mi Cuenta» y no «tu
+       * cuenta Harper» (20/11/2026): para ver el crédito no hace falta abrir
+       * la cuenta del punto 3 de las condiciones ni aceptar las novedades.
+       */
       gracias: (monto: string, dias: number, meses: number) =>
-        `Con esta compra sumaste ${monto} de Crédito Harper. Queda disponible ${dias} días después de que recibas tu pedido y vence ${meses} meses después. Lo ves en tu cuenta Harper, entrando con el mail de tu compra.`,
+        `Con esta compra sumaste ${monto} de Crédito Harper para tu próxima compra de anteojos. Queda disponible ${dias} días después de que recibas tu pedido y vence ${meses} meses después. Lo ves en Mi Cuenta, entrando con el mail de tu compra.`,
       /** Las preguntas frecuentes. */
       pregunta: "¿Qué es el Crédito Harper?",
       respuesta: (unAnteojo: number, varios: number, dias: number, meses: number) =>
-        `Es plata para tu próxima compra de anteojos en harper.ar. Te devolvemos el ${unAnteojo}% de lo que pagás en anteojos si llevás uno, y el ${varios}% si llevás dos o más. Queda disponible ${dias} días después de que recibís el pedido y vence ${meses} meses después. Se usa solo en anteojos (no paga el envío) y lo ves en tu cuenta Harper, entrando con el mail de tu compra.`,
+        `Es plata para tu próxima compra de anteojos en harper.ar. Te devolvemos el ${unAnteojo}% de lo que pagás en anteojos si llevás uno, y el ${varios}% si llevás dos o más. Queda disponible ${dias} días después de que recibís el pedido y vence ${meses} meses después. Se usa solo en anteojos (no paga el envío) y lo ves en Mi Cuenta, entrando con el mail de tu compra.`,
       condiciones: "Ver las condiciones",
-      /** La portada, en «Comprá tranquilo»: «5% de vuelta en Crédito Harper» / «10% llevando dos, para tu próxima compra». */
+      /** La portada, en «Comprá tranquilo»: «5% de vuelta en Crédito Harper» / «10% con dos o más, para tu próxima compra de anteojos». */
       portada: (unAnteojo: number) => `${unAnteojo}% de vuelta en Crédito Harper`,
-      portadaDetalle: (varios: number) => `${varios}% llevando dos, para tu próxima compra`,
+      portadaDetalle: (varios: number) => `${varios}% con dos o más, para tu próxima compra de anteojos`,
     },
   },
   lineas: {
@@ -769,6 +789,16 @@ export const TEXTOS = {
         },
         /** Paso 4: lo que se usó en una compra. «Usado en el pedido HARPER-12345AB». */
         usadoEn: (pedido: string) => `Usado en el pedido ${pedido}`,
+        /**
+         * El crédito que se usó en una compra que después se reembolsó entera
+         * y volvió a la cuenta (20/11/2026, movimiento «devuelto»): un crédito
+         * aparte, con su propio vencimiento. «Devuelto del pedido HARPER-12345AB».
+         */
+        devueltoDe: (pedido: string) => `Devuelto del pedido ${pedido}`,
+        /** En el crédito devuelto, el día en que volvió: «Volvió a tu cuenta el 20/11/2026.» */
+        volvio: (fecha: string) => `Volvió a tu cuenta el ${fecha}.`,
+        /** En el uso de esa compra, que se sigue viendo «Usado»: justo arriba está lo que volvió. */
+        usoDevuelto: "Lo que usaste en ese pedido volvió a tu cuenta.",
         /** Paso 4: en el checkout (solo con HARPER_CREDITO_ACTIVO=1). */
         usar: (monto: string) => `Usar mi Crédito Harper (${monto} disponible)`,
         usarDetalle: "Solo en anteojos: no paga envío, estuches ni paños.",
@@ -779,7 +809,14 @@ export const TEXTOS = {
         otraCompra: "Ya estamos procesando otra compra con tu Crédito Harper. Esperá un momento y probá de nuevo.",
         cambio: "Tu Crédito Harper disponible cambió. Revisá el total antes de pagar.",
         reservadoNota: "Apartado mientras se paga ese pedido. Si no se paga, vuelve solo.",
-        usoEnRevision: "Ese pedido tuvo una devolución: lo estamos revisando.",
+        /**
+         * Un uso «A revisar». Desde el 20/11/2026 una devolución con reembolso
+         * total ya no lo deja así (el crédito vuelve solo, `usoDevuelto`): queda
+         * en revisión por un contracargo, o por una fila que Harper tiene que
+         * corregir. Por eso no se nombra el motivo. Antes decía «Ese pedido tuvo
+         * una devolución: lo estamos revisando.»
+         */
+        usoEnRevision: "Lo estamos revisando. Mientras tanto, sigue descontado.",
         desde: (fecha: string) => `Se libera el ${fecha}.`,
         /**
          * Pendiente con el día de liberación ya pasado (Ale, 18/11/2026): la
@@ -789,8 +826,14 @@ export const TEXTOS = {
         liberado: (fecha: string) => `Se liberó el ${fecha}.`,
         /** En cada crédito disponible con algo sin usar (Ale, 18/11/2026): el último día en que se puede usar. */
         vence: (fecha: string) => `Vence el ${fecha}.`,
-        /** Un crédito disponible que ya se usó entero: no queda nada por vencer. */
+        /** Un crédito que ya se usó entero (estado «Usado»): no queda nada por vencer. */
         usadoEntero: "Ya lo usaste entero.",
+        /**
+         * Un crédito al que no le queda nada porque lo que le quedaba lo tomó
+         * una compra que todavía se está pagando (estado «Apartado»). Puede que
+         * antes se haya usado una parte: por eso «lo que le quedaba».
+         */
+        apartado: "Lo que le quedaba está apartado para un pedido que todavía no se pagó.",
         /** Un crédito vencido con algo sin usar: «Venció el 30/04/2027 con $ 1.200 sin usar.» */
         vencio: (fecha: string, monto: string) => `Venció el ${fecha} con ${monto} sin usar.`,
         sinEntrega: (dias: number) => `Se libera ${dias} días después de la entrega.`,

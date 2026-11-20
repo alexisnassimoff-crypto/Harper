@@ -47,6 +47,13 @@ export const PORCENTAJE_CREDITO_VARIOS = 10;
 export const DIAS_PARA_LIBERAR_CREDITO = 30;
 /** Meses de calendario desde que el crédito queda disponible hasta que vence (Ale, 18/11/2026). */
 export const MESES_PARA_VENCER_CREDITO = 6;
+/**
+ * Cuántos días antes del vencimiento se le avisa al comprador por mail: con
+ * 15 días o menos y algo sin usar (Ale, 18/11/2026). Vive acá, con los otros
+ * números publicados, para que las pantallas y las condiciones digan el mismo
+ * que usa el control diario (lib/credito-diario.ts).
+ */
+export const DIAS_AVISO_VENCIMIENTO = 15;
 
 /** El interruptor, APAGADO por defecto: solo «1» lo prende. */
 export const VARIABLE_CREDITO = "HARPER_CREDITO_ACTIVO";

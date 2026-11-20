@@ -21,6 +21,11 @@ const T = TEXTOS.suscriptores.cuenta.credito;
  * cuyo día de liberación ya pasó (la tarea diaria lo retuvo para verificarlo)
  * no muestra una fecha pasada.
  *
+ * Desde el 20/11/2026 hay un tercer tipo de movimiento, «devuelto»: lo que se
+ * usó en una compra que se reembolsó entera vuelve a la cuenta como un crédito
+ * aparte («Devuelto del pedido …»), con su día y su vencimiento. El uso de esa
+ * compra se sigue viendo «Usado» y dice que lo usado volvió.
+ *
  * `hoy` es el día en Buenos Aires ("AAAA-MM-DD"); por defecto, el de ahora.
  */
 export default function MiCreditoHarper({ billetera, hoy = fechaArgentina(new Date()) }: { billetera: BilleteraCredito | null; hoy?: string }) {
@@ -79,10 +84,25 @@ export default function MiCreditoHarper({ billetera, hoy = fechaArgentina(new Da
                       <span className="cuenta-suscriptor__fecha">{m.fecha ? fechaLegible(m.fecha) : ""}</span>
                       <span className="cuenta-suscriptor__concepto">
                         {T.usadoEn(m.pedido)}
-                        <small>{conDetalle(T.estado[m.estado], m.estado === "reservado" ? T.reservadoNota : m.conGestionAbierta ? T.usoEnRevision : "")}</small>
+                        <small>{conDetalle(T.estado[m.estado], detalleDelUso(m))}</small>
                       </span>
                       <span className="cuenta-suscriptor__importe" data-signo="menos">
                         {`−${formatearPrecio(m.monto)}`}
+                      </span>
+                    </li>
+                  ) : m.tipo === "devuelto" ? (
+                    // Lo que se usó en una compra reembolsada entera y volvió a
+                    // la cuenta (20/11/2026): un crédito aparte, con su propia
+                    // key (la misma compra puede tener también su crédito
+                    // ganado, anulado) y su vencimiento, como cualquier otro.
+                    <li key={`devuelto-${m.pedido}`} className="cuenta-suscriptor__movimiento" data-estado={m.estado}>
+                      <span className="cuenta-suscriptor__fecha">{m.fecha ? fechaLegible(m.fecha) : ""}</span>
+                      <span className="cuenta-suscriptor__concepto">
+                        {T.devueltoDe(m.pedido)}
+                        <small>{conDetalle(T.estado[m.estado], detalleDelCredito(m, hoy))}</small>
+                      </span>
+                      <span className="cuenta-suscriptor__importe" data-signo="mas">
+                        {`+${formatearPrecio(m.monto)}`}
                       </span>
                     </li>
                   ) : (
@@ -90,7 +110,7 @@ export default function MiCreditoHarper({ billetera, hoy = fechaArgentina(new Da
                       <span className="cuenta-suscriptor__fecha">{m.fecha ? fechaLegible(m.fecha) : ""}</span>
                       <span className="cuenta-suscriptor__concepto">
                         {T.concepto(m.pedido, m.porcentaje)}
-                        <small>{conDetalle(T.estado[m.estado], detalleDelGanado(m, hoy))}</small>
+                        <small>{conDetalle(T.estado[m.estado], detalleDelCredito(m, hoy))}</small>
                       </span>
                       <span className="cuenta-suscriptor__importe" data-signo={m.estado === "anulado" ? "anulado" : "mas"}>
                         {m.estado === "anulado" ? <s>{formatearPrecio(m.monto)}</s> : `+${formatearPrecio(m.monto)}`}
@@ -115,10 +135,28 @@ function conDetalle(estado: string, detalle: string): string {
 }
 
 /**
- * El detalle de un crédito ganado, según su estado (Ale, 18/11/2026: con el
- * vencimiento). Las fechas y lo que queda salen de la billetera del servidor.
+ * El detalle de lo usado en una compra: apartado mientras se paga, en revisión
+ * (un contracargo, o una fila que Harper tiene que corregir) o devuelto a la
+ * cuenta porque esa compra se reembolsó entera (20/11/2026: se sigue viendo
+ * «Usado» y justo arriba está el crédito que volvió).
  */
-function detalleDelGanado(m: MovimientoCredito, hoy: string): string {
+function detalleDelUso(m: MovimientoCredito): string {
+  if (m.estado === "reservado") return T.reservadoNota;
+  if (m.devuelto) return T.usoDevuelto;
+  return m.conGestionAbierta ? T.usoEnRevision : "";
+}
+
+/**
+ * El detalle de un crédito, ganado o devuelto, según su estado (Ale,
+ * 18/11/2026: con el vencimiento). Las fechas y lo que queda salen de la
+ * billetera del servidor (lib/credito-cuenta.ts): desde el 20/11/2026 uno al
+ * que no le queda nada se ve «Usado» (lo usó entero) o «Apartado» (lo que le
+ * quedaba lo tomó una compra que todavía se está pagando), nunca «Disponible».
+ * El ganado «se liberó»; el devuelto «volvió a tu cuenta». Uno devuelto que
+ * Harper marcó a mano sin fecha no dice ni desde cuándo ni hasta cuándo.
+ */
+function detalleDelCredito(m: MovimientoCredito, hoy: string): string {
+  const desde = m.disponibleDesde ? (m.tipo === "devuelto" ? T.volvio : T.liberado)(fechaLegible(m.disponibleDesde)) : "";
   switch (m.estado) {
     case "pendiente":
       if (m.conGestionAbierta) return T.conGestion;
@@ -131,14 +169,20 @@ function detalleDelGanado(m: MovimientoCredito, hoy: string): string {
       return T.enRevisionNota;
     case "vencido":
       return m.venceEl ? T.vencio(fechaLegible(m.venceEl), formatearPrecio(m.restante ?? m.monto)) : "";
-    case "disponible": {
-      const liberado = m.disponibleDesde ? T.liberado(fechaLegible(m.disponibleDesde)) : "";
-      // Usado entero: no queda nada por vencer. Con algo sin usar, hasta qué día se puede usar.
-      const vence = m.restante === 0 ? T.usadoEntero : m.venceEl ? T.vence(fechaLegible(m.venceEl)) : "";
-      return [liberado, vence].filter(Boolean).join(" ");
-    }
+    case "disponible":
+      // Con algo sin usar: hasta qué día se puede usar.
+      return juntar(desde, m.venceEl ? T.vence(fechaLegible(m.venceEl)) : "");
+    case "reservado":
+      return juntar(desde, T.apartado);
+    case "usado":
+      // Usado entero, antes de vencer: no queda nada por vencer.
+      return juntar(desde, T.usadoEntero);
     default:
-      // «Usado»: venció después de usarse entero.
       return "";
   }
+}
+
+/** Las frases del detalle, en una línea; las vacías no dejan espacios sueltos. */
+function juntar(...frases: string[]): string {
+  return frases.filter(Boolean).join(" ");
 }

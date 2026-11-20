@@ -330,7 +330,9 @@ test("Apagado por defecto: fuera de sus módulos, solo el webhook lo mira, para 
   // `estadoDelCredito`). Lo que planea un crédito (calcularCredito,
   // creditoAlAcreditarse, creditoTrasDevolucion, claveDelCredito) queda
   // adentro del motor, la persistencia y el lector de pagos.
-  const PUBLICADOS = ["creditoActivo", "PORCENTAJE_CREDITO_UN_ANTEOJO", "PORCENTAJE_CREDITO_VARIOS", "DIAS_PARA_LIBERAR_CREDITO", "MESES_PARA_VENCER_CREDITO"];
+  // DIAS_AVISO_VENCIMIENTO (los 15 días del aviso por mail) también es un
+  // número publicado: las pantallas y las condiciones lo pueden decir.
+  const PUBLICADOS = ["creditoActivo", "PORCENTAJE_CREDITO_UN_ANTEOJO", "PORCENTAJE_CREDITO_VARIOS", "DIAS_PARA_LIBERAR_CREDITO", "MESES_PARA_VENCER_CREDITO", "DIAS_AVISO_VENCIMIENTO"];
   const PUROS = [...PUBLICADOS, "creditoQueSuma", "esFechaValida", "venceEl", "estaVencido", "estadoDelCredito"];
   for (const [archivo, nombres] of usos) {
     assert.ok(nombres.length > 0, archivo);

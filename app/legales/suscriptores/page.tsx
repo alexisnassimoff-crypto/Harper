@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getConfig } from "@/lib/config";
 import {
   creditoActivo,
+  DIAS_AVISO_VENCIMIENTO,
   DIAS_PARA_LIBERAR_CREDITO,
   MESES_PARA_VENCER_CREDITO,
   PORCENTAJE_CREDITO_UN_ANTEOJO,
@@ -39,11 +40,16 @@ import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
  * servidor tiene el crédito prendido (HARPER_CREDITO_ACTIVO, `creditoActivo()`
  * de lib/credito-harper.ts). Apagado, la página es la de siempre y no lo nombra
  * en ningún lado. La sección dice lo que hace el código: los porcentajes y los
- * días salen de lib/credito-harper.ts; la base, del cobro (lib/pedidos.ts y
+ * días (también los del aviso de vencimiento, DIAS_AVISO_VENCIMIENTO) salen
+ * de lib/credito-harper.ts; la base, del cobro (lib/pedidos.ts y
  * lib/credito-uso.ts, `aplicarCreditoHarper`); las devoluciones, de
  * lib/credito-pagos.ts, lib/credito-persistencia.ts y lib/credito-uso.ts
- * (`revisarUsoPorReembolso`). No dice qué se reintegra si se devuelve un
- * anteojo de un Dúo: Ale todavía no lo decidió. Tiene su propia versión
+ * (`procesarUsoDelPago`: con el reembolso total, lo usado vuelve solo,
+ * `devolverUsoPorReembolso`; con un contracargo perdido queda en revisión,
+ * `revisarUsoPorReembolso`; con un reembolso parcial, Harper reintegra en
+ * dinero lo pagado por lo devuelto, también lo pagado con crédito). No dice
+ * cómo cambia el crédito GANADO si se devuelve solo una parte de la compra
+ * (un anteojo de un Dúo): Ale todavía no lo decidió. Tiene su propia versión
  * (VERSION_CONDICIONES_CREDITO), que se muestra en la sección: el texto
  * publicado cambia cuando se prende el interruptor, y la versión de la cuenta
  * que guarda cada alta no cambia.
@@ -234,21 +240,30 @@ export default async function CondicionesCuenta() {
               pierde. Si tenés créditos con distintos vencimientos, en cada compra se usa primero el que vence antes.
             </li>
             <li>
+              {/* Entrar a Mi Cuenta con el crédito prendido abre una sesión solo con el mail (lib/credito-cuenta.ts,
+                  entrarALaCuenta): no da de alta en Suscriptores ni pide la casilla de las novedades. */}
               <strong>Cómo se usa.</strong> Solo en anteojos de harper.ar: nunca paga el envío, los estuches ni los paños. Para usarlo
-              entrás a {miCuenta} con el mail de la compra y el código que te mandamos a ese mail, y comprás con ese mismo mail. En el
-              checkout elegís si lo usás: se descuenta lo que tengas disponible hasta cubrir lo que pagás por los anteojos, y lo que sobra
-              queda para otra compra, con el mismo vencimiento. Si el pedido no se llega a pagar, el crédito que apartó vuelve a quedar
-              disponible. No se puede cambiar por dinero ni pasar a otra persona o a otro mail.
+              entrás a {miCuenta} con el mail de la compra y el código que te mandamos a ese mail (no hace falta abrir la cuenta del punto 3
+              ni aceptar los mails de novedades), y comprás con ese mismo mail. En el checkout elegís si lo usás: se descuenta lo que tengas
+              disponible hasta cubrir lo que pagás por los anteojos, y lo que sobra queda para otra compra, con el mismo vencimiento. Si el
+              pedido no se llega a pagar, el crédito que apartó vuelve a quedar disponible. No se puede cambiar por dinero ni pasar a otra
+              persona o a otro mail.
             </li>
             <li>
-              <strong>Devoluciones y contracargos.</strong> Si se reintegra entero el pago de la compra que generó el crédito, por una
-              devolución o por un contracargo, ese crédito se anula; si para entonces ya estaba disponible, queda en revisión y no se puede
-              usar mientras lo revisamos. Si se devuelve una compra que pagaste en parte con Crédito Harper, el crédito que usaste en ella no
-              vuelve solo: queda en revisión, sigue descontado y Harper revisa cada caso para decidir si te lo devuelve.
+              {/* Lo que hace el código desde el 20/11/2026: lib/credito-persistencia.ts (`anularPorPedido`) para el crédito
+                  ganado y lib/credito-uso.ts (`procesarUsoDelPago`) para el usado. */}
+              <strong>Devoluciones y contracargos.</strong> Si se reintegra entero el pago de la compra con la que ganaste el crédito, por
+              una devolución o por un contracargo, ese crédito se anula. Si ya estaba disponible, queda en revisión y no lo podés usar
+              mientras lo revisamos. Si devolvés una compra que pagaste en parte con Crédito Harper, el crédito que usaste vuelve a tu
+              cuenta cuando te reintegramos el pago entero, con {MESES_PARA_VENCER_CREDITO} meses para usarlo desde ese día. Si devolvés
+              solo una parte de la compra, te reintegramos en dinero lo que pagaste por lo que devolviste, incluida la parte que pagaste
+              con Crédito Harper. Si el pago se revierte por un contracargo, el crédito que usaste en esa compra queda en revisión y sigue
+              descontado mientras lo revisamos.
             </li>
             <li>
-              <strong>Avisos por mail.</strong> Te escribimos al mail de la compra cuando el crédito queda disponible y, si todavía te queda
-              crédito sin usar, unos días antes de que venza.
+              {/* El aviso del crédito devuelto es solo el de «por vencer» (lib/credito-diario.ts): por eso «el crédito que ganaste». */}
+              <strong>Avisos por mail.</strong> Te escribimos al mail de la compra cuando el crédito que ganaste queda disponible y, si
+              todavía te queda crédito sin usar, {DIAS_AVISO_VENCIMIENTO} días antes de que venza.
             </li>
             <li>
               <strong>Dónde lo ves.</strong> En {miCuenta} ves tu crédito disponible, el pendiente y el que está en revisión, con cada

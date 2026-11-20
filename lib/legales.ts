@@ -58,4 +58,8 @@ export const VERSION_CONDICIONES_SUSCRIPTORES = "2026-11-18";
 // con un anteojo y 10 % con dos o más; pendiente hasta 30 días después de la
 // entrega confirmada; vence a los 6 meses de quedar disponible y se usa primero
 // el que vence antes; solo en anteojos, con la cuenta del mail de la compra.
+// El mismo día (revisión de textos, 20/11/2026), antes de publicarse: para
+// usarlo no hace falta abrir la cuenta ni aceptar las novedades; el aviso de
+// vencimiento sale DIAS_AVISO_VENCIMIENTO días antes; y lo usado en una compra
+// reembolsada entera vuelve a la cuenta con 6 meses nuevos (lib/credito-uso.ts).
 export const VERSION_CONDICIONES_CREDITO = "2026-11-20";

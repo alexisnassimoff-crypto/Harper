@@ -841,9 +841,10 @@ export function mailEnviado(
    Son mails de la cuenta, no de novedades: hablan del crédito de quien los
    recibe y van al mail de su compra. Es lo que dicen las condiciones
    publicadas (app/legales/suscriptores/page.tsx, «Crédito Harper» → «Avisos
-   por mail»: «Te escribimos al mail de la compra cuando el crédito queda
-   disponible y, si todavía te queda crédito sin usar, unos días antes de que
-   venza»; y el punto 5: la baja de las novedades corta solo esos mails). Por
+   por mail»: «Te escribimos al mail de la compra cuando el crédito que
+   ganaste queda disponible y, si todavía te queda crédito sin usar, 15 días
+   antes de que venza», con DIAS_AVISO_VENCIMIENTO de lib/credito-harper.ts;
+   y el punto 5: la baja de las novedades corta solo esos mails). Por
    eso salen por el mismo envío y con el mismo remitente que los de los
    pedidos (enviarMail, DE) y sin la línea para darse de baja de las
    novedades. El borrador de condiciones todavía tiene abierta la revisión

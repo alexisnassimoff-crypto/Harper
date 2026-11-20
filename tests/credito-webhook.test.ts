@@ -659,7 +659,9 @@ test("Prendido: el mail de confirmación dice cuánto suma el pedido, lo mismo q
       delete process.env.HARPER_CREDITO_ACTIVO;
     }
   };
-  const sumaste = (monto: number) => `Con esta compra sumaste ${precio(monto)} de Crédito Harper. Queda disponible 30 días después de que recibas tu pedido y vence 6 meses después.`;
+  // Revisión de textos (20/11/2026): la frase dice para qué es («para tu próxima compra de anteojos»).
+  const sumaste = (monto: number) =>
+    `Con esta compra sumaste ${precio(monto)} de Crédito Harper para tu próxima compra de anteojos. Queda disponible 30 días después de que recibas tu pedido y vence 6 meses después.`;
 
   for (const [items, monto] of [[UNO, 4_495], [DUO, 15_733]] as const) {
     const apagado = await correr(false, { items: [...items] });

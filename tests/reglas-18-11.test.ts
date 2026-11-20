@@ -366,8 +366,10 @@ const PROMESAS_TERMINADAS: [string, RegExp][] = [
   // saldo»). El Crédito Harper (Ale, 18/11/2026; solo con
   // HARPER_CREDITO_ACTIVO=1) dice «5% de vuelta con un anteojo…» y «5% de
   // vuelta en Crédito Harper»: esas dos frases, y solo esas, no son la promesa
-  // que terminó (tests/credito-comunicacion.test.ts las fija).
-  ["10% de vuelta", /\d\s?% de vuelta(?! con un anteojo y \S+ llevando dos, para tu próxima compra$| en Crédito Harper$)|de vuelta como saldo/i],
+  // que terminó (tests/credito-comunicacion.test.ts las fija). Desde la
+  // revisión de textos del 20/11/2026 la barra dice «con dos o más» y «de
+  // anteojos».
+  ["10% de vuelta", /\d\s?% de vuelta(?! con un anteojo y \S+ con dos o más, para tu próxima compra de anteojos$| en Crédito Harper$)|de vuelta como saldo/i],
 ];
 
 /** Todas las hojas de TEXTOS con su ruta; las funciones, llamadas con datos de ejemplo (como en tests/portada.test.ts). */
@@ -538,7 +540,10 @@ test("Reglas del 18/11: con el Crédito Harper prendido, la barra y las pregunta
   }
   for (const texto of delCredito) assert.doesNotMatch(texto, /saldo|suscript|cashback/i, texto);
   // Va después del Dúo y antes del envío gratis.
-  assert.deepEqual(barra.slice(0, 2), ["Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF", "Crédito Harper: 5% de vuelta con un anteojo y 10% llevando dos, para tu próxima compra"]);
+  assert.deepEqual(barra.slice(0, 2), [
+    "Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF",
+    "Crédito Harper: 5% de vuelta con un anteojo y 10% con dos o más, para tu próxima compra de anteojos",
+  ]);
 });
 
 test("Reglas del 18/11: los textos de antes que siguen en TEXTOS (cupón de bienvenida, envío gratis siempre, cuotas de suscriptor) no se usan en ninguna página ni componente", () => {

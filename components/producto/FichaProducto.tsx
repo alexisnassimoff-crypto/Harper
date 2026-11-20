@@ -140,6 +140,13 @@ export default function FichaProducto({
   // opciones de pares ya lo cuentan). Con él, la línea del Crédito Harper dice
   // también lo que suman dos.
   const mostrarDuo = !pares && Boolean(lineasDuo);
+  // El Crédito Harper de la ficha es lo que suma este anteojo SOLO (el carrito
+  // de prueba del servidor). Con anteojos ya en el carrito se queda corto: con
+  // este, la compra suma el 10 % y no el 5 % (y el Dúo puede cambiar). Ahí no se muestra; lo
+  // que suma la compra entera lo dice el carrito (revisión de textos,
+  // 20/11/2026). En el servidor el carrito todavía no se resolvió
+  // (`anteojosEnCarrito` 0): el HTML es el mismo de siempre.
+  const creditoDeLaFicha = credito && anteojosEnCarrito === 0 ? credito : null;
 
   // La foto de portada del color (al sol y adentro) va primera.
   const fotos = useMemo(() => fotosDeGaleria(variante), [variante]);
@@ -355,7 +362,7 @@ export default function FichaProducto({
               Mercado Pago, con centavos), precio de contado y CFTEA. Debajo,
               lo que cuesta con el dinero de la cuenta de Mercado Pago: el
               importe llega calculado del servidor. */}
-          {cuotas || precioDineroMP !== null || credito ? (
+          {cuotas || precioDineroMP !== null || creditoDeLaFicha ? (
             <div className="cuotas-compra cuotas-compra--ficha">
               {cuotas ? (
                 <>
@@ -373,12 +380,12 @@ export default function FichaProducto({
                 </p>
               ) : null}
               {/* El Crédito Harper (Ale, 18/11/2026), solo si el servidor lo
-                  mandó: lo que suma uno de este modelo y, cuando la ficha
-                  muestra el Dúo, lo que suman dos. */}
-              {credito ? (
+                  mandó y el carrito no tiene anteojos: lo que suma uno de este
+                  modelo y, cuando la ficha muestra el Dúo, lo que suman dos. */}
+              {creditoDeLaFicha ? (
                 <p style={{ fontSize: "0.8125rem" }}>
-                  {TEXTOS.programa.credito.ficha(credito.uno, credito.unoDineroMP)}
-                  {credito.dos && mostrarDuo ? ` ${TEXTOS.programa.credito.fichaDos(credito.dos, credito.dosDineroMP)}` : ""}
+                  {TEXTOS.programa.credito.ficha(creditoDeLaFicha.uno, creditoDeLaFicha.unoDineroMP)}
+                  {creditoDeLaFicha.dos && mostrarDuo ? ` ${TEXTOS.programa.credito.fichaDos(creditoDeLaFicha.dos, creditoDeLaFicha.dosDineroMP)}` : ""}
                 </p>
               ) : null}
             </div>

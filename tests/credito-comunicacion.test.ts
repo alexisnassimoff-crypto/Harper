@@ -31,6 +31,7 @@ import { creditoParaElCarrito } from "../lib/credito-cuenta";
 import {
   calcularCredito,
   creditoQueSuma,
+  DIAS_AVISO_VENCIMIENTO,
   DIAS_PARA_LIBERAR_CREDITO,
   MESES_PARA_VENCER_CREDITO,
   PORCENTAJE_CREDITO_UN_ANTEOJO,
@@ -103,10 +104,14 @@ const DUO_PREGUNTAS = { porcentaje: 25, dos: { total: "$ 157.325", lista: "$ 179
 /** Lo que el servidor les pasa a la barra y a las preguntas con el interruptor prendido (app/layout.tsx, app/preguntas-frecuentes/page.tsx). */
 const CREDITO_DEL_SERVIDOR = { unAnteojo: PORCENTAJE_CREDITO_UN_ANTEOJO, varios: PORCENTAJE_CREDITO_VARIOS, dias: DIAS_PARA_LIBERAR_CREDITO, meses: MESES_PARA_VENCER_CREDITO };
 
-const BARRA = "Crédito Harper: 5% de vuelta con un anteojo y 10% llevando dos, para tu próxima compra";
+// Revisión de textos (20/11/2026): «con dos o más» y no «llevando dos» (con
+// tres también es el 10 %), siempre «de anteojos», y «Mi Cuenta» en lugar de
+// «tu cuenta Harper» (para ver el crédito no hace falta abrir la cuenta ni
+// aceptar las novedades).
+const BARRA = "Crédito Harper: 5% de vuelta con un anteojo y 10% con dos o más, para tu próxima compra de anteojos";
 const PREGUNTA = "¿Qué es el Crédito Harper?";
 const RESPUESTA =
-  "Es plata para tu próxima compra de anteojos en harper.ar. Te devolvemos el 5% de lo que pagás en anteojos si llevás uno, y el 10% si llevás dos o más. Queda disponible 30 días después de que recibís el pedido y vence 6 meses después. Se usa solo en anteojos (no paga el envío) y lo ves en tu cuenta Harper, entrando con el mail de tu compra.";
+  "Es plata para tu próxima compra de anteojos en harper.ar. Te devolvemos el 5% de lo que pagás en anteojos si llevás uno, y el 10% si llevás dos o más. Queda disponible 30 días después de que recibís el pedido y vence 6 meses después. Se usa solo en anteojos (no paga el envío) y lo ves en Mi Cuenta, entrando con el mail de tu compra.";
 
 /** Lo que arman la barra, las preguntas, la confianza, la ficha, la portada y el envío sin el dato del crédito. */
 function textosSinElCredito(): string[] {
@@ -250,7 +255,8 @@ test("En TEXTOS, el Crédito Harper vive en sus claves; sus porcentajes, días y
   assert.deepEqual(hojas.filter((h) => NOMBRA_EL_CREDITO.test(h.texto) && !bajo(h.ruta)), [], "ningún texto fuera de sus claves lo nombra");
   // Los números de la regla llegan del motor: con otros, el texto dice otros.
   const C = TEXTOS.programa.credito;
-  assert.equal(C.barra(7, 12), "Crédito Harper: 7% de vuelta con un anteojo y 12% llevando dos, para tu próxima compra");
+  assert.equal(C.barra(7, 12), "Crédito Harper: 7% de vuelta con un anteojo y 12% con dos o más, para tu próxima compra de anteojos");
+  assert.equal(C.portadaDetalle(12), "12% con dos o más, para tu próxima compra de anteojos");
   assert.match(C.respuesta(7, 12, 45, 9), /el 7% de lo que pagás en anteojos si llevás uno, y el 12% si llevás dos o más\. Queda disponible 45 días después de que recibís el pedido y vence 9 meses después\./);
   assert.match(C.gracias("$ 1", 45, 9), /Queda disponible 45 días después de que recibas tu pedido y vence 9 meses después\./);
   assert.equal(TEXTOS.suscriptores.cuenta.credito.bajada(9), "Lo ganás con tus compras de anteojos. Se usa solo en anteojos. Cada crédito vence 9 meses después de quedar disponible.");
@@ -312,11 +318,16 @@ test("Cada pantalla nombra el crédito solo con el dato del servidor, que existe
   const ficha = sinComentarios(leer("app/producto/[slug]/ficha.tsx"));
   assert.match(ficha, /esAnteojo && creditoActivo\(\)\s*\?/);
   assert.match(ficha, /carrito\.creditoPrevisto\?\.mercadoPago \?\? 0/);
-  assert.match(sinComentarios(leer("components/producto/FichaProducto.tsx")), /\{credito \? \(\s*<p[^>]*>\s*\{TEXTOS\.programa\.credito\.ficha\(credito\.uno, credito\.unoDineroMP\)\}/);
-  // El carrito y el panel lateral: solo con el importe que mandó el servidor.
+  // (Revisión de textos, 20/11/2026: la línea se muestra solo con el carrito sin anteojos; ver la prueba de la ficha, abajo.)
+  assert.match(
+    sinComentarios(leer("components/producto/FichaProducto.tsx")),
+    /\{creditoDeLaFicha \? \(\s*<p[^>]*>\s*\{TEXTOS\.programa\.credito\.ficha\(creditoDeLaFicha\.uno, creditoDeLaFicha\.unoDineroMP\)\}/
+  );
+  // El carrito y el panel lateral: solo con el importe que mandó el servidor
+  // (los dos, el de tarjeta y el de dinero en Mercado Pago; ver abajo).
   assert.match(sinComentarios(leer("components/carrito/CreditoQueSuma.tsx")), /if \(!monto \|\| monto <= 0\) return null;/);
   for (const archivo of ["components/carrito/VistaCarrito.tsx", "components/carrito/PanelCarrito.tsx"]) {
-    assert.match(sinComentarios(leer(archivo)), /<CreditoQueSuma monto=\{datos\.creditoPrevisto\?\.mercadoPago\} \/>/, archivo);
+    assert.match(sinComentarios(leer(archivo)), /<CreditoQueSuma monto=\{datos\.creditoPrevisto\?\.mercadoPago\} conDineroMP=\{datos\.creditoPrevisto\?\.dineroMP\} \/>/, archivo);
   }
   // El checkout: la caja, la pista para entrar y el renglón, solo con lo que manda el servidor.
   const checkout = sinComentarios(leer("components/checkout/FormularioCheckout.tsx"));
@@ -353,6 +364,41 @@ test("Las condiciones publicadas: la sección del Crédito Harper entera adentro
   assert.match(seccion, /A los \{MESES_PARA_VENCER_CREDITO\} meses del día en que quedó disponible/);
   assert.match(seccion, /Lo podés usar hasta el día del vencimiento inclusive, en hora de Argentina/);
   assert.match(seccion, /se usa primero el que vence antes/);
+  // Revisión de textos (20/11/2026): para usarlo no hace falta abrir la cuenta
+  // del punto 3 ni aceptar las novedades (entrarALaCuenta no da de alta ni pide
+  // la casilla); el aviso de vencimiento, con los días del control diario; y
+  // las devoluciones con lo que hace el motor desde el 20/11/2026.
+  const texto = seccion.replace(/\s+/g, " ");
+  assert.ok(
+    texto.includes(
+      "Para usarlo entrás a {miCuenta} con el mail de la compra y el código que te mandamos a ese mail (no hace falta abrir la cuenta del punto 3 ni aceptar los mails de novedades), y comprás con ese mismo mail."
+    ),
+    "cómo se entra para usarlo"
+  );
+  assert.ok(
+    texto.includes(
+      "Te escribimos al mail de la compra cuando el crédito que ganaste queda disponible y, si todavía te queda crédito sin usar, {DIAS_AVISO_VENCIMIENTO} días antes de que venza."
+    ),
+    "el aviso de vencimiento, con la constante"
+  );
+  assert.doesNotMatch(texto, /unos días antes/);
+  assert.match(pagina, /import \{[^}]*\bDIAS_AVISO_VENCIMIENTO\b[^}]*\} from "@\/lib\/credito-harper";/);
+  assert.equal(DIAS_AVISO_VENCIMIENTO, 15, "los 15 días del aviso (Ale, 18/11/2026)");
+  for (const frase of [
+    // El crédito ganado: con el reembolso total se anula; ya disponible, en revisión (lib/credito-persistencia.ts, anularPorPedido).
+    "Si se reintegra entero el pago de la compra con la que ganaste el crédito, por una devolución o por un contracargo, ese crédito se anula.",
+    "Si ya estaba disponible, queda en revisión y no lo podés usar mientras lo revisamos.",
+    // El crédito usado: con el reembolso total vuelve solo, con 6 meses nuevos (lib/credito-uso.ts, devolverUsoPorReembolso).
+    "Si devolvés una compra que pagaste en parte con Crédito Harper, el crédito que usaste vuelve a tu cuenta cuando te reintegramos el pago entero, con {MESES_PARA_VENCER_CREDITO} meses para usarlo desde ese día.",
+    // Con un reembolso parcial, en dinero, también lo pagado con crédito (el aviso a Harper de procesarUsoDelPago).
+    "Si devolvés solo una parte de la compra, te reintegramos en dinero lo que pagaste por lo que devolviste, incluida la parte que pagaste con Crédito Harper.",
+    // Con un contracargo perdido, «A revisar» (revisarUsoPorReembolso).
+    "Si el pago se revierte por un contracargo, el crédito que usaste en esa compra queda en revisión y sigue descontado mientras lo revisamos.",
+  ]) {
+    assert.ok(texto.includes(frase), frase);
+  }
+  // La regla vieja («no vuelve solo», «Harper revisa cada caso») no queda.
+  assert.doesNotMatch(texto, /no vuelve solo|revisa cada caso/);
   assert.doesNotMatch(fuera, NOMBRA_EL_CREDITO, "apagado, la página no lo nombra");
   assert.doesNotMatch(fuera, /#credito/, "ni un enlace a la sección");
   // Los meses de la página son los del motor (Ale, 18/11/2026: 6), los importe de ahí o tenga una copia igual.
@@ -374,9 +420,18 @@ test("Prendido: la barra y las preguntas frecuentes traen las frases del Crédit
   // Las preguntas: la del crédito, con su respuesta y el enlace a las condiciones.
   const p = preguntasDePortada({ ...BASE_PREGUNTAS, credito: CREDITO_DEL_SERVIDOR }).filter((x) => NOMBRA_EL_CREDITO.test(`${x.pregunta} ${x.respuesta}`));
   assert.deepEqual(p, [{ pregunta: PREGUNTA, respuesta: RESPUESTA, enlace: { href: "/legales/suscriptores#credito", texto: "Ver las condiciones" } }]);
-  // La portada: «5% de vuelta en Crédito Harper» / «10% llevando dos, para tu próxima compra».
+  // La portada: «5% de vuelta en Crédito Harper» / «10% con dos o más, para tu próxima compra de anteojos».
   assert.equal(TEXTOS.programa.credito.portada(PORCENTAJE_CREDITO_UN_ANTEOJO), "5% de vuelta en Crédito Harper");
-  assert.equal(TEXTOS.programa.credito.portadaDetalle(PORCENTAJE_CREDITO_VARIOS), "10% llevando dos, para tu próxima compra");
+  assert.equal(TEXTOS.programa.credito.portadaDetalle(PORCENTAJE_CREDITO_VARIOS), "10% con dos o más, para tu próxima compra de anteojos");
+  // «Llevando dos» quedó solo en la ficha, donde de verdad es sobre dos de ese modelo (fichaDos).
+  const hojas: string[] = [];
+  const juntar = (v: unknown): void => {
+    if (typeof v === "string") hojas.push(v);
+    else if (typeof v === "function") juntar(v("$ 1", "$ 2", 3, 4));
+    else if (v && typeof v === "object") Object.values(v).forEach(juntar);
+  };
+  juntar(TEXTOS.programa.credito);
+  assert.deepEqual(hojas.filter((t) => /llevando dos/i.test(t)), ["Llevando dos, sumás $ 1 ($ 2 con dinero en Mercado Pago)."]);
   // Lo que se lee en la billetera.
   assert.equal(TEXTOS.suscriptores.cuenta.credito.bajada(MESES_PARA_VENCER_CREDITO), "Lo ganás con tus compras de anteojos. Se usa solo en anteojos. Cada crédito vence 6 meses después de quedar disponible.");
 });
@@ -427,20 +482,77 @@ test("Prendido, /gracias dice lo mismo que va a anotar el webhook, solo en pedid
   const gracias = await prendido(async () => Promise.all(["HARPER-GRA1", "HARPER-GRA2", "HARPER-GRA3", "HARPER-GRA4"].map((n) => buscarPedido(n))));
   assert.deepEqual(gracias.map((p) => p?.creditoGanado ?? null), [loQueSeAnota(uno.items), loQueSeAnota(dos.items), null, null]);
   assert.deepEqual(gracias.slice(0, 2).map((p) => p?.creditoGanado), [4_495, 15_733]);
-  // El texto de /gracias: cuánto sumó, que queda pendiente hasta 30 días después de recibirlo, cuándo vence y dónde verlo.
+  // El texto de /gracias: cuánto sumó y para qué, que queda pendiente hasta 30
+  // días después de recibirlo, cuándo vence y dónde verlo (revisión de textos,
+  // 20/11/2026: «para tu próxima compra de anteojos» y «Mi Cuenta»).
   const texto = TEXTOS.programa.credito.gracias(precio(4_495), DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO);
-  assert.ok(texto.startsWith(`Con esta compra sumaste ${precio(4_495)} de Crédito Harper. Queda disponible 30 días después de que recibas tu pedido y vence 6 meses después.`), texto);
-  assert.match(texto, /cuenta Harper, entrando con el mail de tu compra\.$/);
+  assert.equal(
+    texto,
+    `Con esta compra sumaste ${precio(4_495)} de Crédito Harper para tu próxima compra de anteojos. Queda disponible 30 días después de que recibas tu pedido y vence 6 meses después. Lo ves en Mi Cuenta, entrando con el mail de tu compra.`
+  );
 });
 
 test("La ficha dice lo que suma con cada medio de pago: con dinero en Mercado Pago se paga menos y suma menos", () => {
   const C = TEXTOS.programa.credito;
   assert.equal(
     C.ficha("$ 4.495", "$ 4.046"),
-    "Con este anteojo sumás $ 4.495 de Crédito Harper para tu próxima compra ($ 4.046 si pagás con dinero en Mercado Pago)."
+    "Con este anteojo sumás $ 4.495 de Crédito Harper para tu próxima compra de anteojos ($ 4.046 si pagás con dinero en Mercado Pago)."
   );
-  assert.equal(C.ficha("$ 4.495", null), "Con este anteojo sumás $ 4.495 de Crédito Harper para tu próxima compra.");
+  assert.equal(C.ficha("$ 4.495", null), "Con este anteojo sumás $ 4.495 de Crédito Harper para tu próxima compra de anteojos.");
+  // El Dúo, que sí es sobre dos de ese modelo: «Llevando dos» se queda.
   assert.equal(C.fichaDos("$ 15.733", "$ 14.159"), "Llevando dos, sumás $ 15.733 ($ 14.159 con dinero en Mercado Pago).");
+});
+
+test("La ficha no dice lo que suma «este anteojo» si el carrito ya tiene anteojos: con ellos se queda corto", () => {
+  // Revisión de textos (20/11/2026): con un anteojo en el carrito, sumar este
+  // lleva la compra al 10 % y la frase («$ 4.495») se queda corta. La ficha
+  // cuenta los anteojos del carrito resuelto por el servidor (los mismos que
+  // usa para el Dúo) y, con alguno, no muestra la línea.
+  const ficha = sinComentarios(leer("components/producto/FichaProducto.tsx"));
+  assert.match(
+    ficha,
+    /const anteojosEnCarrito = \(carritoResuelto\?\.items \?\? \[\]\)\s*\.filter\(\(i\) => esCategoriaDeAnteojos\(i\.categoria\)\)\s*\.reduce\(\(total, i\) => total \+ i\.cantidad, 0\);/
+  );
+  assert.match(ficha, /const creditoDeLaFicha = credito && anteojosEnCarrito === 0 \? credito : null;/);
+  // Todo lo que se dibuja del crédito pasa por `creditoDeLaFicha`: ni la caja ni las frases miran `credito` directo.
+  assert.match(ficha, /\{cuotas \|\| precioDineroMP !== null \|\| creditoDeLaFicha \? \(/);
+  assert.match(ficha, /\{creditoDeLaFicha\.dos && mostrarDuo \? ` \$\{TEXTOS\.programa\.credito\.fichaDos\(creditoDeLaFicha\.dos, creditoDeLaFicha\.dosDineroMP\)\}` : ""\}/);
+  const sinTextos = ficha.replace(/TEXTOS\.programa\.credito\./g, "");
+  assert.doesNotMatch(sinTextos, /\bcredito\./, "nada lee `credito.uno` ni `credito.dos` directo");
+  assert.doesNotMatch(sinTextos, /\{credito \?|\|\| credito \?/, "ninguna parte se dibuja con `credito` directo");
+  // Y la ficha del servidor (sin carrito resuelto todavía: `carritoResuelto` es null) es la de siempre.
+  assert.match(sinComentarios(leer("components/carrito/useCarritoResuelto.ts")), /const \[datos, setDatos\] = useState<CarritoResueltoCliente \| null>\(null\);/);
+});
+
+test("Carrito y panel lateral: lo que suma la compra con los dos medios de pago; el checkout, con el elegido", () => {
+  const C = TEXTOS.programa.credito;
+  assert.equal(
+    C.carrito("$ 15.733", "$ 14.159"),
+    "Con esta compra sumás $ 15.733 de Crédito Harper para tu próxima compra de anteojos ($ 14.159 si pagás con dinero en Mercado Pago)."
+  );
+  assert.equal(C.carrito("$ 15.733", null), "Con esta compra sumás $ 15.733 de Crédito Harper para tu próxima compra de anteojos.");
+  // Los números de referencia (Ale, 18/11/2026): un anteojo y tres.
+  assert.equal(
+    C.carrito(precio(4_495), precio(4_046)),
+    `Con esta compra sumás ${precio(4_495)} de Crédito Harper para tu próxima compra de anteojos (${precio(4_046)} si pagás con dinero en Mercado Pago).`
+  );
+  assert.equal(C.carrito(precio(24_723), null), `Con esta compra sumás ${precio(24_723)} de Crédito Harper para tu próxima compra de anteojos.`);
+
+  // CreditoQueSuma: el segundo importe solo si es mayor que cero y distinto del primero; formatea los dos, no calcula nada.
+  const componente = sinComentarios(leer("components/carrito/CreditoQueSuma.tsx"));
+  assert.match(componente, /export default function CreditoQueSuma\(\{ monto, conDineroMP = null \}: \{ monto: number \| null \| undefined; conDineroMP\?: number \| null \}\)/);
+  assert.match(componente, /const otro = conDineroMP && conDineroMP > 0 && conDineroMP !== monto \? formatearPrecio\(conDineroMP\) : null;/);
+  assert.match(componente, /\{TEXTOS\.programa\.credito\.carrito\(formatearPrecio\(monto\), otro\)\}/);
+  // El carrito y el panel pasan los dos importes del servidor (arriba dicen «o $ X con dinero en Mercado Pago»).
+  for (const archivo of ["components/carrito/VistaCarrito.tsx", "components/carrito/PanelCarrito.tsx"]) {
+    const codigo = sinComentarios(leer(archivo));
+    assert.equal(codigo.match(/<CreditoQueSuma /g)?.length, 1, archivo);
+    assert.match(codigo, /<CreditoQueSuma monto=\{datos\.creditoPrevisto\?\.mercadoPago\} conDineroMP=\{datos\.creditoPrevisto\?\.dineroMP\} \/>/, archivo);
+  }
+  // El checkout, uno solo: el del medio de pago elegido.
+  const checkout = sinComentarios(leer("components/checkout/FormularioCheckout.tsx"));
+  assert.equal(checkout.match(/<CreditoQueSuma /g)?.length, 1);
+  assert.match(checkout, /<CreditoQueSuma monto=\{creditoQueSuma\} conDineroMP=\{null\} \/>/);
 });
 
 test("La billetera de Mi Cuenta muestra lo que manda el servidor: el vencimiento más próximo, «Vence el …» y lo vencido, sin calcular fechas ni importes", () => {
@@ -459,12 +571,43 @@ test("La billetera de Mi Cuenta muestra lo que manda el servidor: el vencimiento
   assert.doesNotMatch(billetera, /no vence/i);
 });
 
+test("La billetera con los estados del 20/11/2026: usado entero, apartado, el crédito devuelto y el uso que volvió", () => {
+  const C = TEXTOS.suscriptores.cuenta.credito;
+  // Las frases, exactas.
+  assert.equal(C.estado.usado, "Usado");
+  assert.equal(C.estado.reservado, "Apartado");
+  assert.equal(C.liberado("01/11/2026"), "Se liberó el 01/11/2026.");
+  assert.equal(C.usadoEntero, "Ya lo usaste entero.");
+  assert.equal(C.apartado, "Lo que le quedaba está apartado para un pedido que todavía no se pagó.");
+  assert.equal(C.devueltoDe("HARPER-12345AB"), "Devuelto del pedido HARPER-12345AB");
+  assert.equal(C.volvio("20/11/2026"), "Volvió a tu cuenta el 20/11/2026.");
+  assert.equal(C.usoDevuelto, "Lo que usaste en ese pedido volvió a tu cuenta.");
+  // Un uso «A revisar» ya no es por una devolución (con el reembolso total vuelve solo): no nombra el motivo.
+  assert.equal(C.usoEnRevision, "Lo estamos revisando. Mientras tanto, sigue descontado.");
+  assert.doesNotMatch(C.usoEnRevision, /devoluci/);
+
+  const billetera = sinComentarios(leer("components/suscriptores/MiCreditoHarper.tsx"));
+  // El crédito devuelto tiene su rama, su concepto y su propia key (la misma compra puede tener su crédito ganado, anulado).
+  assert.match(billetera, /m\.tipo === "devuelto" \? \(\s*<li key=\{`devuelto-\$\{m\.pedido\}`\}/);
+  assert.match(billetera, /\{T\.devueltoDe\(m\.pedido\)\}\s*<small>\{conDetalle\(T\.estado\[m\.estado\], detalleDelCredito\(m, hoy\)\)\}<\/small>/);
+  assert.equal(billetera.match(/T\.concepto\(/g)?.length, 1, "«Pedido X · 0 %» no sale en el devuelto");
+  // El detalle de cada estado: el ganado «se liberó», el devuelto «volvió a tu cuenta»; usado entero y apartado, con su frase.
+  assert.match(billetera, /const desde = m\.disponibleDesde \? \(m\.tipo === "devuelto" \? T\.volvio : T\.liberado\)\(fechaLegible\(m\.disponibleDesde\)\) : "";/);
+  assert.match(billetera, /case "reservado":\s*return juntar\(desde, T\.apartado\);/);
+  assert.match(billetera, /case "usado":\s*return juntar\(desde, T\.usadoEntero\);/);
+  assert.match(billetera, /case "disponible":\s*return juntar\(desde, m\.venceEl \? T\.vence\(fechaLegible\(m\.venceEl\)\) : ""\);/);
+  // El uso: apartado, devuelto o en revisión.
+  assert.match(billetera, /if \(m\.estado === "reservado"\) return T\.reservadoNota;\s*if \(m\.devuelto\) return T\.usoDevuelto;\s*return m\.conGestionAbierta \? T\.usoEnRevision : "";/);
+  // Los estados que manda el servidor tienen todos su nombre.
+  for (const estado of ["disponible", "pendiente", "en-revision", "anulado", "usado", "reservado", "vencido"] as const) assert.ok(C.estado[estado], estado);
+});
+
 // ---------- 5. Los mails ----------
 
 test("Mail de confirmación, prendido: el renglón dice «Crédito Harper −$ X» y el bloque dice cuánto sumó, cuándo se libera y cuándo vence", () => {
   const items = [renglon({ credito: 4_495, subtotal: 85_405 })];
   const m = mailConfirmacion(datosDelMail(items, { creditoHarper: { suma: 4_270 } }));
-  const sumaste = `Con esta compra sumaste ${precio(4_270)} de Crédito Harper. Queda disponible 30 días después de que recibas tu pedido y vence 6 meses después.`;
+  const sumaste = `Con esta compra sumaste ${precio(4_270)} de Crédito Harper para tu próxima compra de anteojos. Queda disponible 30 días después de que recibas tu pedido y vence 6 meses después.`;
   for (const parte of [m.html, m.texto]) {
     assert.ok(parte.includes(`Crédito Harper −${precio(4_495)}`), "el renglón");
     assert.ok(parte.includes(sumaste), "el bloque");

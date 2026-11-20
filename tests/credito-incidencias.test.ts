@@ -120,7 +120,12 @@ test("Arrepentimiento verificado: el crédito pendiente queda retenido (incidenc
   const c = await compra();
   const nota = await incidenciaPorArrepentimiento(solicitudDe(c.numero), CODIGO, deps);
   assert.match(nota ?? "", new RegExp(`el crédito de \\$\\s?4\\.495 del pedido ${c.numero} queda retenido por el arrepentimiento ${CODIGO}`));
-  assert.match(nota ?? "", /la regla de la devolución parcial está pendiente/);
+  // 20/11/2026: el aviso ya no dice que la regla está pendiente; dice qué pasa con el crédito ganado.
+  assert.match(
+    nota ?? "",
+    /Del crédito que ganó con esta compra: si se concreta la devolución con reembolso total en Mercado Pago, se anula solo; si es parcial, o sin Mercado Pago, decidí a mano cuánto le corresponde por lo que se quedó \(no se recalcula solo\)\./
+  );
+  assert.doesNotMatch(nota ?? "", /pendiente/);
   const fila = await filaDe(c.credito!.id);
   assert.equal(fila.Incidencia_abierta, true);
   assert.equal(fila.Estado, "Pendiente", "no se anula");
@@ -186,7 +191,7 @@ test("La verificación usa el mail del cliente del pedido, no el que escribe la 
 
 // ---------- Retención: lo disponible no se usa ----------
 
-test("Crédito ya disponible: queda «A revisar» y no se puede usar; si ya lo gastó, no se recupera solo y la cuenta no usa más crédito", async () => {
+test("Crédito ya disponible: queda «A revisar» y no se puede usar; si ya lo gastó, no se descuenta del reembolso: queda en contra de la cuenta, que no usa más crédito", async () => {
   const { deps } = armar();
   const devuelto = await compra({ credito: { Estado: "Disponible", Monto: 10_000 } });
   await compra({ credito: { Estado: "Disponible", Monto: 5_000 } });
@@ -196,7 +201,13 @@ test("Crédito ya disponible: queda «A revisar» y no se puede usar; si ya lo g
 
   const nota = await incidenciaPorArrepentimiento(solicitudDe(devuelto.numero), CODIGO, deps);
   assert.match(nota ?? "", /ya estaba disponible: quedó «A revisar»/);
-  assert.match(nota ?? "", /no se recupera solo, porque la regla está pendiente/);
+  assert.match(nota ?? "", /Del crédito que ganó con esta compra: sigue «A revisar» aunque se reembolse; decidí a mano si se anula o cuánto le corresponde por lo que se quedó \(no se recalcula solo\)\./);
+  // 20/11/2026: ya no dice que la regla está pendiente; dice lo que pasa.
+  assert.match(
+    nota ?? "",
+    /La cuenta ya usó \$\s?7\.000 más de lo que ahora tiene disponible \(gastó en otra compra crédito ganado con este pedido\)\. Eso no se descuenta del reembolso: al comprador se le devuelve todo lo que pagó\. Ese monto queda en contra de la cuenta: lo cubre primero el crédito que tenga o gane después y, hasta cubrirlo, no puede usar más Crédito Harper\./
+  );
+  assert.doesNotMatch(nota ?? "", /pendiente/);
   assert.equal((await filaDe(devuelto.credito!.id)).Estado, "A revisar");
   const saldo = await leerSaldoDeCredito(MAIL, deps.uso);
   assert.deepEqual([saldo.ganado, saldo.usado, saldo.usable, saldo.sobregiro], [5_000, 12_000, 0, 7_000], "nunca negativo");
@@ -212,13 +223,23 @@ test("Crédito ya disponible: queda «A revisar» y no se puede usar; si ya lo g
   }
 });
 
-test("El pedido que se devuelve se pagó en parte con crédito: ese crédito no vuelve solo (queda descontado y se avisa)", async () => {
+// Regla del 20/11/2026 (propuesta a Ale, a favor del comprador): antes el aviso
+// decía que ese crédito «no vuelve solo (la regla está pendiente)»; ahora le
+// dice a Harper qué pasa y qué hacer en cada caso. El arrepentimiento solo
+// avisa: el uso no cambia hasta que llega el reembolso.
+test("El pedido que se devuelve se pagó en parte con crédito: el aviso dice que vuelve solo con el reembolso total y qué reintegrar si la devolución es parcial", async () => {
   const { deps } = armar();
   await compra({ credito: { Estado: "Disponible", Monto: 9_000 } });
   const c = await compra();
   const usado = await usoDeCredito(c.numero, 3_000);
   const nota = await incidenciaPorArrepentimiento(solicitudDe(c.numero), CODIGO, deps);
-  assert.match(nota ?? "", new RegExp(`El pedido ${c.numero} se pagó en parte con \\$\\s?3\\.000 de Crédito Harper: si se concreta la devolución, ese crédito no vuelve solo`));
+  assert.match(
+    nota ?? "",
+    new RegExp(
+      `El pedido ${c.numero} se pagó en parte con \\$\\s?3\\.000 de Crédito Harper\\. Si lo devuelve entero y lo reembolsás entero en Mercado Pago, ese crédito vuelve solo a su cuenta, con 6 meses nuevos para usarlo: no tenés que hacer nada con el crédito\\. Si devuelve solo una parte, reintegrale en Mercado Pago, en dinero, todo lo que pagó por lo que devolvió, incluida la parte que pagó con Crédito Harper \\(en Items del pedido, cada renglón dice cuánto se pagó con crédito\\); el uso del crédito queda «Usado»\\. Si la compra no pasó por Mercado Pago y la devuelve entera, marcá «Devuelto» su uso en Créditos y poné en Disponible_desde el día de la devolución\\.`
+    )
+  );
+  assert.doesNotMatch(nota ?? "", /pendiente/);
   assert.equal((await filaDe(usado.id)).Estado, "Usado");
   assert.equal((await leerSaldoDeCredito(MAIL, deps.uso)).usable, 6_000);
 });

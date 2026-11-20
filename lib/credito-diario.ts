@@ -3,7 +3,7 @@ import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { soltarSinFallar } from "./cerrojo";
 import { getConfig, type ConfigTienda } from "./config";
 import { creditosDisponibles, dependenciasCredito } from "./credito-airtable";
-import { creditoActivo, esFechaValida, estadoDelCredito, venceEl } from "./credito-harper";
+import { creditoActivo, DIAS_AVISO_VENCIMIENTO, esFechaValida, estadoDelCredito, venceEl } from "./credito-harper";
 import {
   cobroCertificado,
   lectorMercadoPagoDesdeEntorno,
@@ -23,7 +23,7 @@ import {
   type FilaCredito,
   type VerificacionLiberacion,
 } from "./credito-persistencia";
-import { almacenUsosAirtable, leerSaldoDeCredito, lectorPedidosDeUsosAirtable, type SaldoDeCredito } from "./credito-uso";
+import { almacenUsosAirtable, anotarEnUso, leerSaldoDeCredito, lectorPedidosDeUsosAirtable, usosDevueltos, type FilaUso, type SaldoDeCredito } from "./credito-uso";
 import { precio } from "./formato";
 import {
   enviarMail as enviarMailReal,
@@ -67,7 +67,14 @@ import { fechaArgentina, sumarDias } from "./suscriptores";
  *     AAAA-MM-DD (motivo)»: ese día no se reintenta, al siguiente sí. Un aviso
  *     que falla nunca frena ni deshace una liberación;
  *  5. las filas «Disponible» sin Disponible_desde (solo por una edición a
- *     mano) no vencen: van al resumen para que Harper les ponga la fecha.
+ *     mano) no vencen: van al resumen para que Harper les ponga la fecha;
+ *  6. el crédito devuelto (20/11/2026: lo que se usó en una compra que se
+ *     reembolsó entera, un uso «Devuelto») también vence a los 6 meses y
+ *     también recibe el aviso de «por vencer», con la marca en las Notas de
+ *     su uso (`devueltos`). No recibe el de «ya disponible»: ese mail dice
+ *     «Lo sumaste con tu pedido», que no es lo que pasó, y quien lo recibe
+ *     acaba de devolver la compra. Uno devuelto sin fecha no vence y no se
+ *     avisa (Harper lo marcó a mano así).
  *
  * Solo escribe en «Créditos» (la fecha de entrega, el paso a Disponible y las
  * marcas de los avisos en Notas). No toca Pedidos, Saldos, el cashback de hoy
@@ -140,8 +147,12 @@ export function entregaDelPedido(pedidos: readonly PedidoDelCredito[], hoy: stri
 
 // ---------- Los avisos al comprador (Ale, 18/11/2026) ----------
 
-/** Cuántos días antes del vencimiento se le avisa al comprador: 15 o menos. */
-export const DIAS_AVISO_VENCIMIENTO = 15;
+/**
+ * Cuántos días antes del vencimiento se le avisa al comprador: 15 o menos. El
+ * número vive en lib/credito-harper.ts, con los demás números publicados; se
+ * sigue exportando desde acá para quien lo importaba de este módulo.
+ */
+export { DIAS_AVISO_VENCIMIENTO };
 /** Si el aviso de «ya disponible» no salió, se reintenta hasta 7 días después de que quedó disponible. */
 export const DIAS_REINTENTO_AVISO_DISPONIBLE = 7;
 
@@ -167,6 +178,7 @@ export type AvisoDisponible = {
 /** Un crédito con algo sin usar que vence en 15 días o menos. */
 export type AvisoPorVencer = {
   email: string;
+  /** El pedido con que se ganó; en uno devuelto, la compra que se reembolsó. */
   pedido: string;
   /** Lo que queda sin usar de ese crédito, en pesos: lo que se pierde si no lo usa. */
   monto: number;
@@ -174,6 +186,8 @@ export type AvisoPorVencer = {
   venceEl: string;
   /** Días que faltan hasta `venceEl`: 0 si vence hoy (hoy todavía se puede usar). */
   dias: number;
+  /** Es un crédito devuelto (20/11/2026): volvió a la cuenta porque esa compra se reembolsó entera. */
+  devuelto?: boolean;
 };
 
 export type TipoAviso = "disponible" | "vencimiento";
@@ -192,12 +206,22 @@ export type LecturaDeCuentas = {
   saldo(email: string): Promise<SaldoDeCredito>;
 };
 
+/** El crédito devuelto (usos «Devuelto», 20/11/2026), para su aviso de vencimiento. */
+export type DevueltosDelDiario = {
+  /** Los usos «Devuelto» de todas las cuentas (lib/credito-uso.ts, usosDevueltos). Solo lectura. */
+  leer(): Promise<FilaUso[]>;
+  /** Deja la marca del aviso en las Notas del uso, con el cerrojo de su cuenta (lib/credito-uso.ts, anotarEnUso). */
+  anotar(uso: FilaUso, texto: string): Promise<{ estado: string }>;
+};
+
 export type DependenciasDiario = {
   credito: DependenciasCredito;
   mp: LectorMercadoPago;
   pedidos: LectorPedidosPorNumero;
   /** Para los avisos y el control de las filas sin fecha. Sin esto, se avisa solo lo liberado hoy, con su monto. */
   cuentas?: LecturaDeCuentas;
+  /** Para el aviso de vencimiento del crédito devuelto. Solo con `cuentas` (de ahí sale lo que le queda). */
+  devueltos?: DevueltosDelDiario;
   /** Los mails al comprador. Se llaman solo con HARPER_CREDITO_ACTIVO=1; sin esto, no se manda ninguno. */
   avisos?: AvisosCredito;
 };
@@ -318,8 +342,11 @@ async function revisarCredito(candidata: FilaCredito, deps: DependenciasDiario, 
 /** Días de `desde` a `hasta` ("AAAA-MM-DD"). */
 const diasEntre = (desde: string, hasta: string) => Math.round((Date.parse(`${hasta}T00:00:00.000Z`) - Date.parse(`${desde}T00:00:00.000Z`)) / 86_400_000);
 
-/** Sin la marca de que salió, ni la de que hoy no salió. */
-const sinMarca = (fila: FilaCredito, enviado: string, fallido: string, hoy: string) => !fila.notas.includes(enviado) && !fila.notas.includes(`${fallido} ${hoy}`);
+/** Sin la marca de que salió, ni la de que hoy no salió (en las Notas de un crédito o de un uso «Devuelto»). */
+const sinMarca = (fila: { notas: string }, enviado: string, fallido: string, hoy: string) => !fila.notas.includes(enviado) && !fila.notas.includes(`${fallido} ${hoy}`);
+
+/** A quién se le deja la marca de un aviso: el pedido (para el resumen) y cómo se anota en su fila. */
+type Avisable = { pedido: string; anotar: (texto: string) => Promise<{ estado: string }> };
 
 /** Un error para el resumen a Harper y las Notas: sin mails de clientes. */
 const sinMails = (texto: string) => texto.replace(/[^\s<>()]+@[^\s<>()]+/g, "(mail)");
@@ -329,7 +356,7 @@ const sinMails = (texto: string) => texto.replace(/[^\s<>()]+@[^\s<>()]+/g, "(ma
  * que salió o, si no, la de que hoy no salió (así hoy no se reintenta). Nunca
  * tira: lo que falla queda en `avisosFallidos` y en el log.
  */
-async function mandarAviso(deps: DependenciasDiario, fila: FilaCredito, aviso: TipoAviso, mandar: () => Promise<void>, hoy: string, r: ResumenDiario): Promise<void> {
+async function mandarAviso(fila: Avisable, aviso: TipoAviso, mandar: () => Promise<void>, hoy: string, r: ResumenDiario): Promise<void> {
   const [enviado, fallido] = aviso === "disponible" ? [MARCA_AVISO_DISPONIBLE, MARCA_AVISO_DISPONIBLE_FALLIDO] : [MARCA_AVISO_VENCIMIENTO, MARCA_AVISO_VENCIMIENTO_FALLIDO];
   let salio = false;
   let marca: string;
@@ -345,7 +372,7 @@ async function mandarAviso(deps: DependenciasDiario, fila: FilaCredito, aviso: T
     marca = `${fallido} ${hoy} (${motivo})`;
   }
   try {
-    const anotada = await anotarAviso(fila, marca, deps.credito);
+    const anotada = await fila.anotar(marca);
     if (anotada.estado === "ocupado") throw new Error("otra instancia tenía el crédito en ese momento");
   } catch (error) {
     const motivo = sinMails(describir(error));
@@ -398,15 +425,38 @@ async function avisosDelDia(deps: DependenciasDiario, hoy: string, r: ResumenDia
   }
   r.sinFecha = [...sinFecha].sort();
 
+  // El crédito devuelto (20/11/2026): los usos «Devuelto» con fecha, que vencen
+  // como cualquier crédito. Solo el aviso de «por vencer» (ver arriba).
+  const devueltosPorVencer: { uso: FilaUso; vence: string }[] = [];
+  if (deps.devueltos && deps.cuentas) {
+    let devueltos: FilaUso[] = [];
+    try {
+      devueltos = await deps.devueltos.leer();
+    } catch (error) {
+      // No frena los demás avisos: hoy no se avisa el crédito devuelto y mañana se reintenta.
+      const motivo = sinMails(describir(error));
+      console.error(`[credito-diario] no se pudieron leer los créditos devueltos para los avisos: ${motivo}`);
+      r.avisosFallidos.push({ pedido: "créditos devueltos", aviso: "vencimiento", error: `no se pudieron leer (${motivo})` });
+    }
+    for (const uso of devueltos) {
+      if (uso.estado !== "Devuelto" || uso.rota || !(uso.monto > 0) || !uso.email.includes("@")) continue;
+      // Sin fecha no vence: no hay nada que avisar.
+      if (!esFechaValida(uso.disponibleDesde) || uso.disponibleDesde > hoy) continue;
+      const vence = venceEl(uso.disponibleDesde);
+      if (hoy > vence) continue;
+      if (diasEntre(hoy, vence) <= DIAS_AVISO_VENCIMIENTO && sinMarca(uso, MARCA_AVISO_VENCIMIENTO, MARCA_AVISO_VENCIMIENTO_FALLIDO, hoy)) devueltosPorVencer.push({ uso, vence });
+    }
+  }
+
   // Lo que queda sin usar de cada crédito, con los usos de su cuenta (una lectura por mail).
   const cuentas = new Map<string, Promise<SaldoDeCredito>>();
-  const restante = async (fila: FilaCredito, aviso: TipoAviso): Promise<number> => {
+  const restante = async (fila: { id: string; email: string; pedido: string; monto: number }, aviso: TipoAviso, origen: "ganado" | "devuelto" = "ganado"): Promise<number> => {
     if (!deps.cuentas) return fila.monto;
     const lectura = cuentas.get(fila.email) ?? deps.cuentas.saldo(fila.email);
     cuentas.set(fila.email, lectura);
     try {
       const saldo = await lectura;
-      const suyo = saldo.porCredito.find((c) => c.id === fila.id);
+      const suyo = saldo.porCredito.find((c) => c.id === fila.id && c.origen === origen);
       return saldo.bloqueado || !suyo || suyo.vencido ? 0 : suyo.restante;
     } catch (error) {
       // No se sabe cuánto queda: hoy no se avisa; mañana se vuelve a intentar.
@@ -414,16 +464,27 @@ async function avisosDelDia(deps: DependenciasDiario, hoy: string, r: ResumenDia
       return 0;
     }
   };
+  const delCredito = (fila: FilaCredito): Avisable => ({ pedido: fila.pedido, anotar: (texto) => anotarAviso(fila, texto, deps.credito) });
 
-  const disponibles: { datos: AvisoDisponible; fila: FilaCredito }[] = [];
+  const disponibles: { datos: AvisoDisponible; destino: Avisable }[] = [];
   for (const { fila, desde, vence } of paraDisponible) {
     const monto = await restante(fila, "disponible");
-    if (monto > 0) disponibles.push({ datos: { email: fila.email, pedido: fila.pedido, monto, disponibleDesde: desde, venceEl: vence }, fila });
+    if (monto > 0) disponibles.push({ datos: { email: fila.email, pedido: fila.pedido, monto, disponibleDesde: desde, venceEl: vence }, destino: delCredito(fila) });
   }
-  const porVencer: { datos: AvisoPorVencer; fila: FilaCredito }[] = [];
+  const porVencer: { datos: AvisoPorVencer; destino: Avisable }[] = [];
   for (const { fila, vence } of paraVencimiento) {
     const monto = await restante(fila, "vencimiento");
-    if (monto > 0) porVencer.push({ datos: { email: fila.email, pedido: fila.pedido, monto, venceEl: vence, dias: diasEntre(hoy, vence) }, fila });
+    if (monto > 0) porVencer.push({ datos: { email: fila.email, pedido: fila.pedido, monto, venceEl: vence, dias: diasEntre(hoy, vence) }, destino: delCredito(fila) });
+  }
+  const devueltos = deps.devueltos;
+  for (const { uso, vence } of devueltosPorVencer) {
+    const monto = await restante(uso, "vencimiento", "devuelto");
+    if (monto > 0 && devueltos) {
+      porVencer.push({
+        datos: { email: uso.email, pedido: uso.pedido, monto, venceEl: vence, dias: diasEntre(hoy, vence), devuelto: true },
+        destino: { pedido: uso.pedido, anotar: (texto) => devueltos.anotar(uso, texto) },
+      });
+    }
   }
   r.disponiblesHoy = disponibles.map((d) => d.datos);
   r.porVencer = porVencer.map((d) => d.datos);
@@ -431,8 +492,8 @@ async function avisosDelDia(deps: DependenciasDiario, hoy: string, r: ResumenDia
   // Los mails, solo con el interruptor prendido.
   const avisos = deps.avisos;
   if (!avisos || !creditoActivo()) return;
-  for (const { datos, fila } of disponibles) await mandarAviso(deps, fila, "disponible", () => avisos.disponible(datos), hoy, r);
-  for (const { datos, fila } of porVencer) await mandarAviso(deps, fila, "vencimiento", () => avisos.porVencer(datos), hoy, r);
+  for (const { datos, destino } of disponibles) await mandarAviso(destino, "disponible", () => avisos.disponible(datos), hoy, r);
+  for (const { datos, destino } of porVencer) await mandarAviso(destino, "vencimiento", () => avisos.porVencer(datos), hoy, r);
 }
 
 /**
@@ -640,8 +701,10 @@ export const avisosPorMail: AvisosCredito = {
   async disponible(datos) {
     await mandarMail(mailCreditoDisponible({ config: await getConfig(), ...datos }));
   },
-  async porVencer(datos) {
-    await mandarMail(mailCreditoPorVencer({ config: await getConfig(), ...datos }));
+  async porVencer({ devuelto, ...datos }) {
+    // Un crédito devuelto no se sumó con ese pedido: sin el pedido, el mail no
+    // dice «Lo sumaste con tu pedido …» (20/11/2026).
+    await mandarMail(mailCreditoPorVencer({ config: await getConfig(), ...datos, ...(devuelto ? { pedido: "" } : {}) }));
   },
 };
 
@@ -657,8 +720,10 @@ export function dependenciasCorridaReales(): DependenciasCorrida {
     reloj: { ahora: () => credito.ahora().getTime(), dormir: (ms: number) => new Promise<void>((listo) => setTimeout(listo, ms)) },
   };
   const cuentas: LecturaDeCuentas = { disponibles: creditosDisponibles, saldo: (email) => leerSaldoDeCredito(email, uso) };
+  // El crédito devuelto (20/11/2026): la marca de su aviso va en el uso, con el cerrojo de la cuenta.
+  const devueltos: DevueltosDelDiario = { leer: usosDevueltos, anotar: (fila, texto) => anotarEnUso(fila, texto, { ...uso, cerrojo: credito.cerrojo }) };
   return {
-    diario: mp && faltan.length === 0 ? { credito, mp, pedidos: lectorPedidosPorNumeroAirtable, cuentas, avisos: avisosPorMail } : { sinConfigurar: faltan },
+    diario: mp && faltan.length === 0 ? { credito, mp, pedidos: lectorPedidosPorNumeroAirtable, cuentas, devueltos, avisos: avisosPorMail } : { sinConfigurar: faltan },
     enviarMail: enviarMailReal,
     mailsConfigurados: mailsConfiguradosReal,
     config: getConfig,

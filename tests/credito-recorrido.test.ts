@@ -453,7 +453,10 @@ test("Pago rechazado y compra abandonada: la reserva sigue mientras el link cobr
 
 // ---------- 6. Reembolsos ----------
 
-test("Reembolsos: la compra con crédito se reembolsa (su crédito se anula, el uso queda «A revisar» y se avisa); la primera, con el crédito ya gastado (no se recupera solo, nunca negativo)", async () => {
+// Regla del 20/11/2026 (propuesta a Ale, a favor del comprador): el reembolso
+// total devuelve solo el crédito usado en la compra. Antes el uso quedaba «A
+// revisar» y decidía Harper.
+test("Reembolsos: la compra con crédito se reembolsa (su crédito se anula y el crédito usado vuelve solo, con 6 meses nuevos); la primera, con el crédito ya gastado (lo devuelto lo cubre: nunca negativo ni doble)", async () => {
   const t = tienda();
   const linea = await lineas();
   const { c: a, monto } = await creditoDisponible(t, [linea("amatista"), linea("cuarzo")]);
@@ -466,18 +469,34 @@ test("Reembolsos: la compra con crédito se reembolsa (su crédito se anula, el 
   const reembolsoB = await avisar(t, pagoB.id);
   assert.equal(reembolsoB.status, 200);
   assert.deepEqual(reembolsoB.cuerpo.credito, { accion: "anular", estado: "anulado" });
+  assert.deepEqual(reembolsoB.cuerpo.creditoUsado, { accion: "devolver", estado: "devuelto" });
   assert.equal((await ganadoDe(b.numero))!.estado, "Anulado", "el crédito de B no nace");
-  assert.equal((await usoDe(b.numero))!.estado, "A revisar", "el crédito usado no vuelve solo (regla pendiente)");
-  assert.ok(t.mails.some((m) => m.asunto === `REVISAR Crédito Harper usado — pedido ${b.numero}`));
-  assert.equal((await leerSaldoDeCredito(MAIL, t.uso)).usable, 0);
+  const hoy = fechaArgentina(new Date(t.reloj.t));
+  const usoB = (await usoDe(b.numero))!;
+  assert.deepEqual([usoB.estado, usoB.disponibleDesde], ["Devuelto", hoy], "el crédito usado vuelve solo, desde el día del reembolso");
+  // A Harper le llega un aviso que no le pide nada (sin «REVISAR»).
+  const aviso = t.mails.find((m) => m.asunto === `Crédito Harper devuelto — pedido ${b.numero}`);
+  assert.ok(aviso);
+  assert.match(aviso.texto, /Ese crédito volvió solo a la cuenta: se puede usar desde el .* \(6 meses nuevos\)\. Quedó «Devuelto» en Créditos\. No tenés que hacer nada\./);
+  assert.ok(!t.mails.some((m) => m.asunto === `REVISAR Crédito Harper usado — pedido ${b.numero}`));
+  const trasB = await leerSaldoDeCredito(MAIL, t.uso);
+  assert.equal(trasB.usable, monto, "lo puede volver a usar");
+  assert.deepEqual(trasB.proximoVencimiento, { monto, venceEl: venceEl(hoy) }, "con 6 meses nuevos desde hoy");
+  // Otro aviso del mismo reembolso: nada más (ni otro crédito, ni otro mail).
+  const mailsAntes = t.mails.length;
+  assert.deepEqual((await avisar(t, pagoB.id)).cuerpo.creditoUsado, { accion: "devolver", estado: "ya" });
+  assert.equal(t.mails.length, mailsAntes);
+  assert.equal((await leerSaldoDeCredito(MAIL, t.uso)).usable, monto);
 
-  // Reembolso total de A, cuyo crédito ya se gastó en B.
+  // Reembolso total de A, cuyo crédito ya se gastó en B: queda «A revisar» y
+  // el uso de B se queda sin respaldo; lo que volvió de B lo cubre. En neto la
+  // cuenta queda en 0: ni negativa ni con el mismo crédito dos veces.
   const pagoA = [...t.pagos.entries()].find(([, p]) => p.external_reference === a.pedido.id)![0];
   t.pagos.set(pagoA, { ...t.pagos.get(pagoA)!, status: "refunded", transaction_amount_refunded: a.carrito.total } as PagoMP);
   const reembolsoA = await avisar(t, pagoA);
   assert.deepEqual(reembolsoA.cuerpo.credito, { accion: "anular", estado: "a-revisar" }, "ya disponible: «A revisar», no se anula solo");
   const s = await leerSaldoDeCredito(MAIL, t.uso);
-  assert.deepEqual([s.ganado, s.usado, s.usable, s.sobregiro], [0, monto, 0, monto], "nunca negativo; el gastado no se recupera solo");
+  assert.deepEqual([s.ganado, s.devuelto, s.usado, s.usable, s.sobregiro], [monto, monto, monto, 0, 0], "nunca negativo; el gastado no se cuenta dos veces");
 });
 
 // ---------- 7. Arrepentimiento e incidencias internas ----------
@@ -623,7 +642,7 @@ test("Lo que el carrito dice que suma la compra es lo que anota el webhook, lo q
     // El mail al comprador y /gracias dicen lo mismo.
     const mail = t.mails.find((m) => m.para === MAIL && m.texto.includes(numero));
     assert.ok(mail, `${caso.nombre}: el mail al cliente`);
-    assert.ok(mail.texto.includes(`Con esta compra sumaste ${precio(caso.monto)} de Crédito Harper.`), `${caso.nombre}: ${mail.texto}`);
+    assert.ok(mail.texto.includes(`Con esta compra sumaste ${precio(caso.monto)} de Crédito Harper para tu próxima compra de anteojos.`), `${caso.nombre}: ${mail.texto}`);
     assert.equal((await buscarPedido(numero))?.creditoGanado, caso.monto, `${caso.nombre}: /gracias`);
   }
 });

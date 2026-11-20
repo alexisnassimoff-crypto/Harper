@@ -34,9 +34,12 @@ import {
   abrirCuentaDeCredito,
   almacenUsosAirtable,
   claveDelUso,
+  CreditoInsuficiente,
+  devolverUsoPorReembolso,
   leerSaldoDeCredito,
   lectorPedidosDeUsosAirtable,
   saldoDeCredito,
+  usoDelRegistro,
   type DependenciasUso,
   type FilaUso,
 } from "../lib/credito-uso";
@@ -292,6 +295,161 @@ test("La billetera usa el mismo reparto: «vencido» si venció con algo sin usa
   assert.deepEqual(b.proximoVencimiento, delCheckout.proximoVencimiento);
 });
 
+// ---------- 2 bis. El crédito devuelto (regla del 20/11/2026) ----------
+//
+// Propuesta a Ale, a favor del comprador: si una compra pagada en parte con
+// crédito se reembolsa entera, el crédito usado vuelve a la cuenta desde el
+// día del reembolso, con 6 meses nuevos. El uso «Devuelto» sigue consumiendo
+// lo que consumió y lo devuelto es un crédito aparte.
+
+const devueltoEl = (monto: number, en: string, desde: string | null): FilaUso => ({ ...usado(monto, en, "Devuelto"), disponibleDesde: desde });
+
+test("Devuelto: el uso sigue consumiendo lo que consumió y lo devuelto es un crédito aparte, que vence a los 6 meses del día en que volvió", () => {
+  const c = ganado({ monto: 4_495, desde: "2026-05-20" }); // vence 2026-11-20
+  const u = devueltoEl(4_495, "2026-11-10T15:00:00.000Z", "2026-11-25");
+  const s = saldo([c], [u], "2026-11-26T15:00:00.000Z");
+  assert.deepEqual({ ganado: s.ganado, devuelto: s.devuelto, usado: s.usado, ...resumen(s) }, { ganado: 8_990, devuelto: 4_495, usado: 4_495, usable: 4_495, vencido: 0, sobregiro: 0, proximo: { monto: 4_495, venceEl: "2027-05-25" } });
+  assert.deepEqual(
+    s.porCredito.map((x) => [x.origen, x.pedido, x.restante, x.disponibleDesde, x.venceEl, x.vencido]),
+    [
+      ["ganado", c.pedido, 0, "2026-05-20", "2026-11-20", true],
+      ["devuelto", u.pedido, 4_495, "2026-11-25", "2027-05-25", false],
+    ],
+    "el original quedó usado entero (no se pierde nada al vencer) y lo devuelto está entero"
+  );
+  // El uso del que salió nunca lo toma: con un crédito chico y otro sin fecha
+  // (va al final), lo que el chico no cubre sale del sin fecha, aunque lo
+  // devuelto venza antes. Lo que ya se repartió no cambia.
+  const chico = ganado({ monto: 2_000, desde: "2026-05-20" }); // vence 2026-11-20
+  const sinFecha = ganado({ monto: 10_000 });
+  const conOtro = saldo([chico, sinFecha], [u], "2026-12-02T15:00:00.000Z");
+  assert.deepEqual(conOtro.porCredito.map((x) => [x.origen, x.restante]), [["ganado", 0], ["devuelto", 4_495], ["ganado", 7_505]]);
+  assert.deepEqual(saldo([chico, sinFecha], [{ ...u, estado: "Usado" }], "2026-12-02T15:00:00.000Z").porCredito.map((x) => [x.origen, x.restante]), [["ganado", 0], ["ganado", 7_505]], "el mismo reparto que con «Usado»");
+  // Un uso de después sale primero de lo devuelto (vence antes).
+  const despues = saldo([chico, sinFecha], [u, usado(5_000, "2026-12-05T15:00:00.000Z")], "2026-12-06T15:00:00.000Z");
+  assert.deepEqual(despues.porCredito.map((x) => [x.origen, x.restante]), [["ganado", 0], ["devuelto", 0], ["ganado", 7_000]]);
+  // Un uso anterior al día del reembolso no lo toma: el crédito devuelto todavía no existía.
+  const antes = saldo([chico, sinFecha], [u, usado(1_000, "2026-11-24T15:00:00.000Z")], "2026-12-06T15:00:00.000Z");
+  assert.deepEqual(antes.porCredito.map((x) => [x.origen, x.restante]), [["ganado", 0], ["devuelto", 4_495], ["ganado", 6_505]]);
+  // Hasta el 25/05/2027 inclusive se puede usar; al otro día vence lo que le quede.
+  assert.equal(saldo([c], [u], "2027-05-26T02:59:59.000Z").usable, 4_495, "23:59:59 del 25/05 en Buenos Aires");
+  assert.deepEqual(resumen(saldo([c], [u], "2027-05-26T03:00:00.000Z")), { usable: 0, vencido: 4_495, sobregiro: 0, proximo: null });
+  // Con el día en el futuro (solo por una edición a mano) todavía no cuenta.
+  assert.equal(saldo([c], [devueltoEl(4_495, "2026-11-10T15:00:00.000Z", "2026-12-20")], "2026-11-26T15:00:00.000Z").usable, 0);
+});
+
+test("Devuelto a mano sin Disponible_desde: el crédito devuelto no tiene fecha y no vence (como cualquier crédito sin fecha)", () => {
+  const c = ganado({ monto: 5_000, desde: "2026-01-10" }); // vence 2026-07-10
+  const u = devueltoEl(3_000, "2026-03-01T15:00:00.000Z", null);
+  const s = saldo([c], [u], "2030-01-01T15:00:00.000Z");
+  assert.deepEqual(resumen(s), { usable: 3_000, vencido: 2_000, sobregiro: 0, proximo: null });
+  const devuelto = s.porCredito.find((x) => x.origen === "devuelto")!;
+  assert.deepEqual([devuelto.disponibleDesde, devuelto.venceEl, devuelto.vencido, devuelto.restante], [null, null, false, 3_000]);
+  // De Airtable: una fecha que no existe en Disponible_desde se lee como sin fecha.
+  const fila = (desde: string) =>
+    usoDelRegistro({ id: "recU", createdTime: "2026-03-01T15:00:00.000Z", fields: { Clave: claveDelUso("H-1"), Pedido: "H-1", Email: "vence@ejemplo.com", Monto: 3_000, Estado: "Devuelto", Disponible_desde: desde } });
+  assert.equal(fila("2026-02-30").disponibleDesde, null);
+  assert.equal(fila("2026-11-25").disponibleDesde, "2026-11-25");
+  assert.equal(fila("2026-11-25").rota, false);
+});
+
+test("Nada se cuenta dos veces: lo que queda más lo usado es lo ganado (con lo devuelto); sin «Devuelto» ni fechas, da la fórmula de siempre", () => {
+  // Un generador fijo (siempre los mismos casos).
+  let semilla = 20_261_120;
+  const azar = (n: number) => {
+    semilla = (semilla * 1_103_515_245 + 12_345) % 2_147_483_648;
+    return semilla % n;
+  };
+  const ahora = "2027-01-15T15:00:00.000Z";
+  const recien = new Date(Date.parse(ahora) - 60_000).toISOString(); // una reserva vigente
+  for (let caso = 0; caso < 300; caso++) {
+    const conFechas = caso % 2 === 1;
+    const dia = () => sumarDias("2026-03-01", azar(320));
+    const creditos = Array.from({ length: 1 + azar(4) }, () => ganado({ monto: 500 * (1 + azar(20)), desde: conFechas ? dia() : null }));
+    const estados: FilaUso["estado"][] = conFechas ? ["Usado", "A revisar", "Reservado", "Liberado", "Devuelto"] : ["Usado", "A revisar", "Reservado", "Liberado"];
+    const usos = Array.from({ length: azar(5) }, () => {
+      const estado = estados[azar(estados.length)];
+      const en = estado === "Reservado" ? recien : `${dia()}T15:00:00.000Z`;
+      const u = usado(500 * (1 + azar(20)), en, estado);
+      return estado === "Devuelto" ? { ...u, disponibleDesde: azar(4) === 0 ? null : sumarDias(en.slice(0, 10), azar(20)) } : u;
+    });
+    const s = saldo(creditos, usos, ahora);
+    const quedan = s.porCredito.reduce((t, x) => t + x.restante, 0);
+    const consumido = s.usado + s.reservado - s.sobregiro;
+    assert.equal(quedan + consumido, s.ganado, `caso ${caso}: lo que queda + lo usado = lo ganado`);
+    assert.equal(s.devuelto, s.porCredito.filter((x) => x.origen === "devuelto").reduce((t, x) => t + x.monto, 0), `caso ${caso}`);
+    assert.equal(s.usable, s.porCredito.filter((x) => !x.vencido).reduce((t, x) => t + x.restante, 0), `caso ${caso}`);
+    assert.equal(s.vencido, s.porCredito.filter((x) => x.vencido).reduce((t, x) => t + x.restante, 0), `caso ${caso}`);
+    assert.ok(s.usable >= 0 && s.sobregiro >= 0 && s.porCredito.every((x) => x.restante >= 0 && x.reservado >= 0 && x.reservado + x.restante <= x.monto), `caso ${caso}`);
+    assert.ok(s.porCredito.reduce((t, x) => t + x.reservado, 0) <= s.reservado, `caso ${caso}: lo apartado sale de las reservas`);
+    if (!conFechas) {
+      // Lo de siempre: ganado − usado − reservado, nunca negativo; lo que pasa, sobregiro.
+      assert.equal(s.devuelto, 0);
+      assert.equal(s.usable, Math.max(0, s.ganado - s.usado - s.reservado), `caso ${caso}: usable`);
+      assert.equal(s.sobregiro, Math.max(0, s.usado + s.reservado - s.ganado), `caso ${caso}: sobregiro`);
+    }
+  }
+});
+
+test("Billetera: un crédito disponible sin nada que le quede no se ve «disponible»: «reservado» si lo tomó una compra en curso, «usado» si no; el vencido sigue como antes", () => {
+  const vencidoConResto = ganado({ monto: 1_000, desde: "2026-01-01", generadoEl: "2025-12-01T15:00:00.000Z" }); // vence 2026-07-01
+  const vencidoUsado = ganado({ monto: 500, desde: "2026-01-05", generadoEl: "2025-12-02T15:00:00.000Z" }); // vence 2026-07-05
+  const usadoEntero = ganado({ monto: 2_000, desde: "2026-06-01", generadoEl: "2026-05-01T15:00:00.000Z" }); // vence 2026-12-01
+  const apartado = ganado({ monto: 3_000, desde: "2026-06-15", generadoEl: "2026-05-02T15:00:00.000Z" }); // vence 2026-12-15
+  const conResto = ganado({ monto: 5_000, desde: "2026-07-01", generadoEl: "2026-05-03T15:00:00.000Z" }); // vence 2027-01-01
+  const usos = [
+    usado(500, "2026-07-03T15:00:00.000Z"), // el del 01/07 ya venció: sale entero del que vence el 05/07
+    usado(2_500, "2026-07-10T15:00:00.000Z"), // 2.000 del que vence el 01/12 y 500 del que vence el 15/12
+    usado(2_500, "2026-08-01T14:50:00.000Z", "Reservado"), // una compra en curso: lo que le quedaba al del 15/12
+  ];
+  const creditos = [vencidoConResto, vencidoUsado, usadoEntero, apartado, conResto];
+  const hoy = new Date("2026-08-01T15:00:00.000Z");
+  const s = saldo(creditos, usos, hoy.toISOString());
+  assert.deepEqual(
+    s.porCredito.map((x) => [x.pedido, x.restante, x.reservado]),
+    [
+      [vencidoConResto.pedido, 1_000, 0],
+      [vencidoUsado.pedido, 0, 0],
+      [usadoEntero.pedido, 0, 0],
+      [apartado.pedido, 0, 2_500],
+      [conResto.pedido, 5_000, 0],
+    ]
+  );
+  const b = billeteraDeCredito(creditos, "vence@ejemplo.com", hoy, { usos });
+  const estadoDe = (pedido: string) => b.movimientos.find((m) => m.tipo === "ganado" && m.pedido === pedido)?.estado;
+  assert.deepEqual(
+    creditos.map((c) => estadoDe(c.pedido)),
+    ["vencido", "usado", "usado", "reservado", "disponible"],
+    "nunca «disponible» con $ 0"
+  );
+  assert.deepEqual([b.disponible, b.vencido], [5_000, 1_000]);
+  // Si la compra en curso no se paga (la reserva se libera), vuelve a estar disponible con lo que le quedaba.
+  const liberada = billeteraDeCredito(creditos, "vence@ejemplo.com", hoy, { usos: [usos[0], usos[1], { ...usos[2], estado: "Liberado" }] });
+  const suyo = liberada.movimientos.find((m) => m.tipo === "ganado" && m.pedido === apartado.pedido)!;
+  assert.deepEqual([suyo.estado, suyo.restante], ["disponible", 2_500]);
+});
+
+test("Billetera: el crédito devuelto se ve aparte (tipo «devuelto», con lo que le queda y su vencimiento) y el uso sigue «usado», marcado como devuelto", () => {
+  const original = ganado({ monto: 4_495, desde: "2026-05-20", generadoEl: "2026-04-01T15:00:00.000Z" }); // vence 2026-11-20
+  const u = devueltoEl(4_495, "2026-11-10T15:00:00.000Z", "2026-11-25");
+  const b = billeteraDeCredito([original], "vence@ejemplo.com", new Date("2026-11-26T15:00:00.000Z"), { usos: [u] });
+  assert.deepEqual([b.disponible, b.vencido, b.proximoVencimiento], [4_495, 0, { monto: 4_495, venceEl: "2027-05-25" }]);
+  assert.deepEqual(b.movimientos, [
+    { tipo: "devuelto", pedido: u.pedido, monto: 4_495, porcentaje: 0, estado: "disponible", fecha: "2026-11-25", disponibleDesde: "2026-11-25", venceEl: "2027-05-25", restante: 4_495, conGestionAbierta: false, devuelto: false },
+    { tipo: "uso", pedido: u.pedido, monto: 4_495, porcentaje: 0, estado: "usado", fecha: "2026-11-10", disponibleDesde: null, venceEl: null, restante: null, conGestionAbierta: false, devuelto: true },
+    { tipo: "ganado", pedido: original.pedido, monto: 4_495, porcentaje: 5, estado: "usado", fecha: "2026-04-01", disponibleDesde: "2026-05-20", venceEl: "2026-11-20", restante: 0, conGestionAbierta: false, devuelto: false },
+  ]);
+  // Usado otra vez en una compra en curso: «reservado»; ya pagada, «usado».
+  const reserva = usado(4_495, "2026-11-26T14:50:00.000Z", "Reservado");
+  const enCurso = billeteraDeCredito([original], "vence@ejemplo.com", new Date("2026-11-26T15:00:00.000Z"), { usos: [u, reserva] });
+  assert.equal(enCurso.movimientos.find((m) => m.tipo === "devuelto")?.estado, "reservado");
+  const pagada = billeteraDeCredito([original], "vence@ejemplo.com", new Date("2026-11-26T15:00:00.000Z"), { usos: [u, { ...reserva, estado: "Usado" }] });
+  assert.equal(pagada.movimientos.find((m) => m.tipo === "devuelto")?.estado, "usado");
+  // Marcado a mano sin fecha: sin vencimiento ni día, junto a su uso (arriba de él).
+  const aMano = billeteraDeCredito([original], "vence@ejemplo.com", new Date("2026-11-26T15:00:00.000Z"), { usos: [devueltoEl(4_495, "2026-11-10T15:00:00.000Z", null)] });
+  assert.deepEqual(aMano.movimientos.map((m) => [m.tipo, m.fecha, m.venceEl, m.estado]), [["devuelto", "", null, "disponible"], ["uso", "2026-11-10", null, "usado"], ["ganado", "2026-04-01", "2026-11-20", "usado"]]);
+});
+
 // ---------- 3. Con la tabla «Créditos» (Airtable de prueba) ----------
 
 const MAIL = "vence@ejemplo.com";
@@ -379,6 +537,72 @@ test("Reserva el último día y el pago se acredita después del vencimiento: se
   } finally {
     await otra.cerrar();
   }
+});
+
+test("Reservar cruzando la medianoche del día del vencimiento: lo que venció entre que se abrió la cuenta y la reserva ya no se reserva", async () => {
+  // El caso de la revisión: $ 1.000 disponibles desde el 20/05, se pueden usar hasta el 20/11 inclusive.
+  await creditoEnTabla({ Monto: 1_000, Disponible_desde: "2026-05-20" });
+  assert.equal(venceEl("2026-05-20"), "2026-11-20");
+  // La cuenta se abre a las 23:59:58 del 20/11 en Buenos Aires (02:59:58 UTC del 21/11): todavía vale.
+  const { deps, reloj } = cuentaConReloj(Date.parse("2026-11-21T02:59:58.000Z"));
+  const abierta = await abrirCuentaDeCredito(MAIL, deps);
+  if ("estado" in abierta) throw new Error("ocupada");
+  try {
+    assert.equal(abierta.cuenta.saldo.usable, 1_000);
+    // 23:59:59: todavía se reserva, y queda cubierta por ese crédito.
+    reloj.t = Date.parse("2026-11-21T02:59:59.000Z");
+    await abierta.cuenta.reservar("HARPER-ANTES-DE-LAS-12", 600);
+    assert.equal(abierta.cuenta.saldo.usable, 400);
+    // 00:00:03 del 21/11: ya venció. Antes del arreglo pasaba (comparaba con lo leído al abrir) y
+    // quedaba un sobregiro; ahora se vuelve a calcular en el momento de la reserva.
+    reloj.t = Date.parse("2026-11-21T03:00:03.000Z");
+    await assert.rejects(abierta.cuenta.reservar("HARPER-MEDIANOCHE", 400), (e: unknown) => e instanceof CreditoInsuficiente && e.usable === 0);
+  } finally {
+    await abierta.cerrar();
+  }
+  assert.deepEqual(await almacenUsosAirtable.delPedido("HARPER-MEDIANOCHE"), [], "no quedó ninguna reserva");
+  const reserva = (await almacenUsosAirtable.delPedido("HARPER-ANTES-DE-LAS-12"))[0];
+  assert.equal(reserva.generadoEl, "2026-11-21T02:59:59.000Z", "la reserva lleva la hora con que se calculó");
+  const s = await leerSaldoDeCredito(MAIL, deps);
+  assert.deepEqual([s.usable, s.vencido, s.sobregiro, s.reservado], [0, 400, 0, 600]);
+});
+
+test("El caso que motivó la regla: usa el crédito 10 días antes de que venza (después del mail), devuelve la compra y el reembolso total se lo devuelve con 6 meses nuevos", async () => {
+  const alas10 = (dia: string) => Date.parse(`${dia}T13:00:00.000Z`);
+  await creditoEnTabla({ Monto: 4_495, Disponible_desde: "2026-05-20" }); // vence 2026-11-20
+  // El 05/11 le llegó el aviso de «por vencer» (15 días antes) y el 10/11 lo usó entero.
+  const numero = "HARPER-DEVUELVE1";
+  await usoEnTabla(numero, 4_495, "Usado", "2026-11-10T15:00:00.000Z");
+  // Recibió la compra el 15/11 y se arrepintió: el 25/11, dentro de los 10 días, se reembolsa todo en Mercado Pago.
+  const { deps, reloj } = cuentaConReloj(alas10("2026-11-25"));
+  assert.deepEqual(resumen(await leerSaldoDeCredito(MAIL, deps)), { usable: 0, vencido: 0, sobregiro: 0, proximo: null }, "antes: usado entero, y el crédito ya venció");
+
+  const r = await devolverUsoPorReembolso(numero, deps);
+  assert.equal(r.estado, "devuelto");
+  if (r.estado !== "devuelto") return;
+  assert.deepEqual([r.disponibleDesde, r.venceEl, r.uso.estado, r.uso.disponibleDesde], ["2026-11-25", "2027-05-25", "Devuelto", "2026-11-25"]);
+  const s = await leerSaldoDeCredito(MAIL, deps);
+  assert.deepEqual(resumen(s), { usable: 4_495, vencido: 0, sobregiro: 0, proximo: { monto: 4_495, venceEl: "2027-05-25" } }, "lo puede usar otra vez, por 6 meses");
+  // Idempotente.
+  assert.equal((await devolverUsoPorReembolso(numero, deps)).estado, "ya");
+
+  // Una compra nueva el 01/12: sale de lo devuelto, y mientras se paga se ve apartado.
+  reloj.t = alas10("2026-12-01");
+  const abierta = await abrirCuentaDeCredito(MAIL, deps);
+  if ("estado" in abierta) throw new Error("ocupada");
+  try {
+    await abierta.cuenta.reservar("HARPER-RECOMPRA", 2_000);
+    const devuelto = abierta.cuenta.saldo.porCredito.find((c) => c.origen === "devuelto")!;
+    assert.deepEqual([devuelto.restante, devuelto.reservado], [2_495, 2_000]);
+  } finally {
+    await abierta.cerrar();
+  }
+  // El 25/05/2027 todavía se puede usar lo que quede; el 26/05, vence.
+  reloj.t = alas10("2027-05-25");
+  await updateRecord(TABLAS.creditos, (await almacenUsosAirtable.delPedido("HARPER-RECOMPRA"))[0].id, { Estado: "Usado" });
+  assert.equal((await leerSaldoDeCredito(MAIL, deps)).usable, 2_495);
+  reloj.t = alas10("2027-05-26");
+  assert.deepEqual(resumen(await leerSaldoDeCredito(MAIL, deps)), { usable: 0, vencido: 2_495, sobregiro: 0, proximo: null });
 });
 
 async function lineas() {

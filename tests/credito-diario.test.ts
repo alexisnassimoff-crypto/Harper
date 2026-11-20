@@ -39,8 +39,8 @@ import {
   type DependenciasDiario,
   type PedidoDelCredito,
 } from "../lib/credito-diario";
-import { venceEl } from "../lib/credito-harper";
-import { almacenUsosAirtable, claveDelUso, leerSaldoDeCredito, lectorPedidosDeUsosAirtable } from "../lib/credito-uso";
+import { DIAS_AVISO_VENCIMIENTO as DIAS_AVISO_DEL_MOTOR, venceEl } from "../lib/credito-harper";
+import { almacenUsosAirtable, anotarEnUso, claveDelUso, leerSaldoDeCredito, lectorPedidosDeUsosAirtable, usosDevueltos } from "../lib/credito-uso";
 import { MARCA_REGIMEN_NUEVO, pagoDe, type LectorMercadoPago } from "../lib/credito-pagos";
 import { liberarDisponibles, saldosDeLaCuenta } from "../lib/credito-persistencia";
 import { cerrojoEnMemoria, reiniciarRedis } from "../lib/fixtures/redis";
@@ -725,6 +725,8 @@ test("Avisos al comprador: «ya podés usarlo» y «por vencer» salen una vez p
   const deHoy = await disponibleDesde(hoy);
   // Por vencer: en 10 días, en 15 (el límite) y hoy (todavía se puede usar hoy).
   assert.equal(DIAS_AVISO_VENCIMIENTO, 15);
+  // El número vive en el motor (los números publicados) y el control usa ese mismo.
+  assert.equal(DIAS_AVISO_VENCIMIENTO, DIAS_AVISO_DEL_MOTOR);
   const enDiez = await disponibleDesde("2026-11-20"); // vence 2027-05-20
   const enQuince = await disponibleDesde("2026-11-25"); // vence 2027-05-25
   const venceHoy = await disponibleDesde("2026-11-10"); // vence 2027-05-10
@@ -915,6 +917,101 @@ test("El mail salió pero la marca no se pudo dejar (otra instancia tenía el cr
   assert.equal(r.avisosFallidos.length, 1);
   assert.match(r.avisosFallidos[0].error, /^el mail salió, pero no quedó la marca en Notas \(.*\): puede repetirse mañana$/);
   assert.equal(await notasDe(c.id), "");
+});
+
+// ---------- El crédito devuelto también avisa antes de vencer (20/11/2026) ----------
+
+/** Un uso «Devuelto» (la compra se reembolsó entera), con su día en Disponible_desde (null: marcado a mano sin fecha). */
+async function usoDevuelto(email: string, numero: string, monto: number, generadoEl: string, desde: string | null) {
+  return createRecord<CamposCredito>(TABLAS.creditos, {
+    Clave: claveDelUso(numero),
+    Pedido: numero,
+    Email: email,
+    Monto: monto,
+    Porcentaje: 0,
+    Base: 0,
+    Anteojos: 0,
+    Estado: "Devuelto",
+    Generado_el: generadoEl,
+    ...(desde ? { Disponible_desde: desde } : {}),
+    Reglas: "uso-credito-harper-v1",
+    Notas: "",
+  });
+}
+
+/** Como `conAvisos`, con el crédito devuelto: se lee de la tabla y la marca va en el uso, con el cerrojo de la cuenta. */
+function conDevueltos(diario: DependenciasDiario, reloj: { t: number }, avisos: AvisosCredito): DependenciasDiario {
+  const uso = { almacen: almacenUsosAirtable, pedidos: lectorPedidosDeUsosAirtable, cerrojo: diario.credito.cerrojo, reloj: { ahora: () => reloj.t, dormir: async () => {} } };
+  return { ...conAvisos(diario, reloj, avisos), devueltos: { leer: usosDevueltos, anotar: (fila, texto) => anotarEnUso(fila, texto, uso) } };
+}
+
+test("Crédito devuelto: recibe el aviso de «por vencer» con lo que le queda (marcado en su uso, una sola vez); el «ya disponible» no; sin fecha o ya usado, nada", async () => {
+  const { diario, reloj } = armar();
+  const hoy = "2027-05-10";
+  reloj.t = alas10(hoy);
+  // Cada cuenta: el crédito que ganó (ya vencido, usado entero) y la compra en que lo usó, reembolsada entera.
+  const deUna = async (email: string, numero: string, desde: string | null) => {
+    await disponibleDesde("2026-05-01", { email }); // vence 2026-11-01
+    return usoDevuelto(email, numero, 4_495, "2026-10-25T15:00:00.000Z", desde);
+  };
+  const porVencer = await deUna("devuelto@ejemplo.com", "HARPER-DEV1", "2026-11-20"); // vuelve el 20/11, vence el 20/05/2027: en 10 días
+  const sinFecha = await deUna("amano@ejemplo.com", "HARPER-DEV2", null); // marcado a mano sin fecha: no vence
+  const reusado = await deUna("reusado@ejemplo.com", "HARPER-DEV3", "2026-11-20");
+  await usoDeLaCuenta("reusado@ejemplo.com", "HARPER-DEV3-RECOMPRA", 4_495, "2026-12-01T15:00:00.000Z"); // ya lo volvió a usar entero
+  const lejos = await deUna("lejos@ejemplo.com", "HARPER-DEV4", "2027-01-20"); // vence en julio
+  const { enviados, avisos } = avisosDePrueba();
+  const deps = conDevueltos(diario, reloj, avisos);
+
+  await prendido(async () => {
+    const r1 = await procesarCreditosDelDia(deps);
+    assert.deepEqual(
+      enviados.map((e) => [e.aviso, e.datos]),
+      [["vencimiento", { email: "devuelto@ejemplo.com", pedido: "HARPER-DEV1", monto: 4_495, venceEl: "2027-05-20", dias: 10, devuelto: true }]],
+      "solo el devuelto con algo sin usar que vence en 15 días o menos"
+    );
+    assert.deepEqual(r1.disponiblesHoy, [], "el «ya disponible» no es para el crédito devuelto");
+    assert.deepEqual(r1.avisosEnviados, [{ pedido: "HARPER-DEV1", aviso: "vencimiento" }]);
+    assert.deepEqual(r1.avisosFallidos, []);
+    // La marca queda en las Notas del uso; en los demás, nada.
+    assert.match(await notasDe(porVencer.id), new RegExp(`${MARCA_AVISO_VENCIMIENTO} ${hoy}`));
+    for (const f of [sinFecha, reusado, lejos]) assert.equal(await notasDe(f.id), "");
+    assert.equal((await getRecord<CamposCredito>(TABLAS.creditos, porVencer.id)).fields.Estado, "Devuelto", "la marca no cambia el estado");
+
+    // Otra corrida el mismo día, y al día siguiente: no se repite.
+    enviados.length = 0;
+    await procesarCreditosDelDia(deps);
+    reloj.t = alas10(sumarDias(hoy, 1));
+    await procesarCreditosDelDia(deps);
+    assert.deepEqual(enviados, []);
+    assert.equal(veces(await notasDe(porVencer.id), MARCA_AVISO_VENCIMIENTO), 1);
+  });
+  // Sin `devueltos` (como antes), el control no los mira.
+  const solo = avisosDePrueba();
+  reloj.t = alas10(hoy);
+  await prendido(() => procesarCreditosDelDia(conAvisos(diario, reloj, solo.avisos)));
+  assert.deepEqual(solo.enviados, []);
+});
+
+test("El mail de «por vencer» de un crédito devuelto no dice «Lo sumaste con tu pedido»", async () => {
+  const enviados: { text: string }[] = [];
+  const fetchOriginal = globalThis.fetch;
+  process.env.RESEND_API_KEY = "clave-de-prueba";
+  globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+    if (String(url) !== "https://api.resend.com/emails") throw new Error(`sin red en las pruebas: ${String(url)}`);
+    enviados.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ id: "re_prueba" }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const datos = { email: "compradora@ejemplo.com", pedido: "HARPER-AVISO2", monto: 4_495, venceEl: "2027-05-20", dias: 10 };
+    await avisosPorMail.porVencer(datos);
+    await avisosPorMail.porVencer({ ...datos, devuelto: true });
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    delete process.env.RESEND_API_KEY;
+  }
+  assert.match(enviados[0].text, /Lo sumaste con tu pedido HARPER-AVISO2\./);
+  assert.doesNotMatch(enviados[1].text, /Lo sumaste con tu pedido/);
+  assert.match(enviados[1].text, /Tenés \$\s4\.495 de Crédito Harper que vence el 20\/05\/2027\./);
 });
 
 test("Los avisos de verdad (avisosPorMail): van al mail de la compra con las plantillas de lib/mails.ts; sin mails configurados, cuentan como no enviados", async () => {
