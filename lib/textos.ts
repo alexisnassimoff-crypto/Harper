@@ -136,8 +136,8 @@ export const TEXTOS = {
       /** Lo mismo en la ficha, donde el importe es el de dos de ese modelo. */
       dosDeEsteModelo: (total: string, lista: string) => `Dos de este modelo: ${total} en lugar de ${lista}.`,
       combinar: "Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito.",
-      /** La etiqueta junto al precio de cada anteojo: «Dúo: 25% OFF en el segundo». */
-      etiqueta: (porcentaje: number) => `Dúo: ${porcentaje}% OFF en el segundo`,
+      /** La etiqueta junto al precio de cada anteojo: «Dúo: llevá dos y uno tiene 25% OFF». */
+      etiqueta: (porcentaje: number) => `Dúo: llevá dos y uno tiene ${porcentaje}% OFF`,
       /** Las preguntas frecuentes. */
       pregunta: "¿Qué es el Dúo?",
       /** «Si llevás dos anteojos, el de menor precio tiene 25% OFF.» */
@@ -181,7 +181,7 @@ export const TEXTOS = {
       /** Sin un mínimo propio para AMBA hay uno solo: «Envío gratis desde $ 250.000». */
       unico: (monto: string) => `Envío gratis desde ${monto}`,
       /** Va donde se dice el mínimo: el servidor lo mide antes del Dúo y del 10 % de Mercado Pago. */
-      minimo: "El mínimo se cuenta con los anteojos a precio de lista, antes de los descuentos.",
+      minimo: "El mínimo se cuenta con los anteojos a precio de lista.",
     },
   },
   lineas: {

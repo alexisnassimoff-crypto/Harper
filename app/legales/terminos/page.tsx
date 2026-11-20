@@ -88,10 +88,11 @@ export default async function Terminos() {
       <p>
         Con tarjeta de crédito se puede pagar en hasta {CUOTAS_TODOS} cuotas, las
         mismas para todos los compradores. Son sin interés solo cuando Mercado
-        Pago lo confirma para el importe de esa compra con {NOMBRE_MARCAS};
-        cuando las anunciamos sin interés, van junto con el precio de contado y
-        el costo financiero total efectivo anual (CFTEA). Con dinero en Mercado
-        Pago el pago es uno solo.
+        Pago lo confirma para el importe de esa compra con {NOMBRE_MARCAS}. El
+        valor de cada cuota, el precio de contado y el costo financiero total
+        efectivo anual (CFTEA) se informan junto al precio del producto y en el
+        checkout, antes de pagar. Con dinero en Mercado Pago el pago es uno
+        solo.
       </p>
       <p>
         Si se elige pagar con dinero en Mercado Pago, es decir, exclusivamente
@@ -150,9 +151,9 @@ export default async function Terminos() {
           ) : (
             <>El envío es gratis a todo el país en las compras desde {formatearPrecio(minimoPais)}.</>
           )}{" "}
-          El mínimo se cuenta con los anteojos a precio de lista, antes de los
-          descuentos. Si la compra no llega al mínimo, se paga el costo del
-          envío a la dirección de entrega, que se informa antes de pagar.
+          El mínimo se cuenta con los anteojos a precio de lista. Si la compra
+          no llega al mínimo, se paga el costo del envío a la dirección de
+          entrega, que se informa antes de pagar.
         </p>
       ) : (
         <p>

@@ -25,7 +25,7 @@ const BASE = {
 
 /** Lo que el servidor le pasa a las preguntas con el Dúo prendido (components/portada/duoDelServidor.ts). */
 const DUO = { porcentaje: 25, dos: { total: "$ 157.325", lista: "$ 179.800", totalDineroMP: "$ 141.593" } };
-const MINIMO = "El mínimo se cuenta con los anteojos a precio de lista, antes de los descuentos.";
+const MINIMO = "El mínimo se cuenta con los anteojos a precio de lista.";
 const TRES = { cuotas: 3, montoCuota: 29966.67, cftea: "0,00 %" };
 /** Lo que ya no se le promete a nadie: ni en la barra ni en las preguntas, con el Dúo prendido o apagado. */
 const TERMINADO = /envío gratis siempre|gratis siempre|de bienvenida|si sos suscriptor|desbloque|10\s?% de vuelta|de vuelta como saldo|Suscriptores Harper|suscriptor|HARPER10|primera compra|6 cuotas/i;
@@ -102,7 +102,7 @@ test("el Dúo en las preguntas: solo con el dato del servidor, con sus importes;
   // $ 89.900 quedan en $ 157.325 y, con dinero en Mercado Pago, en $ 141.593.
   assert.equal(
     que?.respuesta,
-    "Si llevás dos anteojos, el de menor precio tiene 25% OFF. Dos anteojos: $ 157.325 en lugar de $ 179.800. Con más anteojos, el descuento va en uno de cada dos, siempre en los de menor precio. Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito. El 10% OFF extra por pagar con dinero en Mercado Pago se suma al Dúo: dos anteojos quedan en $ 141.593. Para el envío gratis, el mínimo se cuenta con los anteojos a precio de lista, antes de los descuentos."
+    "Si llevás dos anteojos, el de menor precio tiene 25% OFF. Dos anteojos: $ 157.325 en lugar de $ 179.800. Con más anteojos, el descuento va en uno de cada dos, siempre en los de menor precio. Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito. El 10% OFF extra por pagar con dinero en Mercado Pago se suma al Dúo: dos anteojos quedan en $ 141.593. Para el envío gratis, el mínimo se cuenta con los anteojos a precio de lista."
   );
   assert.deepEqual(que?.enlace, { href: "/legales/terminos#duo", texto: "Ver las condiciones del Dúo" });
   // Nunca «antes $ …»: el precio de lista de dos no es un precio que haya existido.

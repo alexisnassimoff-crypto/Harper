@@ -80,7 +80,7 @@ export type DuoVitrina = {
   titulo: string;
   /** «Dos anteojos: $ 157.325 en lugar de $ 179.800. Podés combinar modelos y colores. El descuento se aplica automáticamente en el carrito.» */
   detalle: string;
-  /** La etiqueta junto al precio de cada tarjeta: «Dúo: 25% OFF en el segundo». */
+  /** La etiqueta junto al precio de cada tarjeta: «Dúo: llevá dos y uno tiene 25% OFF». */
   etiqueta: string;
 };
 

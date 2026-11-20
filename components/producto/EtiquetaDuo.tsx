@@ -1,6 +1,6 @@
 /**
  * La etiqueta del Dúo junto al precio de un anteojo (Ale, 18/11/2026):
- * «Dúo: 25% OFF en el segundo», en las tarjetas de las grillas y de la portada.
+ * «Dúo: llevá dos y uno tiene 25% OFF», en las tarjetas de las grillas y de la portada.
  *
  * El texto llega armado del servidor, que es el único que sabe si el Dúo está
  * prendido (HARPER_DUO_ACTIVO no se ve desde el navegador): sin texto, no se

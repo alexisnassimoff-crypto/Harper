@@ -32,12 +32,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/legales/suscriptores" },
 };
 
-/**
- * El día en que la cuenta dejó de generar saldo (Ale, 18/11/2026). El que
- * alguien hubiera ganado antes se sigue pudiendo usar (el servidor conserva
- * ese camino, lib/pedidos.ts); ese día no había ninguno.
- */
-const FIN_DEL_SALDO = "2026-11-18";
 
 const h2 = { fontSize: "1.25rem", marginTop: "1.5rem" } as const;
 const lista = { margin: 0, paddingLeft: "1.25rem", display: "grid", gap: "0.5rem" } as const;
@@ -145,8 +139,8 @@ export default async function CondicionesCuenta() {
       </p>
       {/* El saldo de antes del 18/11/2026: una sola cláusula. No se genera más; el que hubiera se puede seguir usando. */}
       <p>
-        Si tu cuenta tenía saldo a favor ganado antes del {versionTerminosLegible(FIN_DEL_SALDO)}, lo podés seguir usando en tus compras,
-        entrando con tu mail. Desde esa fecha no se genera saldo nuevo.
+        Si tu cuenta tiene saldo a favor de compras anteriores, lo podés seguir usando en tus compras, entrando con tu mail.
+        Las compras nuevas ya no generan saldo.
       </p>
 
       <h2 style={h2}>8. Contacto</h2>
