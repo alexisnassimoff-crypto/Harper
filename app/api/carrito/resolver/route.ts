@@ -5,9 +5,27 @@ import { buscarCupon } from "@/lib/cupones";
 import { cuotasParaComprador } from "@/lib/cuotas-servidor";
 import { tieneCuotasDeSuscriptor } from "@/lib/suscriptores";
 import { suscriptorDelCarritoDeLaPeticion } from "@/lib/suscriptores-cuenta";
-import { creditoParaElCarrito } from "@/lib/credito-cuenta";
+import { creditoParaElCarrito, visitaDeLaPeticion } from "@/lib/credito-cuenta";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Si la petición trae una cuenta Harper abierta (Ale, 18/11/2026), para que
+ * el checkout invite a entrar a quien no lo hizo, sin decir si tiene crédito.
+ * Con la sesión de suscriptor ya leída, sí sin preguntar más; si no, la misma
+ * puerta que usa el crédito (lib/credito-cuenta.ts, visitaDeLaPeticion: sin
+ * la cookie del suscriptor no lee Airtable, solo la firma de la cuenta). Si
+ * falla, se dice que no hay cuenta: lo peor es una invitación de más.
+ */
+async function hayCuentaAbierta(request: Request, conSuscriptor: boolean): Promise<boolean> {
+  if (conSuscriptor) return true;
+  try {
+    return (await visitaDeLaPeticion(request)) !== null;
+  } catch (error) {
+    console.error("[carrito] no se pudo leer la cuenta para el Crédito Harper:", error instanceof Error ? error.message : error);
+    return false;
+  }
+}
 
 /**
  * Cuánto se espera a Mercado Pago por las cuotas. Son un dato para mostrar:
@@ -76,7 +94,7 @@ export async function POST(request: Request) {
   // quien no es suscriptor, también las que tendría siéndolo, para invitarlo.
   const pideCuotas = cuotas === true && resuelto.items.length > 0 && resuelto.total > 0;
   const sinCuotas = { suyas: null, deSuscriptor: null };
-  const [sugerencias, conEnvio, sinEnvio] = await Promise.all([
+  const [sugerencias, conEnvio, sinEnvio, conCuenta] = await Promise.all([
     sugerirParaCarrito(resuelto.items, cuponAplicado, resuelto.duo ?? null).catch((error) => {
       console.error("[carrito] no se pudieron armar las sugerencias:", error);
       return [];
@@ -85,6 +103,8 @@ export async function POST(request: Request) {
     pideCuotas && resuelto.envio > 0
       ? conLimite(cuotasParaComprador(resuelto.subtotal, esSuscriptor), ESPERA_CUOTAS_MS, sinCuotas)
       : Promise.resolve(sinCuotas),
+    // Solo con el Crédito Harper prendido (creditoPrevisto existe solo así): apagado, no se pregunta nada.
+    resuelto.creditoPrevisto ? hayCuentaAbierta(request, resuelto.suscriptor !== null) : Promise.resolve(false),
   ]);
 
   return NextResponse.json({
@@ -115,6 +135,11 @@ export async function POST(request: Request) {
     ...(resuelto.duo ? { duo: resuelto.duo } : {}),
     // Solo con el Crédito Harper prendido y una cuenta con crédito para usar (paso 4).
     ...(resuelto.creditoHarper ? { creditoHarper: resuelto.creditoHarper } : {}),
+    // Solo con el Crédito Harper prendido (Ale, 18/11/2026): lo que suma esta
+    // compra con cada medio de pago (lo calculó resolverCarrito con los
+    // renglones que se cobran) y si hay una cuenta abierta. Apagado, la
+    // respuesta es la de siempre.
+    ...(resuelto.creditoPrevisto ? { creditoPrevisto: { ...resuelto.creditoPrevisto, conCuenta } } : {}),
     cuotas: conEnvio.suyas ? { ...conEnvio.suyas, monto: resuelto.total } : null,
     cuotasSinEnvio: sinEnvio.suyas ? { ...sinEnvio.suyas, monto: resuelto.subtotal } : null,
     // Las de suscriptor para los mismos montos, solo a quien todavía no las tiene.

@@ -115,6 +115,23 @@ export type DuoDelCarrito = {
   siguiente: "duo" | "tramos" | null;
 };
 
+/**
+ * El Crédito Harper que sumaría el pedido (Ale, 18/11/2026: «Orienta a que
+ * vuelvan a comprar»; quien compra lo sabe ANTES de pagar). Lo calcula el
+ * servidor con `creditoQueSuma` (lib/credito-harper.ts), la misma cuenta que
+ * hace el webhook al anotarlo, sobre los renglones que va a cobrar: con
+ * tarjeta o Mercado Pago, los del carrito; con dinero en Mercado Pago, los de
+ * ese 10 % (suma menos, porque se paga menos). Pesos enteros; 0 si no suma
+ * nada (sin anteojos, o anteojos pagados enteros con crédito). Solo existe con
+ * HARPER_CREDITO_ACTIVO=1: apagado, el carrito no lo trae.
+ */
+export type CreditoPrevisto = {
+  /** Pagando con tarjeta o Mercado Pago. */
+  mercadoPago: number;
+  /** Pagando con dinero en Mercado Pago; null si no se ofrece ese medio. */
+  dineroMP: number | null;
+};
+
 /** Lo que cobra el carrito del servidor por un pack, para mostrarlo (Tarea 07). */
 export type PackDelServidor = {
   cantidad: number;

@@ -157,7 +157,14 @@ test("El cobro del pedido se mide con todos sus pagos, no con el del aviso", () 
     ["pagó dos veces", [leido("a", "approved", T), leido("b", "approved", T)], "cobrado", { repetidos: 1 }],
     ["se devolvió el repetido", [leido("a", "approved", T), leido("b", "refunded", T, { reembolsado: T })], "cobrado", { repetidos: 0 }],
     ["se devolvió el original y queda el repetido", [leido("a", "refunded", T, { reembolsado: T }), leido("b", "approved", T)], "cobrado", {}],
-    ["se devolvieron los dos", [leido("a", "refunded", T, { reembolsado: T }), leido("b", "refunded", T, { reembolsado: T })], "sin-cobro", {}],
+    ["se devolvieron los dos", [leido("a", "refunded", T, { reembolsado: T }), leido("b", "refunded", T, { reembolsado: T })], "sin-cobro", { reclamoPerdido: false, reembolsoEnPartes: false }],
+    // Revisión del 20/11/2026: un reclamo que ganó el comprador (Mercado Pago le
+    // reembolsó el pago) no es un contracargo, pero tampoco una devolución de Harper.
+    ["reclamo que ganó el comprador", [leido("a", "refunded", T, { statusDetail: "bpp_refunded", reembolsado: T })], "sin-cobro", { reclamoPerdido: true, contracargoPerdido: false }],
+    // Cuántos reembolsos tiene el pago: con dos o más, se reembolsó en partes.
+    ["reembolsado entero de una vez", [leido("a", "refunded", T, { reembolsado: T, reembolsos: 1 })], "sin-cobro", { reembolsoEnPartes: false, reclamoPerdido: false }],
+    ["reembolsado entero en dos partes", [leido("a", "refunded", T, { reembolsado: T, reembolsos: 2 })], "sin-cobro", { reembolsoEnPartes: true, reclamoPerdido: false }],
+    ["reembolsado entero sin la lista de reembolsos", [leido("a", "refunded", T, { reembolsado: T, reembolsos: null })], "sin-cobro", { reembolsoEnPartes: false }],
     ["reembolso parcial", [leido("a", "approved", T, { reembolsado: 30_000 })], "parcial", { neto: 70_000 }],
     ["reclamo abierto", [leido("a", "in_mediation", T)], "cobrado", { incidenciaAbierta: true, cubiertoSinDisputa: false }],
     ["reclamo abierto en uno y otro pago válido (revisión del PR #70)", [leido("a", "in_mediation", T), leido("b", "approved", T)], "cobrado", { incidenciaAbierta: true, cubiertoSinDisputa: true }],
@@ -205,6 +212,10 @@ test("Los renglones salen de Items; un pedido ilegible no se acredita", () => {
   assert.deepEqual([deHoy.regimen.regimen, deHoy.renglones, deHoy.total], ["anterior", [], 0]);
   assert.equal(pedidoDesdeFila(fila({ Numero: " H-1 ", Total: 5, Items: "[]" }), " A@B.com ").email, "a@b.com");
   assert.throws(() => pagoDe({ status: "approved" }), ErrorLecturaMP);
+  // Cuántos reembolsos tiene el pago (revisión del 20/11/2026): la lista `refunds` de Mercado Pago.
+  assert.equal(pagoDe({ id: 1, status: "refunded", refunds: [{ id: 10 }, { id: 11 }] }).reembolsos, 2);
+  assert.equal(pagoDe({ id: 1, status: "approved", refunds: [] }).reembolsos, 0);
+  assert.equal(pagoDe({ id: 1, status: "refunded" }).reembolsos, null, "sin la lista no se sabe");
 });
 
 // ---------- El lector de Mercado Pago ----------

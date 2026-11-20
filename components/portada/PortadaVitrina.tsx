@@ -9,6 +9,7 @@ import { categoriasConProductos, esCategoriaDeAnteojos } from "@/lib/categorias"
 import type { ConfigTienda } from "@/lib/config";
 import { DIAS_ARREPENTIMIENTO, DIAS_CAMBIO, MESES_GARANTIA, mensajesDeConfianza } from "@/lib/confianza";
 import { NOMBRE_MARCAS, type CuotasVerificadas } from "@/lib/cuotas";
+import { creditoActivo, PORCENTAJE_CREDITO_UN_ANTEOJO, PORCENTAJE_CREDITO_VARIOS } from "@/lib/credito-harper";
 import { conEspera, verificarCuotas } from "@/lib/cuotas-servidor";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { condicionesDeCompra } from "@/lib/ficha";
@@ -190,10 +191,18 @@ export default async function PortadaVitrina({ productos, config }: { productos:
     },
     ...(cuotas ? [{ clave: "cuotas" as const, texto: cuotas.texto, detalle: cuotas.detalle ?? null, href: "/preguntas-frecuentes" }] : []),
   ];
+  // El Crédito Harper (Ale, 18/11/2026), solo con HARPER_CREDITO_ACTIVO
+  // prendido: va con lo que pasa después de comprar, al final de la segunda
+  // fila. Los porcentajes, del motor (lib/credito-harper.ts). Apagado, la
+  // portada no lo nombra.
+  const C = TEXTOS.programa.credito;
   const servicio: ItemConfianza[] = [
     ...(devolucion ? [{ clave: "devolucion" as const, texto: devolucion.texto, detalle: devolucion.detalle, href: devolucion.href }] : []),
     ...(whatsapp
       ? [{ clave: "whatsapp" as const, texto: TEXTOS.inicio.confianza.whatsapp, detalle: TEXTOS.inicio.confianza.whatsappDetalle, href: whatsapp, externo: true }]
+      : []),
+    ...(creditoActivo()
+      ? [{ clave: "credito" as const, texto: C.portada(PORCENTAJE_CREDITO_UN_ANTEOJO), detalle: C.portadaDetalle(PORCENTAJE_CREDITO_VARIOS), href: "/preguntas-frecuentes" }]
       : []),
   ];
 

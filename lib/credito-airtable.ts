@@ -118,12 +118,17 @@ export const BASE_REAL = "appcFfhxM8uVdVKoP";
  * Solo en el Airtable de prueba (en memoria), en una base de pruebas aislada
  * (`HARPER_CREDITO_SANDBOX=1`, fuera de Vercel y con otra base que no sea la
  * real: tests/integracion/credito-sandbox.test.ts), o con el Crédito Harper
- * prendido (todavía no).
+ * prendido.
+ *
+ * Sin `entorno`, el interruptor se lee como en todo el sitio (`creditoActivo()`,
+ * el valor fijado al armar: Ale, 18/11/2026), así lo que se escribe y lo que
+ * se muestra salen del mismo valor.
  */
-export function puedeEscribirCreditos(entorno: Record<string, string | undefined> = process.env): boolean {
-  const fixtures = entorno.HARPER_FIXTURES === "1" && !entorno.VERCEL;
-  const base = entorno.AIRTABLE_BASE_ID?.trim() ?? "";
-  const sandbox = entorno.HARPER_CREDITO_SANDBOX === "1" && !entorno.VERCEL && /^app[A-Za-z0-9]{14}$/.test(base) && base !== BASE_REAL;
+export function puedeEscribirCreditos(entorno?: Record<string, string | undefined>): boolean {
+  const e = entorno ?? process.env;
+  const fixtures = e.HARPER_FIXTURES === "1" && !e.VERCEL;
+  const base = e.AIRTABLE_BASE_ID?.trim() ?? "";
+  const sandbox = e.HARPER_CREDITO_SANDBOX === "1" && !e.VERCEL && /^app[A-Za-z0-9]{14}$/.test(base) && base !== BASE_REAL;
   return fixtures || sandbox || creditoActivo(entorno);
 }
 
@@ -175,6 +180,19 @@ export async function creditosPorEmail(email: string): Promise<FilaCredito[]> {
   if (!mail.includes("@")) return [];
   const filas = await listRecords<CamposCredito>(tabla(), { filterByFormula: `LOWER({Email}) = '${escaparFormula(mail)}'`, revalidate: 0 });
   return filas.filter(esCreditoGanado).map(filaDelRegistro).filter((f) => f.email === mail);
+}
+
+/**
+ * Los créditos ganados en «Disponible», de todas las cuentas (Ale,
+ * 18/11/2026): el control diario los mira para los avisos al comprador (ya
+ * disponible, por vencer) y para avisarle a Harper las filas sin
+ * Disponible_desde. Solo lectura y sin cache. Lo que se puede usar de cada
+ * uno lo dice `saldoDeCredito` (lib/credito-uso.ts), con los usos de la cuenta.
+ */
+export async function creditosDisponibles(): Promise<FilaCredito[]> {
+  const filas = await listRecords<CamposCredito>(tabla(), { filterByFormula: `{Estado} = 'Disponible'`, revalidate: 0 });
+  // Una fila que se lee «A revisar» (datos rotos) no se cuenta.
+  return filas.filter(esCreditoGanado).map(filaDelRegistro).filter((f) => f.estado === "Disponible");
 }
 
 /** Si el pedido ya tiene el cashback de hoy en Saldos (anulado o no). Solo lectura. */

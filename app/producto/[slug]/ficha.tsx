@@ -15,7 +15,9 @@ import type { ColorDeADos } from "@/components/HojaPack";
 import type { Producto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import { getProducto, getProductos } from "@/lib/catalogo";
-import { packConDuo, porcentajeDelDuo, type PackDelServidor } from "@/lib/pedidos";
+import { packConDuo, porcentajeDelDuo, resolverCarrito, type PackDelServidor } from "@/lib/pedidos";
+import { creditoActivo } from "@/lib/credito-harper";
+import { coloresIniciales } from "@/lib/packs";
 import { duoDeLaFicha } from "@/lib/promocion-anteojos";
 import { getConfig } from "@/lib/config";
 import { mensajesDeConfianza } from "@/lib/confianza";
@@ -139,6 +141,34 @@ async function paresDeLaFicha(producto: Producto, tramos: Tramo[], delMismoTipo:
   return { opciones, colores, totales };
 }
 
+/**
+ * Crédito Harper (Ale, 18/11/2026): lo que suma comprar `cantidad` de este
+ * modelo, según el carrito del servidor (resolverCarrito → creditoPrevisto,
+ * que es `creditoQueSuma` sobre los renglones que se cobran): pagando con
+ * tarjeta o Mercado Pago y, aparte, con el dinero de la cuenta de Mercado Pago
+ * (suma menos, porque se paga menos). Los colores, como los arma la tienda (los mismos que
+ * `packConDuo`). Null si no hay stock para esa cantidad, si no suma nada o si
+ * el carrito no lo trae (interruptor apagado). Es un dato para mostrar: si el
+ * carrito de prueba falla, la ficha sale igual, sin la línea.
+ */
+async function creditoDeLaFicha(producto: Producto, cantidad: number): Promise<{ tarjeta: number; dineroMP: number | null } | null> {
+  const colores = coloresIniciales(producto.variantes, cantidad, indiceVarianteInicial(producto));
+  if (colores.length !== cantidad || colores.some((c) => c < 0)) return null;
+  const porColor = new Map<number, number>();
+  for (const c of colores) porColor.set(c, (porColor.get(c) ?? 0) + 1);
+  const lineas = [...porColor].map(([c, n]) => ({ productoSlug: producto.slug, varianteId: producto.variantes[c].id, cantidad: n }));
+  try {
+    const carrito = await resolverCarrito(lineas);
+    if (carrito.items.reduce((n, i) => n + i.cantidad, 0) !== cantidad) return null;
+    const monto = carrito.creditoPrevisto?.mercadoPago ?? 0;
+    const conDineroMP = carrito.creditoPrevisto?.dineroMP ?? null;
+    return monto > 0 ? { tarjeta: monto, dineroMP: conDineroMP !== null && conDineroMP > 0 ? conDineroMP : null } : null;
+  } catch (error) {
+    console.warn("[credito] no se pudo armar el carrito de la ficha para el Crédito Harper:", error);
+    return null;
+  }
+}
+
 export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   const producto = await getProducto(slug);
   if (!producto) notFound();
@@ -170,6 +200,23 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   // 18/11/2026): la misma cuenta que hace el servidor al cobrar un par
   // (lib/dinero-mp.ts), hecha acá para que la ficha no calcule ningún importe.
   const precioDineroMP = conDescuento(producto.precio, PORCENTAJE_DINERO_MP);
+  // Crédito Harper (Ale, 18/11/2026), solo con HARPER_CREDITO_ACTIVO prendido y
+  // en anteojos: lo que suma uno de este modelo y, si la ficha cuenta el Dúo,
+  // dos. Los importes, del carrito del servidor. Apagado, null: la ficha no lo
+  // nombra y no se arma ningún carrito de más.
+  const credito =
+    esAnteojo && creditoActivo()
+      ? await Promise.all([creditoDeLaFicha(producto, 1), duo ? creditoDeLaFicha(producto, 2) : Promise.resolve(null)]).then(([uno, dos]) =>
+          uno === null
+            ? null
+            : {
+                uno: formatearPrecio(uno.tarjeta),
+                unoDineroMP: uno.dineroMP === null ? null : formatearPrecio(uno.dineroMP),
+                dos: dos === null ? null : formatearPrecio(dos.tarjeta),
+                dosDineroMP: dos?.dineroMP == null ? null : formatearPrecio(dos.dineroMP),
+              }
+        )
+      : null;
 
   const otros = delMismoTipo.filter((p) => p.id !== producto.id);
   const varianteInicial = indiceVarianteInicial(producto, color);
@@ -258,6 +305,7 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
         calificacion={opiniones && !esAnteojo ? { promedio: opiniones.promedio, total: opiniones.total } : null}
         pares={pares}
         duo={duo}
+        credito={credito}
       />
 
       {esAnteojo ? (

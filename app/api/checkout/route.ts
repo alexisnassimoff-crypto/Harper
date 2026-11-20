@@ -23,7 +23,7 @@ import { itemsDelPedido, limpiarItems, notasDelPedido, numeroDePedido, resolverC
 import { leerEleccionEnvio } from "@/lib/envio-elegido";
 import { cotizacionParaComprador, type CotizacionEnvio } from "@/lib/envio-gratis";
 import { CAMPOS_ENVIO_NUEVOS, camposDeEnvio, DESCRIPCION_ENVIO, notaDeEnvio } from "@/lib/envio-pedido";
-import { registroAceptacion } from "@/lib/legales";
+import { registroAceptacion, versionTerminosVigente } from "@/lib/legales";
 import { normalizarOrigen } from "@/lib/origen";
 import { urlDelSitio } from "@/lib/sitio";
 import { leerMedioPago, MEDIO_DINERO_MP, NOTA_DINERO_MP } from "@/lib/dinero-mp";
@@ -397,7 +397,9 @@ export async function POST(request: Request) {
       Envio_modo: "Domicilio",
       Fecha: ahora.toISOString(),
       // validarCliente ya exigió la casilla: queda qué versión aceptó y cuándo.
-      Terminos_aceptados: registroAceptacion(ahora),
+      // La vigente (revisión del 20/11/2026): con el Crédito Harper prendido,
+      // los Términos tienen su cláusula y otra versión (lib/legales.ts).
+      Terminos_aceptados: registroAceptacion(ahora, versionTerminosVigente()),
       ...(origen ? { Origen: JSON.stringify(origen) } : {}),
     };
     // Lo que la cuenta usó de su saldo anterior, para el pedido (Notas) y para

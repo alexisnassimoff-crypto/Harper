@@ -24,6 +24,14 @@ export type PagoLeido = {
   monto: number;
   /** Lo reembolsado de este pago (total o parcial). */
   reembolsado: number;
+  /**
+   * Cuántos reembolsos tiene el pago (la lista `refunds` de GET
+   * /v1/payments/{id}). Null o ausente: Mercado Pago no la mandó, no se sabe.
+   * Con dos o más, el pago se reembolsó en partes: aunque al final quede
+   * reembolsado entero, antes hubo un reembolso parcial (revisión del
+   * 20/11/2026, lib/credito-uso.ts, `procesarUsoDelPago`).
+   */
+  reembolsos?: number | null;
 };
 
 export interface LectorMercadoPago {
@@ -74,6 +82,7 @@ export function pagoDe(crudo: unknown): PagoLeido {
     pedidoId: referencia || null,
     monto: numero(p.transaction_amount),
     reembolsado: numero(p.transaction_amount_refunded),
+    reembolsos: Array.isArray(p.refunds) ? p.refunds.length : null,
   };
 }
 
@@ -165,11 +174,25 @@ export type CobroDelPedido = {
   cubiertoSinDisputa: boolean;
   /** Se perdió un contracargo. */
   contracargoPerdido: boolean;
+  /**
+   * Un reclamo que ganó el comprador: Mercado Pago le reembolsó el pago por la
+   * Protección al comprador (refunded/bpp_refunded). No es una devolución que
+   * hizo Harper: el crédito usado no vuelve solo (lib/credito-uso.ts). Va
+   * aparte de `contracargoPerdido`, que también nombra lo que pasa con el
+   * crédito ganado («reembolso del pago», lib/credito-pagos.ts).
+   */
+  reclamoPerdido: boolean;
+  /**
+   * Algún pago tiene dos o más reembolsos (`PagoLeido.reembolsos`): se
+   * reembolsó en partes. Con «sin-cobro», el reembolso total vino después de
+   * uno parcial y el crédito usado no vuelve solo (lib/credito-uso.ts).
+   */
+  reembolsoEnPartes: boolean;
   /** Los pagos con plata vigente. */
   vigentes: string[];
 };
 
-type Vigencia = { neto: number; incidencia: boolean; huboCobro: boolean; pendiente: boolean; perdido: boolean };
+type Vigencia = { neto: number; incidencia: boolean; huboCobro: boolean; pendiente: boolean; perdido: boolean; reclamoPerdido: boolean };
 
 /**
  * Cuánto sigue vigente de un pago, y si tiene una incidencia abierta. Solo
@@ -180,26 +203,28 @@ function vigenteDe(p: PagoLeido): Vigencia | null {
   const neto = Math.max(0, p.monto - p.reembolsado);
   switch (p.status) {
     case "approved":
-      return { neto, incidencia: false, huboCobro: true, pendiente: false, perdido: false };
+      return { neto, incidencia: false, huboCobro: true, pendiente: false, perdido: false, reclamoPerdido: false };
     // Un reclamo abierto: la plata está retenida, puede volver o no.
     case "in_mediation":
-      return { neto, incidencia: true, huboCobro: true, pendiente: false, perdido: false };
+      return { neto, incidencia: true, huboCobro: true, pendiente: false, perdido: false, reclamoPerdido: false };
     case "charged_back":
       // reimbursed: Harper ganó el contracargo. settled: lo perdió. in_process
       // o cualquier otro detalle: en curso, con la plata contada como vigente
       // (nunca se anula por un detalle que no se conoce).
-      if (p.statusDetail === "reimbursed") return { neto, incidencia: false, huboCobro: true, pendiente: false, perdido: false };
-      if (p.statusDetail === "settled") return { neto: 0, incidencia: false, huboCobro: true, pendiente: false, perdido: true };
-      return { neto, incidencia: true, huboCobro: true, pendiente: false, perdido: false };
+      if (p.statusDetail === "reimbursed") return { neto, incidencia: false, huboCobro: true, pendiente: false, perdido: false, reclamoPerdido: false };
+      if (p.statusDetail === "settled") return { neto: 0, incidencia: false, huboCobro: true, pendiente: false, perdido: true, reclamoPerdido: false };
+      return { neto, incidencia: true, huboCobro: true, pendiente: false, perdido: false, reclamoPerdido: false };
     case "refunded":
-      return { neto: 0, incidencia: false, huboCobro: true, pendiente: false, perdido: false };
+      // bpp_refunded: lo reembolsó Mercado Pago porque el comprador ganó un
+      // reclamo (Protección al comprador), no Harper (revisión del 20/11/2026).
+      return { neto: 0, incidencia: false, huboCobro: true, pendiente: false, perdido: false, reclamoPerdido: p.statusDetail === "bpp_refunded" };
     case "pending":
     case "in_process":
     case "authorized":
-      return { neto: 0, incidencia: false, huboCobro: false, pendiente: true, perdido: false };
+      return { neto: 0, incidencia: false, huboCobro: false, pendiente: true, perdido: false, reclamoPerdido: false };
     case "rejected":
     case "cancelled":
-      return { neto: 0, incidencia: false, huboCobro: false, pendiente: false, perdido: false };
+      return { neto: 0, incidencia: false, huboCobro: false, pendiente: false, perdido: false, reclamoPerdido: false };
     default:
       return null;
   }
@@ -214,7 +239,18 @@ export function cobroDelPedido(pagos: readonly PagoLeido[], total: number): Cobr
   if (!Number.isFinite(total) || total < 0) throw new RangeError("El total del pedido tiene que ser un número de 0 o más");
   const desconocidos = pagos.filter((p) => vigenteDe(p) === null).map((p) => `${p.id}: ${p.status}`);
   if (desconocidos.length > 0) {
-    return { estado: "indeterminado", desconocidos, neto: 0, repetidos: 0, incidenciaAbierta: false, cubiertoSinDisputa: false, contracargoPerdido: false, vigentes: [] };
+    return {
+      estado: "indeterminado",
+      desconocidos,
+      neto: 0,
+      repetidos: 0,
+      incidenciaAbierta: false,
+      cubiertoSinDisputa: false,
+      contracargoPerdido: false,
+      reclamoPerdido: false,
+      reembolsoEnPartes: false,
+      vigentes: [],
+    };
   }
   const leidos = pagos.map((p) => ({ p, v: vigenteDe(p) as Vigencia }));
   const conPlata = leidos.filter((x) => x.v.neto > 0);
@@ -223,6 +259,8 @@ export function cobroDelPedido(pagos: readonly PagoLeido[], total: number): Cobr
   const netoSinDisputa = conPlata.filter((x) => !x.v.incidencia).reduce((t, x) => t + x.v.neto, 0);
   const cubiertoSinDisputa = netoSinDisputa >= total - TOLERANCIA_COBRO && (total === 0 || netoSinDisputa > 0);
   const contracargoPerdido = leidos.some((x) => x.v.perdido);
+  const reclamoPerdido = leidos.some((x) => x.v.reclamoPerdido);
+  const reembolsoEnPartes = leidos.some((x) => (x.p.reembolsos ?? 0) >= 2);
   const huboCobro = leidos.some((x) => x.v.huboCobro);
   // Repetidos: cuántos pagos vigentes sobran para cubrir el total.
   let cubierto = 0;
@@ -250,6 +288,8 @@ export function cobroDelPedido(pagos: readonly PagoLeido[], total: number): Cobr
     incidenciaAbierta,
     cubiertoSinDisputa,
     contracargoPerdido,
+    reclamoPerdido,
+    reembolsoEnPartes,
     vigentes: conPlata.map((x) => x.p.id),
   };
 }

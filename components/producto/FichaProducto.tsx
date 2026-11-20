@@ -15,6 +15,7 @@ import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import OfertaCantidad from "./OfertaCantidad";
 import OfertaDuo from "./OfertaDuo";
 import { esCategoriaDeAnteojos } from "@/lib/categorias";
+import { DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO } from "@/lib/credito-harper";
 import { ofertaEnLaFicha, type DuoDeLaFicha } from "@/lib/promocion-anteojos";
 import OpcionesPares, { type OpcionPares } from "./OpcionesPares";
 import HojaPack, { type ColorDeADos, type HojaPackControl } from "@/components/HojaPack";
@@ -48,6 +49,7 @@ export default function FichaProducto({
   calificacion = null,
   pares = null,
   duo = null,
+  credito = null,
 }: {
   producto: Producto;
   tramos?: Tramo[];
@@ -77,6 +79,13 @@ export default function FichaProducto({
   pares?: { opciones: OpcionPares[]; colores: ColorDeADos[]; totales: Record<number, string> } | null;
   /** El Dúo, si está prendido (lo arma el servidor); null: la ficha de siempre. */
   duo?: DuoDeLaFicha | null;
+  /**
+   * El Crédito Harper (Ale, 18/11/2026), si el servidor lo tiene prendido: lo
+   * que suma uno de este modelo y, si se puede, dos, ya formateados (del
+   * carrito del servidor). Null: la ficha no lo nombra. La ficha no mira el
+   * interruptor: solo muestra lo que llega.
+   */
+  credito?: { uno: string; unoDineroMP: string | null; dos: string | null; dosDineroMP: string | null } | null;
 }) {
   const router = useRouter();
   const { items, agregar, cupon, abrirPanel } = useCarrito();
@@ -128,6 +137,17 @@ export default function FichaProducto({
     esAnteojo: esCategoriaDeAnteojos(producto.categoria),
     cuponPorcentaje,
   });
+  // La ficha muestra el Dúo junto al precio (con la escala de Airtable, las
+  // opciones de pares ya lo cuentan). Con él, la línea del Crédito Harper dice
+  // también lo que suman dos.
+  const mostrarDuo = !pares && Boolean(lineasDuo);
+  // El Crédito Harper de la ficha es lo que suma este anteojo SOLO (el carrito
+  // de prueba del servidor). Con anteojos ya en el carrito se queda corto: con
+  // este, la compra suma el 10 % y no el 5 % (y el Dúo puede cambiar). Ahí no se muestra; lo
+  // que suma la compra entera lo dice el carrito (revisión de textos,
+  // 20/11/2026). En el servidor el carrito todavía no se resolvió
+  // (`anteojosEnCarrito` 0): el HTML es el mismo de siempre.
+  const creditoDeLaFicha = credito && anteojosEnCarrito === 0 ? credito : null;
 
   // La foto de portada del color (al sol y adentro) va primera.
   const fotos = useMemo(() => fotosDeGaleria(variante), [variante]);
@@ -343,7 +363,7 @@ export default function FichaProducto({
               Mercado Pago, con centavos), precio de contado y CFTEA. Debajo,
               lo que cuesta con el dinero de la cuenta de Mercado Pago: el
               importe llega calculado del servidor. */}
-          {cuotas || precioDineroMP !== null ? (
+          {cuotas || precioDineroMP !== null || creditoDeLaFicha ? (
             <div className="cuotas-compra cuotas-compra--ficha">
               {cuotas ? (
                 <>
@@ -360,6 +380,22 @@ export default function FichaProducto({
                   {TEXTOS.programa.dineroMP.precio(formatearPrecio(precioDineroMP))}
                 </p>
               ) : null}
+              {/* El Crédito Harper (Ale, 18/11/2026), solo si el servidor lo
+                  mandó y el carrito no tiene anteojos: lo que suma uno de este
+                  modelo y, cuando la ficha muestra el Dúo, lo que suman dos.
+                  Revisión del 20/11/2026: también cuándo queda disponible y
+                  cuándo vence, con el enlace a las condiciones, antes de
+                  comprar (los días y los meses, de lib/credito-harper.ts). */}
+              {creditoDeLaFicha ? (
+                <p style={{ fontSize: "0.8125rem" }}>
+                  {TEXTOS.programa.credito.ficha(creditoDeLaFicha.uno, creditoDeLaFicha.unoDineroMP)}
+                  {creditoDeLaFicha.dos && mostrarDuo ? ` ${TEXTOS.programa.credito.fichaDos(creditoDeLaFicha.dos, creditoDeLaFicha.dosDineroMP)}` : ""}{" "}
+                  {TEXTOS.programa.credito.plazos(DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO)}{" "}
+                  <a href="/legales/suscriptores#credito" target="_blank" rel="noopener" className="checkout__enlace">
+                    {TEXTOS.programa.credito.condiciones}
+                  </a>
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -368,9 +404,9 @@ export default function FichaProducto({
               Va adentro de este bloque para que en el celular quede debajo del
               precio y no después de comprar. Con la escala de Airtable, las
               opciones de pares ya lo cuentan. */}
-          {pares || !lineasDuo ? null : (
+          {mostrarDuo && lineasDuo ? (
             <OfertaDuo lineas={lineasDuo.lineas} detalle={lineasDuo.detalle} estilo={{ marginTop: "0.4rem" }} />
-          )}
+          ) : null}
         </div>
 
         {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}

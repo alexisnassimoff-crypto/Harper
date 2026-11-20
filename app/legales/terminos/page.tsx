@@ -2,9 +2,16 @@ import type { Metadata } from "next";
 import { getConfig } from "@/lib/config";
 import Link from "next/link";
 import { NOMBRE_MARCAS } from "@/lib/cuotas";
+import {
+  creditoActivo,
+  DIAS_PARA_LIBERAR_CREDITO,
+  MESES_PARA_VENCER_CREDITO,
+  PORCENTAJE_CREDITO_UN_ANTEOJO,
+  PORCENTAJE_CREDITO_VARIOS,
+} from "@/lib/credito-harper";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { duoActivo, PORCENTAJE_DUO } from "@/lib/duo";
-import { versionTerminosLegible } from "@/lib/legales";
+import { versionTerminosLegible, versionTerminosVigente } from "@/lib/legales";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { CUOTAS_TODOS } from "@/lib/suscriptores";
 
@@ -28,7 +35,17 @@ import { CUOTAS_TODOS } from "@/lib/suscriptores";
  *  - Dúo: su cláusula se arma SOLO si el servidor lo tiene prendido
  *    (HARPER_DUO_ACTIVO, `duoActivo()` de lib/duo.ts). Apagado, la página no
  *    lo nombra en ningún lado. No dice qué se reintegra si se devuelve un
- *    anteojo de un Dúo: Ale todavía no lo decidió.
+ *    anteojo de un Dúo: Ale todavía no lo decidió (L1, plan §14), y prender
+ *    el Crédito Harper espera esa decisión.
+ *  - Crédito Harper (revisión del 20/11/2026): su cláusula se arma SOLO con
+ *    HARPER_CREDITO_ACTIVO (`creditoActivo()` de lib/credito-harper.ts). Los
+ *    Términos son lo único que se acepta en el checkout: la cláusula dice lo
+ *    esencial (cuánto, cuándo queda disponible, que vence y se pierde, en qué
+ *    se usa) y remite a sus condiciones (/legales/suscriptores#credito). Los
+ *    números salen de lib/credito-harper.ts. No nombra el Dúo (eso es solo de
+ *    su cláusula). Prendido, la versión es otra (`versionTerminosVigente`,
+ *    lib/legales.ts) y es la que guarda cada pedido; apagado, la página y la
+ *    versión son las de siempre.
  *
  * La sección «Suscriptores Harper» (cupón, saldo, envío sin cargo y cuotas
  * propias, que terminaron ese día) pasó a ser la de la cuenta y las
@@ -49,6 +66,8 @@ export default async function Terminos() {
 
   // El Dúo, solo si el servidor lo cobra: null no arma su cláusula.
   const duo = duoActivo() ? PORCENTAJE_DUO : null;
+  // El Crédito Harper, solo si el servidor lo tiene prendido (revisión del 20/11/2026).
+  const credito = creditoActivo();
 
   // Los mínimos del envío gratis, como los mide el servidor (lib/envio-gratis.ts):
   // el de AMBA se nombra solo si existe y es más bajo que el de todo el país.
@@ -60,7 +79,7 @@ export default async function Terminos() {
     <>
       <h1 className="titulo">Términos y condiciones</h1>
 
-      <p className="apagado">Versión vigente: {versionTerminosLegible()}.</p>
+      <p className="apagado">Versión vigente: {versionTerminosLegible(versionTerminosVigente())}.</p>
 
       <p className="apagado">
         Estos términos regulan la compra de productos en harper.ar, operado por{" "}
@@ -125,6 +144,30 @@ export default async function Terminos() {
             Pago se suma al Dúo: se calcula sobre lo que queda después de este
             descuento. El mínimo para el envío gratis se cuenta antes del
             descuento, con los anteojos a precio de lista.
+          </p>
+        </>
+      ) : null}
+
+      {/* El Crédito Harper: solo con HARPER_CREDITO_ACTIVO=1. Apagado, ni el título. El detalle, en sus condiciones. */}
+      {credito ? (
+        <>
+          <h2 id="credito" style={h2}>
+            Crédito Harper
+          </h2>
+          <p>
+            Con tus compras de anteojos ganás Crédito Harper para tus próximas
+            compras de anteojos: el {PORCENTAJE_CREDITO_UN_ANTEOJO} % de lo que
+            pagás en dinero por los anteojos si la compra tiene uno y el{" "}
+            {PORCENTAJE_CREDITO_VARIOS} % si tiene dos o más. Queda disponible{" "}
+            {DIAS_PARA_LIBERAR_CREDITO} días después de que confirmamos la
+            entrega y vence {MESES_PARA_VENCER_CREDITO} meses después de quedar
+            disponible: lo que no uses hasta entonces se pierde. Se usa solo en
+            anteojos; no paga el envío, los estuches ni los paños. Para tenerlo
+            no hace falta abrir la cuenta. El detalle está en las{" "}
+            <Link href="/legales/suscriptores#credito" style={subrayado}>
+              condiciones del Crédito Harper
+            </Link>
+            , que forman parte de estos términos.
           </p>
         </>
       ) : null}

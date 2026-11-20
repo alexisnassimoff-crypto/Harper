@@ -202,6 +202,12 @@ export async function confirmarPedidoSinPago(d: {
     const datos: DatosMail = {
       ...d.datosMail,
       ...(fresco ? { suscriptor: { email: fresco.email, cupon: d.cupon, saldoUsado: d.saldoUsado, cashback: 0, cashbackDesde: null } } : {}),
+      // Crédito Harper (Ale, 18/11/2026): con crédito usado (el checkout solo
+      // lo pasa con HARPER_CREDITO_ACTIVO=1), el mail del comprador nombra en
+      // cada renglón lo que pagó con él. No suma crédito nuevo (`suma` 0): un
+      // pedido en $ 0 no pasa por el webhook, que es el que lo anota, y no tiene
+      // nada pagado en dinero. Sin crédito usado, el mail es el de siempre.
+      ...(d.credito ? { creditoHarper: { suma: 0 } } : {}),
       alerta: [d.datosMail.alerta, ...problemas].filter(Boolean).join(" ") || null,
     };
     const pedidoUrl = `https://airtable.com/${process.env.AIRTABLE_BASE_ID}/${TABLAS.pedidos}/${pedido.id}`;

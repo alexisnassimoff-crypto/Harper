@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
+import { creditoActivo } from "@/lib/credito-harper";
 import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
 
 /**
@@ -10,6 +11,14 @@ import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
  * de un saldo: nombra la cuenta Harper y los mails de novedades, y dice que
  * darse de baja de esos mails no cierra la cuenta. Lo demás quedó igual. Los
  * días de la sesión salen de lib/suscriptores-sesion.ts.
+ *
+ * El Crédito Harper (Ale, 18/11/2026; revisión del 20/11/2026): solo con
+ * HARPER_CREDITO_ACTIVO=1 (`creditoActivo()`), dos párrafos más. Uno, que
+ * quien entra a Mi cuenta solo para ver o usar su crédito, sin abrir la
+ * cuenta, también recibe la cookie de sesión (lib/credito-cuenta.ts,
+ * entrarALaCuenta, y app/api/cuenta/entrar/route.ts). Otro, para qué se usan
+ * los datos del crédito, que no son mails de novedades: esos necesitan la
+ * casilla (Ley 25.326, arts. 5 y 6). Apagado, la página es la de siempre.
  */
 
 export const metadata: Metadata = {
@@ -20,6 +29,8 @@ export const metadata: Metadata = {
 export default async function Privacidad() {
   const config = await getConfig();
   const diasSesion = Math.round(DURACION_SESION_MS / (24 * 60 * 60_000));
+  // El Crédito Harper, solo si el servidor lo tiene prendido.
+  const conCredito = creditoActivo();
 
   return (
     <>
@@ -46,6 +57,14 @@ export default async function Privacidad() {
         guardamos en tu navegador una cookie de sesión por {diasSesion} días;
         no se usa para publicidad.
       </p>
+      {conCredito ? (
+        <p>
+          Si entrás a Mi cuenta con tu mail solo para ver o usar tu Crédito
+          Harper, sin abrir la cuenta, también guardamos esa cookie de sesión en
+          tu navegador por {diasSesion} días, solo para reconocerte. No se usa
+          para publicidad.
+        </p>
+      ) : null}
       <p>
         Si elegís guardar en Mi cuenta tu teléfono, DNI, direcciones de entrega
         o anteojos favoritos, utilizamos esa información para facilitar tus
@@ -75,6 +94,16 @@ export default async function Privacidad() {
         también podemos enviarte novedades y promociones. Podés revocar ese
         consentimiento en cualquier momento escribiéndonos.
       </p>
+      {conCredito ? (
+        <p>
+          Si ganás Crédito Harper, usamos tu mail y tus compras para llevar tu
+          crédito: mostrártelo en Mi cuenta, descontarlo cuando lo usás,
+          revisarlo si hay una devolución, un reclamo o un contracargo, y avisarte por mail
+          cuando queda disponible y antes de que venza. Esos avisos no son
+          mails de novedades: si no los aceptaste, no te mandamos novedades por
+          tener crédito.
+        </p>
+      ) : null}
 
       <h2 style={{ fontSize: "1.25rem", marginTop: "1.5rem" }}>Mails de novedades de Harper</h2>
       <p>

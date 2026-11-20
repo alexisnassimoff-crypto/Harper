@@ -1,7 +1,7 @@
 import { escaparFormula, listRecords, TABLAS } from "./airtable";
 import { pedidoParaMostrar, type SolicitudArrepentimiento } from "./arrepentimiento";
 import { dependenciasCredito } from "./credito-airtable";
-import { creditoActivo } from "./credito-harper";
+import { creditoActivo, MESES_PARA_VENCER_CREDITO } from "./credito-harper";
 import { lectorPedidosAirtable, type LectorPedidos } from "./credito-pagos";
 import { laDelPedido, marcarIncidencia, type DependenciasCredito, type ResultadoCambio } from "./credito-persistencia";
 import { dependenciasUsoReales, leerSaldoDeCredito, type DependenciasUso } from "./credito-uso";
@@ -24,14 +24,28 @@ import { ESTADOS_CONFIRMADOS } from "./webhook-decision";
  *    el aviso del arrepentimiento.
  *  - Resolución controlada: cerrar una incidencia es siempre de Harper.
  *
- * Lo que NO está definido (L1–L5, revisión legal) queda bloqueado para
- * revisión y nunca se resuelve solo:
- *  - la devolución parcial (no se recalcula el crédito: `aplicarDevolucion`
- *    no se usa desde ningún circuito);
- *  - el crédito ya gastado de un pedido que se devuelve (no se recupera: la
- *    cuenta queda sin poder usar más crédito hasta que Harper decida);
- *  - el crédito usado en el pedido que se devuelve (no vuelve solo: queda
- *    descontado; si corresponde, Harper lo marca «Devuelto»).
+ * El crédito USADO en el pedido que se devuelve tiene regla (20/11/2026,
+ * propuesta a Ale, a favor del comprador: en la Argentina quien se arrepiente
+ * dentro de los 10 días recibe todo lo que pagó, y una cláusula en la que
+ * Harper «decide en cada caso» no vale):
+ *  - devolución entera con reembolso total en Mercado Pago: ese crédito
+ *    vuelve solo a la cuenta, con 6 meses nuevos (lib/credito-uso.ts,
+ *    `devolverUsoPorReembolso`);
+ *  - devolución de una parte: Harper le reintegra en dinero, en Mercado Pago,
+ *    todo lo que pagó por lo que devolvió, incluida la parte que pagó con
+ *    crédito; el uso del crédito queda «Usado». Si con eso el pago termina
+ *    reembolsado entero, el uso va a «A revisar» y no vuelve solo (revisión
+ *    del 20/11/2026): por eso el aviso pide reembolsar primero la parte en
+ *    dinero y nunca el pago entero de una sola vez si se queda con algo.
+ * El aviso a Harper (`bloqueosParaRevisar`) se lo dice.
+ *
+ * Lo que sigue sin regla automática y nunca se resuelve solo:
+ *  - el crédito GANADO con un pedido que se devuelve en parte (no se
+ *    recalcula: `aplicarDevolucion` no se usa desde ningún circuito);
+ *  - el crédito ganado de un pedido que se devuelve y que la cuenta ya gastó
+ *    en otra compra: nunca se descuenta del reembolso; queda en contra de la
+ *    cuenta (lo cubre primero el crédito que tenga o gane después) y,
+ *    mientras tanto, no puede usar más crédito.
  *
  * Solo con HARPER_CREDITO_ACTIVO=1. Apagado, no lee ni escribe nada y el
  * arrepentimiento es el de siempre.
@@ -126,8 +140,9 @@ function notaDeLaIncidencia(r: ResultadoCambio, numero: string, codigo: string):
  * la nota le pide a Harper que lo marque a mano.
  *
  * No anula ni cambia el monto (§18.2): abrir la incidencia solo frena la
- * liberación y el uso. Lo que no tiene regla todavía (devolución parcial,
- * crédito ya gastado, crédito usado en el pedido) solo se avisa.
+ * liberación y el uso. Lo que no se resuelve acá (el crédito usado en el
+ * pedido, que vuelve con el reembolso total; el crédito ganado de una
+ * devolución parcial; el crédito ya gastado) solo se avisa.
  */
 export async function incidenciaPorArrepentimiento(
   solicitud: SolicitudArrepentimiento,
@@ -158,9 +173,16 @@ export async function incidenciaPorArrepentimiento(
       r = await marcarIncidencia(numero, true, `arrepentimiento ${codigo}`, d.credito);
     }
     const notas = [notaDeLaIncidencia(r, numero, codigo)];
-    if (r.estado === "incidencia-abierta" || r.estado === "a-revisar") {
+    // El crédito GANADO con la compra (el usado en ella va en `bloqueosParaRevisar`).
+    // Pendiente, el reembolso total lo anula (anularPorPedido); ya disponible,
+    // queda «A revisar» aunque se reembolse.
+    if (r.estado === "incidencia-abierta") {
       notas.push(
-        "Si se concreta la devolución con reembolso total en Mercado Pago, el crédito se anula solo. Si es parcial, o sin Mercado Pago, decidilo a mano: la regla de la devolución parcial está pendiente (no se recalcula sola)."
+        "Del crédito que ganó con esta compra: si se concreta la devolución con reembolso total en Mercado Pago, se anula solo; si es parcial, o sin Mercado Pago, decidí a mano cuánto le corresponde por lo que se quedó (no se recalcula solo)."
+      );
+    } else if (r.estado === "a-revisar") {
+      notas.push(
+        "Del crédito que ganó con esta compra: sigue «A revisar» aunque se reembolse; decidí a mano si se anula o cuánto le corresponde por lo que se quedó (no se recalcula solo)."
       );
     }
     try {
@@ -177,10 +199,12 @@ export async function incidenciaPorArrepentimiento(
 }
 
 /**
- * Lo que queda bloqueado para revisión hasta que haya política (L1–L5): el
- * crédito usado en este pedido (no vuelve solo) y el crédito de este pedido
- * que la cuenta ya gastó en otra compra (no se recupera solo; la cuenta no
- * puede usar más crédito mientras tanto). Solo lee y avisa.
+ * Lo que Harper tiene que saber del crédito de este pedido para cumplir con
+ * la devolución (20/11/2026): qué pasa con el crédito usado en él (entera con
+ * reembolso total en Mercado Pago: vuelve solo; en parte: se reintegra en
+ * dinero, incluida la parte pagada con crédito) y si la cuenta ya gastó el
+ * crédito ganado con este pedido (queda en contra de la cuenta, nunca se
+ * descuenta del reembolso). Solo lee y avisa.
  */
 async function bloqueosParaRevisar(numero: string, email: string, d: DependenciasIncidencia): Promise<string[]> {
   const notas: string[] = [];
@@ -188,13 +212,13 @@ async function bloqueosParaRevisar(numero: string, email: string, d: Dependencia
   const montoUsado = usado.reduce((t, u) => t + u.monto, 0);
   if (montoUsado > 0) {
     notas.push(
-      `El pedido ${numero} se pagó en parte con ${formatearPrecio(montoUsado)} de Crédito Harper: si se concreta la devolución, ese crédito no vuelve solo (la regla está pendiente). Queda descontado; si corresponde devolverlo, marcá «Devuelto» su uso en Créditos.`
+      `El pedido ${numero} se pagó en parte con ${formatearPrecio(montoUsado)} de Crédito Harper. Si lo devuelve entero y lo reembolsás entero en Mercado Pago, ese crédito vuelve solo a su cuenta, con ${MESES_PARA_VENCER_CREDITO} meses nuevos para usarlo: no tenés que hacer nada con el crédito. Si devuelve solo una parte, reintegrale en Mercado Pago, en dinero, todo lo que pagó por lo que devolvió, incluida la parte que pagó con Crédito Harper (en Items del pedido, cada renglón dice cuánto se pagó con crédito); el uso del crédito queda «Usado». Si se queda con algo, no reembolses el pago entero de una sola vez: primero reembolsá en Mercado Pago lo que pagó en dinero por lo que devolvió, y después hacé otro reembolso por la parte que pagó con crédito; si lo que le corresponde es más de lo que queda del pago, reembolsá lo que queda y la diferencia pagásela en dinero por transferencia. Si la compra no pasó por Mercado Pago y la devuelve entera, marcá «Devuelto» su uso en Créditos y poné en Disponible_desde el día de la devolución.`
     );
   }
   const saldo = await leerSaldoDeCredito(email, d.uso);
   if (saldo.sobregiro > 0) {
     notas.push(
-      `La cuenta ya usó ${formatearPrecio(saldo.sobregiro)} más de lo que ahora tiene disponible (gastó crédito de este pedido): no se recupera solo, porque la regla está pendiente. Hasta que decidas, no puede usar más Crédito Harper.`
+      `La cuenta ya usó ${formatearPrecio(saldo.sobregiro)} más de lo que ahora tiene disponible (gastó en otra compra crédito ganado con este pedido). Eso no se descuenta del reembolso: al comprador se le devuelve todo lo que pagó. Ese monto queda en contra de la cuenta: lo cubre primero el crédito que tenga o gane después y, hasta cubrirlo, no puede usar más Crédito Harper.`
     );
   }
   return notas;

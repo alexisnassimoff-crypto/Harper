@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DuoDelCarrito, ItemResuelto } from "@/lib/tipos";
+import type { CreditoPrevisto, DuoDelCarrito, ItemResuelto } from "@/lib/tipos";
 import type { Tramo } from "@/lib/descuentos";
 import type { Sugerencia } from "@/lib/sugerencias";
 import type { CuponResuelto } from "@/lib/cupones";
@@ -49,6 +49,13 @@ export type CarritoResueltoCliente = {
   duo?: DuoDelCarrito;
   /** Solo con el Crédito Harper prendido y crédito para usar (paso 4): lo usado, lo que se puede usar y lo elegible. */
   creditoHarper?: { usado: number; usable: number; elegible: number };
+  /**
+   * Solo con el Crédito Harper prendido (Ale, 18/11/2026): lo que suma esta
+   * compra con cada medio de pago, calculado en el servidor, y si hay una
+   * cuenta abierta (para invitar a entrar a quien no lo hizo). Apagado no
+   * llega y no se muestra nada.
+   */
+  creditoPrevisto?: CreditoPrevisto & { conCuenta: boolean };
 };
 
 /**

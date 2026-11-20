@@ -12,6 +12,9 @@ import { TEXTOS } from "./textos";
  *
  *  1. El Dúo, solo si el servidor lo tiene prendido (llega el porcentaje;
  *     apagado, ni se nombra).
+ *  1b. El Crédito Harper (Ale, 18/11/2026), solo si el servidor lo tiene
+ *     prendido (HARPER_CREDITO_ACTIVO): llegan los dos porcentajes; apagado,
+ *     ni se nombra.
  *  2. El envío gratis, armado con los dos mínimos de Config (AMBA y resto del
  *     país). Ya no depende de un texto escrito a mano.
  *  3. Las cuotas, solo si Mercado Pago las confirmó (aclarando que son en
@@ -31,6 +34,11 @@ export function anunciosDelHeader(datos: {
   escala?: Tramo[];
   /** El porcentaje del Dúo si el servidor lo tiene prendido; null o sin el dato, no se nombra. */
   duo?: number | null;
+  /**
+   * Los porcentajes del Crédito Harper (con un anteojo y con dos o más) si el
+   * servidor lo tiene prendido; null o sin el dato, no se nombra.
+   */
+  credito?: { unAnteojo: number; varios: number } | null;
   /** El mínimo del envío gratis al resto del país, de Config; 0 o sin el dato, no se anuncia. */
   envioGratisDesde?: number;
   /** El mínimo del envío gratis en AMBA, de Config; 0 o sin el dato, no se anuncia. */
@@ -40,6 +48,7 @@ export function anunciosDelHeader(datos: {
   const envio = anuncioDelEnvio(datos.envioGratisDesde ?? 0, datos.envioGratisAmbaDesde ?? 0);
   const anuncios = [
     datos.duo ? TEXTOS.programa.duo.regla(datos.duo) : "",
+    datos.credito ? TEXTOS.programa.credito.barra(datos.credito.unAnteojo, datos.credito.varios) : "",
     escala.length > 0 ? `${escala.map((t) => nombreDelTramo(t)).join(" · ")} en anteojos` : "",
     envio,
     datos.cuotas

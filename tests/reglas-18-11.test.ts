@@ -362,7 +362,14 @@ const PROMESAS_TERMINADAS: [string, RegExp][] = [
   ["de bienvenida", /de bienvenida/i],
   ["si sos suscriptor", /si sos suscriptor/i],
   ["desbloque…", /desbloque/i],
-  ["10% de vuelta", /\d\s?% de vuelta|de vuelta como saldo/i],
+  // El cashback de saldo de suscriptores («10% de vuelta», «de vuelta como
+  // saldo»). El Crédito Harper (Ale, 18/11/2026; solo con
+  // HARPER_CREDITO_ACTIVO=1) dice «5% de vuelta con un anteojo…» y «5% de
+  // vuelta en Crédito Harper»: esas dos frases, y solo esas, no son la promesa
+  // que terminó (tests/credito-comunicacion.test.ts las fija). Desde la
+  // revisión de textos del 20/11/2026 la barra dice «con dos o más» y «de
+  // anteojos».
+  ["10% de vuelta", /\d\s?% de vuelta(?! con un anteojo y \S+ con dos o más, para tu próxima compra de anteojos$| en Crédito Harper$)|de vuelta como saldo/i],
 ];
 
 /** Todas las hojas de TEXTOS con su ruta; las funciones, llamadas con datos de ejemplo (como en tests/portada.test.ts). */
@@ -519,6 +526,26 @@ test("Reglas del 18/11: con el Dúo prendido la barra y las preguntas lo anuncia
   assert.ok(todos.some((t) => /Las cuotas y el envío son los mismos para todos, con cuenta o sin cuenta\./.test(t)));
 });
 
+test("Reglas del 18/11: con el Crédito Harper prendido, la barra y las preguntas lo anuncian sin revivir lo que terminó (ni cashback de saldo, ni cuotas de suscriptor)", () => {
+  // Ale, 18/11/2026: el Crédito Harper reemplaza al cashback de saldo. Sus
+  // textos salen con los números del motor y no dicen «saldo» ni «suscriptor».
+  const credito = { unAnteojo: 5, varios: 10, dias: 30, meses: 6 };
+  const barra = anunciosDelHeader({ banner: "", cuotas: TRES_CUOTAS, duo: 25, credito, envioGratisDesde: 250_000, envioGratisAmbaDesde: 60_000 });
+  const preguntas = preguntasDePortada({ ...BASE_PREGUNTAS, duo: DUO_PREGUNTAS, credito }).flatMap((p) => [p.pregunta, p.respuesta, p.enlace?.texto ?? ""]);
+  const delCredito = [...barra, ...preguntas].filter((t) => /Cr[eé]dito Harper/.test(t));
+  assert.ok(delCredito.length >= 2, "la barra y su pregunta");
+  for (const texto of [...barra, ...preguntas]) {
+    for (const [nombre, patron] of PROMESAS_TERMINADAS) assert.doesNotMatch(texto, patron, `«${nombre}» en «${texto}»`);
+    assert.doesNotMatch(texto, /Suscriptores Harper|6 cuotas|12 cuotas/i, texto);
+  }
+  for (const texto of delCredito) assert.doesNotMatch(texto, /saldo|suscript|cashback/i, texto);
+  // Va después del Dúo y antes del envío gratis.
+  assert.deepEqual(barra.slice(0, 2), [
+    "Dúo: llevá dos anteojos y el de menor precio tiene 25% OFF",
+    "Crédito Harper: 5% de vuelta con un anteojo y 10% con dos o más, para tu próxima compra de anteojos",
+  ]);
+});
+
 test("Reglas del 18/11: los textos de antes que siguen en TEXTOS (cupón de bienvenida, envío gratis siempre, cuotas de suscriptor) no se usan en ninguna página ni componente", () => {
   // Las claves que quedaron «sin uso» hasta la limpieza (lib/textos.ts). Las
   // promesas terminadas pueden estar solo ahí: en ninguna clave viva.
@@ -600,9 +627,12 @@ test("Reglas del 18/11: los textos de antes que siguen en TEXTOS (cupón de bien
 test("Reglas del 18/11: las páginas que anuncian el Dúo (barra, tarjetas, portada, preguntas y Términos) toman el dato del interruptor del servidor, y sin el dato no dibujan nada", async () => {
   const raiz = path.resolve(__dirname, "..", "..");
   const leer = (ruta: string) => fs.readFileSync(path.join(raiz, ruta), "utf8");
+  // Los comentarios de JSX (`{/* … *\/}`) sin otro cierre adentro: si no, un
+  // `{` seguido de un comentario de tipo se come el código hasta el próximo
+  // «*\/ }» (pasaba en components/checkout/FormularioCheckout.tsx).
   const sinComentarios = (codigo: string) =>
     codigo
-      .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "")
+      .replace(/\{\s*\/\*(?:(?!\*\/)[\s\S])*\*\/\s*\}/g, "")
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
 

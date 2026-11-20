@@ -6,6 +6,9 @@ import EventoPixel from "@/components/EventoPixel";
 import Medir from "@/components/Medir";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { getConfig } from "@/lib/config";
+import { DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO } from "@/lib/credito-harper";
+import { precio as formatearPrecio } from "@/lib/formato";
+import { TEXTOS } from "@/lib/textos";
 import { buscarPedido } from "@/lib/pedidos";
 import { datosDeCompra, idEventoCompra } from "@/lib/pixel";
 import { ESTADOS_CONFIRMADOS } from "@/lib/webhook-decision";
@@ -65,6 +68,13 @@ export default async function Gracias({
     ? enlaceWhatsApp(config.whatsapp, mensajeGraduadosPedido(pedido?.numero ?? numero))
     : null;
 
+  // Crédito Harper (Ale, 18/11/2026): con el pago confirmado, cuánto sumó la
+  // compra, que queda pendiente y cuándo se libera y vence. `creditoGanado`
+  // existe solo con HARPER_CREDITO_ACTIVO prendido, en un pedido del régimen
+  // nuevo y si suma algo (lib/pedidos.ts, buscarPedido): apagado, nada. Solo
+  // el importe: el número de pedido se puede adivinar.
+  const creditoGanado = confirmado && pedido?.creditoGanado ? pedido.creditoGanado : null;
+
   return (
     <>
     {/* Purchase solo con el pago confirmado en Airtable. Mismo event_id que
@@ -122,6 +132,10 @@ export default async function Gracias({
           </p>
 
           {!confirmado ? <EsperarPago /> : null}
+
+          {creditoGanado ? (
+            <p>{TEXTOS.programa.credito.gracias(formatearPrecio(creditoGanado), DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO)}</p>
+          ) : null}
 
           {enlaceGraduados ? (
             <div className="invitacion-graduados">

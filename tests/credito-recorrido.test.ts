@@ -45,7 +45,9 @@ import {
 import { cerrojoEnMemoria, reiniciarRedis } from "../lib/fixtures/redis";
 import { interceptar, reiniciar, RespuestaFixture } from "../lib/fixtures/servidor";
 import type { PagoMP } from "../lib/mercadopago";
-import { itemsDelPedido, notasDelPedido, resolverCarrito } from "../lib/pedidos";
+import { venceEl } from "../lib/credito-harper";
+import { precio } from "../lib/formato";
+import { buscarPedido, itemsDelPedido, notasDelPedido, resolverCarrito } from "../lib/pedidos";
 import { fechaArgentina, sumarDias } from "../lib/suscriptores";
 import { COOKIE_CUENTA, claveDeSesionCuenta, crearSesionCuenta } from "../lib/suscriptores-sesion";
 import { confirmarPedidoSinPago } from "../lib/suscriptores-sin-pago";
@@ -251,6 +253,9 @@ test("Recorrido completo: compra con Dúo → pago → pendiente → entrega →
   assert.equal((await ganadoDe(a.numero))!.estado, "Disponible");
   const billetera = await billeteraDeLaCuenta({ tipo: "comprador", email: MAIL }, { hoy: new Date(t.reloj.t) });
   assert.equal(billetera.disponible, pendiente.monto);
+  // Ale, 18/11/2026: vence a los 6 meses de calendario del día en que quedó disponible.
+  assert.deepEqual(billetera.proximoVencimiento, { monto: pendiente.monto, venceEl: venceEl(sumarDias(a.hoy, 30)) });
+  assert.deepEqual((await creditoParaElCarrito(peticionCon(MAIL), true))?.proximoVencimiento, billetera.proximoVencimiento, "el carrito dice lo mismo");
 
   // 5. Compra nueva con el crédito: solo sobre el anteojo, nunca el paño.
   const b = await comprar(t, [linea("obsidiana"), linea("pano-alta-densidad")], { conCredito: true });
@@ -448,7 +453,10 @@ test("Pago rechazado y compra abandonada: la reserva sigue mientras el link cobr
 
 // ---------- 6. Reembolsos ----------
 
-test("Reembolsos: la compra con crédito se reembolsa (su crédito se anula, el uso queda «A revisar» y se avisa); la primera, con el crédito ya gastado (no se recupera solo, nunca negativo)", async () => {
+// Regla del 20/11/2026 (propuesta a Ale, a favor del comprador): el reembolso
+// total devuelve solo el crédito usado en la compra. Antes el uso quedaba «A
+// revisar» y decidía Harper.
+test("Reembolsos: la compra con crédito se reembolsa (su crédito se anula y el crédito usado vuelve solo, con 6 meses nuevos); la primera, con el crédito ya gastado (lo devuelto lo cubre: nunca negativo ni doble)", async () => {
   const t = tienda();
   const linea = await lineas();
   const { c: a, monto } = await creditoDisponible(t, [linea("amatista"), linea("cuarzo")]);
@@ -461,18 +469,34 @@ test("Reembolsos: la compra con crédito se reembolsa (su crédito se anula, el 
   const reembolsoB = await avisar(t, pagoB.id);
   assert.equal(reembolsoB.status, 200);
   assert.deepEqual(reembolsoB.cuerpo.credito, { accion: "anular", estado: "anulado" });
+  assert.deepEqual(reembolsoB.cuerpo.creditoUsado, { accion: "devolver", estado: "devuelto" });
   assert.equal((await ganadoDe(b.numero))!.estado, "Anulado", "el crédito de B no nace");
-  assert.equal((await usoDe(b.numero))!.estado, "A revisar", "el crédito usado no vuelve solo (regla pendiente)");
-  assert.ok(t.mails.some((m) => m.asunto === `REVISAR Crédito Harper usado — pedido ${b.numero}`));
-  assert.equal((await leerSaldoDeCredito(MAIL, t.uso)).usable, 0);
+  const hoy = fechaArgentina(new Date(t.reloj.t));
+  const usoB = (await usoDe(b.numero))!;
+  assert.deepEqual([usoB.estado, usoB.disponibleDesde], ["Devuelto", hoy], "el crédito usado vuelve solo, desde el día del reembolso");
+  // A Harper le llega un aviso que no le pide nada (sin «REVISAR»).
+  const aviso = t.mails.find((m) => m.asunto === `Crédito Harper devuelto — pedido ${b.numero}`);
+  assert.ok(aviso);
+  assert.match(aviso.texto, /Ese crédito volvió solo a la cuenta: se puede usar desde el .* \(6 meses nuevos\)\. Quedó «Devuelto» en Créditos\. No tenés que hacer nada\./);
+  assert.ok(!t.mails.some((m) => m.asunto === `REVISAR Crédito Harper usado — pedido ${b.numero}`));
+  const trasB = await leerSaldoDeCredito(MAIL, t.uso);
+  assert.equal(trasB.usable, monto, "lo puede volver a usar");
+  assert.deepEqual(trasB.proximoVencimiento, { monto, venceEl: venceEl(hoy) }, "con 6 meses nuevos desde hoy");
+  // Otro aviso del mismo reembolso: nada más (ni otro crédito, ni otro mail).
+  const mailsAntes = t.mails.length;
+  assert.deepEqual((await avisar(t, pagoB.id)).cuerpo.creditoUsado, { accion: "devolver", estado: "ya" });
+  assert.equal(t.mails.length, mailsAntes);
+  assert.equal((await leerSaldoDeCredito(MAIL, t.uso)).usable, monto);
 
-  // Reembolso total de A, cuyo crédito ya se gastó en B.
+  // Reembolso total de A, cuyo crédito ya se gastó en B: queda «A revisar» y
+  // el uso de B se queda sin respaldo; lo que volvió de B lo cubre. En neto la
+  // cuenta queda en 0: ni negativa ni con el mismo crédito dos veces.
   const pagoA = [...t.pagos.entries()].find(([, p]) => p.external_reference === a.pedido.id)![0];
   t.pagos.set(pagoA, { ...t.pagos.get(pagoA)!, status: "refunded", transaction_amount_refunded: a.carrito.total } as PagoMP);
   const reembolsoA = await avisar(t, pagoA);
   assert.deepEqual(reembolsoA.cuerpo.credito, { accion: "anular", estado: "a-revisar" }, "ya disponible: «A revisar», no se anula solo");
   const s = await leerSaldoDeCredito(MAIL, t.uso);
-  assert.deepEqual([s.ganado, s.usado, s.usable, s.sobregiro], [0, monto, 0, monto], "nunca negativo; el gastado no se recupera solo");
+  assert.deepEqual([s.ganado, s.devuelto, s.usado, s.usable, s.sobregiro], [monto, monto, monto, 0, 0], "nunca negativo; el gastado no se cuenta dos veces");
 });
 
 // ---------- 7. Arrepentimiento e incidencias internas ----------
@@ -570,4 +594,55 @@ test("Fallos y recuperación: sin Redis, Airtable caído al anotar y Mercado Pag
   t.diario.mp = mpReal;
   assert.deepEqual((await diaDeControl(t, sumarDias(a.hoy, 31))).liberados.map((l) => l.pedido), [a.numero]);
   assert.equal((await ganadoDe(a.numero))!.estado, "Disponible");
+});
+
+// ---------- Lo que suma la compra (Ale, 18/11/2026) ----------
+
+test("Lo que el carrito dice que suma la compra es lo que anota el webhook, lo que dice el mail y lo que muestra /gracias: con tarjeta y con dinero en Mercado Pago, con uno y con dos anteojos", async () => {
+  const t = tienda();
+  const linea = await lineas();
+  const casos = [
+    { nombre: "un anteojo con tarjeta", items: [linea("amatista")], medio: "tarjeta", monto: 4_495 },
+    { nombre: "un anteojo con dinero en Mercado Pago", items: [linea("obsidiana")], medio: "dineroMP", monto: 4_046 },
+    { nombre: "dos anteojos (Dúo) y un estuche, con tarjeta", items: [linea("amatista"), linea("cuarzo"), linea("r100")], medio: "tarjeta", monto: 15_733 },
+    { nombre: "dos anteojos (Dúo) con dinero en Mercado Pago", items: [linea("obsidiana"), linea("cuarzo")], medio: "dineroMP", monto: 14_159 },
+  ] as const;
+  for (const caso of casos) {
+    // Antes de pagar: lo que el carrito (y el checkout, con el medio elegido) dice que suma.
+    const carrito = await resolverCarrito([...caso.items], { paraCobrar: true });
+    assert.ok(carrito.creditoPrevisto && carrito.dineroMP, caso.nombre);
+    const previsto = caso.medio === "dineroMP" ? carrito.creditoPrevisto.dineroMP : carrito.creditoPrevisto.mercadoPago;
+    assert.equal(previsto, caso.monto, caso.nombre);
+    // El checkout guarda los renglones que cobra (app/api/checkout/route.ts): con dinero en Mercado Pago, los de ese 10 %.
+    const cobro =
+      caso.medio === "dineroMP"
+        ? { items: carrito.dineroMP.items, subtotal: carrito.dineroMP.subtotal, total: carrito.dineroMP.subtotal + carrito.envio }
+        : { items: carrito.items, subtotal: carrito.subtotal, total: carrito.total };
+    const numero = `HARPER-RQ${++secuencia}`;
+    if (!clientes.has(MAIL)) clientes.set(MAIL, (await createRecord<{ Email?: string }>(TABLAS.clientes, { Email: MAIL })).id);
+    const pedido = await createRecord<Record<string, unknown>>(TABLAS.pedidos, {
+      Numero: numero,
+      Estado: "pendiente",
+      Cliente: [clientes.get(MAIL)!],
+      Items: itemsDelPedido(cobro.items),
+      Subtotal: cobro.subtotal,
+      Envio: carrito.envio,
+      Total: cobro.total,
+      Notas: notasConRegimen(notasDelPedido(null, cobro.items)),
+    });
+    // El pago, por el webhook de verdad.
+    const id = String(++idPago);
+    t.pagos.set(id, { id: Number(id), status: "approved", external_reference: pedido.id, transaction_amount: cobro.total, payer: { email: MAIL } } as PagoMP);
+    const r = await procesarNotificacion(id, t.webhook);
+    assert.equal(r.status, 200, caso.nombre);
+    assert.deepEqual(r.cuerpo.credito, { accion: "registrar", estado: "creado" }, caso.nombre);
+    // Lo que se anota: el mismo importe, pendiente.
+    const fila = (await ganadoDe(numero))!;
+    assert.deepEqual([fila.estado, fila.monto], ["Pendiente", caso.monto], caso.nombre);
+    // El mail al comprador y /gracias dicen lo mismo.
+    const mail = t.mails.find((m) => m.para === MAIL && m.texto.includes(numero));
+    assert.ok(mail, `${caso.nombre}: el mail al cliente`);
+    assert.ok(mail.texto.includes(`Con esta compra sumaste ${precio(caso.monto)} de Crédito Harper para tu próxima compra de anteojos.`), `${caso.nombre}: ${mail.texto}`);
+    assert.equal((await buscarPedido(numero))?.creditoGanado, caso.monto, `${caso.nombre}: /gracias`);
+  }
 });
