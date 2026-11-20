@@ -139,7 +139,7 @@ fidelización por llevar un solo anteojo.
 - Se genera pendiente al acreditarse el pago.
 - Pasa a disponible 30 días después de la entrega confirmada, sin
   devoluciones ni incidencias pendientes.
-- El crédito nuevo no vence, por ahora.
+- El crédito nuevo vence a los 6 meses del día en que quedó disponible (Ale, 18/11/2026).
 
 **Clientes anteriores:** se mantienen sus derechos y saldos (§11).
 
@@ -617,7 +617,7 @@ No son datos medidos:
 6. **Uso del crédito nuevo:**
    - total o parcial, en compras futuras, **solo en anteojos**;
    - **no paga el envío, ni estuches ni paños**;
-   - **no vence**, por ahora.
+   - vence a los **6 meses** del día en que quedó disponible (Ale, 18/11/2026; antes «no vence, por ahora»).
 
    **Definido.**
    La fecha de entrega queda **a validar**.
@@ -738,7 +738,7 @@ Fuentes: Config, `lib/envio-gratis.ts` y `lib/rueddo.ts`.
 | Cupón de bienvenida | $ 10.000 en la primera compra de cada suscriptor | Ya no se da en las altas nuevas. Los ya dados se respetan | **Definido** |
 | Crédito | 10 % en **cada** compra como suscriptor | 10 % en **cada compra de dos o más anteojos**, sobre lo pagado en anteojos sin el crédito usado y sin tope. Un anteojo solo genera 5 % | **Definido** |
 | Cuándo se genera y cuándo se puede usar | Se anota al acreditarse el pago y se puede usar 30 días después del pago | Se crea **pendiente** al acreditarse el pago. Pasa a **disponible** 30 días después de una entrega con fecha confiable, sin devoluciones ni incidencias pendientes. Lo ya ganado sigue a 30 días del pago | **Definido**. Fecha de entrega: **a validar** |
-| En qué se usa | En cualquier producto. Puede pagar la compra entera | El crédito nuevo, solo en anteojos, total o parcial. No paga el envío, ni estuches ni paños. No vence. El saldo antiguo conserva su alcance | **Definido** (§10.3) |
+| En qué se usa | En cualquier producto. Puede pagar la compra entera | El crédito nuevo, solo en anteojos, total o parcial. No paga el envío, ni estuches ni paños. Vence a los 6 meses de quedar disponible (18/11/2026). El saldo antiguo conserva su alcance | **Definido** (§10.3) |
 | Cuotas | 3 para todos y 6 para suscriptores | Hasta 6 para todos los compradores, sin suscribirse ni registrarse, en primera compra y recompras, cuando Mercado Pago las confirma | **Definido** |
 | Envío | Suscriptor: siempre gratis. El resto: según los umbrales | Para todos: gratis en AMBA desde $ 60.000 y en el país desde $ 150.000. Si no, lo paga el cliente | **Definido** |
 | 10 % por dinero en Mercado Pago | Se suma a todo | Se mantiene igual | **Definido**. Llega al 22 % (§8) |
@@ -1071,8 +1071,8 @@ pago, como se aceptó.
   (definido);
 - **no paga el envío** (definido);
 - **no paga estuches ni paños** (definido);
-- **no vence**, por ahora (definido). El modelo ya supone que se usa entero:
-  no cuenta con que venza;
+- vence a los **6 meses** del día en que quedó disponible (Ale, 18/11/2026; antes «no vence, por ahora»). Se usa primero el que vence antes. El modelo sigue suponiendo
+  que se usa entero: no cuenta con lo que venza;
 - no se cambia por dinero ni se transfiere, como hoy.
 
 **El saldo ganado con las reglas de hoy conserva su alcance.** No se

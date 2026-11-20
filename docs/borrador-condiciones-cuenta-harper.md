@@ -66,7 +66,7 @@ Con cuenta o sin cuenta:
     - pasa a **disponible** 30 días después de la entrega confirmada, si no hay una devolución, un cambio, un reclamo ni un contracargo abiertos de esa compra;
     - mientras falte la confirmación de entrega o haya algo abierto, sigue pendiente.
 - **En qué se usa:** en tus próximas compras en harper.ar, solo en anteojos, todo o una parte. No paga el envío, los estuches ni los paños. En el checkout elegís si lo usás.
-- **Vencimiento:** no vence. **[Revisión legal: el plan dice «no vence, por ahora». Hay que definir cómo se dice, por si en el futuro se fija un vencimiento.]**
+- **Vencimiento:** a los 6 meses del día en que quedó disponible (Ale, 18/11/2026). Lo publicado está en /legales/suscriptores#credito.
 - **No se cambia** por dinero ni se transfiere a otra persona.
 - **Orden de los descuentos:**
     1. el Dúo, y los descuentos de estuches y paños;
