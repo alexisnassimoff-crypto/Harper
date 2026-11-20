@@ -10,13 +10,14 @@ import {
 import { marcarCompra } from "./clientes";
 import { getConfig } from "./config";
 import { CreditoApagado, dependenciasCredito } from "./credito-airtable";
-import { creditoActivo } from "./credito-harper";
+import { creditoActivo, creditoQueSuma } from "./credito-harper";
 import { procesarUsoDelPago, usoHayQueReintentar } from "./credito-uso";
 import {
   dependenciasPagoCredito,
   hayQueReintentar,
   procesarPagoParaCredito,
   regimenDelPedido,
+  renglonesDeItems,
   type DependenciasPagoCredito,
   type ResultadoPagoCredito,
 } from "./credito-pagos";
@@ -1080,6 +1081,14 @@ async function procesarConPedido(pago: PagoMP, pedidoId: string, deps: Dependenc
       datosFinales = await anotarBeneficios(beneficios, numero, datos, deps);
     }
 
+    // Crédito Harper (Ale, 18/11/2026: quien compra se entera después de
+    // pagar de cuánto sumó): solo con HARPER_CREDITO_ACTIVO=1, el mail del
+    // comprador dice lo que suma el pedido y nombra el crédito usado en cada
+    // renglón. Apagado no se pasa nada y el mail es el de siempre.
+    if (creditoActivo()) {
+      datosFinales = { ...datosFinales, creditoHarper: { suma: creditoParaElMail(pedido.fields, clienteRegistro?.fields.Email) } };
+    }
+
     // 3. Mails, cada uno una sola vez por pedido: quedan anotados en la marca.
     // ("mails" es el nombre que usaba una versión anterior para los dos.)
     const hecho = (nombre: string) => reclamo.pasos.includes(nombre) || reclamo.pasos.includes("mails");
@@ -1235,6 +1244,27 @@ async function anotarBeneficios(b: BeneficiosDelPedido, numero: string, datos: D
     suscriptor: { email: b.email, cupon: b.cupon, saldoUsado: b.saldoUsado, cashback: b.cashback, cashbackDesde: b.cashback > 0 ? cashbackDesde : null },
     alerta: [datos.alerta, ...alertas].filter(Boolean).join(" ") || null,
   };
+}
+
+/**
+ * El Crédito Harper que suma el pedido, para su mail de confirmación (Ale,
+ * 18/11/2026). La fila de «Créditos» la anota `conCreditoHarper` DESPUÉS de
+ * los mails, así que acá se calcula y no se lee: la misma cuenta que va a
+ * hacer al anotarlo (lib/credito-pagos.ts, `renglonesDeItems` y
+ * `creditoQueSuma` sobre los Items guardados, que son los que se cobraron). 0
+ * —y el mail no promete nada— si el pedido no es del régimen nuevo (la marca
+ * del checkout en Notas), si su cliente no tiene mail en Clientes (el crédito
+ * se anota a ese mail: sin él no se anota) o si los Items no se pueden leer.
+ * Lo llama el webhook solo con HARPER_CREDITO_ACTIVO=1.
+ */
+function creditoParaElMail(fila: Pick<FilaPedido, "Items" | "Notas">, emailCliente: string | undefined): number {
+  if (regimenDelPedido(fila.Notas).regimen !== "nuevo" || !emailCliente?.trim()) return 0;
+  try {
+    return creditoQueSuma(renglonesDeItems(fila.Items));
+  } catch (error) {
+    if (error instanceof RangeError) return 0;
+    throw error;
+  }
 }
 
 /** El cliente del pedido. Si lo borraron a mano (404), la venta sigue con lo que dice el pago. */

@@ -48,6 +48,7 @@ export default function FichaProducto({
   calificacion = null,
   pares = null,
   duo = null,
+  credito = null,
 }: {
   producto: Producto;
   tramos?: Tramo[];
@@ -77,6 +78,13 @@ export default function FichaProducto({
   pares?: { opciones: OpcionPares[]; colores: ColorDeADos[]; totales: Record<number, string> } | null;
   /** El Dúo, si está prendido (lo arma el servidor); null: la ficha de siempre. */
   duo?: DuoDeLaFicha | null;
+  /**
+   * El Crédito Harper (Ale, 18/11/2026), si el servidor lo tiene prendido: lo
+   * que suma uno de este modelo y, si se puede, dos, ya formateados (del
+   * carrito del servidor). Null: la ficha no lo nombra. La ficha no mira el
+   * interruptor: solo muestra lo que llega.
+   */
+  credito?: { uno: string; dos: string | null } | null;
 }) {
   const router = useRouter();
   const { items, agregar, cupon, abrirPanel } = useCarrito();
@@ -128,6 +136,10 @@ export default function FichaProducto({
     esAnteojo: esCategoriaDeAnteojos(producto.categoria),
     cuponPorcentaje,
   });
+  // La ficha muestra el Dúo junto al precio (con la escala de Airtable, las
+  // opciones de pares ya lo cuentan). Con él, la línea del Crédito Harper dice
+  // también lo que suman dos.
+  const mostrarDuo = !pares && Boolean(lineasDuo);
 
   // La foto de portada del color (al sol y adentro) va primera.
   const fotos = useMemo(() => fotosDeGaleria(variante), [variante]);
@@ -343,7 +355,7 @@ export default function FichaProducto({
               Mercado Pago, con centavos), precio de contado y CFTEA. Debajo,
               lo que cuesta con el dinero de la cuenta de Mercado Pago: el
               importe llega calculado del servidor. */}
-          {cuotas || precioDineroMP !== null ? (
+          {cuotas || precioDineroMP !== null || credito ? (
             <div className="cuotas-compra cuotas-compra--ficha">
               {cuotas ? (
                 <>
@@ -360,6 +372,15 @@ export default function FichaProducto({
                   {TEXTOS.programa.dineroMP.precio(formatearPrecio(precioDineroMP))}
                 </p>
               ) : null}
+              {/* El Crédito Harper (Ale, 18/11/2026), solo si el servidor lo
+                  mandó: lo que suma uno de este modelo y, cuando la ficha
+                  muestra el Dúo, lo que suman dos. */}
+              {credito ? (
+                <p style={{ fontSize: "0.8125rem" }}>
+                  {TEXTOS.programa.credito.ficha(credito.uno)}
+                  {credito.dos && mostrarDuo ? ` ${TEXTOS.programa.credito.fichaDos(credito.dos)}` : ""}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -368,9 +389,9 @@ export default function FichaProducto({
               Va adentro de este bloque para que en el celular quede debajo del
               precio y no después de comprar. Con la escala de Airtable, las
               opciones de pares ya lo cuentan. */}
-          {pares || !lineasDuo ? null : (
+          {mostrarDuo && lineasDuo ? (
             <OfertaDuo lineas={lineasDuo.lineas} detalle={lineasDuo.detalle} estilo={{ marginTop: "0.4rem" }} />
-          )}
+          ) : null}
         </div>
 
         {/* Qué se está comprando, justo debajo del precio y antes de elegir. */}

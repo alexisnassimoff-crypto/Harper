@@ -3,9 +3,10 @@ import { createRecord, ErrorAirtable, escaparFormula, getRecord, listRecords, TA
 import { ErrorCerrojo, soltarSinFallar, tomarConEspera, type Cerrojo } from "./cerrojo";
 import { esCategoriaDeAnteojos } from "./categorias";
 import { CreditoApagado, filaDelRegistro, puedeEscribirCreditos, type CamposCredito } from "./credito-airtable";
-import { saldosDeLaCuenta, type FilaCredito } from "./credito-persistencia";
+import { esFechaValida, venceEl } from "./credito-harper";
+import { creditoRetenido, vigentesPorPedido, type FilaCredito } from "./credito-persistencia";
 import { cobroCertificado, type CobroDelPedido, type LectorMercadoPago } from "./mp-cobro";
-import { MINUTOS_RESERVA, repartir } from "./suscriptores";
+import { fechaArgentina, MINUTOS_RESERVA, repartir } from "./suscriptores";
 import type { ItemResuelto } from "./tipos";
 import { ESTADOS_CONFIRMADOS } from "./webhook-decision";
 import type { Reloj } from "./webhook-lock";
@@ -30,8 +31,9 @@ import type { Reloj } from "./webhook-lock";
  * obligatorio. Adentro se lee todo de nuevo (lo ganado, lo usado y lo
  * reservado) y la reserva queda escrita antes de soltarlo: la segunda compra
  * la ve. Sin Redis no se usa crédito. Lo que se puede usar es
- *   Disponible ganado − Usado − A revisar − Reservado vigente,
- * nunca menos de 0.
+ *   Disponible ganado − Usado − A revisar − Reservado vigente − lo vencido,
+ * nunca menos de 0 (`saldoDeCredito`: cada uso se descuenta primero del
+ * crédito que vence antes; Ale, 18/11/2026).
  */
 
 export const PREFIJO_USO = "uso-credito-harper:";
@@ -193,39 +195,179 @@ export function reservaVigente(uso: FilaUso, pedido: PedidoDeUnUso | null, ahora
   return reciente;
 }
 
+/** Un crédito disponible con lo que le queda después de repartir los usos (Ale, 18/11/2026). */
+export type CreditoConSaldo = {
+  /** La fila de «Créditos». */
+  id: string;
+  pedido: string;
+  /** Lo que se ganó con ese pedido. */
+  monto: number;
+  /** Lo que queda sin usar. Si venció, es lo que se perdió. */
+  restante: number;
+  /** El día en que quedó disponible ("AAAA-MM-DD"). Null: fila sin Disponible_desde (editada a mano). */
+  disponibleDesde: string | null;
+  /** El último día en que se puede usar, inclusive ("AAAA-MM-DD"). Null: sin Disponible_desde, no vence. */
+  venceEl: string | null;
+  /** Si ya venció hoy (en Buenos Aires). */
+  vencido: boolean;
+};
+
 export type SaldoDeCredito = {
-  /** Disponible ganado (créditos en «Disponible», uno por pedido). */
+  /** Disponible ganado (créditos en «Disponible» y sin incidencia, uno por pedido), vencidos incluidos. */
   ganado: number;
   /** Usado o en revisión por un reembolso: no se puede volver a usar. */
   usado: number;
   /** Apartado por pedidos que todavía se pueden pagar. */
   reservado: number;
-  /** Lo que se puede usar ahora. Nunca negativo. */
+  /** Lo que se puede usar ahora: lo que queda en los créditos que no vencieron. Nunca negativo. */
   usable: number;
-  /** Lo ganado no alcanza para lo usado (un crédito ganado que se anuló después de usarlo): Harper revisa. */
+  /**
+   * Lo usado (y apartado) que ningún crédito ganado cubre: se usó más de lo
+   * que se ganó (un crédito ganado que se anuló después de usarlo, un pago
+   * tardío de una reserva liberada). Harper revisa. Sin vencimientos es
+   * usado + reservado − ganado, como siempre. Un crédito que vence DESPUÉS
+   * de usarse no lo genera: ese uso quedó cubierto por él (Ale, 18/11/2026).
+   */
   sobregiro: number;
   /** Hay un uso editado a mano que no se entiende: no se usa crédito hasta revisarlo. */
   bloqueado: boolean;
   /** Reservas que ya no apartan nada (se marcan «Liberado» adentro del cerrojo). */
   vencidas: FilaUso[];
+  /** Lo que venció sin usarse (Ale, 18/11/2026): ya no se puede usar. */
+  vencido: number;
+  /**
+   * El próximo vencimiento de lo que se puede usar: cuánto vence y qué día
+   * (el último en que se puede usar). Null si no queda nada que venza, o si la
+   * cuenta está bloqueada.
+   */
+  proximoVencimiento: { monto: number; venceEl: string } | null;
+  /**
+   * Cada crédito disponible (sin incidencia, uno por pedido) con lo que le
+   * queda, en el orden en que se usan: el que vence antes, primero.
+   */
+  porCredito: CreditoConSaldo[];
 };
 
+/** Para ordenar: un crédito sin fecha no vence, va al final. */
+const SIN_FECHA = "9999-12-31";
+
+/**
+ * Lo que la cuenta puede usar, el único cálculo que usan el carrito, la
+ * cotización, el checkout, la billetera, la confirmación del uso y las
+ * incidencias (Ale, 18/11/2026: todos tienen que ver el mismo número).
+ *
+ * Cómo se reparte, con el vencimiento (lib/credito-harper.ts, `venceEl`):
+ *  1. Lo ganado que cuenta: uno por pedido, en «Disponible» y sin incidencia
+ *     abierta. Se ordena por vencimiento, el que vence antes primero (y, si
+ *     vencen el mismo día, por Disponible_desde, por cuándo se anotó, por
+ *     pedido y por fila, para que dé siempre lo mismo). Sin Disponible_desde
+ *     no vence: va al final.
+ *  2. Lo usado que cuenta (Usado, A revisar y las reservas vigentes, como
+ *     siempre), en el orden en que se reservó. Cada uso se descuenta del
+ *     crédito que vence antes y que no había vencido el día del uso (el de la
+ *     reserva, en Buenos Aires: un pago que se acredita después del
+ *     vencimiento vale igual). Un uso no se descuenta nunca de un crédito que
+ *     ya había vencido cuando se hizo.
+ *  3. Lo que queda en los créditos vencidos se pierde (`vencido`); lo que
+ *     queda en los demás es lo que se puede usar (`usable`).
+ * Así lo que ya se usó nunca se vuelve sobregiro cuando vence un crédito: ese
+ * uso ya quedó cubierto por él. Lo que ningún crédito cubre es el `sobregiro`.
+ * Sin vencimientos, da exactamente lo de antes: usable = ganado − usado −
+ * reservado (nunca menos de 0) y sobregiro = lo que pasa de lo ganado.
+ */
 export function saldoDeCredito(datos: { creditos: readonly FilaCredito[]; usos: readonly FilaUso[] }, pedidos: ReadonlyMap<string, PedidoDeUnUso | null>, ahora: Date): SaldoDeCredito {
-  const ganado = saldosDeLaCuenta([], datos.creditos, ahora).credito.disponible;
-  const usado = datos.usos.filter((u) => u.estado === "Usado" || u.estado === "A revisar").reduce((t, u) => t + u.monto, 0);
+  const ahoraMs = ahora.getTime();
+  const hoy = fechaArgentina(ahora);
+
+  // 1. Lo ganado que se puede usar, el que vence antes primero.
+  const creditos = vigentesPorPedido(datos.creditos)
+    .filter((c) => c.estado === "Disponible" && !creditoRetenido(c))
+    .map((c) => {
+      const disponibleDesde = esFechaValida(c.disponibleDesde) ? c.disponibleDesde : null;
+      return {
+        fila: c,
+        monto: Number.isFinite(c.monto) ? Math.max(0, c.monto) : 0,
+        disponibleDesde,
+        venceEl: disponibleDesde ? venceEl(disponibleDesde) : null,
+      };
+    })
+    .sort(
+      (a, b) =>
+        (a.venceEl ?? SIN_FECHA).localeCompare(b.venceEl ?? SIN_FECHA) ||
+        (a.disponibleDesde ?? SIN_FECHA).localeCompare(b.disponibleDesde ?? SIN_FECHA) ||
+        a.fila.generadoEl.localeCompare(b.fila.generadoEl) ||
+        a.fila.pedido.localeCompare(b.fila.pedido) ||
+        a.fila.id.localeCompare(b.fila.id)
+    );
+  const ganado = creditos.reduce((t, c) => t + c.monto, 0);
+
+  // 2. Lo usado que cuenta, como siempre.
+  const usados = datos.usos.filter((u) => u.estado === "Usado" || u.estado === "A revisar");
+  const usado = usados.reduce((t, u) => t + u.monto, 0);
   const reservas = datos.usos.filter((u) => u.estado === "Reservado");
-  const vigentes = reservas.filter((u) => reservaVigente(u, pedidos.get(u.pedido) ?? null, ahora.getTime()));
+  const vigentes = reservas.filter((u) => reservaVigente(u, pedidos.get(u.pedido) ?? null, ahoraMs));
   const reservado = vigentes.reduce((t, u) => t + u.monto, 0);
   const bloqueado = datos.usos.some((u) => u.rota);
-  const neto = ganado - usado - reservado;
+
+  // El día de cada uso: el de su reserva. Una fecha que no se entiende, o una
+  // en el futuro, cuenta como hoy: así nunca se descuenta de un crédito vencido.
+  const usos = [...usados, ...vigentes]
+    .map((u) => {
+      const t = Date.parse(u.generadoEl);
+      const momento = Number.isFinite(t) ? Math.min(t, ahoraMs) : ahoraMs;
+      return { uso: u, momento, dia: fechaArgentina(new Date(momento)) };
+    })
+    .sort((a, b) => a.momento - b.momento || a.uso.id.localeCompare(b.uso.id));
+
+  const restantes = creditos.map((c) => c.monto);
+  let sinCubrir = 0;
+  for (const { uso, dia } of usos) {
+    let falta = Math.max(0, uso.monto);
+    for (let i = 0; i < creditos.length && falta > 0; i++) {
+      const vence = creditos[i].venceEl;
+      if (restantes[i] <= 0 || (vence !== null && dia > vence)) continue;
+      const toma = Math.min(falta, restantes[i]);
+      restantes[i] -= toma;
+      falta -= toma;
+    }
+    sinCubrir += falta;
+  }
+
+  // 3. Lo que queda: vencido o para usar.
+  const porCredito: CreditoConSaldo[] = creditos.map((c, i) => ({
+    id: c.fila.id,
+    pedido: c.fila.pedido,
+    monto: c.monto,
+    restante: restantes[i],
+    disponibleDesde: c.disponibleDesde,
+    venceEl: c.venceEl,
+    vencido: c.venceEl !== null && hoy > c.venceEl,
+  }));
+  const vencido = porCredito.filter((c) => c.vencido).reduce((t, c) => t + c.restante, 0);
+  const sinVencer = porCredito.filter((c) => !c.vencido).reduce((t, c) => t + c.restante, 0);
+  // Lo que ningún crédito pudo cubrir (una deuda: un crédito anulado después
+  // de usarlo) se descuenta de lo que quede, como siempre. Si hay deuda, los
+  // créditos sin vencer ya se usaron enteros para cubrirla.
+  const usable = bloqueado ? 0 : Math.max(0, sinVencer - sinCubrir);
+
+  const porVencer = porCredito.filter((c) => !c.vencido && c.restante > 0 && c.venceEl !== null);
+  const primero = porVencer[0]?.venceEl ?? null;
+  const proximoVencimiento =
+    !bloqueado && usable > 0 && primero !== null
+      ? { monto: porVencer.filter((c) => c.venceEl === primero).reduce((t, c) => t + c.restante, 0), venceEl: primero }
+      : null;
+
   return {
     ganado,
     usado,
     reservado,
-    usable: bloqueado ? 0 : Math.max(0, neto),
-    sobregiro: Math.max(0, -neto),
+    usable,
+    sobregiro: sinCubrir,
     bloqueado,
     vencidas: reservas.filter((u) => !vigentes.includes(u)),
+    vencido,
+    proximoVencimiento,
+    porCredito,
   };
 }
 
@@ -239,15 +381,19 @@ export type DependenciasUso = {
   esperaOcupadoMs?: number;
 };
 
-/** Lee la cuenta y el estado de los pedidos con reservas. Solo lectura. */
-export async function leerSaldoDeCredito(
-  email: string,
-  deps: Pick<DependenciasUso, "almacen" | "pedidos" | "reloj">
-): Promise<SaldoDeCredito & { usos: FilaUso[]; creditos: FilaCredito[] }> {
+type SaldoLeido = SaldoDeCredito & { usos: FilaUso[]; creditos: FilaCredito[] };
+
+/** La cuenta, el estado de los pedidos con reservas y lo que se puede usar. Solo lectura. */
+async function leerCuenta(email: string, deps: Pick<DependenciasUso, "almacen" | "pedidos" | "reloj">): Promise<{ saldo: SaldoLeido; pedidos: Map<string, PedidoDeUnUso | null> }> {
   const datos = await deps.almacen.cuenta(email);
   const conReserva = [...new Set(datos.usos.filter((u) => u.estado === "Reservado").map((u) => u.pedido))];
   const pedidos = new Map(await Promise.all(conReserva.map(async (n) => [n, await deps.pedidos.porNumero(n)] as const)));
-  return { ...saldoDeCredito(datos, pedidos, new Date(deps.reloj.ahora())), usos: datos.usos, creditos: datos.creditos };
+  return { saldo: { ...saldoDeCredito(datos, pedidos, new Date(deps.reloj.ahora())), usos: datos.usos, creditos: datos.creditos }, pedidos };
+}
+
+/** Lee la cuenta y el estado de los pedidos con reservas. Solo lectura. */
+export async function leerSaldoDeCredito(email: string, deps: Pick<DependenciasUso, "almacen" | "pedidos" | "reloj">): Promise<SaldoLeido> {
+  return (await leerCuenta(email, deps)).saldo;
 }
 
 // ---------- El cerrojo de la cuenta ----------
@@ -305,11 +451,11 @@ export async function abrirCuentaDeCredito(email: string, deps: DependenciasUso)
     if (deps.reloj.ahora() - inicio > TTL_CUENTA_CREDITO_MS - MARGEN_CUENTA_MS) throw new ErrorCerrojo("La llave de la cuenta pudo vencer: no se escribe y se reintenta");
   };
   try {
-    let leido = await leerSaldoDeCredito(mail, deps);
+    let { saldo: leido, pedidos } = await leerCuenta(mail, deps);
     for (const vencida of leido.vencidas) {
       await deps.almacen.actualizar(vencida.id, { estado: "Liberado", notas: conNota(vencida, deps.reloj.ahora(), "Liberado: el pedido no se pagó a tiempo.") });
     }
-    if (leido.vencidas.length > 0) leido = await leerSaldoDeCredito(mail, deps);
+    if (leido.vencidas.length > 0) ({ saldo: leido, pedidos } = await leerCuenta(mail, deps));
 
     const cuenta: CuentaTomada = {
       get saldo() {
@@ -330,7 +476,11 @@ export async function abrirCuentaDeCredito(email: string, deps: DependenciasUso)
           generadoEl: new Date(ahora).toISOString(),
           notas: linea(ahora, `Reservado: ${monto} para el pedido ${n}, mientras se paga.`),
         });
-        leido = { ...leido, usable: leido.usable - monto, reservado: leido.reservado + monto, usos: [...leido.usos, uso] };
+        // Con la reserva nueva se vuelve a repartir (Ale, 18/11/2026): se
+        // descuenta del crédito que vence antes, y el próximo vencimiento y lo
+        // que queda de cada crédito siguen siendo los de verdad.
+        const usos = [...leido.usos, uso];
+        leido = { ...saldoDeCredito({ creditos: leido.creditos, usos }, pedidos, new Date(ahora)), usos, creditos: leido.creditos };
         return uso;
       },
       async confirmar(numero) {

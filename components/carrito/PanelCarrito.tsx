@@ -18,6 +18,7 @@ import { useCarrito } from "./CarritoContexto";
 import LineaCarrito from "./LineaCarrito";
 import { useCarritoResuelto } from "./useCarritoResuelto";
 import CuotasDelCarrito from "./CuotasDelCarrito";
+import CreditoQueSuma from "./CreditoQueSuma";
 import { Fila } from "./VistaCarrito";
 import FilasDescuento from "./FilasDescuento";
 
@@ -278,6 +279,9 @@ function Resumen({
       {/* Debajo del total: las cuotas confirmadas para ese importe (las mismas
           para todos) y lo que cuesta con dinero en Mercado Pago. */}
       <CuotasDelCarrito datos={datos} monto={resumen.total - resumen.envio} />
+      {/* El Crédito Harper que suma esta compra (Ale, 18/11/2026), con
+          tarjeta o Mercado Pago: solo si el servidor lo mandó. */}
+      <CreditoQueSuma monto={datos.creditoPrevisto?.mercadoPago} />
 
       <Link href="/checkout" className="boton boton--bloque">
         Finalizar compra

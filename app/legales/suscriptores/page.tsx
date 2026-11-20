@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
-import { VERSION_CONDICIONES_SUSCRIPTORES, versionTerminosLegible } from "@/lib/legales";
+import { creditoActivo, DIAS_PARA_LIBERAR_CREDITO, PORCENTAJE_CREDITO_UN_ANTEOJO, PORCENTAJE_CREDITO_VARIOS } from "@/lib/credito-harper";
+import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
+import { VERSION_CONDICIONES_CREDITO, VERSION_CONDICIONES_SUSCRIPTORES, versionTerminosLegible } from "@/lib/legales";
 import { VIGENCIA_CODIGO_MS } from "@/lib/reconocer-cliente";
 import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
 
@@ -25,7 +27,42 @@ import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
  * (lib/suscriptores-sesion.ts) y el código (lib/reconocer-cliente.ts). Cada
  * alta guarda la versión que aceptó (lib/legales.ts): si cambian estas
  * condiciones, se cambia esa fecha en el mismo commit.
+ *
+ * Ale, 18/11/2026: las condiciones del Crédito Harper van en su propia
+ * sección («Crédito Harper», #credito, al final), que se arma SOLO si el
+ * servidor tiene el crédito prendido (HARPER_CREDITO_ACTIVO, `creditoActivo()`
+ * de lib/credito-harper.ts). Apagado, la página es la de siempre y no lo nombra
+ * en ningún lado. La sección dice lo que hace el código: los porcentajes y los
+ * días salen de lib/credito-harper.ts; la base, del cobro (lib/pedidos.ts y
+ * lib/credito-uso.ts, `aplicarCreditoHarper`); las devoluciones, de
+ * lib/credito-pagos.ts, lib/credito-persistencia.ts y lib/credito-uso.ts
+ * (`revisarUsoPorReembolso`). No dice qué se reintegra si se devuelve un
+ * anteojo de un Dúo: Ale todavía no lo decidió. Tiene su propia versión
+ * (VERSION_CONDICIONES_CREDITO), que se muestra en la sección: el texto
+ * publicado cambia cuando se prende el interruptor, y la versión de la cuenta
+ * que guarda cada alta no cambia.
  */
+
+// Ale, 18/11/2026: el crédito vence a los 6 meses del día en que quedó
+// disponible. lib/credito-harper.ts todavía no exporta esa cantidad: cuando
+// exporte MESES_PARA_VENCER_CREDITO, se importa de ahí y se borra esta.
+const MESES_PARA_VENCER_CREDITO = 6;
+
+/**
+ * El ejemplo del vencimiento, armado con la misma regla: un crédito disponible
+ * desde un 31 de octubre vence el mismo día, MESES_PARA_VENCER_CREDITO meses
+ * después, o el último día de ese mes si no lo tiene (con 6: el 30 de abril).
+ * Solo arma el texto; el vencimiento de verdad lo calcula el servidor.
+ */
+function ejemploDeVencimiento(meses: number): { desde: string; vence: string } {
+  const legible = (fecha: Date) => fecha.toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "UTC" });
+  const [anio, mes, dia] = [2026, 9, 31];
+  const ultimoDelMes = new Date(Date.UTC(anio, mes + meses + 1, 0, 12)).getUTCDate();
+  return {
+    desde: legible(new Date(Date.UTC(anio, mes, dia, 12))),
+    vence: legible(new Date(Date.UTC(anio, mes + meses, Math.min(dia, ultimoDelMes), 12))),
+  };
+}
 
 export const metadata: Metadata = {
   title: "Condiciones de la cuenta Harper",
@@ -51,6 +88,9 @@ export default async function CondicionesCuenta() {
       Mi Cuenta
     </Link>
   );
+  // El Crédito Harper (Ale, 18/11/2026): sus condiciones, solo si el servidor lo tiene prendido.
+  const conCredito = creditoActivo();
+  const ejemplo = ejemploDeVencimiento(MESES_PARA_VENCER_CREDITO);
 
   return (
     <>
@@ -99,6 +139,16 @@ export default async function CondicionesCuenta() {
           <strong>Tus datos y direcciones.</strong> Tu nombre, tu teléfono, tu DNI y tus direcciones de entrega, si elegís guardarlos, para no
           cargarlos de nuevo en cada compra. Los actualizás desde {miCuenta}.
         </li>
+        {/* Solo con HARPER_CREDITO_ACTIVO=1: apagado, la lista es la de siempre. */}
+        {conCredito ? (
+          <li>
+            <strong>Tu Crédito Harper.</strong> El que ganás con tus compras de anteojos y cómo lo usás. Sus condiciones están más abajo, en{" "}
+            <a href="#credito" style={subrayado}>
+              Crédito Harper
+            </a>
+            .
+          </li>
+        ) : null}
       </ul>
 
       <h2 style={h2}>5. Mails de novedades</h2>
@@ -145,6 +195,68 @@ export default async function CondicionesCuenta() {
 
       <h2 style={h2}>8. Contacto</h2>
       <p>Cualquier consulta, escribinos a {correo}.</p>
+
+      {/*
+        El Crédito Harper (Ale, 18/11/2026): solo con HARPER_CREDITO_ACTIVO=1. Apagado, ni el título ni una mención.
+        Dice lo que hace el código, nada más. Sin regla para la devolución de un anteojo de un Dúo (sin decidir).
+      */}
+      {conCredito ? (
+        <>
+          <h2 id="credito" style={h2}>
+            Crédito Harper
+          </h2>
+          <p className="apagado">
+            Versión vigente de las condiciones del Crédito Harper: {versionTerminosLegible(VERSION_CONDICIONES_CREDITO)}.
+          </p>
+          <p>
+            Con tus compras de anteojos en harper.ar ganás Crédito Harper, para usar en tus próximas compras de anteojos. Para tenerlo no
+            hace falta suscribirse a las novedades.
+          </p>
+          <ul style={lista}>
+            <li>
+              <strong>Cuánto ganás.</strong> El {PORCENTAJE_CREDITO_UN_ANTEOJO} % de lo que pagás por los anteojos si la compra tiene un
+              anteojo, y el {PORCENTAJE_CREDITO_VARIOS} % si tiene dos o más (cuentan todos los anteojos de la compra, iguales o distintos).
+              Se calcula sobre lo que pagás en dinero por los anteojos, después de los descuentos de la compra, incluido el{" "}
+              {PORCENTAJE_DINERO_MP} % por pagar con dinero en Mercado Pago si lo elegís, y se redondea al peso. No se calcula sobre el
+              envío, los estuches ni los paños, ni sobre lo que pagues con Crédito Harper o con saldo a favor.
+            </li>
+            <li>
+              <strong>Cuándo queda disponible.</strong> Cuando se acredita el pago, el crédito queda pendiente a nombre del mail con el que
+              hiciste la compra. Pasa a estar disponible {DIAS_PARA_LIBERAR_CREDITO} días después de que confirmamos la entrega del pedido,
+              siempre que la compra no tenga abierta una devolución, un cambio, un reclamo o un contracargo: si tiene alguno, sigue
+              pendiente hasta que se resuelva. Mientras está pendiente no se puede usar.
+            </li>
+            <li>
+              <strong>Cuándo vence.</strong> A los {MESES_PARA_VENCER_CREDITO} meses del día en que quedó disponible, el mismo número de
+              día; si ese mes no lo tiene, el último día del mes. Por ejemplo, el crédito disponible desde el {ejemplo.desde} vence el{" "}
+              {ejemplo.vence}. Lo podés usar hasta el día del vencimiento inclusive, en hora de Argentina; lo que no uses hasta entonces se
+              pierde. Si tenés créditos con distintos vencimientos, en cada compra se usa primero el que vence antes.
+            </li>
+            <li>
+              <strong>Cómo se usa.</strong> Solo en anteojos de harper.ar: nunca paga el envío, los estuches ni los paños. Para usarlo
+              entrás a {miCuenta} con el mail de la compra y el código que te mandamos a ese mail, y comprás con ese mismo mail. En el
+              checkout elegís si lo usás: se descuenta lo que tengas disponible hasta cubrir lo que pagás por los anteojos, y lo que sobra
+              queda para otra compra, con el mismo vencimiento. Si el pedido no se llega a pagar, el crédito que apartó vuelve a quedar
+              disponible. No se puede cambiar por dinero ni pasar a otra persona o a otro mail.
+            </li>
+            <li>
+              <strong>Devoluciones y contracargos.</strong> Si se reintegra entero el pago de la compra que generó el crédito, por una
+              devolución o por un contracargo, ese crédito se anula; si para entonces ya estaba disponible, queda en revisión y no se puede
+              usar mientras lo revisamos. Si se devuelve una compra que pagaste en parte con Crédito Harper, el crédito que usaste en ella no
+              vuelve solo: queda en revisión, sigue descontado y Harper revisa cada caso para decidir si te lo devuelve.
+            </li>
+            <li>
+              <strong>Avisos por mail.</strong> Te escribimos al mail de la compra cuando el crédito queda disponible y, si todavía te queda
+              crédito sin usar, unos días antes de que venza.
+            </li>
+            <li>
+              <strong>Dónde lo ves.</strong> En {miCuenta} ves tu crédito disponible, el pendiente y el que está en revisión, con cada
+              movimiento. Para llevarlo guardamos, con el mail de la compra, el crédito de cada pedido, su estado y cómo lo usaste, y lo
+              tratamos como dice el punto 6.
+            </li>
+          </ul>
+        </>
+      ) : null}
     </>
   );
 }

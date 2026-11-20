@@ -257,7 +257,16 @@ test("Apagado por defecto: fuera de sus módulos, solo el webhook lo mira, para 
   assert.equal(creditoActivo(), false, "en las pruebas no está prendido");
 
   const raiz = path.resolve(__dirname, "..", "..");
-  const usos: string[] = [];
+  const DESDE_EL_MOTOR = /from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)credito-harper["']/;
+  /** Los nombres que trae cada `import { … } from "…credito-harper"` del archivo (sin `type` ni alias). */
+  const nombresImportados = (texto: string) =>
+    [...texto.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)credito-harper["']/g)].flatMap((m) =>
+      m[1]
+        .split(",")
+        .map((n) => n.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0])
+        .filter(Boolean)
+    );
+  const usos = new Map<string, string[]>();
   const recorrer = (dir: string) => {
     for (const entrada of fs.readdirSync(path.join(raiz, dir), { withFileTypes: true })) {
       const relativo = path.join(dir, entrada.name);
@@ -270,7 +279,11 @@ test("Apagado por defecto: fuera de sus módulos, solo el webhook lo mira, para 
         !["credito-harper.ts", "credito-persistencia.ts", "credito-airtable.ts", "credito-pagos.ts"].some((n) => relativo === path.join("lib", n))
       ) {
         const texto = fs.readFileSync(path.join(raiz, relativo), "utf8");
-        if (/from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)credito-harper["']/.test(texto)) usos.push(relativo);
+        if (DESDE_EL_MOTOR.test(texto)) {
+          // Sin `import * as` ni importaciones por default: cada nombre a la vista.
+          assert.equal(texto.match(new RegExp(DESDE_EL_MOTOR.source, "g"))?.length, [...texto.matchAll(/import\s+(?:type\s+)?\{[^}]*\}\s*from\s+["'](?:\.\.?\/|@\/lib\/|\.\.\/lib\/)credito-harper["']/g)].length, relativo);
+          usos.set(relativo, nombresImportados(texto));
+        }
       }
     }
   };
@@ -278,10 +291,60 @@ test("Apagado por defecto: fuera de sus módulos, solo el webhook lo mira, para 
   // Y el control diario del paso 2 (lib/credito-diario.ts), la billetera de Mi Cuenta del paso 3
   // (lib/credito-cuenta.ts, solo lectura) y las incidencias del paso 5 (lib/credito-incidencias.ts),
   // detrás del mismo interruptor.
+  //
+  // Ale, 18/11/2026: el comprador tiene que saber cuánto suma ANTES de pagar,
+  // y después que queda pendiente, cuándo se libera y cuándo vence. Por eso
+  // ahora también lo leen el uso con el vencimiento (lib/credito-uso.ts), el
+  // carrito y /gracias (lib/pedidos.ts, `creditoQueSuma`), los mails
+  // (lib/mails.ts) y las pantallas que lo cuentan (la barra, las preguntas, la
+  // ficha, la portada, /gracias, la billetera de Mi Cuenta y las condiciones
+  // publicadas, app/legales/suscriptores/page.tsx). Las pantallas solo leen el
+  // interruptor y los números publicados; ninguna calcula, acredita ni cambia
+  // un cobro.
   assert.deepEqual(
-    usos,
-    [path.join("lib", "credito-cuenta.ts"), path.join("lib", "credito-diario.ts"), path.join("lib", "credito-incidencias.ts"), path.join("lib", "webhook-proceso.ts")],
+    [...usos.keys()],
+    [
+      path.join("app", "gracias", "page.tsx"),
+      path.join("app", "layout.tsx"),
+      path.join("app", "legales", "suscriptores", "page.tsx"),
+      path.join("app", "preguntas-frecuentes", "page.tsx"),
+      path.join("app", "producto", "[slug]", "ficha.tsx"),
+      path.join("components", "portada", "PortadaVitrina.tsx"),
+      path.join("components", "suscriptores", "MiCreditoHarper.tsx"),
+      path.join("lib", "credito-cuenta.ts"),
+      path.join("lib", "credito-diario.ts"),
+      path.join("lib", "credito-incidencias.ts"),
+      path.join("lib", "credito-uso.ts"),
+      path.join("lib", "mails.ts"),
+      path.join("lib", "pedidos.ts"),
+      path.join("lib", "webhook-proceso.ts"),
+    ],
     "nadie más acredita ni cambia ningún cobro"
+  );
+
+  // Qué puede traer cada uno. Las pantallas: el interruptor y los números que
+  // se publican (porcentajes, días y meses). Los módulos del servidor, además,
+  // las cuentas puras: lo que suma un pedido (`creditoQueSuma`, la misma que
+  // anota el webhook) y las fechas (`esFechaValida`, `venceEl`,
+  // `estadoDelCredito`). Lo que planea un crédito (calcularCredito,
+  // creditoAlAcreditarse, creditoTrasDevolucion, claveDelCredito) queda
+  // adentro del motor, la persistencia y el lector de pagos.
+  const PUBLICADOS = ["creditoActivo", "PORCENTAJE_CREDITO_UN_ANTEOJO", "PORCENTAJE_CREDITO_VARIOS", "DIAS_PARA_LIBERAR_CREDITO", "MESES_PARA_VENCER_CREDITO"];
+  const PUROS = [...PUBLICADOS, "creditoQueSuma", "esFechaValida", "venceEl", "estaVencido", "estadoDelCredito"];
+  for (const [archivo, nombres] of usos) {
+    assert.ok(nombres.length > 0, archivo);
+    const permitidos = archivo.startsWith("lib") ? PUROS : PUBLICADOS;
+    assert.deepEqual(
+      nombres.filter((n) => !permitidos.includes(n)),
+      [],
+      `${archivo} trae del motor algo más que ${archivo.startsWith("lib") ? "las cuentas puras" : "el interruptor y los números publicados"}`
+    );
+  }
+  // Y lo que suma un pedido lo calculan solo el carrito y /gracias (lib/pedidos.ts)
+  // y el mail del webhook: el mismo número que después se anota.
+  assert.deepEqual(
+    [...usos].filter(([, n]) => n.includes("creditoQueSuma")).map(([a]) => a),
+    [path.join("lib", "pedidos.ts"), path.join("lib", "webhook-proceso.ts")]
   );
 });
 

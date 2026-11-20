@@ -183,6 +183,41 @@ export const TEXTOS = {
       /** Va donde se dice el mínimo: el servidor lo mide antes del Dúo y del 10 % de Mercado Pago. */
       minimo: "El mínimo se cuenta con los anteojos a precio de lista.",
     },
+    /**
+     * Crédito Harper (Ale, 18/11/2026: «Orienta a que vuelvan a comprar con el
+     * Cashback»): quien compra sabe antes de pagar cuánto suma, y después que
+     * queda pendiente y cuándo se libera. Solo con HARPER_CREDITO_ACTIVO=1:
+     * apagado, ninguna de estas frases se usa. Los porcentajes, los días y los
+     * meses llegan de lib/credito-harper.ts; los importes, del servidor
+     * (`creditoQueSuma`, la misma cuenta que anota el webhook).
+     */
+    credito: {
+      /** La barra: «Crédito Harper: 5% de vuelta con un anteojo y 10% llevando dos, para tu próxima compra». Sin punto final. */
+      barra: (unAnteojo: number, varios: number) =>
+        `Crédito Harper: ${unAnteojo}% de vuelta con un anteojo y ${varios}% llevando dos, para tu próxima compra`,
+      /** La ficha, debajo del precio con dinero en Mercado Pago: «Con este anteojo sumás $ 4.495 de Crédito Harper para tu próxima compra.» */
+      ficha: (monto: string) => `Con este anteojo sumás ${monto} de Crédito Harper para tu próxima compra.`,
+      /** A continuación, solo si la ficha muestra el Dúo: «Llevando dos, sumás $ 15.733.» El importe, del carrito de dos de ese modelo. */
+      fichaDos: (monto: string) => `Llevando dos, sumás ${monto}.`,
+      /** Carrito, panel lateral y checkout, debajo del total (en el checkout, con el medio de pago elegido). */
+      carrito: (monto: string) => `Con esta compra sumás ${monto} de Crédito Harper para tu próxima compra de anteojos.`,
+      /** El renglón del resumen del checkout cuando se usa crédito: «Crédito Harper −$ 4.495». */
+      renglon: "Crédito Harper",
+      /** En el checkout, sin una cuenta abierta: «¿Tenés Crédito Harper? Entrá a tu cuenta con tu mail para usarlo.» */
+      entrarPregunta: "¿Tenés Crédito Harper?",
+      entrarEnlace: "Entrá a tu cuenta con tu mail para usarlo.",
+      /** /gracias, con el pedido confirmado. Solo el importe: el número de pedido se puede adivinar. */
+      gracias: (monto: string, dias: number, meses: number) =>
+        `Con esta compra sumaste ${monto} de Crédito Harper. Queda disponible ${dias} días después de que recibas tu pedido y vence ${meses} meses después. Lo ves en tu cuenta Harper, entrando con este mail.`,
+      /** Las preguntas frecuentes. */
+      pregunta: "¿Qué es el Crédito Harper?",
+      respuesta: (unAnteojo: number, varios: number, dias: number, meses: number) =>
+        `Es plata para tu próxima compra de anteojos en harper.ar. Te devolvemos el ${unAnteojo}% de lo que pagás en anteojos si llevás uno, y el ${varios}% si llevás dos o más. Queda disponible ${dias} días después de que recibís el pedido y vence ${meses} meses después. Se usa solo en anteojos (no paga el envío) y lo ves en tu cuenta Harper, entrando con el mail de tu compra.`,
+      condiciones: "Ver las condiciones",
+      /** La portada, en «Comprá tranquilo»: «5% de vuelta en Crédito Harper» / «10% llevando dos, para tu próxima compra». */
+      portada: (unAnteojo: number) => `${unAnteojo}% de vuelta en Crédito Harper`,
+      portadaDetalle: (varios: number) => `${varios}% llevando dos, para tu próxima compra`,
+    },
   },
   lineas: {
     titulo: "Un par para cada ocasión.",
@@ -696,9 +731,15 @@ export const TEXTOS = {
       entrarBajadaCuenta: "Escribí el mail con el que compraste y te mandamos un código. No hace falta suscribirse.",
       credito: {
         titulo: "Mi Crédito Harper",
-        bajada: "Lo ganás con tus compras de anteojos. Se usa solo en anteojos y no vence.",
+        /**
+         * Ale, 18/11/2026: el crédito vence a los 6 meses de quedar disponible
+         * (antes decía «y no vence»). Los meses, de lib/credito-harper.ts.
+         */
+        bajada: (meses: number) => `Lo ganás con tus compras de anteojos. Se usa solo en anteojos. Cada crédito vence ${meses} meses después de quedar disponible.`,
         disponible: "Disponible",
         disponibleDetalle: "Para tu próxima compra de anteojos.",
+        /** Junto a lo disponible, el vencimiento más próximo: «$ 4.495 vencen el 30/04/2027.» */
+        proximoVencimiento: (monto: string, fecha: string) => `${monto} vencen el ${fecha}.`,
         pendiente: "Pendiente",
         pendienteDetalle: "Se libera 30 días después de que recibís el pedido.",
         enRevision: "En revisión",
@@ -715,6 +756,8 @@ export const TEXTOS = {
           anulado: "Anulado",
           usado: "Usado",
           reservado: "Apartado",
+          /** Ale, 18/11/2026: venció con algo sin usar. */
+          vencido: "Vencido",
         },
         /** Paso 4: lo que se usó en una compra. «Usado en el pedido HARPER-12345AB». */
         usadoEn: (pedido: string) => `Usado en el pedido ${pedido}`,
@@ -730,7 +773,18 @@ export const TEXTOS = {
         reservadoNota: "Apartado mientras se paga ese pedido. Si no se paga, vuelve solo.",
         usoEnRevision: "Ese pedido tuvo una devolución: lo estamos revisando.",
         desde: (fecha: string) => `Se libera el ${fecha}.`,
+        /**
+         * Pendiente con el día de liberación ya pasado (Ale, 18/11/2026): la
+         * tarea diaria lo retuvo para verificarlo. No se le muestra una fecha pasada.
+         */
+        retenido: "Lo estamos verificando para liberarlo.",
         liberado: (fecha: string) => `Se liberó el ${fecha}.`,
+        /** En cada crédito disponible con algo sin usar (Ale, 18/11/2026): el último día en que se puede usar. */
+        vence: (fecha: string) => `Vence el ${fecha}.`,
+        /** Un crédito disponible que ya se usó entero: no queda nada por vencer. */
+        usadoEntero: "Ya lo usaste entero.",
+        /** Un crédito vencido con algo sin usar: «Venció el 30/04/2027 con $ 1.200 sin usar.» */
+        vencio: (fecha: string, monto: string) => `Venció el ${fecha} con ${monto} sin usar.`,
         sinEntrega: "Se libera 30 días después de la entrega.",
         conGestion: "Hay una gestión abierta sobre este pedido: se libera cuando se resuelva.",
         anulado: "El pedido se canceló o se devolvió.",

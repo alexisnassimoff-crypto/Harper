@@ -12,6 +12,7 @@ import type { Categoria } from "@/lib/tipos";
 import { useCarrito } from "./CarritoContexto";
 import { useCarritoResuelto } from "./useCarritoResuelto";
 import CuotasDelCarrito from "./CuotasDelCarrito";
+import CreditoQueSuma from "./CreditoQueSuma";
 import LineaCarrito from "./LineaCarrito";
 import SugerenciasCarrito from "./SugerenciasCarrito";
 import AyudaWhatsApp from "@/components/checkout/AyudaWhatsApp";
@@ -170,6 +171,9 @@ export default function VistaCarrito({ whatsapp = "" }: { whatsapp?: string }) {
         {/* Debajo del total: las cuotas confirmadas para ese importe (las mismas
             para todos) y lo que cuesta con dinero en Mercado Pago. */}
         <CuotasDelCarrito datos={datos} monto={resumen.total - resumen.envio} />
+        {/* El Crédito Harper que suma esta compra (Ale, 18/11/2026), con
+            tarjeta o Mercado Pago: solo si el servidor lo mandó. */}
+        <CreditoQueSuma monto={datos.creditoPrevisto?.mercadoPago} />
 
         <Link href="/checkout" className="boton boton--bloque">
           Finalizar compra

@@ -223,8 +223,29 @@ test("Crédito pendiente, disponible, en revisión y anulado: cada uno en su lug
     ]
   );
   assert.equal(b.movimientos.find((m) => m.pedido === "HARPER-B1")?.fecha, "2026-09-28", "el día en Buenos Aires");
+  // El vencimiento de cada uno (Ale, 18/11/2026): 6 meses de calendario desde
+  // Disponible_desde. En el pendiente, el previsto; sin fecha o anulado, ninguno.
+  assert.deepEqual(
+    b.movimientos.map((m) => [m.pedido, m.venceEl, m.restante]),
+    [
+      ["HARPER-B5", null, null],
+      ["HARPER-B2", "2027-06-20", null],
+      ["HARPER-B3", null, null],
+      ["HARPER-B4", null, null],
+      ["HARPER-B1", "2027-04-30", 4_495],
+    ]
+  );
+  assert.equal(b.vencido, 0);
+  assert.deepEqual(b.proximoVencimiento, { monto: 4_495, venceEl: "2027-04-30" }, "31/10 + 6 meses: el 30/04, porque abril no tiene 31");
   // Sin créditos: todo en cero y sin movimientos (eso sí es un $ 0 real).
-  assert.deepEqual(await billeteraDeLaCuenta({ tipo: "comprador", email: "sin@ejemplo.com" }, { hoy: new Date(AHORA) }), { disponible: 0, pendiente: 0, enRevision: 0, movimientos: [] });
+  assert.deepEqual(await billeteraDeLaCuenta({ tipo: "comprador", email: "sin@ejemplo.com" }, { hoy: new Date(AHORA) }), {
+    disponible: 0,
+    pendiente: 0,
+    enRevision: 0,
+    vencido: 0,
+    proximoVencimiento: null,
+    movimientos: [],
+  });
 });
 
 test("Acceso indebido: solo los créditos del mail de la sesión; no sirve otro mail ni uno parecido", async () => {

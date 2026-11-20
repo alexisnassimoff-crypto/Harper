@@ -10,8 +10,10 @@ import {
   type MotivoSinAnotar,
   type PedidoParaCredito,
   type RenglonCobrado,
+  MESES_PARA_VENCER_CREDITO,
+  venceEl,
 } from "./credito-harper";
-import { saldoDe, type MovimientoSaldo } from "./suscriptores";
+import { fechaArgentina, saldoDe, type MovimientoSaldo } from "./suscriptores";
 
 /**
  * Crédito Harper: la persistencia (Tareas 09 y 10), lista para conectar pero
@@ -64,7 +66,12 @@ export type FilaCredito = {
   generadoEl: string;
   /** "AAAA-MM-DD": la entrega confirmada; null mientras no haya una confiable. */
   fechaEntrega: string | null;
-  /** "AAAA-MM-DD": 30 días después de la entrega. */
+  /**
+   * "AAAA-MM-DD": mientras está Pendiente, el día previsto (30 días después de
+   * la entrega). Al liberarse, el día real en que quedó disponible (si se
+   * liberó tarde, ese día: Ale, 18/11/2026). De acá corren los 6 meses del
+   * vencimiento (`venceEl`, lib/credito-harper.ts).
+   */
   disponibleDesde: string | null;
   /** Una devolución, un reclamo o un contracargo abierto. */
   incidenciaAbierta: boolean;
@@ -170,6 +177,18 @@ function vigente(filas: readonly FilaCredito[]): FilaCredito | null {
 /** La vigente o, si todas están anuladas, la última anulada. */
 export function laDelPedido(filas: readonly FilaCredito[]): FilaCredito | null {
   return vigente(filas) ?? [...filas].sort(masViejaPrimero).at(-1) ?? null;
+}
+
+/**
+ * Una fila vigente por pedido (por su clave): si un pedido quedó con dos, la
+ * más vieja; los pedidos con todo anulado no aparecen. Es la regla de
+ * `saldosDeLaCuenta`, y la usa también `saldoDeCredito` (lib/credito-uso.ts)
+ * para que la billetera, el carrito y el checkout cuenten lo mismo.
+ */
+export function vigentesPorPedido(creditos: readonly FilaCredito[]): FilaCredito[] {
+  const porPedido = new Map<string, FilaCredito[]>();
+  for (const c of creditos) porPedido.set(c.clave, [...(porPedido.get(c.clave) ?? []), c]);
+  return [...porPedido.values()].map(vigente).filter((c): c is FilaCredito => c !== null);
 }
 
 /**
@@ -360,6 +379,11 @@ export type VerificacionLiberacion = { liberar: true; nota?: string } | { libera
  * leer adentro del cerrojo del pedido; `verificar` corre ahí mismo, después
  * de esos controles y antes de escribir (la ruta diaria relee el pedido y
  * Mercado Pago, §17.9 y §18.2). Sin Redis tira `ErrorCerrojo`.
+ *
+ * Disponible_desde queda en el día real de la liberación (Ale, 18/11/2026):
+ * si se libera más tarde que el día previsto (una incidencia que se cerró, una
+ * verificación retenida, una corrida que no salió), pasa a ser ese día y la
+ * nota lo dice. Desde ahí corren los 6 meses del vencimiento.
  */
 export async function liberarCredito(
   candidata: FilaCredito,
@@ -374,8 +398,48 @@ export async function liberarCredito(
     if (estado !== "disponible") return { estado: "todavia-no", fila };
     const control: VerificacionLiberacion = opciones.verificar ? await opciones.verificar(fila) : { liberar: true };
     if (!control.liberar) return { estado: "retenido", fila, motivo: control.motivo };
-    const nueva = await d.almacen.actualizar(fila.id, { estado: "Disponible", notas: conNota(fila, d, control.nota ?? "Disponible.") });
+    const hoy = fechaArgentina(d.ahora());
+    const prevista = fila.disponibleDesde;
+    const texto = [control.nota ?? "Disponible."];
+    if (prevista !== hoy) {
+      texto.push(
+        prevista && prevista < hoy
+          ? `Liberado el ${hoy}, después del día previsto (${prevista}): Disponible_desde pasa a ${hoy}.`
+          : `Disponible_desde pasa a ${hoy}, el día real de la liberación${prevista ? ` (decía ${prevista})` : ""}.`
+      );
+    }
+    texto.push(`Vence el ${venceEl(hoy)} (${MESES_PARA_VENCER_CREDITO} meses desde que quedó disponible).`);
+    const nueva = await d.almacen.actualizar(fila.id, {
+      estado: "Disponible",
+      ...(prevista !== hoy ? { disponibleDesde: hoy } : {}),
+      notas: conNota(fila, d, texto.join(" ")),
+    });
     return { estado: "liberado", fila: nueva };
+  });
+}
+
+// ---------- 3 bis. Las marcas de los avisos al comprador ----------
+
+export type ResultadoAnotacion =
+  | { estado: "anotado" | "ya"; fila: FilaCredito }
+  /** La fila ya no es la vigente de su pedido (se anuló o era un duplicado): no se anota nada. */
+  | { estado: "sin-fila"; fila: FilaCredito | null }
+  | Ocupado;
+
+/**
+ * Deja una línea en las Notas de un crédito (Ale, 18/11/2026): las marcas de
+ * los avisos al comprador, como «Aviso de disponible enviado: 2026-11-20»,
+ * que el control diario lee para no mandar dos veces el mismo mail. Con el
+ * cerrojo del pedido, para no pisar otra nota que se escriba a la vez, y
+ * releyendo la fila adentro. Si la línea ya está, no la repite. Solo toca
+ * Notas: ni el estado, ni el monto, ni las fechas.
+ */
+export async function anotarAviso(candidata: FilaCredito, texto: string, deps: DependenciasCredito): Promise<ResultadoAnotacion> {
+  return conCerrojo(candidata.pedido, deps, async (d): Promise<ResultadoAnotacion> => {
+    const fila = vigente((await leerDepurado(candidata.pedido, d)).filas);
+    if (!fila || fila.id !== candidata.id) return { estado: "sin-fila", fila };
+    if (fila.notas.includes(texto)) return { estado: "ya", fila };
+    return { estado: "anotado", fila: await d.almacen.actualizar(fila.id, { notas: conNota(fila, d, texto) }) };
   });
 }
 
@@ -549,15 +613,19 @@ export const creditoRetenido = (f: Pick<FilaCredito, "estado" | "incidenciaAbier
  * Si un pedido tuviera dos filas vigentes, cuenta una sola (la más vieja).
  * Usar el crédito (descontarlo en una compra) es otra tarea: esto es lo que
  * se ganó, no lo que queda después de usarlo.
+ *
+ * OJO (Ale, 18/11/2026): `credito.disponible` es lo ganado en «Disponible»
+ * sin restar lo usado ni lo vencido. NO es lo que se puede usar: eso es
+ * `saldoDeCredito` (lib/credito-uso.ts), que reparte los usos y saca lo
+ * vencido, y es lo único que tienen que mostrar o cobrar el carrito, el
+ * checkout y la billetera.
  */
 export function saldosDeLaCuenta(
   movimientos: MovimientoSaldo[],
   creditos: readonly FilaCredito[],
   hoy: Date | string
 ): { anterior: { disponible: number; enCamino: number }; credito: { disponible: number; pendiente: number; aRevisar: number } } {
-  const porPedido = new Map<string, FilaCredito[]>();
-  for (const c of creditos) porPedido.set(c.clave, [...(porPedido.get(c.clave) ?? []), c]);
-  const vigentes = [...porPedido.values()].map(vigente).filter((c): c is FilaCredito => c !== null);
+  const vigentes = vigentesPorPedido(creditos);
   const suma = (cuales: (c: FilaCredito) => boolean) =>
     vigentes.filter(cuales).reduce((t, c) => t + (Number.isFinite(c.monto) ? Math.max(0, c.monto) : 0), 0);
   return {

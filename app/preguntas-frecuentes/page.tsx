@@ -13,6 +13,13 @@ import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { paresDisponibles } from "@/lib/packs";
 import { preguntasDePortada } from "@/lib/portada";
+import {
+  creditoActivo,
+  DIAS_PARA_LIBERAR_CREDITO,
+  MESES_PARA_VENCER_CREDITO,
+  PORCENTAJE_CREDITO_UN_ANTEOJO,
+  PORCENTAJE_CREDITO_VARIOS,
+} from "@/lib/credito-harper";
 
 export const revalidate = 300;
 
@@ -30,7 +37,9 @@ export const metadata: Metadata = {
  * Ale, 18/11/2026: las cuotas y el envío son los mismos para todos; la
  * pregunta de la suscripción con beneficios pasó a ser la de la cuenta y las
  * novedades, y la del Dúo aparece solo si el servidor lo tiene prendido, con
- * los importes que cobra por dos anteojos.
+ * los importes que cobra por dos anteojos. La del Crédito Harper (qué es,
+ * cuánto vuelve, cuándo queda disponible y cuándo vence), solo con
+ * HARPER_CREDITO_ACTIVO prendido, con los números del motor (lib/credito-harper.ts).
  */
 export default async function PaginaPreguntas() {
   const [productos, config, tramos] = await Promise.all([getProductos(), getConfig(), getTramos()]);
@@ -63,6 +72,10 @@ export default async function PaginaPreguntas() {
         porcentajeDineroMP: PORCENTAJE_DINERO_MP,
         duo: duoParaLasPreguntas(duo),
         cuenta: true,
+        // Null con el Crédito Harper apagado: la página no lo nombra.
+        credito: creditoActivo()
+          ? { unAnteojo: PORCENTAJE_CREDITO_UN_ANTEOJO, varios: PORCENTAJE_CREDITO_VARIOS, dias: DIAS_PARA_LIBERAR_CREDITO, meses: MESES_PARA_VENCER_CREDITO }
+          : null,
       })}
     />
   );

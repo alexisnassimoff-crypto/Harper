@@ -6,8 +6,14 @@ const nextConfig: NextConfig = {
   // página que lo anuncia y el carrito que lo cobra usan siempre el mismo,
   // sin depender de que la función de Vercel lea .env.production. No es un
   // secreto: es "1" o nada.
+  //
+  // El Crédito Harper (lib/credito-harper.ts, Ale, 18/11/2026): lo mismo con
+  // HARPER_CREDITO_ACTIVO. El webhook, el checkout, el carrito, la cuenta y la
+  // ruta diaria ven el mismo valor, el del armado. No es un secreto: es "1" o
+  // nada. Para prenderlo o apagarlo hay que volver a desplegar.
   env: {
     HARPER_DUO_ACTIVO: process.env.HARPER_DUO_ACTIVO ?? "",
+    HARPER_CREDITO_ACTIVO: process.env.HARPER_CREDITO_ACTIVO ?? "",
   },
 
   images: {

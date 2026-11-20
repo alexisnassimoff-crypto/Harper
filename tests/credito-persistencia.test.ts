@@ -17,6 +17,7 @@ import {
   MARGEN_CERROJO_MS,
   REGLAS_CREDITO,
   TTL_CREDITO_MS,
+  anotarAviso,
   anularPorPedido,
   aplicarDevolucion,
   claveCerrojoCredito,
@@ -430,11 +431,78 @@ test("Entrega confirmada: disponible 30 días después, ni un día antes", async
   irA("2026-12-10");
   assert.deepEqual((await liberarDisponibles(deps)).liberados, [DUO.numero]);
   assert.equal(almacen.filas[0].estado, "Disponible");
+  // Liberado el día previsto (Ale, 18/11/2026): Disponible_desde no cambia, y
+  // la nota dice hasta cuándo se puede usar (6 meses de calendario).
+  assert.equal(almacen.filas[0].disponibleDesde, "2026-12-10");
+  assert.match(almacen.filas[0].notas, /Vence el 2027-06-10 \(6 meses desde que quedó disponible\)\./);
+  assert.doesNotMatch(almacen.filas[0].notas, /Disponible_desde pasa a/);
   // Liberar otra vez no hace nada.
   const escrituras = almacen.escrituras;
   assert.deepEqual(await liberarDisponibles(deps), { liberados: [], ocupados: [] });
   assert.equal(almacen.escrituras, escrituras);
 });
+
+test("Liberado tarde: Disponible_desde pasa a ser el día real (en Buenos Aires) y el vencimiento corre desde ahí", async () => {
+  // Ale, 18/11/2026: los 6 meses corren desde el día en que de verdad quedó
+  // disponible. Una incidencia que se cerró tarde, una verificación retenida o
+  // una corrida que no salió no le comen tiempo al comprador.
+  const { almacen, deps, irA, avanzar } = sandbox();
+  await registrarCredito(DUO, deps);
+  await confirmarEntrega(DUO.numero, "2026-11-10", deps);
+  assert.equal(almacen.filas[0].disponibleDesde, "2026-12-10", "el día previsto");
+  await marcarIncidencia(DUO.numero, true, "reclamo abierto", deps);
+  irA("2026-12-20");
+  assert.deepEqual((await liberarDisponibles(deps)).liberados, []);
+  assert.equal(almacen.filas[0].disponibleDesde, "2026-12-10", "mientras sigue pendiente, la fecha prevista no se toca");
+  await marcarIncidencia(DUO.numero, false, "reclamo cerrado a favor de Harper", deps);
+  // Se libera el 27/12 a las 22:30 de Buenos Aires (01:30 UTC del 28/12): cuenta el 27.
+  irA("2026-12-27");
+  avanzar(10.5 * 3_600_000);
+  assert.equal(deps.ahora().toISOString(), "2026-12-28T01:30:00.000Z");
+  assert.deepEqual((await liberarDisponibles(deps)).liberados, [DUO.numero]);
+  const f = almacen.filas[0];
+  assert.equal(f.estado, "Disponible");
+  assert.equal(f.disponibleDesde, "2026-12-27");
+  assert.equal(f.fechaEntrega, "2026-11-10", "la entrega no cambia");
+  assert.match(f.notas, /Liberado el 2026-12-27, después del día previsto \(2026-12-10\): Disponible_desde pasa a 2026-12-27\. Vence el 2027-06-27 \(6 meses desde que quedó disponible\)\./);
+  // El saldo que se puede usar no cambia: solo la fecha desde la que corre.
+  assert.equal(saldosDeLaCuenta([], almacen.filas, "2026-12-27").credito.disponible, 15_733);
+});
+
+test("Las marcas de los avisos al comprador: una línea en Notas, una sola vez, solo en la fila vigente y sin tocar nada más", async () => {
+  const { almacen, cerrojo, deps, irA } = sandbox();
+  await registrarCredito({ ...DUO, fechaEntrega: "2026-11-10" }, deps);
+  irA("2026-12-10");
+  await liberarDisponibles(deps);
+  const [antes] = almacen.filas.map((f) => ({ ...f }));
+  const marca = "Aviso de disponible enviado: 2026-12-10";
+
+  const r1 = await anotarAviso(antes, marca, deps);
+  assert.equal(r1.estado, "anotado");
+  assert.equal(veces(almacen.filas[0].notas, marca), 1);
+  // Solo Notas: el estado, el monto y las fechas quedan como estaban.
+  const { notas: _n1, ...sinNotas } = almacen.filas[0];
+  const { notas: _n2, ...sinNotasAntes } = antes;
+  assert.deepEqual(sinNotas, sinNotasAntes);
+  // Otra vez (un reintento, otra corrida): «ya», sin escribir.
+  const escrituras = almacen.escrituras;
+  assert.equal((await anotarAviso(antes, marca, deps)).estado, "ya");
+  assert.equal(almacen.escrituras, escrituras);
+  assert.equal(veces(almacen.filas[0].notas, marca), 1);
+  // Con el cerrojo del pedido tomado por otro: «ocupado», sin escribir.
+  cerrojo.llaves.set(claveCerrojoCredito(DUO.numero), "otra-instancia");
+  assert.equal((await anotarAviso(antes, "Aviso de vencimiento enviado: 2027-05-27", deps)).estado, "ocupado");
+  cerrojo.llaves.clear();
+  // Una fila que no es la vigente del pedido (un duplicado ya anulado, otra fila): no se anota nada.
+  const escriturasAntes = almacen.escrituras;
+  assert.equal((await anotarAviso({ ...antes, id: "recOTRAFILA00000" }, "Aviso de vencimiento enviado: 2027-05-27", deps)).estado, "sin-fila");
+  assert.equal(almacen.escrituras, escriturasAntes);
+  assert.doesNotMatch(almacen.filas[0].notas, /Aviso de vencimiento/);
+  // Sin Redis, como todo lo demás: no se escribe.
+  await assert.rejects(anotarAviso(antes, "otra", { ...deps, cerrojo: null }), ErrorCerrojo);
+});
+
+const veces = (texto: string, que: string) => texto.split(que).length - 1;
 
 test("La fecha de entrega: la misma otra vez es «ya»; otra distinta no pisa la primera; una imposible se rechaza", async () => {
   const { almacen, deps } = sandbox();
@@ -761,13 +829,34 @@ test("Fuera de sus archivos, solo el webhook y el checkout usan el crédito (pas
     path.join("lib", "credito-incidencias.ts"),
     // El uso en el checkout (paso 4): reservas y usos en Créditos, detrás del interruptor.
     path.join("lib", "credito-uso.ts"),
+    // El carrito y /gracias (Ale, 18/11/2026: lo que suma la compra, antes y
+    // después de pagar): solo leen el régimen de las Notas y los renglones de
+    // Items, como el webhook, para contar lo mismo que se va a anotar.
+    path.join("lib", "pedidos.ts"),
     path.join("lib", "webhook-proceso.ts"),
   ]);
-  // El control diario (paso 2) solo lo usa su ruta, detrás del cron y del interruptor, y no tiene cron todavía.
+  const pedidos = fs.readFileSync(path.join(raiz, "lib", "pedidos.ts"), "utf8");
+  assert.deepEqual(
+    [...pedidos.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s+["']\.\/credito-(?:persistencia|airtable|pagos)["']/g)].map((m) => m[1].trim()),
+    ["regimenDelPedido, renglonesDeItems"],
+    "lib/pedidos.ts solo lee: ni escribe Créditos ni consulta Mercado Pago"
+  );
+  // El control diario (paso 2) solo lo usa su ruta, detrás del cron y del interruptor.
   const ruta = fs.readFileSync(path.join(raiz, "app", "api", "credito", "diario", "route.ts"), "utf8");
   assert.match(ruta, /if \(!cronAutorizado\(request\.headers\.get\("authorization"\)\)\) \{/);
   assert.match(ruta, /if \(!controlDiarioActivo\(\)\) \{/);
-  assert.doesNotMatch(fs.readFileSync(path.join(raiz, "vercel.json"), "utf8"), /credito/, "sin cron del crédito hasta el corte");
+  // Primero el secreto, después el interruptor, y recién entonces se arma y corre el control.
+  const [autorizado, prendido, arma] = ["cronAutorizado(", "controlDiarioActivo()", "dependenciasCorridaReales()"].map((t) => ruta.indexOf(t));
+  assert.ok(autorizado > 0 && autorizado < prendido && prendido < arma, "apagado, la ruta contesta sin leer ni escribir nada");
+  // El cron (20/11/2026): una vez por día, a las 10:17 UTC (7:17 en Buenos
+  // Aires). Con HARPER_CREDITO_ACTIVO apagado (hoy) o sin CRON_SECRET, la
+  // ruta no hace nada; recién al prender el interruptor libera y avisa.
+  const crons = (JSON.parse(fs.readFileSync(path.join(raiz, "vercel.json"), "utf8")) as { crons: { path: string; schedule: string }[] }).crons;
+  assert.deepEqual(
+    crons.filter((c) => /credito/.test(c.path)),
+    [{ path: "/api/credito/diario", schedule: "17 10 * * *" }],
+    "un solo cron del crédito, una vez por día"
+  );
   // El checkout solo marca el régimen en las Notas (apagado, idénticas).
   const checkout = fs.readFileSync(path.join(raiz, "app", "api", "checkout", "route.ts"), "utf8");
   assert.match(checkout, /import \{ notasConRegimen \} from "@\/lib\/credito-pagos";/);

@@ -1,10 +1,12 @@
 import { esCategoriaDeAnteojos, type Categoria } from "./categorias";
 import { fechaArgentina, sumarDias } from "./suscriptores";
+import type { ItemResuelto } from "./tipos";
 
 /**
  * Crédito Harper (Tarea 08, docs/plan-programa-harper.md §A.1 y §10): el
- * motor del cálculo, sin nada de servidor. Todavía NO lo usa ninguna parte de
- * la tienda: no acredita, no escribe en Airtable y no cambia ningún cobro.
+ * motor del cálculo, sin nada de servidor. Acá no se acredita, no se escribe
+ * en Airtable ni se cambia ningún cobro: lo usan la persistencia, el webhook,
+ * el checkout y la cuenta, todos detrás de HARPER_CREDITO_ACTIVO.
  *
  * Las reglas aprobadas (Ale, 05/11/2026):
  *  - 5 % con un anteojo; 10 % con dos o más. Cuentan los anteojos completos
@@ -23,6 +25,15 @@ import { fechaArgentina, sumarDias } from "./suscriptores";
  *    otro. Ese chequeo es sobre lo que se le pasa: la exclusión entre
  *    webhooks simultáneos la tiene que dar la persistencia (Tarea 09).
  *
+ * El vencimiento (Ale, 18/11/2026): el crédito vence a los 6 meses de quedar
+ * disponible. Son meses de calendario desde Disponible_desde (el día, en
+ * Buenos Aires, en que de verdad quedó disponible: si se liberó tarde, ese
+ * día); se puede usar hasta el día del vencimiento inclusive y, si ese día no
+ * existe en el mes, vence el último día del mes (31/10 → 30/04). Al usarlo se
+ * descuenta primero el que vence antes (lib/credito-uso.ts). Una fila
+ * «Disponible» sin Disponible_desde (solo por una edición a mano) no vence, y
+ * el control diario la avisa.
+ *
  * Todo es puro: recibe los datos y devuelve qué correspondería. Si un dato no
  * tiene sentido (un monto negativo, una cantidad no entera), tira RangeError:
  * con plata, mejor frenar que adivinar.
@@ -34,15 +45,27 @@ export const PORCENTAJE_CREDITO_UN_ANTEOJO = 5;
 export const PORCENTAJE_CREDITO_VARIOS = 10;
 /** Días desde la entrega confirmada hasta que el crédito se puede usar. */
 export const DIAS_PARA_LIBERAR_CREDITO = 30;
+/** Meses de calendario desde que el crédito queda disponible hasta que vence (Ale, 18/11/2026). */
+export const MESES_PARA_VENCER_CREDITO = 6;
 
-/**
- * El interruptor, APAGADO por defecto: solo «1» lo prende. Hoy no lo lee
- * ninguna parte de la tienda; queda listo para cuando se integre.
- */
+/** El interruptor, APAGADO por defecto: solo «1» lo prende. */
 export const VARIABLE_CREDITO = "HARPER_CREDITO_ACTIVO";
 
-export function creditoActivo(entorno: Record<string, string | undefined> = process.env): boolean {
-  return entorno[VARIABLE_CREDITO]?.trim() === "1";
+/**
+ * Si el Crédito Harper está prendido: solo con HARPER_CREDITO_ACTIVO="1". Sin
+ * la variable, vacía o con cualquier otro valor ("0", "true"), está apagado y
+ * nada que vea el comprador lo nombra.
+ *
+ * Sin `entorno` se lee `process.env.HARPER_CREDITO_ACTIVO`, escrito así,
+ * entero, a propósito (como el Dúo, lib/duo.ts; Ale, 18/11/2026):
+ * next.config.ts le pasa a Next el valor que tiene al armar el sitio (`env`)
+ * y Next lo deja fijo en el código. Así el webhook, el checkout, el carrito,
+ * la cuenta y la ruta diaria ven siempre el mismo valor, aunque la función de
+ * Vercel no lea .env.production. Para cambiarlo hay que volver a desplegar.
+ */
+export function creditoActivo(entorno?: Record<string, string | undefined>): boolean {
+  const valor = entorno ? entorno[VARIABLE_CREDITO] : process.env.HARPER_CREDITO_ACTIVO;
+  return valor?.trim() === "1";
 }
 
 /** 0 sin anteojos, 5 con uno, 10 con dos o más. */
@@ -107,6 +130,35 @@ export function calcularCredito(renglones: readonly RenglonCobrado[]): CalculoCr
   if (anteojos === 0) return { anteojos, porcentaje, base: 0, monto: 0, motivo: "sin-anteojos" };
   if (!(base > 0)) return { anteojos, porcentaje, base: 0, monto: 0, motivo: "pagado-con-credito" };
   return { anteojos, porcentaje, base, monto: Math.round((base * porcentaje) / 100) };
+}
+
+/**
+ * El crédito que sumaría un pedido con estos ítems, en pesos (Ale,
+ * 18/11/2026: el comprador lo ve ANTES de pagar). Es el mismo cálculo que
+ * hace el webhook al anotarlo: `calcularCredito` sobre los renglones tal como
+ * se van a cobrar, que son los que se guardan en Items (lib/pedidos.ts,
+ * itemsDelPedido, y lib/credito-pagos.ts, renglonesDeItems). Así el monto que
+ * se muestra es el que después se anota.
+ *
+ * Hay que pasarle los ítems finales, los que se cobran: con el Dúo, el cupón,
+ * el crédito usado y, si se paga con dinero en Mercado Pago, con ese 10 %
+ * (lib/dinero-mp.ts): con dinero en Mercado Pago suma menos. No mira el
+ * interruptor: quien lo muestra pregunta antes `creditoActivo()`. Si un
+ * renglón no tiene sentido devuelve 0: no se promete nada que no se va a anotar.
+ */
+export function creditoQueSuma(items: readonly Pick<ItemResuelto, "categoria" | "cantidad" | "subtotal" | "saldo">[]): number {
+  const renglones: RenglonCobrado[] = items.map((i) => ({
+    categoria: i.categoria,
+    cantidad: i.cantidad,
+    subtotal: i.subtotal,
+    ...(typeof i.saldo === "number" ? { saldo: i.saldo } : {}),
+  }));
+  try {
+    return calcularCredito(renglones).monto;
+  } catch (error) {
+    if (error instanceof RangeError) return 0;
+    throw error;
+  }
 }
 
 // ---------- El pedido: cuándo correspondería anotarlo, sin duplicar ----------
@@ -223,6 +275,16 @@ export function esFechaValida(fecha: unknown): fecha is string {
   return real.getUTCFullYear() === anio && real.getUTCMonth() === mes - 1 && real.getUTCDate() === dia;
 }
 
+/** El día de `hoy` en Buenos Aires ("AAAA-MM-DD"). Tira RangeError con una fecha imposible o un Date inválido. */
+function diaEnBuenosAires(hoy: Date | string): string {
+  if (typeof hoy === "string") {
+    exigir(esFechaValida(hoy), "La fecha de hoy tiene que ser una fecha que exista, como AAAA-MM-DD");
+    return hoy;
+  }
+  exigir(Number.isFinite(hoy.getTime()), "La fecha de hoy no es válida");
+  return fechaArgentina(hoy);
+}
+
 export function estadoDelCredito(datos: {
   anulado: boolean;
   /** La fecha de entrega confirmada, "AAAA-MM-DD"; null si no hay una confiable. */
@@ -231,13 +293,51 @@ export function estadoDelCredito(datos: {
   hoy: Date | string;
 }): EstadoDelCredito {
   if (datos.fechaEntrega !== null) exigir(esFechaValida(datos.fechaEntrega), "La fecha de entrega tiene que ser una fecha que exista, como AAAA-MM-DD");
-  if (typeof datos.hoy === "string") exigir(esFechaValida(datos.hoy), "La fecha de hoy tiene que ser una fecha que exista, como AAAA-MM-DD");
-  else exigir(Number.isFinite(datos.hoy.getTime()), "La fecha de hoy no es válida");
+  const dia = diaEnBuenosAires(datos.hoy);
   const disponibleDesde = datos.fechaEntrega ? sumarDias(datos.fechaEntrega, DIAS_PARA_LIBERAR_CREDITO) : null;
   if (datos.anulado) return { estado: "anulado", disponibleDesde };
-  const dia = typeof datos.hoy === "string" ? datos.hoy : fechaArgentina(datos.hoy);
   const liberado = disponibleDesde !== null && dia >= disponibleDesde && !datos.incidenciaAbierta;
   return { estado: liberado ? "disponible" : "pendiente", disponibleDesde };
+}
+
+// ---------- El vencimiento (Ale, 18/11/2026) ----------
+
+/**
+ * "AAAA-MM-DD" más `meses` meses de calendario. Si el día no existe en el mes
+ * de llegada, el último día de ese mes: 2026-10-31 + 6 → 2027-04-30;
+ * 2026-08-31 + 6 → 2027-02-28; 2027-08-31 + 6 → 2028-02-29.
+ */
+export function sumarMeses(fecha: string, meses: number): string {
+  exigir(esFechaValida(fecha), "La fecha tiene que ser una fecha que exista, como AAAA-MM-DD");
+  exigir(Number.isInteger(meses), "Los meses tienen que ser un número entero");
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  const total = mes - 1 + meses;
+  const anioFinal = anio + Math.floor(total / 12);
+  const mesFinal = ((total % 12) + 12) % 12;
+  // El día 0 del mes siguiente es el último de este.
+  const ultimo = new Date(Date.UTC(anioFinal, mesFinal + 1, 0)).getUTCDate();
+  const dos = (n: number) => String(n).padStart(2, "0");
+  return `${String(anioFinal).padStart(4, "0")}-${dos(mesFinal + 1)}-${dos(Math.min(dia, ultimo))}`;
+}
+
+/**
+ * El último día en que se puede usar un crédito ("AAAA-MM-DD", inclusive): 6
+ * meses de calendario después del día en que quedó disponible.
+ */
+export function venceEl(disponibleDesde: string): string {
+  return sumarMeses(disponibleDesde, MESES_PARA_VENCER_CREDITO);
+}
+
+/**
+ * Si el crédito ya venció `hoy` (el día en Buenos Aires, como
+ * `estadoDelCredito`): se puede usar hasta el día de `venceEl` inclusive y
+ * vence al día siguiente. Sin Disponible_desde (null: una fila editada a
+ * mano) no vence.
+ */
+export function estaVencido(disponibleDesde: string | null, hoy: Date | string): boolean {
+  const dia = diaEnBuenosAires(hoy);
+  if (disponibleDesde === null) return false;
+  return dia > venceEl(disponibleDesde);
 }
 
 // ---------- Devoluciones ----------

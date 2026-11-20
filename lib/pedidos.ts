@@ -47,8 +47,11 @@ import {
   type SuscriptorDelCarrito,
 } from "./suscriptores";
 import { aplicarCreditoHarper } from "./credito-uso";
+import { creditoActivo, creditoQueSuma } from "./credito-harper";
+import { regimenDelPedido, renglonesDeItems } from "./credito-pagos";
 import type {
   Categoria,
+  CreditoPrevisto,
   DestinoEnvio,
   DuoDelCarrito,
   EleccionEnvio,
@@ -130,6 +133,12 @@ export type CarritoResuelto = {
    * siempre.
    */
   creditoHarper?: { usado: number; usable: number; elegible: number };
+  /**
+   * El Crédito Harper que sumaría esta compra, con cada medio de pago (Ale,
+   * 18/11/2026: se dice antes de pagar). Solo con HARPER_CREDITO_ACTIVO=1;
+   * apagado no existe y el carrito es el de siempre.
+   */
+  creditoPrevisto?: CreditoPrevisto;
 };
 
 /** Tope por variante: evita que un bug o un curioso pida 9999 unidades. */
@@ -346,6 +355,16 @@ export async function resolverCarrito(
   const dineroMP = items.length > 0 ? aplicarDineroMP(items) : null;
   // Tarea 07: con el Dúo prendido, lo que la tienda necesita para contarlo.
   const duo = deLista ? duoDelCarrito(items, deLista, tramos, promocion.cupon) : null;
+  // Crédito Harper (Ale, 18/11/2026): lo que sumaría esta compra, para
+  // decirlo antes de pagar. Es `creditoQueSuma` sobre los renglones que se
+  // cobran (los que el checkout guarda en Items y el webhook lee): con tarjeta,
+  // `items`; con dinero en Mercado Pago, los de ese 10 %. Apagado, no existe.
+  // Un pedido con el cashback de antes (régimen anterior: hoy ninguno, porque
+  // BENEFICIOS_DE_SUSCRIPTOR está apagado) no suma Crédito Harper.
+  const creditoPrevisto: CreditoPrevisto | null =
+    creditoActivo() && !conBeneficios && items.length > 0
+      ? { mercadoPago: creditoQueSuma(items), dineroMP: dineroMP ? creditoQueSuma(dineroMP.items) : null }
+      : null;
 
   return {
     items,
@@ -382,6 +401,7 @@ export async function resolverCarrito(
       : null,
     ...(duo ? { duo } : {}),
     ...(credito && pedidoCredito ? { creditoHarper: { usado: credito.credito, usable: Math.max(0, pedidoCredito.usable), elegible: credito.elegible } } : {}),
+    ...(creditoPrevisto ? { creditoPrevisto } : {}),
   };
 }
 
@@ -853,6 +873,15 @@ export type PedidoPublico = {
     productoSlug: string;
     categoria: Categoria | null;
   }[];
+  /**
+   * El Crédito Harper que suma este pedido (Ale, 18/11/2026: quien compra lo
+   * sabe después de pagar), en pesos. Solo con HARPER_CREDITO_ACTIVO=1, en un
+   * pedido del régimen nuevo (la marca del checkout en Notas) y si suma algo:
+   * si no, no existe. Es la cuenta del webhook (`renglonesDeItems` y
+   * `creditoQueSuma`) sobre los Items guardados, así que se puede decir antes
+   * de que el webhook anote la fila. Es solo un importe: nada de la persona.
+   */
+  creditoGanado?: number;
 };
 
 /**
@@ -865,7 +894,7 @@ export type PedidoPublico = {
  * que acá no puede salir ningún dato personal.
  */
 export async function buscarPedido(numero: string): Promise<PedidoPublico | null> {
-  type Fila = { Numero?: string; Estado?: string; Total?: number; Subtotal?: number; Items?: string };
+  type Fila = { Numero?: string; Estado?: string; Total?: number; Subtotal?: number; Items?: string; Notas?: string };
 
   try {
     const registros = await listRecords<Fila>(TABLAS.pedidos, {
@@ -895,16 +924,36 @@ export async function buscarPedido(numero: string): Promise<PedidoPublico | null
       // Un Items ilegible no rompe la página: el evento sale sin detalle.
     }
 
+    const creditoGanado = creditoDelPedido(fila);
     return {
       numero: fila.Numero ?? numero,
       estado: fila.Estado ?? "pendiente",
       total: fila.Total ?? 0,
       subtotal: fila.Subtotal ?? fila.Total ?? 0,
       items,
+      ...(creditoGanado > 0 ? { creditoGanado } : {}),
     };
   } catch (error) {
     // Airtable caído no puede romper la vuelta del cliente desde el pago.
     console.error("[pedidos] no se pudo leer el pedido", numero, error);
     return null;
+  }
+}
+
+/**
+ * El Crédito Harper que suma un pedido guardado (Ale, 18/11/2026), para
+ * /gracias. 0 con el interruptor apagado, en un pedido del régimen anterior
+ * (sin la marca del checkout, o con el cashback de antes) o con Items
+ * ilegibles: la página no promete nada que el webhook no vaya a anotar. Lee
+ * los renglones igual que el webhook (lib/credito-pagos.ts) y los cuenta con
+ * `creditoQueSuma`.
+ */
+function creditoDelPedido(fila: { Items?: string; Notas?: string }): number {
+  if (!creditoActivo() || regimenDelPedido(fila.Notas).regimen !== "nuevo") return 0;
+  try {
+    return creditoQueSuma(renglonesDeItems(fila.Items));
+  } catch (error) {
+    if (error instanceof RangeError) return 0;
+    throw error;
   }
 }

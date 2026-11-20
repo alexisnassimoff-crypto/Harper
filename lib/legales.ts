@@ -44,3 +44,18 @@ export function registroAceptacion(momento: Date, version = VERSION_TERMINOS): s
 // direcciones) y las de los mails de novedades. El saldo ganado antes de ese
 // día se puede seguir usando; no se genera saldo nuevo.
 export const VERSION_CONDICIONES_SUSCRIPTORES = "2026-11-18";
+
+/**
+ * Versión de las condiciones del Crédito Harper: la sección «Crédito Harper»
+ * (#credito) de app/legales/suscriptores/page.tsx, que se publica SOLO con
+ * HARPER_CREDITO_ACTIVO=1 y muestra esta fecha. Va aparte de
+ * VERSION_CONDICIONES_SUSCRIPTORES (la que guarda cada alta, que no cambia):
+ * el texto publicado cambia cuando se prende el interruptor, no cuando alguien
+ * abre su cuenta. Al cambiar esas condiciones, se cambia esta fecha en el
+ * mismo commit.
+ */
+// 2026-11-20 (Ale, 18/11/2026): 5 % de lo pagado en dinero por los anteojos
+// con un anteojo y 10 % con dos o más; pendiente hasta 30 días después de la
+// entrega confirmada; vence a los 6 meses de quedar disponible y se usa primero
+// el que vence antes; solo en anteojos, con la cuenta del mail de la compra.
+export const VERSION_CONDICIONES_CREDITO = "2026-11-20";

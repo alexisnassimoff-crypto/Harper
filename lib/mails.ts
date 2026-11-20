@@ -8,6 +8,9 @@ import { enlaceWhatsApp, mensajeGraduadosPedido, TEXTO_GRADUADOS_PEDIDO } from "
 import { pedidoParaMostrar, TEXTO_PROXIMO_PASO, type SolicitudArrepentimiento } from "./arrepentimiento";
 import { lineasDeFacturacion, type FacturacionPedido } from "./facturacion";
 import { textoDelRenglon } from "./promocion-anteojos";
+import { DIAS_PARA_LIBERAR_CREDITO, esFechaValida, MESES_PARA_VENCER_CREDITO } from "./credito-harper";
+import { urlDelSitio } from "./sitio";
+import { fechaLegible } from "./suscriptores";
 import { TEXTOS } from "./textos";
 
 // Se puede apuntar a un Resend simulado para las pruebas de punta a punta.
@@ -23,7 +26,7 @@ export function mailsConfigurados() {
   return Boolean(process.env.RESEND_API_KEY);
 }
 
-type Envio = {
+export type Envio = {
   para: string;
   asunto: string;
   html: string;
@@ -159,20 +162,35 @@ function duoParaHarper(item: ItemResuelto): string | null {
  * reintenta el aviso): explican el precio de ese renglón.
  *
  * `paraHarper`: en el aviso interno, el Dúo va con los pesos que descontó.
+ *
+ * Crédito Harper (Ale, 18/11/2026): el renglón pagado en parte con crédito
+ * dice «Crédito Harper −$ 4.495», como el resumen del checkout
+ * (TEXTOS.programa.credito.renglon), en el orden en que lo descuenta el
+ * servidor: después del Dúo, el cupón y el saldo, antes del 10 % por dinero en
+ * Mercado Pago (lib/credito-uso.ts). Solo con `conCredito`: en el mail del
+ * comprador, solo si quien lo arma dice que el interruptor está prendido
+ * (DatosMail.creditoHarper); apagado no lo nombra. Hoy, apagado, ningún
+ * renglón trae `credito`: el checkout no lo aplica.
  */
-function textoDescuento(item: ItemResuelto, paraHarper = false) {
+function textoDescuento(item: ItemResuelto, paraHarper = false, conCredito = false) {
   const duo = paraHarper ? duoParaHarper(item) : textoDelRenglon(item);
   return [
     duo ?? (item.descuento > 0 ? `${textoPorcentaje(item.descuento)}% de descuento` : null),
     item.cupon ? "Cupón de bienvenida" : null,
     item.saldo ? "con tu saldo" : null,
+    conCredito ? creditoDelRenglon(item) : null,
     item.descuentoDineroMP ? `${item.descuentoDineroMP}% por dinero en Mercado Pago` : null,
   ]
     .filter(Boolean)
     .join(" + ");
 }
 
-function filasDeItems(items: ItemResuelto[], sitio: string, paraHarper = false) {
+/** «Crédito Harper −$ 4.495»: lo que el renglón se pagó con Crédito Harper. Null si no se usó. */
+function creditoDelRenglon(item: ItemResuelto): string | null {
+  return typeof item.credito === "number" && item.credito > 0 ? `${TEXTOS.programa.credito.renglon} −${formatearPrecio(item.credito)}` : null;
+}
+
+function filasDeItems(items: ItemResuelto[], sitio: string, paraHarper = false, conCredito = false) {
   return items
     .map((item) => {
       // El catálogo usa WebP con transparencia, pero Outlook de escritorio no
@@ -181,7 +199,7 @@ function filasDeItems(items: ItemResuelto[], sitio: string, paraHarper = false) 
       const relativa = (item.foto ?? "").replace(/\.webp$/, ".jpg");
       // Las imágenes en mail necesitan URL absoluta; una relativa no carga.
       const foto = relativa.startsWith("http") ? relativa : `${sitio}${relativa}`;
-      const descuento = textoDescuento(item, paraHarper);
+      const descuento = textoDescuento(item, paraHarper, conCredito);
 
       return `<tr>
   <td width="64" style="padding:10px 12px 10px 0;vertical-align:top;">
@@ -257,6 +275,30 @@ export type DatosMail = {
    * pedido usó de verdad.
    */
   suscriptor?: BeneficiosEnElMail | null;
+  /**
+   * Crédito Harper (Ale, 18/11/2026), SOLO con HARPER_CREDITO_ACTIVO=1: lo
+   * pone quien arma el mail (el webhook, lib/webhook-proceso.ts, y el pedido en
+   * $ 0, lib/suscriptores-sin-pago.ts). Null o ausente, el mail del comprador
+   * es el de siempre: no nombra el crédito, ni siquiera en los renglones.
+   */
+  creditoHarper?: CreditoEnElMail | null;
+};
+
+/**
+ * El Crédito Harper de un pedido, para su mail de confirmación (Ale,
+ * 18/11/2026: quien compra se entera después de pagar de cuánto sumó, que
+ * queda pendiente y cuándo se libera y vence).
+ */
+export type CreditoEnElMail = {
+  /**
+   * Lo que suma este pedido, en pesos enteros: `creditoQueSuma` (lib/credito-harper.ts)
+   * sobre los renglones cobrados, la misma cuenta que hace el webhook al
+   * anotarlo. El mail sale antes de que la fila exista: por eso se calcula y no
+   * se lee. 0 si no suma nada (régimen anterior, sin anteojos, anteojos
+   * pagados enteros con crédito, o un pedido en $ 0, que no pasa por el
+   * webhook): entonces el mail no dice nada del crédito ganado.
+   */
+  suma: number;
 };
 
 /**
@@ -350,6 +392,32 @@ function bloqueSaldoUsado(d: DatosMail): string {
 }
 
 /**
+ * Crédito Harper (Ale, 18/11/2026: «Orienta a que vuelvan a comprar con el
+ * Cashback»): lo que sumó esta compra, que queda pendiente, cuándo se libera y
+ * cuándo vence, con las mismas palabras que /gracias
+ * (TEXTOS.programa.credito.gracias). Null si el interruptor está apagado
+ * (sin `creditoHarper`) o si el pedido no suma nada. Los días y los meses, de
+ * lib/credito-harper.ts.
+ */
+function lineaDelCreditoGanado(d: Pick<DatosMail, "creditoHarper">): string | null {
+  const suma = d.creditoHarper?.suma ?? 0;
+  if (!(Number.isInteger(suma) && suma > 0)) return null;
+  return TEXTOS.programa.credito.gracias(formatearPrecio(suma), DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO);
+}
+
+/** El bloque del crédito ganado en el mail del comprador, con el enlace a su cuenta. Vacío si no hay nada que decir. */
+function bloqueCreditoGanado(d: DatosMail): string {
+  const linea = lineaDelCreditoGanado(d);
+  if (!linea) return "";
+  return `
+<div style="margin-top:28px;padding:20px;background:#004226;color:#ffffff;">
+  <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;opacity:0.8;margin-bottom:6px;">${escaparHtml(TEXTOS.programa.credito.renglon)}</div>
+  <p style="margin:0 0 6px;font-size:14px;line-height:1.6;">${escaparHtml(linea)}</p>
+  <a href="${escaparHtml(d.sitio)}/suscriptores/mi-cuenta" style="display:inline-block;margin-top:8px;font-size:13px;letter-spacing:0.5px;color:#ffffff;text-decoration:underline;">${escaparHtml(TEXTOS.suscriptores.verCuenta)}</a>
+</div>`;
+}
+
+/**
  * Para Harper: con qué cuenta se usó saldo y cuánto. Null si el pedido no usó
  * saldo. Desde el 18/11/2026 (Ale) un pedido nuevo no lleva cupón de
  * bienvenida ni cashback: el aviso ya no los nombra, ni marca el pedido como
@@ -384,6 +452,11 @@ export function mailConfirmacion(d: DatosMail): Envio {
   const graduados = enlaceGraduadosDelPedido(d);
   const sinPago = d.total === 0;
   const direccion = `${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} (CP ${d.cliente.cp})`;
+  // Crédito Harper (Ale, 18/11/2026): solo con el interruptor prendido, que
+  // es cuando quien arma el mail pasa `creditoHarper`. Apagado, el mail es
+  // idéntico al de siempre.
+  const conCredito = Boolean(d.creditoHarper);
+  const creditoGanado = lineaDelCreditoGanado(d);
 
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Gracias por tu compra</h1>
@@ -393,11 +466,11 @@ export function mailConfirmacion(d: DatosMail): Envio {
 </p>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-  ${filasDeItems(d.items, d.sitio)}
+  ${filasDeItems(d.items, d.sitio, false, conCredito)}
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
-${bloqueSaldoUsado(d)}
+${bloqueSaldoUsado(d)}${bloqueCreditoGanado(d)}
 <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e3e0d8;">
   <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#78756c;margin-bottom:6px;">Envío a</div>
   <div style="font-size:14px;line-height:1.6;">
@@ -428,11 +501,13 @@ ${d.items
   .map((i) => {
     // Lo mismo que el HTML (textoDescuento): con el Dúo, lo que dice el
     // carrito; sin él, el porcentaje de siempre. El cupón de bienvenida y el
-    // saldo, solo en pedidos que los traen de antes del 18/11/2026.
+    // saldo, solo en pedidos que los traen de antes del 18/11/2026. El
+    // Crédito Harper usado, solo con el interruptor prendido.
     const descuento = [
       textoDelRenglon(i) ?? (i.descuento > 0 ? `${textoPorcentaje(i.descuento)}% off` : null),
       i.cupon ? "cupón de bienvenida" : null,
       i.saldo ? "con tu saldo" : null,
+      conCredito ? creditoDelRenglon(i) : null,
       i.descuentoDineroMP ? `${i.descuentoDineroMP}% por dinero en Mercado Pago` : null,
     ]
       .filter(Boolean)
@@ -445,7 +520,9 @@ Subtotal: ${formatearPrecio(d.subtotal)}
 Envio: ${d.envio === 0 ? "Gratis" : formatearPrecio(d.envio)}
 Total: ${formatearPrecio(d.total)}
 
-${lineasDelSaldoUsado(d).length > 0 ? `${TU_CUENTA}\n${lineasDelSaldoUsado(d).join("\n")}\nTu cuenta: ${d.sitio}/suscriptores/mi-cuenta\n\n` : ""}Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
+${lineasDelSaldoUsado(d).length > 0 ? `${TU_CUENTA}\n${lineasDelSaldoUsado(d).join("\n")}\nTu cuenta: ${d.sitio}/suscriptores/mi-cuenta\n\n` : ""}${
+    creditoGanado ? `${TEXTOS.programa.credito.renglon}\n${creditoGanado}\nTu cuenta: ${d.sitio}/suscriptores/mi-cuenta\n\n` : ""
+  }Envio a: ${d.cliente.nombre}, ${direccion}${envioCliente(d) ? `\n${envioCliente(d)}` : ""}
 ${graduados ? `\n${TEXTO_GRADUADOS_PEDIDO}\nWhatsApp: ${graduados}\n` : ""}
 Consultas: ${d.config.emailContacto}`;
 
@@ -466,6 +543,9 @@ export function mailAvisoInterno(d: DatosMail & { pedidoUrl: string }): Envio {
   const aCuit = factura?.some((l) => l.startsWith("CUIT:")) ?? false;
   // El saldo de antes del 18/11/2026 que el pedido usó, si usó (ver lineaSaldoInterna).
   const saldo = lineaSaldoInterna(d);
+  // El Crédito Harper usado en cada renglón (Ale, 18/11/2026), siempre que lo
+  // haya: este mail es para Harper, no para el comprador, y sirve para resolver
+  // una devolución. Con el interruptor apagado ningún renglón lo trae.
   const html = envoltorio(
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">Venta nueva — ${escaparHtml(d.numero)}</h1>
 <p style="margin:0 0 24px;font-size:14px;color:#78756c;">${formatearPrecio(d.total)} · ${escaparHtml(d.cliente.provincia)}${
@@ -475,7 +555,7 @@ ${d.alerta ? `<p style="margin:0 0 24px;padding:12px 14px;border:1px solid #a128
 ${saldo ? `<p style="margin:0 0 24px;padding:12px 14px;background:#004226;color:#ffffff;font-size:14px;line-height:1.6;">${escaparHtml(saldo)}<br>${escaparHtml(AVISO_DEVOLUCION_SALDO)}</p>` : ""}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-  ${filasDeItems(d.items, d.sitio, true)}
+  ${filasDeItems(d.items, d.sitio, true, true)}
 </table>
 
 ${totales(d.subtotal, d.envio, d.total)}
@@ -510,7 +590,9 @@ ${
 
   const texto = `VENTA NUEVA ${d.numero} — ${formatearPrecio(d.total)}${d.conDineroMP ? " (dinero en Mercado Pago)" : ""}
 ${d.alerta ? `\nREVISAR: ${d.alerta}\n` : ""}${saldo ? `\n${saldo}\n${AVISO_DEVOLUCION_SALDO}\n` : ""}
-${d.items.map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})${duoParaHarper(i) ? ` — ${duoParaHarper(i)}` : ""}`).join("\n")}
+${d.items
+  .map((i) => `- ${i.cantidad}x ${i.nombre} ${i.color} (${i.sku})${duoParaHarper(i) ? ` — ${duoParaHarper(i)}` : ""}${creditoDelRenglon(i) ? ` — ${creditoDelRenglon(i)}` : ""}`)
+  .join("\n")}
 ${d.cupon ? `Cupón ${d.cupon}\n` : ""}
 ${d.cliente.nombre}
 ${d.cliente.direccion}, ${d.cliente.ciudad}, ${d.cliente.provincia} - CP ${d.cliente.cp}
@@ -747,6 +829,154 @@ export function mailEnviado(
     texto: `Despachamos tu pedido ${d.numero}.\n\nSeguimiento: ${d.tracking}\n\nConsultas: ${d.config.emailContacto}`,
     responderA: d.config.emailContacto,
   };
+}
+
+/* ==========================================================================
+   Crédito Harper: los avisos al comprador (Ale, 18/11/2026: «Orienta a que
+   vuelvan a comprar con el Cashback»; se tiene que enterar por mail cuando el
+   crédito queda disponible y poco antes de que venza). Los manda el control
+   diario (lib/credito-diario.ts, avisosPorMail), solo con
+   HARPER_CREDITO_ACTIVO=1.
+
+   Son mails de la cuenta, no de novedades: hablan del crédito de quien los
+   recibe y van al mail de su compra. Es lo que dicen las condiciones
+   publicadas (app/legales/suscriptores/page.tsx, «Crédito Harper» → «Avisos
+   por mail»: «Te escribimos al mail de la compra cuando el crédito queda
+   disponible y, si todavía te queda crédito sin usar, unos días antes de que
+   venza»; y el punto 5: la baja de las novedades corta solo esos mails). Por
+   eso salen por el mismo envío y con el mismo remitente que los de los
+   pedidos (enviarMail, DE) y sin la línea para darse de baja de las
+   novedades. El borrador de condiciones todavía tiene abierta la revisión
+   legal L3 sobre esto (docs/borrador-condiciones-cuenta-harper.md).
+   ========================================================================== */
+
+/** Los textos de los dos avisos. Los importes y las fechas llegan ya escritos: «$ 4.495», «30/04/2027». */
+const AVISOS_CREDITO = {
+  disponibleAsunto: (monto: string) => `Ya podés usar tu Crédito Harper: ${monto}`,
+  disponibleTitulo: "Ya podés usar tu Crédito Harper",
+  disponible: (monto: string, vence: string) =>
+    `Tu Crédito Harper de ${monto} ya está disponible para tu próxima compra de anteojos. Vence el ${vence}.`,
+  porVencerAsunto: (vence: string) => `Tu Crédito Harper vence el ${vence}`,
+  /**
+   * «Vence el» es el último día en que se puede usar, inclusive (venceEl,
+   * lib/credito-harper.ts). El aviso puede salir ese mismo día (`dias` 0): por
+   * eso dice «hasta ese día inclusive» y no «antes de esa fecha».
+   */
+  porVencer: (monto: string, vence: string) =>
+    `Tenés ${monto} de Crédito Harper que vence el ${vence}. Usalo en tu próxima compra de anteojos hasta ese día inclusive.`,
+  boton: "Elegir mis anteojos",
+  comoSeUsa: "Lo usás en el checkout, entrando con este mail.",
+  delPedido: (pedido: string) => `Lo sumaste con tu pedido ${pedido}.`,
+};
+
+type DatosAvisoCredito = {
+  config: ConfigTienda;
+  /** El mail de la compra: el de la cuenta del crédito. */
+  email: string;
+  /** El pedido con el que se ganó el crédito. */
+  pedido: string;
+  /** Lo que queda sin usar de ese crédito, en pesos enteros. */
+  monto: number;
+  /** El último día en que se puede usar, inclusive ("AAAA-MM-DD"). */
+  venceEl: string;
+  /** La URL pública del sitio; sin ella, la de lib/sitio.ts. */
+  sitio?: string;
+};
+
+/**
+ * Lo que tienen que traer los avisos para salir. Si algo no tiene sentido
+ * (un importe en cero, una fecha que no existe, sin mail) tira RangeError: el
+ * control diario lo toma como un aviso que no salió y lo anota con el motivo
+ * (lib/credito-diario.ts). Mejor no mandar nada que «Ya podés usar $ 0».
+ */
+function exigirAviso(d: DatosAvisoCredito) {
+  if (typeof d.email !== "string" || !d.email.trim()) throw new RangeError("El aviso del Crédito Harper necesita el mail de la compra");
+  if (!(Number.isFinite(d.monto) && d.monto >= 1)) throw new RangeError(`El aviso del Crédito Harper necesita un importe de $ 1 o más (llegó ${String(d.monto)})`);
+  if (!esFechaValida(d.venceEl)) {
+    throw new RangeError(`El aviso del Crédito Harper necesita una fecha de vencimiento que exista, como AAAA-MM-DD (llegó ${String(d.venceEl)})`);
+  }
+}
+
+/** El cuerpo común de los dos avisos: título, el texto, el botón a /anteojos y cómo se usa. */
+function mailAvisoCredito(d: DatosAvisoCredito & { asunto: string; titulo: string; texto: string }): Envio {
+  const anteojos = `${d.sitio ?? urlDelSitio()}/anteojos`;
+  const delPedido = d.pedido?.trim() ? AVISOS_CREDITO.delPedido(d.pedido.trim()) : null;
+  const html = envoltorio(
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:400;">${escaparHtml(d.titulo)}</h1>
+<p style="margin:0 0 24px;font-size:14px;color:#78756c;line-height:1.6;">${escaparHtml(d.texto)}</p>
+<p style="margin:0 0 24px;">
+  <a href="${escaparHtml(anteojos)}" style="display:inline-block;background:#16150f;color:#faf9f6;text-decoration:none;padding:14px 24px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;">${escaparHtml(AVISOS_CREDITO.boton)}</a>
+</p>
+<p style="margin:0;font-size:14px;line-height:1.6;">${escaparHtml(AVISOS_CREDITO.comoSeUsa)}</p>${
+      delPedido ? `\n<p style="margin:16px 0 0;font-size:12px;color:#78756c;line-height:1.6;">${escaparHtml(delPedido)}</p>` : ""
+    }`,
+    d.config
+  );
+
+  return {
+    para: d.email,
+    asunto: d.asunto,
+    html,
+    texto: `${d.titulo}
+
+${d.texto}
+
+${AVISOS_CREDITO.boton}: ${anteojos}
+${AVISOS_CREDITO.comoSeUsa}${delPedido ? `\n\n${delPedido}` : ""}
+
+Consultas: ${d.config.emailContacto}`,
+    responderA: d.config.emailContacto,
+  };
+}
+
+/**
+ * El crédito de un pedido quedó disponible (o se reintenta el aviso, hasta 7
+ * días después). `monto` es lo que la cuenta todavía puede usar de ese
+ * crédito; `venceEl`, su último día, inclusive. `disponibleDesde` no se
+ * muestra: el aviso dice que ya se puede usar y hasta cuándo.
+ */
+export function mailCreditoDisponible(d: {
+  config: ConfigTienda;
+  email: string;
+  pedido: string;
+  monto: number;
+  disponibleDesde: string;
+  venceEl: string;
+  sitio?: string;
+}): Envio {
+  exigirAviso(d);
+  const monto = formatearPrecio(d.monto);
+  return mailAvisoCredito({
+    ...d,
+    asunto: AVISOS_CREDITO.disponibleAsunto(monto),
+    titulo: AVISOS_CREDITO.disponibleTitulo,
+    texto: AVISOS_CREDITO.disponible(monto, fechaLegible(d.venceEl)),
+  });
+}
+
+/**
+ * A un crédito con algo sin usar le quedan `dias` días (de 15 a 0; 0 es que
+ * vence hoy y todavía se puede usar hoy). `monto` es lo que queda sin usar de
+ * ese crédito; `venceEl`, su último día, inclusive.
+ */
+export function mailCreditoPorVencer(d: {
+  config: ConfigTienda;
+  email: string;
+  pedido: string;
+  monto: number;
+  venceEl: string;
+  dias: number;
+  sitio?: string;
+}): Envio {
+  exigirAviso(d);
+  const vence = fechaLegible(d.venceEl);
+  const asunto = AVISOS_CREDITO.porVencerAsunto(vence);
+  return mailAvisoCredito({
+    ...d,
+    asunto,
+    titulo: asunto,
+    texto: AVISOS_CREDITO.porVencer(formatearPrecio(d.monto), vence),
+  });
 }
 
 type DatosArrepentimiento = {

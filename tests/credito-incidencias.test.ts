@@ -240,7 +240,9 @@ test("Cambio o reclamo interno: Harper marca Incidencia_abierta a mano; lo dispo
   }
   const filas = await almacenAirtable.delPedido(c.numero);
   assert.deepEqual(saldosDeLaCuenta([], filas, new Date(AHORA)).credito, { disponible: 0, pendiente: 0, aRevisar: 10_000 });
-  const billetera = billeteraDeCredito(filas, MAIL, new Date(AHORA), { usos: saldo.usos, usable: saldo.usable });
+  // La billetera toma lo que se puede usar del mismo cálculo que el checkout
+  // (`saldo`, de leerSaldoDeCredito; Ale, 18/11/2026), no de un número aparte.
+  const billetera = billeteraDeCredito(filas, MAIL, new Date(AHORA), { usos: saldo.usos, vencidas: saldo.vencidas, saldo });
   assert.equal(billetera.disponible, 0);
   assert.equal(billetera.enRevision, 10_000);
   assert.equal(billetera.movimientos[0].estado, "en-revision");

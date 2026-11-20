@@ -16,6 +16,7 @@ import { clavePedido, type Cerrojo } from "../lib/cerrojo";
 import { dependenciasCredito, type CamposCredito } from "../lib/credito-airtable";
 import { lectorPedidosAirtable, MARCA_REGIMEN_NUEVO, notasConRegimen, regimenDelPedido, type DependenciasPagoCredito } from "../lib/credito-pagos";
 import type { AlmacenCreditos } from "../lib/credito-persistencia";
+import { precio } from "../lib/formato";
 import { cerrojoEnMemoria, reiniciarRedis } from "../lib/fixtures/redis";
 import { interceptar, reiniciar } from "../lib/fixtures/servidor";
 import type { PagoMP } from "../lib/mercadopago";
@@ -627,4 +628,63 @@ test("Régimen anterior: no se le piden a Mercado Pago los otros pagos ni se lee
   assert.equal(cuenta.busquedas, 0, "no se buscaron sus pagos en Mercado Pago");
   assert.equal(mails.length, 2, "ningún aviso de más");
   assert.deepEqual(await creditosDe(deAntes.numero), []);
+});
+
+// ---------- El mail de confirmación (Ale, 18/11/2026) ----------
+
+/** Lo que cambia de `a` a `b`: el tramo que se quitó y el que se agregó (sin el principio ni el final que comparten). */
+function diferencia(a: string, b: string) {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  let j = 0;
+  while (j < a.length - i && j < b.length - i && a[a.length - 1 - j] === b[b.length - 1 - j]) j++;
+  return { quitado: a.slice(i, a.length - j), agregado: b.slice(i, b.length - j) };
+}
+
+test("Prendido: el mail de confirmación dice cuánto suma el pedido, lo mismo que anota la fila después; apagado, el mail es idéntico al de siempre", async () => {
+  /** Un pedido pagado por el webhook: el mail al cliente (con el número cambiado por «N», para comparar) y el crédito que quedó anotado. */
+  const correr = async (prendido: boolean, o: { items?: ItemResuelto[]; notas?: string | null } = {}) => {
+    if (prendido) process.env.HARPER_CREDITO_ACTIVO = "1";
+    try {
+      const { deps, mails, agregar } = armar();
+      const { pedidoId, numero, total } = await crearPedido(o);
+      const r = await procesarNotificacion(agregar(pagoDelPedido(pedidoId, total)), deps);
+      assert.equal(r.status, 200);
+      const alCliente = mails.filter((m) => m.para.trim().toLowerCase() === "cliente@ejemplo.com");
+      assert.equal(alCliente.length, 1, "un solo mail al cliente");
+      const n = (t: string) => t.split(numero).join("N");
+      const filas = await creditosDe(numero);
+      return { asunto: n(alCliente[0].asunto), html: n(alCliente[0].html), texto: n(alCliente[0].texto), monto: filas[0]?.fields.Monto ?? null };
+    } finally {
+      delete process.env.HARPER_CREDITO_ACTIVO;
+    }
+  };
+  const sumaste = (monto: number) => `Con esta compra sumaste ${precio(monto)} de Crédito Harper. Queda disponible 30 días después de que recibas tu pedido y vence 6 meses después.`;
+
+  for (const [items, monto] of [[UNO, 4_495], [DUO, 15_733]] as const) {
+    const apagado = await correr(false, { items: [...items] });
+    const encendido = await correr(true, { items: [...items] });
+    // Prendido: el mismo monto en el mail y en la fila.
+    assert.equal(encendido.monto, monto);
+    assert.ok(encendido.texto.includes(sumaste(monto)), encendido.texto);
+    assert.ok(encendido.html.includes(sumaste(monto)));
+    // Apagado: el mail no nombra el crédito.
+    assert.doesNotMatch(`${apagado.asunto} ${apagado.html} ${apagado.texto}`, /Cr[eé]dito Harper/);
+    // Y lo único que cambia al prenderlo es el bloque del crédito ganado.
+    assert.equal(encendido.asunto, apagado.asunto);
+    for (const parte of ["html", "texto"] as const) {
+      const { quitado, agregado } = diferencia(apagado[parte], encendido[parte]);
+      assert.equal(quitado, "", `${parte}: prendido no se pierde nada del mail de siempre`);
+      assert.ok(agregado.includes(sumaste(monto)) && agregado.includes("/suscriptores/mi-cuenta"), `${parte}: se agrega el bloque`);
+    }
+  }
+
+  // Un pedido sin la marca del checkout (reglas de antes): prendido, no suma nada y el mail es el de siempre.
+  const deAntesApagado = await correr(false, { items: [...UNO], notas: null });
+  const deAntesPrendido = await correr(true, { items: [...UNO], notas: null });
+  assert.equal(deAntesPrendido.monto, null, "sin crédito anotado");
+  assert.deepEqual(
+    { asunto: deAntesPrendido.asunto, html: deAntesPrendido.html, texto: deAntesPrendido.texto },
+    { asunto: deAntesApagado.asunto, html: deAntesApagado.html, texto: deAntesApagado.texto }
+  );
 });

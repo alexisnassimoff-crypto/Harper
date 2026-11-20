@@ -37,6 +37,7 @@ import { PROVINCIAS } from "./provincias";
 import ReconocerComprador from "./ReconocerComprador";
 import SuscriptorEnCheckout from "./SuscriptorEnCheckout";
 import CreditoEnCheckout from "./CreditoEnCheckout";
+import CreditoQueSuma from "@/components/carrito/CreditoQueSuma";
 import { marcarCuponBienvenidaUsado } from "@/components/carrito/cuponUsado";
 import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import { useCotizacionEnvio, type Cotizacion } from "./useEnvio";
@@ -969,6 +970,20 @@ export default function FormularioCheckout({
   // sin el envío: todavía no se puede decir que no hay nada que pagar.
   const saldoUsado = carrito.suscriptor?.saldoUsado ?? 0;
   const creditoUsado = carrito.creditoHarper?.usado ?? 0;
+  // El Crédito Harper usado ya viene descontado de `subtotal` (y del precio de
+  // cada renglón), y desglosar() no lo conoce (lib/resumen.ts). Para que se
+  // nombre en su renglón «Crédito Harper −$ X» y la cuenta cierre de arriba
+  // abajo, el Subtotal y cada renglón se muestran antes del crédito (Ale,
+  // 18/11/2026). El total no cambia. Sin crédito usado, todo igual que siempre.
+  const subtotalMostrado = resumen.lista + creditoUsado;
+  // Lo que suma esta compra con el medio de pago elegido (con dinero en
+  // Mercado Pago, menos: se paga menos). Lo manda el servidor solo con el
+  // Crédito Harper prendido; apagado, null y no se muestra nada.
+  const creditoQueSuma = carrito.creditoPrevisto
+    ? medioPago === "dineroMP"
+      ? carrito.creditoPrevisto.dineroMP
+      : carrito.creditoPrevisto.mercadoPago
+    : null;
   const sinPago = resumen.total === 0 && !envioPorConocer;
   const textoSinPago =
     saldoUsado > 0 && creditoUsado > 0
@@ -1044,8 +1059,9 @@ export default function FormularioCheckout({
           </div>
           {/* Con sus promociones. El saldo a favor de antes del 18/11/2026 va en
               su renglón del resumen; un cupón de esa época, con los descuentos
-              (lib/resumen.ts). */}
-          <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal + (item.cupon ?? 0) + (item.saldo ?? 0))}</span>
+              (lib/resumen.ts). El Crédito Harper usado, también en su renglón
+              (Ale, 18/11/2026): acá el precio va antes del crédito. */}
+          <span style={{ fontSize: "0.8125rem" }}>{formatearPrecio(item.subtotal + (item.cupon ?? 0) + (item.saldo ?? 0) + (item.credito ?? 0))}</span>
         </li>
       ))}
     </>
@@ -1071,6 +1087,7 @@ export default function FormularioCheckout({
           </summary>
           <ul>{listaItems}</ul>
           <LineaSaldo saldo={resumen.saldo} />
+          <LineaCredito credito={creditoUsado} />
           {resumen.dineroMP > 0 ? (
             <div className="fila" style={{ color: "var(--verde)" }}>
               <span>Dinero en Mercado Pago ({carrito.dineroMP?.porcentaje}%)</span>
@@ -1169,6 +1186,17 @@ export default function FormularioCheckout({
         {/* Crédito Harper (paso 4): solo si el servidor lo ofrece. */}
         {carrito.creditoHarper ? (
           <CreditoEnCheckout credito={carrito.creditoHarper} usar={usarCredito} alCambiar={setUsarCredito} bloqueado={enviando} />
+        ) : null}
+        {/* Sin una cuenta abierta (Ale, 18/11/2026), una pista tranquila para
+            quien tenga crédito: el servidor dice si hay sesión, solo con el
+            Crédito Harper prendido. Apagado, no llega y no se muestra. */}
+        {carrito.creditoPrevisto && !carrito.creditoPrevisto.conCuenta ? (
+          <p className="apagado checkout__credito-pista" style={{ fontSize: "0.8125rem" }}>
+            {TEXTOS.programa.credito.entrarPregunta}{" "}
+            <Link href="/suscriptores/mi-cuenta" className="checkout__enlace">
+              {TEXTOS.programa.credito.entrarEnlace}
+            </Link>
+          </p>
         ) : null}
 
         {/* ---------- 2. Entrega ---------- */}
@@ -1547,11 +1575,12 @@ export default function FormularioCheckout({
         {/* La cuenta se lee de arriba abajo: lista − descuento + envío = total. */}
         <div className="fila">
           <span className="apagado">Subtotal</span>
-          <span>{formatearPrecio(resumen.lista)}</span>
+          <span>{formatearPrecio(subtotalMostrado)}</span>
         </div>
 
         <FilasDescuento ahorro={resumen.descuento} items={carrito.items} cupon={carrito.cupon} />
         <LineaSaldo saldo={resumen.saldo} />
+        <LineaCredito credito={creditoUsado} />
 
         {resumen.dineroMP > 0 ? (
           <div className="fila" style={{ color: "var(--verde)" }}>
@@ -1584,6 +1613,10 @@ export default function FormularioCheckout({
             <span className="cuotas-condiciones">{cuotaCondiciones}</span>
           </p>
         ) : null}
+
+        {/* El Crédito Harper que suma esta compra con el medio de pago elegido
+            (Ale, 18/11/2026): solo si el servidor lo mandó. */}
+        <CreditoQueSuma monto={creditoQueSuma} />
 
         {resumen.ahorroTotal > 0 ? (
           <p className="ahorro-total">¡Ahorraste {formatearPrecio(resumen.ahorroTotal)}!</p>
@@ -1651,6 +1684,21 @@ function LineaSaldo({ saldo }: { saldo: number }) {
     <div className="fila" style={{ color: "var(--verde)" }}>
       <span>{TEXTOS.suscriptores.checkoutCaja.saldo}</span>
       <span>−{formatearPrecio(saldo)}</span>
+    </div>
+  );
+}
+
+/**
+ * El Crédito Harper usado en esta compra, en su renglón del resumen (Ale,
+ * 18/11/2026): «Crédito Harper −$ X», como el saldo. Solo si se usó (lo
+ * aplica el servidor solo con el interruptor prendido y una cuenta verificada).
+ */
+function LineaCredito({ credito }: { credito: number }) {
+  if (credito <= 0) return null;
+  return (
+    <div className="fila" style={{ color: "var(--verde)" }}>
+      <span>{TEXTOS.programa.credito.renglon}</span>
+      <span>−{formatearPrecio(credito)}</span>
     </div>
   );
 }

@@ -72,6 +72,19 @@ export type DuoParaPreguntas = {
 };
 
 /**
+ * El Crédito Harper para las preguntas (Ale, 18/11/2026), con los números del
+ * motor (lib/credito-harper.ts): los dos porcentajes, los días hasta que queda
+ * disponible y los meses hasta que vence. Null con el interruptor apagado: no
+ * se pregunta ni se nombra.
+ */
+export type CreditoParaPreguntas = {
+  unAnteojo: number;
+  varios: number;
+  dias: number;
+  meses: number;
+};
+
+/**
  * Las preguntas frecuentes de la portada. Cada respuesta sale de algo que ya
  * es cierto en la tienda (lib/confianza.ts, lib/dinero-mp.ts, lib/duo.ts,
  * Config): lo que no está confirmado no se pregunta. Sin plazos de entrega.
@@ -107,6 +120,8 @@ export function preguntasDePortada(datos: {
   duo?: DuoParaPreguntas | null;
   /** La pregunta de la cuenta Harper y las novedades (en /preguntas-frecuentes). */
   cuenta?: boolean;
+  /** El Crédito Harper, solo si el servidor lo tiene prendido (en /preguntas-frecuentes); null o sin el dato, ni se nombra. */
+  credito?: CreditoParaPreguntas | null;
 }): Pregunta[] {
   const preguntas: Pregunta[] = [];
   const P = TEXTOS.programa;
@@ -192,6 +207,17 @@ export function preguntasDePortada(datos: {
         .join(" "),
       // La sección del Dúo de los Términos, que también existe solo con el Dúo prendido.
       enlace: { href: "/legales/terminos#duo", texto: "Ver las condiciones del Dúo" },
+    });
+  }
+
+  // El Crédito Harper (Ale, 18/11/2026), solo prendido: qué es, cuánto vuelve,
+  // cuándo queda disponible, cuándo vence y dónde se ve. Los números, del motor.
+  if (datos.credito) {
+    const C = datos.credito;
+    preguntas.push({
+      pregunta: P.credito.pregunta,
+      respuesta: P.credito.respuesta(C.unAnteojo, C.varios, C.dias, C.meses),
+      enlace: { href: "/legales/suscriptores#credito", texto: P.credito.condiciones },
     });
   }
 

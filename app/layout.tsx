@@ -20,6 +20,7 @@ import { anunciosDelHeader } from "@/lib/anuncios";
 import { escalaDe, getTramos } from "@/lib/descuentos";
 import { conEspera, verificarCuotasPara } from "@/lib/cuotas-servidor";
 import { porcentajeDelDuo } from "@/lib/pedidos";
+import { creditoActivo, PORCENTAJE_CREDITO_UN_ANTEOJO, PORCENTAJE_CREDITO_VARIOS } from "@/lib/credito-harper";
 
 // La tipografía (Ale, 07/11/2026 y 17/11/2026): los títulos y los botones
 // son de Google Fonts, gratis y servidas desde harper.ar por next/font, solo
@@ -102,6 +103,10 @@ export default async function RootLayout({
   // apagado, la barra no lo nombra. Se pregunta acá, en el servidor, por la
   // misma puerta que la ficha y la portada (lib/pedidos.ts), y viaja como dato.
   const duo = porcentajeDelDuo();
+  // El Crédito Harper (Ale, 18/11/2026), igual: solo con HARPER_CREDITO_ACTIVO
+  // prendido, con los porcentajes del motor (lib/credito-harper.ts). Apagado,
+  // null y la barra no lo nombra.
+  const credito = creditoActivo() ? { unAnteojo: PORCENTAJE_CREDITO_UN_ANTEOJO, varios: PORCENTAJE_CREDITO_VARIOS } : null;
 
   // Identidad del negocio para Google: es de donde sale el panel de marca en
   // los resultados, y el buscador interno del sitio.
@@ -168,6 +173,7 @@ export default async function RootLayout({
               cuotas,
               escala: escalaDe(tramos, "Anteojos"),
               duo,
+              credito,
               // El envío gratis de la barra sale de los dos mínimos de Config.
               envioGratisDesde: config.envioGratisDesde,
               envioGratisAmbaDesde: config.envioGratisAmbaDesde,
