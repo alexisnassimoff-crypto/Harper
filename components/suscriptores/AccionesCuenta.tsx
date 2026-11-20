@@ -94,7 +94,9 @@ export function AccionesCuenta({ activo = true, email = "", soloSalir = false }:
       <section className="cuenta-suscriptor__baja" role="status">
         <p className="suscripcion__listo">{TEXTOS.suscriptores.baja.listo}</p>
         <p>{TEXTOS.suscriptores.baja.listoDetalle}</p>
-        {/* La baja cierra la sesión de este navegador: al volver, entra de nuevo con su mail. */}
+        {/* La baja no cierra la sesión (Ale, 18/11/2026): al volver, la página
+            trae la cuenta de baja y este bloque se arma de nuevo (la página le
+            cambia la clave), con «Volver a suscribirme» y «Salir». */}
         <button type="button" className="suscripcion__enlace" onClick={() => router.refresh()}>
           {T.volverACuenta}
         </button>

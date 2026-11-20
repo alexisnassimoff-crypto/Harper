@@ -237,7 +237,9 @@ export default async function MiCuenta({ searchParams }: { searchParams: Promise
         ]}
       />
 
-      <AccionesCuenta activo={resumen.activo} email={resumen.email} />
+      {/* La clave cambia con la baja: al volver, el bloque se arma de nuevo
+          con «Volver a suscribirme» (la baja ya no cierra la sesión). */}
+      <AccionesCuenta key={resumen.activo ? "activa" : "baja"} activo={resumen.activo} email={resumen.email} />
     </section>
   );
 }

@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // El Dúo (lib/duo.ts): el valor de HARPER_DUO_ACTIVO al armar el sitio
+  // (.env.production, o el de Vercel si lo tiene) queda fijo en el código. La
+  // página que lo anuncia y el carrito que lo cobra usan siempre el mismo,
+  // sin depender de que la función de Vercel lea .env.production. No es un
+  // secreto: es "1" o nada.
+  env: {
+    HARPER_DUO_ACTIVO: process.env.HARPER_DUO_ACTIVO ?? "",
+  },
+
   images: {
     // Las fotos definitivas viven en Vercel Blob; las de Airtable son el
     // respaldo mientras el espejo todavía no corrió.
