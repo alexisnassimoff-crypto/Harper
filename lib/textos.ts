@@ -224,6 +224,15 @@ export const TEXTOS = {
        */
       carrito: (monto: string, conDineroMP: string | null) =>
         `Con esta compra sumás ${monto} de Crédito Harper para tu próxima compra de anteojos${conDineroMP ? ` (${conDineroMP} si pagás con dinero en Mercado Pago)` : ""}.`,
+      /**
+       * Revisión del 20/11/2026: donde se ofrece el crédito (la ficha, el
+       * carrito, el panel y el checkout) va también cuándo se puede usar y
+       * cuándo vence, antes de pagar, con el enlace a las condiciones
+       * (`condiciones`). Si no, lo que hace perder el crédito recién se leía
+       * después de comprar. Los días y los meses, de lib/credito-harper.ts.
+       * «Confirmemos la entrega» y no «recibas»: ver `gracias`.
+       */
+      plazos: (dias: number, meses: number) => `Queda disponible ${dias} días después de que confirmemos la entrega y vence ${meses} meses después.`,
       /** El renglón del resumen del checkout cuando se usa crédito: «Crédito Harper −$ 4.495». */
       renglon: "Crédito Harper",
       /** En el checkout, sin una cuenta abierta: «¿Tenés Crédito Harper? Entrá a tu cuenta con tu mail para usarlo.» */
@@ -234,13 +243,24 @@ export const TEXTOS = {
        * importe: el número de pedido se puede adivinar. «Mi Cuenta» y no «tu
        * cuenta Harper» (20/11/2026): para ver el crédito no hace falta abrir
        * la cuenta del punto 3 de las condiciones ni aceptar las novedades.
+       *
+       * Los días se cuentan desde que Harper confirma la entrega, no desde que
+       * llega el pedido (revisión del 20/11/2026): el crédito se libera 30
+       * días después de Fecha_entrega, que la automatización completa el día
+       * en que Harper marca el pedido «entregado» (plan §18.2). Antes decía
+       * «después de que recibas tu pedido», que promete otro día si Harper lo
+       * marca tarde; las condiciones ya decían «confirmamos la entrega». Acá
+       * «confirmemos», porque la entrega todavía no pasó.
        */
       gracias: (monto: string, dias: number, meses: number) =>
-        `Con esta compra sumaste ${monto} de Crédito Harper para tu próxima compra de anteojos. Queda disponible ${dias} días después de que recibas tu pedido y vence ${meses} meses después. Lo ves en Mi Cuenta, entrando con el mail de tu compra.`,
-      /** Las preguntas frecuentes. */
+        `Con esta compra sumaste ${monto} de Crédito Harper para tu próxima compra de anteojos. Queda disponible ${dias} días después de que confirmemos la entrega de tu pedido y vence ${meses} meses después. Lo ves en Mi Cuenta, entrando con el mail de tu compra.`,
+      /**
+       * Las preguntas frecuentes. «Confirmamos la entrega» (y no «recibís el
+       * pedido»), como en `gracias`: en presente, porque es la regla general.
+       */
       pregunta: "¿Qué es el Crédito Harper?",
       respuesta: (unAnteojo: number, varios: number, dias: number, meses: number) =>
-        `Es plata para tu próxima compra de anteojos en harper.ar. Te devolvemos el ${unAnteojo}% de lo que pagás en anteojos si llevás uno, y el ${varios}% si llevás dos o más. Queda disponible ${dias} días después de que recibís el pedido y vence ${meses} meses después. Se usa solo en anteojos (no paga el envío) y lo ves en Mi Cuenta, entrando con el mail de tu compra.`,
+        `Es plata para tu próxima compra de anteojos en harper.ar. Te devolvemos el ${unAnteojo}% de lo que pagás en anteojos si llevás uno, y el ${varios}% si llevás dos o más. Queda disponible ${dias} días después de que confirmamos la entrega del pedido y vence ${meses} meses después. Se usa solo en anteojos (no paga el envío) y lo ves en Mi Cuenta, entrando con el mail de tu compra.`,
       condiciones: "Ver las condiciones",
       /** La portada, en «Comprá tranquilo»: «5% de vuelta en Crédito Harper» / «10% con dos o más, para tu próxima compra de anteojos». */
       portada: (unAnteojo: number) => `${unAnteojo}% de vuelta en Crédito Harper`,
@@ -769,7 +789,12 @@ export const TEXTOS = {
         /** Junto a lo disponible, el vencimiento más próximo: «$ 4.495 vencen el 30/04/2027.» */
         proximoVencimiento: (monto: string, fecha: string) => `${monto} vencen el ${fecha}.`,
         pendiente: "Pendiente",
-        pendienteDetalle: (dias: number) => `Se libera ${dias} días después de que recibís el pedido.`,
+        /**
+         * Desde que Harper confirma la entrega, no desde que llega el pedido
+         * (revisión del 20/11/2026; ver `programa.credito.gracias`). Igual que
+         * `sinEntrega`.
+         */
+        pendienteDetalle: (dias: number) => `Se libera ${dias} días después de que confirmemos la entrega.`,
         enRevision: "En revisión",
         enRevisionDetalle: "Lo estamos revisando. Mientras tanto no se puede usar.",
         movimientos: "Movimientos",
@@ -826,8 +851,16 @@ export const TEXTOS = {
         liberado: (fecha: string) => `Se liberó el ${fecha}.`,
         /** En cada crédito disponible con algo sin usar (Ale, 18/11/2026): el último día en que se puede usar. */
         vence: (fecha: string) => `Vence el ${fecha}.`,
-        /** Un crédito que ya se usó entero (estado «Usado»): no queda nada por vencer. */
-        usadoEntero: "Ya lo usaste entero.",
+        /**
+         * Un crédito al que no le queda nada (estado «Usado»): no queda nada
+         * por vencer. Dice lo que queda y no que el comprador lo usó
+         * (revisión del 20/11/2026; antes «Ya lo usaste entero.»): un crédito
+         * puede quedar en $ 0 sin que lo use, porque cubre lo que se usó de
+         * otro crédito que pasó a revisión (por un reembolso, un reclamo o un
+         * contracargo en la compra con que se ganó; `saldoDeCredito` vuelve a
+         * repartir los usos sobre los créditos que siguen disponibles).
+         */
+        usadoEntero: "No le queda nada para usar.",
         /**
          * Un crédito al que no le queda nada porque lo que le quedaba lo tomó
          * una compra que todavía se está pagando (estado «Apartado»). Puede que
@@ -836,7 +869,13 @@ export const TEXTOS = {
         apartado: "Lo que le quedaba está apartado para un pedido que todavía no se pagó.",
         /** Un crédito vencido con algo sin usar: «Venció el 30/04/2027 con $ 1.200 sin usar.» */
         vencio: (fecha: string, monto: string) => `Venció el ${fecha} con ${monto} sin usar.`,
-        sinEntrega: (dias: number) => `Se libera ${dias} días después de la entrega.`,
+        /**
+         * Un pendiente sin fecha de entrega: Harper todavía no marcó el pedido
+         * «entregado», aunque el comprador ya lo tenga. Por eso «que
+         * confirmemos la entrega» y no «la entrega», que se lee como el día en
+         * que llegó (revisión del 20/11/2026).
+         */
+        sinEntrega: (dias: number) => `Se libera ${dias} días después de que confirmemos la entrega.`,
         conGestion: "Hay una gestión abierta sobre este pedido: se libera cuando se resuelva.",
         anulado: "El pedido se canceló o se devolvió.",
         enRevisionNota: "Lo estamos revisando.",

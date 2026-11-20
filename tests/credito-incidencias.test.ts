@@ -226,7 +226,10 @@ test("Crédito ya disponible: queda «A revisar» y no se puede usar; si ya lo g
 // Regla del 20/11/2026 (propuesta a Ale, a favor del comprador): antes el aviso
 // decía que ese crédito «no vuelve solo (la regla está pendiente)»; ahora le
 // dice a Harper qué pasa y qué hacer en cada caso. El arrepentimiento solo
-// avisa: el uso no cambia hasta que llega el reembolso.
+// avisa: el uso no cambia hasta que llega el reembolso. Cambio a propósito
+// (revisión del 20/11/2026): si se queda con algo, que no reembolse el pago
+// entero de una sola vez (el crédito volvería solo además del dinero) y qué
+// hacer si lo que le corresponde es más de lo que queda del pago.
 test("El pedido que se devuelve se pagó en parte con crédito: el aviso dice que vuelve solo con el reembolso total y qué reintegrar si la devolución es parcial", async () => {
   const { deps } = armar();
   await compra({ credito: { Estado: "Disponible", Monto: 9_000 } });
@@ -236,7 +239,7 @@ test("El pedido que se devuelve se pagó en parte con crédito: el aviso dice qu
   assert.match(
     nota ?? "",
     new RegExp(
-      `El pedido ${c.numero} se pagó en parte con \\$\\s?3\\.000 de Crédito Harper\\. Si lo devuelve entero y lo reembolsás entero en Mercado Pago, ese crédito vuelve solo a su cuenta, con 6 meses nuevos para usarlo: no tenés que hacer nada con el crédito\\. Si devuelve solo una parte, reintegrale en Mercado Pago, en dinero, todo lo que pagó por lo que devolvió, incluida la parte que pagó con Crédito Harper \\(en Items del pedido, cada renglón dice cuánto se pagó con crédito\\); el uso del crédito queda «Usado»\\. Si la compra no pasó por Mercado Pago y la devuelve entera, marcá «Devuelto» su uso en Créditos y poné en Disponible_desde el día de la devolución\\.`
+      `El pedido ${c.numero} se pagó en parte con \\$\\s?3\\.000 de Crédito Harper\\. Si lo devuelve entero y lo reembolsás entero en Mercado Pago, ese crédito vuelve solo a su cuenta, con 6 meses nuevos para usarlo: no tenés que hacer nada con el crédito\\. Si devuelve solo una parte, reintegrale en Mercado Pago, en dinero, todo lo que pagó por lo que devolvió, incluida la parte que pagó con Crédito Harper \\(en Items del pedido, cada renglón dice cuánto se pagó con crédito\\); el uso del crédito queda «Usado»\\. Si se queda con algo, no reembolses el pago entero de una sola vez: primero reembolsá en Mercado Pago lo que pagó en dinero por lo que devolvió, y después hacé otro reembolso por la parte que pagó con crédito; si lo que le corresponde es más de lo que queda del pago, reembolsá lo que queda y la diferencia pagásela en dinero por transferencia\\. Si la compra no pasó por Mercado Pago y la devuelve entera, marcá «Devuelto» su uso en Créditos y poné en Disponible_desde el día de la devolución\\.`
     )
   );
   assert.doesNotMatch(nota ?? "", /pendiente/);

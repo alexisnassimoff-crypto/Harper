@@ -1374,11 +1374,11 @@ devuelto.
 
 | # | Qué | Por qué |
 |---|---|---|
-| L1 | **Regla de reintegro de la devolución de un par del Dúo** y qué pasa con el crédito de esa compra | Ninguna de las alternativas M1, M2 y M3 es definitiva. Hay que verla con el derecho de arrepentimiento (Ley 24.240, art. 34), la garantía y la política de devoluciones publicada (§13.2) |
+| L1 | **Regla de reintegro de la devolución de un par del Dúo** y qué pasa con el crédito de esa compra | Ninguna de las alternativas M1, M2 y M3 es definitiva. Hay que verla con el derecho de arrepentimiento (Ley 24.240, art. 34), la garantía y la política de devoluciones publicada (§13.2). **Bloquea prender `HARPER_CREDITO_ACTIVO` (revisión del 20/11/2026):** la frase de las condiciones del crédito «Si devolvés solo una parte de la compra, te reintegramos en dinero lo que pagaste por lo que devolviste, incluida la parte que pagaste con Crédito Harper» es la propuesta del 20/11 y no está decidida. Leída renglón por renglón, con un Dúo de dos colores reintegra entero el anteojo de precio completo (M2, la que hace perder plata) y con uno de un solo color, el promedio (M3). Además, en una compra de un anteojo con un estuche o un paño, devolver solo el anteojo cambia en dinero el crédito usado, que choca con «No se puede cambiar por dinero». Opciones para Ale: M1 (se recalcula con el Dúo que corresponda a lo que se queda), M2 con la excepción escrita en «No se puede cambiar por dinero», o devolver como Crédito Harper la parte pagada con crédito (con 6 meses nuevos; necesita código: hoy un uso tiene un solo Monto). Lo que decida va a Decisiones y se reescriben la frase, «Cómo se usa», los avisos a Harper (`lib/credito-uso.ts`, `parcial`; `lib/credito-incidencias.ts`) y sus pruebas |
 | L2 | **Transición de los suscriptores actuales:** el texto nuevo, el plazo del aviso y a quién se avisa | Lo pide el punto 9 de las condiciones aceptadas. También hay que confirmar que el cupón ya dado se suma al Dúo, como dice el punto 5 (§7 y §11) |
 | L3 | **Separar la cuenta y el crédito del consentimiento para recibir publicidad** | Hoy suscribirse es dar ese consentimiento. Cambia el alta, las condiciones y la política de privacidad. Y hay que definir de qué tipo es el mail «tu crédito ya se puede usar» (§12) |
 | L4 | **Si el saldo ganado con las reglas de hoy puede pagar el envío** | Las condiciones aceptadas dicen que el saldo «puede cubrir una compra entera». Ahora algunas compras pagan envío (§10.3) |
-| L5 | **Devolución total después de usar el crédito** | Hoy el saldo puede quedar negativo. Hay que validar si se mantiene para el crédito nuevo (§13.2) |
+| L5 | **Devolución total después de usar el crédito** | Hoy el saldo puede quedar negativo. Hay que validar si se mantiene para el crédito nuevo (§13.2). Las condiciones del crédito (revisión del 20/11/2026) dicen lo que hace hoy el motor: lo usado de un crédito que pasa a revisión se descuenta del resto del crédito, del que tenga o, si no alcanza, del que gane después (`saldoDeCredito`). Si Ale decide otra cosa, se cambian el motor y esas frases. Hay que decidirlo antes de prender `HARPER_CREDITO_ACTIVO` |
 
 ### Operativas
 
@@ -2267,8 +2267,14 @@ Créditos y `marcarIncidencia` (§17.3). No define ninguna regla de L1–L5.
 - **El crédito ya gastado de un pedido que se devuelve:** no se recupera.
   La cuenta queda con más usado que ganado, no puede usar más crédito y se
   avisa a Harper. Nunca queda en negativo.
-- **El crédito usado en el pedido que se devuelve:** no vuelve solo. Queda
-  descontado y se avisa. Si corresponde, Harper marca «Devuelto» su uso.
+- **El crédito usado en el pedido que se devuelve:** desde la regla del
+  20/11/2026, con el reembolso total de una vez vuelve solo, con 6 meses
+  nuevos. No vuelve solo, queda «A revisar» y se avisa, con un contracargo
+  perdido, un reclamo que ganó el comprador en Mercado Pago (refunded con
+  bpp_refunded) o un reembolso total después de uno parcial (el pago tiene
+  dos o más reembolsos, o el uso tiene la marca del parcial). Si corresponde,
+  Harper marca «Devuelto» su uso. El criterio del reclamo lo tiene que
+  confirmar Ale (revisión del 20/11/2026).
 
 Nunca frena el arrepentimiento: si algo falla (Redis, Airtable), el
 arrepentimiento se registra igual y la nota pide marcar la incidencia a
@@ -2330,7 +2336,7 @@ La suite completa da 818 pruebas: 812 pasan, 0 fallan y 6 se saltan.
 
 1. Las opciones Reservado, Usado, Liberado y Devuelto de «Estado» en Créditos (aprobadas, falta agregarlas a mano: el esquema leído el 07/11 tiene solo las 4 de antes).
 2. El cron de `/api/credito/diario` no está en `vercel.json`. Sin él, ningún crédito pasa a disponible. Agregarlo requiere autorización, y además hay que confirmar que `CRON_SECRET` esté cargado en Vercel (no se puede leer desde acá).
-3. Las decisiones del corte y la revisión legal (L1–L5, condiciones y mail de transición).
+3. Las decisiones del corte y la revisión legal (L1–L5, condiciones y mail de transición). En especial L1: la frase publicada de la devolución parcial es una propuesta sin decidir (§14, L1).
 4. Prender `HARPER_CREDITO_ACTIVO` (y, aparte, `HARPER_DUO_ACTIVO`) en Vercel, con autorización.
 
 ---

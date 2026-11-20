@@ -45,11 +45,15 @@ import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
  * lib/credito-uso.ts, `aplicarCreditoHarper`); las devoluciones, de
  * lib/credito-pagos.ts, lib/credito-persistencia.ts y lib/credito-uso.ts
  * (`procesarUsoDelPago`: con el reembolso total, lo usado vuelve solo,
- * `devolverUsoPorReembolso`; con un contracargo perdido queda en revisión,
- * `revisarUsoPorReembolso`; con un reembolso parcial, Harper reintegra en
- * dinero lo pagado por lo devuelto, también lo pagado con crédito). No dice
- * cómo cambia el crédito GANADO si se devuelve solo una parte de la compra
- * (un anteojo de un Dúo): Ale todavía no lo decidió. Tiene su propia versión
+ * `devolverUsoPorReembolso`; con un contracargo perdido o un reclamo que ganó
+ * el comprador en Mercado Pago queda en revisión, `revisarUsoPorReembolso`;
+ * con un reembolso parcial, Harper reintegra en dinero lo pagado por lo
+ * devuelto, también lo pagado con crédito). No dice cómo cambia el crédito
+ * GANADO si se devuelve solo una parte de la compra (un anteojo de un Dúo):
+ * Ale todavía no lo decidió. La regla de reintegro de la devolución parcial
+ * tampoco está decidida (L1, plan §14): la frase publicada es la propuesta
+ * del 20/11/2026 y prender el interruptor espera esa decisión (ver el
+ * comentario de «Devoluciones y contracargos», abajo). Tiene su propia versión
  * (VERSION_CONDICIONES_CREDITO), que se muestra en la sección: el texto
  * publicado cambia cuando se prende el interruptor, y la versión de la cuenta
  * que guarda cada alta no cambia.
@@ -205,7 +209,8 @@ export default async function CondicionesCuenta() {
 
       {/*
         El Crédito Harper (Ale, 18/11/2026): solo con HARPER_CREDITO_ACTIVO=1. Apagado, ni el título ni una mención.
-        Dice lo que hace el código, nada más. Sin regla para la devolución de un anteojo de un Dúo (sin decidir).
+        Dice lo que hace el código, nada más. La regla de reintegro de la devolución de un anteojo de un Dúo está sin
+        decidir (L1): la frase de la devolución parcial es una propuesta y bloquea prender el interruptor.
       */}
       {conCredito ? (
         <>
@@ -231,7 +236,11 @@ export default async function CondicionesCuenta() {
               <strong>Cuándo queda disponible.</strong> Cuando se acredita el pago, el crédito queda pendiente a nombre del mail con el que
               hiciste la compra. Pasa a estar disponible {DIAS_PARA_LIBERAR_CREDITO} días después de que confirmamos la entrega del pedido,
               siempre que la compra no tenga abierta una devolución, un cambio, un reclamo o un contracargo: si tiene alguno, sigue
-              pendiente hasta que se resuelva. Mientras está pendiente no se puede usar.
+              pendiente hasta que se resuelva. Mientras está pendiente no se puede usar.{" "}
+              {/* Revisión del 20/11/2026: marcarIncidencia (lib/credito-persistencia.ts) deja «A revisar» un crédito ya
+                  disponible, y saldoDeCredito (lib/credito-uso.ts) reparte lo usado de él sobre los otros créditos. */}
+              Si el crédito ya estaba disponible, queda en revisión hasta que se resuelva; mientras tanto, lo que ya hayas usado de él
+              se descuenta del resto de tu Crédito Harper, como se explica en «Devoluciones y contracargos».
             </li>
             <li>
               <strong>Cuándo vence.</strong> A los {MESES_PARA_VENCER_CREDITO} meses del día en que quedó disponible, el mismo número de
@@ -251,14 +260,26 @@ export default async function CondicionesCuenta() {
             </li>
             <li>
               {/* Lo que hace el código desde el 20/11/2026: lib/credito-persistencia.ts (`anularPorPedido`) para el crédito
-                  ganado y lib/credito-uso.ts (`procesarUsoDelPago`) para el usado. */}
+                  ganado y lib/credito-uso.ts (`procesarUsoDelPago`) para el usado. «Lo que usaste se descuenta del resto»
+                  es lo que hace hoy saldoDeCredito (lib/credito-uso.ts): reparte lo usado sobre los créditos que siguen
+                  disponibles y, si no alcanzan, sobre los que se ganen después (el aviso a Harper de
+                  lib/credito-incidencias.ts dice lo mismo). Ale todavía no decidió L5 (plan §14): si decide otra cosa, se
+                  cambian el motor y esta frase.
+                  La frase de la devolución parcial es la propuesta del 20/11/2026 y NO está decidida (L1, plan §14): leída
+                  renglón por renglón, con un Dúo de dos colores reintegra entero el anteojo de precio completo (la M2 del
+                  plan) y con uno de un solo color, el promedio (M3); y en una compra de un anteojo con un estuche o un paño
+                  cambia en dinero el crédito usado en el anteojo, que choca con «No se puede cambiar por dinero» (arriba).
+                  HARPER_CREDITO_ACTIVO no se prende hasta que Ale decida L1; entonces se reescriben esta frase, la de «Cómo
+                  se usa» y los avisos a Harper (lib/credito-uso.ts, `parcial`; lib/credito-incidencias.ts) para que digan lo
+                  mismo. */}
               <strong>Devoluciones y contracargos.</strong> Si se reintegra entero el pago de la compra con la que ganaste el crédito, por
               una devolución o por un contracargo, ese crédito se anula. Si ya estaba disponible, queda en revisión y no lo podés usar
-              mientras lo revisamos. Si devolvés una compra que pagaste en parte con Crédito Harper, el crédito que usaste vuelve a tu
-              cuenta cuando te reintegramos el pago entero, con {MESES_PARA_VENCER_CREDITO} meses para usarlo desde ese día. Si devolvés
-              solo una parte de la compra, te reintegramos en dinero lo que pagaste por lo que devolviste, incluida la parte que pagaste
-              con Crédito Harper. Si el pago se revierte por un contracargo, el crédito que usaste en esa compra queda en revisión y sigue
-              descontado mientras lo revisamos.
+              mientras lo revisamos. Si ya lo habías usado, lo que usaste se descuenta del resto de tu Crédito Harper: del que tengas
+              ahora o, si no alcanza, del que ganes después. Si devolvés una compra que pagaste en parte con Crédito Harper, el crédito
+              que usaste vuelve a tu cuenta cuando te reintegramos el pago entero, con {MESES_PARA_VENCER_CREDITO} meses para usarlo
+              desde ese día. Si devolvés solo una parte de la compra, te reintegramos en dinero lo que pagaste por lo que devolviste,
+              incluida la parte que pagaste con Crédito Harper. Si el pago se revierte por un contracargo, o porque Mercado Pago te dio
+              la razón en un reclamo, el crédito que usaste en esa compra queda en revisión y sigue descontado mientras lo revisamos.
             </li>
             <li>
               {/* El aviso del crédito devuelto es solo el de «por vencer» (lib/credito-diario.ts): por eso «el crédito que ganaste». */}
@@ -266,9 +287,16 @@ export default async function CondicionesCuenta() {
               todavía te queda crédito sin usar, {DIAS_AVISO_VENCIMIENTO} días antes de que venza.
             </li>
             <li>
+              {/* Revisión del 20/11/2026: antes decía «y lo tratamos como dice el punto 6», pero el punto 6 incluye entre los usos
+                  los mails de novedades, que necesitan la casilla del punto 3 (Ley 25.326, arts. 5 y 6). Quien solo tiene crédito
+                  nunca la marcó (lib/credito-cuenta.ts, entrarALaCuenta, no da de alta en Suscriptores). Por eso acá se dicen los
+                  usos de estos datos, todos los que hace el código (mostrar, descontar, revisar con anularPorPedido y
+                  lib/credito-incidencias.ts, y los avisos de lib/credito-diario.ts), y del punto 6 solo los derechos. */}
               <strong>Dónde lo ves.</strong> En {miCuenta} ves tu crédito disponible, el pendiente y el que está en revisión, con cada
-              movimiento. Para llevarlo guardamos, con el mail de la compra, el crédito de cada pedido, su estado y cómo lo usaste, y lo
-              tratamos como dice el punto 6.
+              movimiento. Para llevarlo guardamos, con el mail de la compra, el crédito de cada pedido, su estado y cómo lo usaste.
+              Esos datos los usamos solo para llevar tu crédito: mostrártelo, descontarlo cuando lo usás, revisarlo si hay una
+              devolución, un reclamo o un contracargo, y mandarte los avisos de arriba. Si no aceptaste los mails de novedades, tener
+              crédito no hace que te los mandemos. Tus derechos sobre esos datos son los del punto 6.
             </li>
           </ul>
         </>

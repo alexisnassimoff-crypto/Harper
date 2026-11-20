@@ -15,6 +15,7 @@ import { buscarCupon, HAY_CUPONES } from "@/lib/cupones";
 import OfertaCantidad from "./OfertaCantidad";
 import OfertaDuo from "./OfertaDuo";
 import { esCategoriaDeAnteojos } from "@/lib/categorias";
+import { DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO } from "@/lib/credito-harper";
 import { ofertaEnLaFicha, type DuoDeLaFicha } from "@/lib/promocion-anteojos";
 import OpcionesPares, { type OpcionPares } from "./OpcionesPares";
 import HojaPack, { type ColorDeADos, type HojaPackControl } from "@/components/HojaPack";
@@ -381,11 +382,18 @@ export default function FichaProducto({
               ) : null}
               {/* El Crédito Harper (Ale, 18/11/2026), solo si el servidor lo
                   mandó y el carrito no tiene anteojos: lo que suma uno de este
-                  modelo y, cuando la ficha muestra el Dúo, lo que suman dos. */}
+                  modelo y, cuando la ficha muestra el Dúo, lo que suman dos.
+                  Revisión del 20/11/2026: también cuándo queda disponible y
+                  cuándo vence, con el enlace a las condiciones, antes de
+                  comprar (los días y los meses, de lib/credito-harper.ts). */}
               {creditoDeLaFicha ? (
                 <p style={{ fontSize: "0.8125rem" }}>
                   {TEXTOS.programa.credito.ficha(creditoDeLaFicha.uno, creditoDeLaFicha.unoDineroMP)}
-                  {creditoDeLaFicha.dos && mostrarDuo ? ` ${TEXTOS.programa.credito.fichaDos(creditoDeLaFicha.dos, creditoDeLaFicha.dosDineroMP)}` : ""}
+                  {creditoDeLaFicha.dos && mostrarDuo ? ` ${TEXTOS.programa.credito.fichaDos(creditoDeLaFicha.dos, creditoDeLaFicha.dosDineroMP)}` : ""}{" "}
+                  {TEXTOS.programa.credito.plazos(DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO)}{" "}
+                  <a href="/legales/suscriptores#credito" target="_blank" rel="noopener" className="checkout__enlace">
+                    {TEXTOS.programa.credito.condiciones}
+                  </a>
                 </p>
               ) : null}
             </div>

@@ -150,7 +150,8 @@ function detalleDelUso(m: MovimientoCredito): string {
  * El detalle de un crédito, ganado o devuelto, según su estado (Ale,
  * 18/11/2026: con el vencimiento). Las fechas y lo que queda salen de la
  * billetera del servidor (lib/credito-cuenta.ts): desde el 20/11/2026 uno al
- * que no le queda nada se ve «Usado» (lo usó entero) o «Apartado» (lo que le
+ * que no le queda nada se ve «Usado» (no le queda nada para usar: lo usó, o
+ * cubre lo usado de otro crédito que pasó a revisión) o «Apartado» (lo que le
  * quedaba lo tomó una compra que todavía se está pagando), nunca «Disponible».
  * El ganado «se liberó»; el devuelto «volvió a tu cuenta». Uno devuelto que
  * Harper marcó a mano sin fecha no dice ni desde cuándo ni hasta cuándo.
@@ -175,7 +176,9 @@ function detalleDelCredito(m: MovimientoCredito, hoy: string): string {
     case "reservado":
       return juntar(desde, T.apartado);
     case "usado":
-      // Usado entero, antes de vencer: no queda nada por vencer.
+      // No le queda nada, antes de vencer: no queda nada por vencer. No se
+      // dice «lo usaste»: puede haber quedado en $ 0 por cubrir lo usado de
+      // otro crédito que pasó a revisión (revisión del 20/11/2026).
       return juntar(desde, T.usadoEntero);
     default:
       return "";

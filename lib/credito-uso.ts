@@ -23,15 +23,20 @@ import type { Reloj } from "./webhook-lock";
  *  - «Usado»: el pago se acreditó (lo confirma el webhook, o el pedido en $ 0);
  *  - «Liberado»: el pedido no se pagó (vencido, rechazado sin reintento o
  *    cancelado): vuelve a estar disponible;
- *  - «A revisar»: se perdió un contracargo del pedido. Sigue contando como
- *    usado hasta que Harper decida si lo devuelve;
+ *  - «A revisar»: el pago se revirtió sin que fuera una devolución que hizo
+ *    Harper (un contracargo perdido, o un reclamo que ganó el comprador en
+ *    Mercado Pago), o el pedido quedó reembolsado entero después de un
+ *    reembolso parcial (revisión del 20/11/2026: ahí no se sabe si se le
+ *    devolvió en dinero lo que pagó con crédito). Sigue contando como usado
+ *    hasta que Harper decida si lo devuelve;
  *  - «Devuelto»: el crédito usado volvió a la cuenta. La regla de las
  *    devoluciones (20/11/2026, propuesta a Ale, a favor del comprador): en la
  *    Argentina quien se arrepiente dentro de los 10 días recibe TODO lo que
  *    pagó, y una cláusula en la que Harper «decide en cada caso» no vale. Por
  *    eso, si el pedido se reembolsa entero en Mercado Pago, el webhook lo
  *    marca «Devuelto» solo y anota en Disponible_desde el día del reembolso
- *    (`devolverUsoPorReembolso`). También lo puede marcar Harper a mano (un
+ *    (`devolverUsoPorReembolso`), salvo que antes haya habido un reembolso
+ *    parcial (eso va a «A revisar»). También lo puede marcar Harper a mano (un
  *    contracargo perdido que decide devolver, una compra sin Mercado Pago).
  *    El uso sigue descontado de los créditos que consumió (como «Usado»: lo
  *    que ya se repartió no cambia) y lo devuelto es un crédito aparte, que
@@ -716,11 +721,17 @@ export async function confirmarUso(numero: string, deps: DependenciasUso): Promi
 }
 
 /**
- * Se perdió un contracargo del pedido: el uso queda «A revisar» y sigue
- * contando como usado. Devolverlo o no lo decide Harper (marca «Devuelto» o
- * «Usado»): un contracargo perdido no es una devolución del comprador, así
- * que no se devuelve solo. (El reembolso total, en cambio, devuelve el
- * crédito solo: `devolverUsoPorReembolso`.)
+ * El uso queda «A revisar» y sigue contando como usado; devolverlo o no lo
+ * decide Harper (marca «Devuelto» o «Usado»). Pasa con:
+ *  - un contracargo perdido, o un reclamo que ganó el comprador en Mercado
+ *    Pago (revisión del 20/11/2026): no son una devolución que hizo Harper,
+ *    así que no se devuelve solo;
+ *  - un reembolso total que llega después de uno parcial (revisión del
+ *    20/11/2026): con la devolución parcial Harper ya le reintegró en dinero
+ *    lo pagado con crédito por lo que devolvió, y devolverlo además como
+ *    crédito lo pagaría dos veces.
+ * (El reembolso total de una vez, en cambio, devuelve el crédito solo:
+ * `devolverUsoPorReembolso`.)
  */
 export async function revisarUsoPorReembolso(numero: string, que: string, deps: DependenciasUso): Promise<{ estado: "a-revisar" | "ya" | "sin-uso"; uso?: FilaUso } | CuentaOcupada> {
   return conLaCuentaDelPedido(numero, deps, async (uso) => {
@@ -738,11 +749,25 @@ export type ResultadoDevolucion =
   | { estado: "ya"; uso: FilaUso }
   /** «A revisar» (Harper decide) o una fila editada a mano que no se entiende: no se toca y se le avisa a Harper. */
   | { estado: "decidido"; uso: FilaUso }
+  /**
+   * El uso tiene la marca de un reembolso parcial (`MARCA_REEMBOLSO_PARCIAL`):
+   * no se devuelve solo y no se toca. Quien llama lo manda a «A revisar».
+   */
+  | { estado: "tras-parcial"; uso: FilaUso }
   | { estado: "sin-uso" }
   | CuentaOcupada;
 
 /**
- * El pedido se reembolsó ENTERO en Mercado Pago (no un contracargo perdido):
+ * La línea que deja en las Notas del uso un reembolso parcial en Mercado Pago
+ * (revisión del 20/11/2026). Con ella, el reembolso total que llegue después
+ * no devuelve el crédito solo: va a «A revisar» (`procesarUsoDelPago`).
+ */
+export const MARCA_REEMBOLSO_PARCIAL = "Reembolso parcial en Mercado Pago.";
+
+/**
+ * El pedido se reembolsó ENTERO en Mercado Pago, de una vez (no un
+ * contracargo perdido ni un reclamo que ganó el comprador, ni después de un
+ * reembolso parcial):
  * el crédito que se usó en él vuelve solo a la cuenta (regla del 20/11/2026,
  * propuesta a Ale: quien se arrepiente dentro de los 10 días recibe todo lo
  * que pagó, también lo pagado con crédito; una cláusula en la que Harper
@@ -752,6 +777,9 @@ export type ResultadoDevolucion =
  * original ya hubiera vencido (`saldoDeCredito`). Pasa con «Usado» y con
  * «Reservado» (un aviso del reembolso que llega antes que la confirmación del
  * pago). Idempotente: un segundo aviso del mismo reembolso no hace nada más.
+ * Con la marca de un reembolso parcial en sus Notas no lo devuelve
+ * («tras-parcial»): se mira adentro del cerrojo porque el aviso del parcial
+ * pudo anotarla mientras se esperaba la llave.
  */
 export async function devolverUsoPorReembolso(numero: string, deps: DependenciasUso): Promise<ResultadoDevolucion> {
   return conLaCuentaDelPedido(numero, deps, async (uso): Promise<ResultadoDevolucion> => {
@@ -760,6 +788,7 @@ export async function devolverUsoPorReembolso(numero: string, deps: Dependencias
     if (!actual) return { estado: "sin-uso" };
     if (actual.rota || actual.estado === "A revisar") return { estado: "decidido", uso: actual };
     if (actual.estado === "Devuelto" || actual.estado === "Liberado") return { estado: "ya", uso: actual };
+    if (actual.notas.includes(MARCA_REEMBOLSO_PARCIAL)) return { estado: "tras-parcial", uso: actual };
     const ahora = deps.reloj.ahora();
     const dia = fechaArgentina(new Date(ahora));
     const vence = venceEl(dia);
@@ -773,6 +802,34 @@ export async function devolverUsoPorReembolso(numero: string, deps: Dependencias
       ),
     });
     return { estado: "devuelto", uso: nuevo, disponibleDesde: dia, venceEl: vence };
+  });
+}
+
+export type ResultadoMarcaParcial =
+  /** Se anotó `MARCA_REEMBOLSO_PARCIAL` («anotado») o ya estaba («ya»). */
+  | { estado: "anotado" | "ya"; uso: FilaUso }
+  /** «A revisar», «Devuelto», «Liberado» o una fila que no se entiende: no se toca. */
+  | { estado: "decidido"; uso: FilaUso }
+  | { estado: "sin-uso" }
+  | CuentaOcupada;
+
+/**
+ * El pedido tuvo un reembolso parcial en Mercado Pago (revisión del
+ * 20/11/2026): deja `MARCA_REEMBOLSO_PARCIAL` en las Notas del uso «Usado» o
+ * «Reservado». Así, si después el pago queda reembolsado entero, el crédito
+ * usado no vuelve solo: con la devolución parcial Harper ya le reintegró en
+ * dinero lo pagado con crédito, y devolverlo además como crédito lo pagaría
+ * dos veces. Con el cerrojo de la cuenta (como `anotarEnUso`) y releyendo la
+ * fila adentro; si la línea ya está, no la repite. Solo toca Notas.
+ */
+export async function anotarReembolsoParcial(numero: string, deps: DependenciasUso): Promise<ResultadoMarcaParcial> {
+  return conLaCuentaDelPedido(numero, deps, async (uso): Promise<ResultadoMarcaParcial> => {
+    const actual = usoDelPedido((await deps.almacen.delPedido(numero)).filter((u) => u.email === uso.email));
+    if (!actual) return { estado: "sin-uso" };
+    if (actual.rota || (actual.estado !== "Usado" && actual.estado !== "Reservado")) return { estado: "decidido", uso: actual };
+    if (actual.notas.includes(MARCA_REEMBOLSO_PARCIAL)) return { estado: "ya", uso: actual };
+    const nuevo = await deps.almacen.actualizar(actual.id, { estado: actual.estado, notas: conNota(actual, deps.reloj.ahora(), MARCA_REEMBOLSO_PARCIAL) });
+    return { estado: "anotado", uso: nuevo };
   });
 }
 
@@ -837,9 +894,13 @@ export type ResultadoUsoPago =
   | { accion: "confirmar"; numero: string; resultado: ResultadoConfirmacion | CuentaOcupada; alerta: string | null }
   /** Reembolso total: el crédito usado vuelve solo. La alerta es informativa (Harper no tiene que hacer nada), salvo con «decidido». */
   | { accion: "devolver"; numero: string; resultado: ResultadoDevolucion; alerta: string | null }
-  /** Contracargo perdido: «A revisar», decide Harper. */
+  /**
+   * Contracargo perdido, reclamo que ganó el comprador o reembolso total
+   * después de uno parcial: «A revisar», decide Harper.
+   */
   | { accion: "revisar"; numero: string; resultado: Awaited<ReturnType<typeof revisarUsoPorReembolso>>; alerta: string | null }
-  | { accion: "parcial"; numero: string; alerta: string };
+  /** Reembolso parcial: se marca el uso y se avisa. Con la cuenta ocupada, sin aviso: el webhook reintenta. */
+  | { accion: "parcial"; numero: string; resultado: ResultadoMarcaParcial; alerta: string | null };
 
 /** Lo que el texto a Harper dice de cuánto crédito y de quién. */
 const delUso = (uso: Pick<FilaUso, "monto" | "email">) => `${formatearPrecio(uso.monto)} de Crédito Harper de ${uso.email}`;
@@ -848,12 +909,19 @@ const delUso = (uso: Pick<FilaUso, "monto" | "email">) => `${formatearPrecio(uso
  * Lo que le pasa al crédito USADO en un pedido con el aviso de un pago (del
  * aviso solo se usa el ID; todo se lee de Mercado Pago y de Pedidos):
  *  - cobrado y el pedido confirmado: el uso queda «Usado»;
- *  - reembolso total: el crédito usado vuelve solo a la cuenta, «Devuelto»
- *    con el día del reembolso y 6 meses nuevos (`devolverUsoPorReembolso`), y
- *    a Harper le llega un aviso que no le pide nada;
- *  - contracargo perdido: «A revisar», decide Harper, y aviso;
- *  - reembolso parcial: el uso no cambia y el aviso le dice a Harper qué
- *    tiene que devolverle al comprador (regla del 20/11/2026);
+ *  - reembolso total de una vez: el crédito usado vuelve solo a la cuenta,
+ *    «Devuelto» con el día del reembolso y 6 meses nuevos
+ *    (`devolverUsoPorReembolso`), y a Harper le llega un aviso que no le pide
+ *    nada;
+ *  - contracargo perdido o reclamo que ganó el comprador (refunded con
+ *    bpp_refunded): «A revisar», decide Harper, y aviso;
+ *  - reembolso total después de uno parcial (el pago tiene dos o más
+ *    reembolsos, o el uso tiene la marca del parcial): «A revisar», decide
+ *    Harper, y aviso (revisión del 20/11/2026: con la devolución parcial ya
+ *    le reintegró en dinero lo pagado con crédito);
+ *  - reembolso parcial: el uso sigue igual, con la marca del parcial en sus
+ *    Notas, y el aviso le dice a Harper qué tiene que devolverle al
+ *    comprador (regla del 20/11/2026);
  *  - pendiente o sin pago: nada (la reserva vence sola si no se paga).
  * Un pedido sin uso de crédito no lee Mercado Pago más allá del pago.
  */
@@ -881,22 +949,48 @@ export async function procesarUsoDelPago(pagoId: string, deps: DependenciasUsoPa
           : null,
     };
   }
-  if (cobro.estado === "sin-cobro" && !cobro.contracargoPerdido) {
-    // Reembolso total: el crédito usado vuelve solo (regla del 20/11/2026).
-    const resultado = await devolverUsoPorReembolso(n, deps.uso);
-    let alerta: string | null = null;
-    if (resultado.estado === "devuelto") {
-      // Solo el aviso que lo devolvió avisa: uno repetido no hace nada más.
-      alerta = `El pedido ${n} se pagó en parte con ${delUso(resultado.uso)} y tuvo un reembolso total en Mercado Pago. Ese crédito volvió solo a la cuenta: se puede usar desde el ${fechaLegible(resultado.disponibleDesde)} hasta el ${fechaLegible(resultado.venceEl)} (${MESES_PARA_VENCER_CREDITO} meses nuevos). Quedó «Devuelto» en Créditos. No tenés que hacer nada.`;
-    } else if (resultado.estado === "decidido") {
-      // No se pisa lo que está «A revisar» ni una fila editada a mano: se repite mientras siga así.
-      const hoy = fechaLegible(fechaArgentina(new Date(deps.uso.reloj.ahora())));
-      alerta = `El pedido ${n} se pagó en parte con ${delUso(resultado.uso)} y tuvo un reembolso total en Mercado Pago, pero su uso en Créditos está «${resultado.uso.estado}»${resultado.uso.rota ? " y no se entiende (se editó a mano)" : ""}: no se tocó. Con un reembolso total el crédito usado se le devuelve: marcá «Devuelto» su uso y poné en Disponible_desde el día de hoy (${hoy}); desde ese día tiene ${MESES_PARA_VENCER_CREDITO} meses para usarlo.`;
+  if (cobro.estado === "sin-cobro" && !cobro.contracargoPerdido && !cobro.reclamoPerdido) {
+    // Revisión del 20/11/2026: si antes hubo un reembolso parcial, Harper ya le
+    // reintegró en dinero lo pagado con crédito por lo que devolvió. Devolverlo
+    // además como crédito lo pagaría dos veces, así que decide Harper. Se ve
+    // en el pago (dos o más reembolsos: no depende de que algún aviso haya
+    // llegado mientras era parcial) o en la marca que dejó el aviso del parcial.
+    const previo = usoDelPedido(await deps.uso.almacen.delPedido(n));
+    const trasParcial = cobro.reembolsoEnPartes || (previo?.notas.includes(MARCA_REEMBOLSO_PARCIAL) ?? false);
+    if (!trasParcial) {
+      // Reembolso total de una vez: el crédito usado vuelve solo (regla del 20/11/2026).
+      const resultado = await devolverUsoPorReembolso(n, deps.uso);
+      if (resultado.estado !== "tras-parcial") {
+        let alerta: string | null = null;
+        if (resultado.estado === "devuelto") {
+          // Solo el aviso que lo devolvió avisa: uno repetido no hace nada más.
+          alerta = `El pedido ${n} se pagó en parte con ${delUso(resultado.uso)} y tuvo un reembolso total en Mercado Pago. Ese crédito volvió solo a la cuenta: se puede usar desde el ${fechaLegible(resultado.disponibleDesde)} hasta el ${fechaLegible(resultado.venceEl)} (${MESES_PARA_VENCER_CREDITO} meses nuevos). Quedó «Devuelto» en Créditos. No tenés que hacer nada.`;
+        } else if (resultado.estado === "decidido") {
+          // No se pisa lo que está «A revisar» ni una fila editada a mano: se repite mientras siga así.
+          const hoy = fechaLegible(fechaArgentina(new Date(deps.uso.reloj.ahora())));
+          alerta = `El pedido ${n} se pagó en parte con ${delUso(resultado.uso)} y tuvo un reembolso total en Mercado Pago, pero su uso en Créditos está «${resultado.uso.estado}»${resultado.uso.rota ? " y no se entiende (se editó a mano)" : ""}: no se tocó. Con un reembolso total el crédito usado se le devuelve: marcá «Devuelto» su uso y poné en Disponible_desde el día de hoy (${hoy}); desde ese día tiene ${MESES_PARA_VENCER_CREDITO} meses para usarlo.`;
+        }
+        return { accion: "devolver", numero: n, resultado, alerta };
+      }
+      // El aviso del parcial anotó la marca mientras se esperaba la llave: sigue como «tras parcial».
     }
-    return { accion: "devolver", numero: n, resultado, alerta };
+    const resultado = await revisarUsoPorReembolso(n, "reembolso total después de un reembolso parcial", deps.uso);
+    const uso = "uso" in resultado ? resultado.uso : null;
+    const hoy = fechaLegible(fechaArgentina(new Date(deps.uso.reloj.ahora())));
+    return {
+      accion: "revisar",
+      numero: n,
+      resultado,
+      // Se repite mientras siga «A revisar», como con el contracargo perdido.
+      alerta:
+        uso && uso.estado === "A revisar"
+          ? `El pedido ${n} se pagó en parte con ${delUso(uso)} y quedó reembolsado entero en Mercado Pago después de un reembolso parcial. El crédito usado no volvió solo: su uso quedó «A revisar». Al comprador le corresponde todo lo que pagó por lo que devolvió (en Items del pedido, cada renglón dice cuánto pagó en dinero y cuánto con crédito). Si eso es lo que ya le reembolsaste en dinero más ${formatearPrecio(uso.monto)}, marcá «Devuelto» su uso y poné en Disponible_desde el día de hoy (${hoy}); desde ese día tiene ${MESES_PARA_VENCER_CREDITO} meses para usarlo. Si no, marcalo «Usado» y lo que le falte pagáselo en dinero por transferencia.`
+          : null,
+    };
   }
   if (cobro.estado === "sin-cobro") {
-    const que = "contracargo perdido";
+    // Ni el contracargo perdido ni el reclamo que ganó el comprador son una devolución que hizo Harper.
+    const que = cobro.contracargoPerdido ? "contracargo perdido" : "reclamo que ganó el comprador";
     const resultado = await revisarUsoPorReembolso(n, que, deps.uso);
     const uso = "uso" in resultado ? resultado.uso : null;
     return {
@@ -912,19 +1006,26 @@ export async function procesarUsoDelPago(pagoId: string, deps: DependenciasUsoPa
     };
   }
   if (cobro.estado === "parcial") {
-    const uso = usoDelPedido(usos);
+    // Primero la marca en el uso (revisión del 20/11/2026): sin ella, un
+    // reembolso total posterior devolvería el crédito solo. Con la cuenta
+    // ocupada no sale el aviso: el webhook reintenta y lo manda con la marca.
+    const resultado = await anotarReembolsoParcial(n, deps.uso);
+    if (resultado.estado === "ocupado") return { accion: "parcial", numero: n, resultado, alerta: null };
+    const uso = "uso" in resultado ? resultado.uso : usoDelPedido(usos);
     const cuanto = uso && uso.monto > 0 ? ` con ${formatearPrecio(uso.monto)} de Crédito Harper` : " con Crédito Harper";
     return {
       accion: "parcial",
       numero: n,
-      alerta: `El pedido ${n}, pagado en parte${cuanto}, tuvo un reembolso parcial en Mercado Pago. Si es por una devolución, al comprador le corresponde todo lo que pagó por lo que devolvió: reintegrale ese importe en Mercado Pago, en dinero, incluida la parte que pagó con Crédito Harper (en Items del pedido, cada renglón dice cuánto se pagó con crédito). Si el reembolso que ya hiciste no la incluye, hacé otro por la diferencia. El crédito usado no vuelve a la cuenta: su uso queda «Usado».`,
+      resultado,
+      alerta: `El pedido ${n}, pagado en parte${cuanto}, tuvo un reembolso parcial en Mercado Pago. Si es por una devolución, al comprador le corresponde todo lo que pagó por lo que devolvió: reintegrale ese importe en Mercado Pago, en dinero, incluida la parte que pagó con Crédito Harper (en Items del pedido, cada renglón dice cuánto se pagó con crédito). Si el reembolso que ya hiciste no la incluye, hacé otro por la diferencia; si lo que le corresponde es más de lo que queda del pago, reembolsá lo que queda y la diferencia pagásela en dinero por transferencia. El crédito usado no vuelve a la cuenta: su uso queda «Usado». Si con eso terminás reembolsando el pago entero, el crédito tampoco vuelve solo: te va a llegar un aviso para que lo revises.`,
     };
   }
   return { accion: "nada", motivo: cobro.estado === "pendiente" ? "pendiente" : "sin-pago", numero: n };
 }
 
 /** Si el webhook tiene que reintentar el aviso (otra compra tenía la cuenta). */
-export const usoHayQueReintentar = (r: ResultadoUsoPago) => (r.accion === "confirmar" || r.accion === "devolver" || r.accion === "revisar") && r.resultado.estado === "ocupado";
+export const usoHayQueReintentar = (r: ResultadoUsoPago) =>
+  (r.accion === "confirmar" || r.accion === "devolver" || r.accion === "revisar" || r.accion === "parcial") && r.resultado.estado === "ocupado";
 
 /** Las dependencias de verdad: la tabla «Créditos», Pedidos y el Redis del entorno (o null: no se usa crédito). */
 export function dependenciasUsoReales(cerrojo: Cerrojo | null): DependenciasUso {

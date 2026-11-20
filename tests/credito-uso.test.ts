@@ -27,11 +27,14 @@ import {
   aplicarCreditoHarper,
   claveDelUso,
   CreditoInsuficiente,
+  devolverUsoPorReembolso,
   leerSaldoDeCredito,
   type CuentaTomada,
   lectorPedidosDeUsosAirtable,
+  MARCA_REEMBOLSO_PARCIAL,
   procesarUsoDelPago,
   reservaVigente,
+  usoHayQueReintentar,
   VENTANA_RESERVA_MS,
   type DependenciasUso,
   type FilaUso,
@@ -502,13 +505,129 @@ test("Reembolso parcial: el uso no cambia y el aviso le dice a Harper qué devol
   const r = await procesarUsoDelPago(pago, c.dp);
   assert.equal(r.accion, "parcial");
   // Antes decía que la regla de la devolución parcial estaba pendiente; desde el 20/11/2026 dice qué hacer.
+  // Cambio a propósito (revisión del 20/11/2026): dice qué hacer si lo que le
+  // corresponde es más de lo que queda del pago, y que un reembolso total
+  // después de este tampoco devuelve el crédito solo.
   assert.equal(
     r.accion === "parcial" ? r.alerta : null,
-    `El pedido ${c.numero}, pagado en parte con ${precio(4_000)} de Crédito Harper, tuvo un reembolso parcial en Mercado Pago. Si es por una devolución, al comprador le corresponde todo lo que pagó por lo que devolvió: reintegrale ese importe en Mercado Pago, en dinero, incluida la parte que pagó con Crédito Harper (en Items del pedido, cada renglón dice cuánto se pagó con crédito). Si el reembolso que ya hiciste no la incluye, hacé otro por la diferencia. El crédito usado no vuelve a la cuenta: su uso queda «Usado».`
+    `El pedido ${c.numero}, pagado en parte con ${precio(4_000)} de Crédito Harper, tuvo un reembolso parcial en Mercado Pago. Si es por una devolución, al comprador le corresponde todo lo que pagó por lo que devolvió: reintegrale ese importe en Mercado Pago, en dinero, incluida la parte que pagó con Crédito Harper (en Items del pedido, cada renglón dice cuánto se pagó con crédito). Si el reembolso que ya hiciste no la incluye, hacé otro por la diferencia; si lo que le corresponde es más de lo que queda del pago, reembolsá lo que queda y la diferencia pagásela en dinero por transferencia. El crédito usado no vuelve a la cuenta: su uso queda «Usado». Si con eso terminás reembolsando el pago entero, el crédito tampoco vuelve solo: te va a llegar un aviso para que lo revises.`
   );
-  assert.doesNotMatch(r.accion === "parcial" ? r.alerta : "", /pendiente/);
+  assert.doesNotMatch((r.accion === "parcial" ? r.alerta : null) ?? "", /pendiente/);
   assert.equal((await usoDe(c.numero)).estado, "Usado");
   assert.equal((await leerSaldoDeCredito(MAIL, c.deps)).usable, 6_000, "el crédito usado no vuelve");
+  // El uso queda marcado, una sola vez aunque el aviso se repita.
+  assert.equal(r.accion === "parcial" && r.resultado.estado, "anotado");
+  const otra = await procesarUsoDelPago(pago, c.dp);
+  assert.equal(otra.accion === "parcial" && otra.resultado.estado, "ya");
+  assert.equal(((await usoDe(c.numero)).notas.match(/Reembolso parcial en Mercado Pago\./g) ?? []).length, 1);
+});
+
+// Revisión del 20/11/2026: después de una devolución parcial Harper ya le
+// reintegró en dinero lo pagado con crédito por lo que devolvió. Si después
+// reembolsa el resto del pago (por ejemplo, porque lo que le correspondía era
+// más de lo que quedaba), devolver además el crédito solo lo pagaría dos
+// veces. Antes de la regla del 20/11 todo reembolso total iba a «A revisar»;
+// con ella, el que llega después de uno parcial vuelve a ir ahí.
+const alertaTrasParcial = (numero: string, monto: number) =>
+  `El pedido ${numero} se pagó en parte con ${precio(monto)} de Crédito Harper de ${MAIL} y quedó reembolsado entero en Mercado Pago después de un reembolso parcial. El crédito usado no volvió solo: su uso quedó «A revisar». Al comprador le corresponde todo lo que pagó por lo que devolvió (en Items del pedido, cada renglón dice cuánto pagó en dinero y cuánto con crédito). Si eso es lo que ya le reembolsaste en dinero más ${precio(monto)}, marcá «Devuelto» su uso y poné en Disponible_desde el día de hoy (10/12/2026); desde ese día tiene 6 meses para usarlo. Si no, marcalo «Usado» y lo que le falte pagáselo en dinero por transferencia.`;
+
+test("Reembolso parcial y después el resto del pago: el crédito usado no vuelve solo, queda «A revisar» y se avisa (con la marca del parcial)", async () => {
+  const c = await compraConCredito(4_000);
+  const pago = c.agregar({});
+  await updateRecord(TABLAS.pedidos, c.fila.id, { Estado: "pagado", MP_payment_id: pago, MP_status: "approved" });
+  await procesarUsoDelPago(pago, c.dp);
+  c.pagos.set(pago, { ...c.pagos.get(pago)!, transaction_amount_refunded: 20_000 } as PagoMP);
+  assert.equal((await procesarUsoDelPago(pago, c.dp)).accion, "parcial");
+  assert.ok((await usoDe(c.numero)).notas.includes(MARCA_REEMBOLSO_PARCIAL));
+  // Harper reembolsa lo que queda: Mercado Pago no manda la lista de reembolsos, pero el uso tiene la marca.
+  c.pagos.set(pago, { ...c.pagos.get(pago)!, status: "refunded", transaction_amount_refunded: 50_000 } as PagoMP);
+  const r = await procesarUsoDelPago(pago, c.dp);
+  assert.equal(r.accion, "revisar");
+  assert.equal(r.accion === "revisar" && r.resultado.estado, "a-revisar");
+  assert.equal(r.accion === "revisar" ? r.alerta : null, alertaTrasParcial(c.numero, 4_000));
+  const fila = await usoDe(c.numero);
+  assert.equal(fila.estado, "A revisar");
+  assert.match(fila.notas, /A revisar: reembolso total después de un reembolso parcial\. Harper decide si se devuelve\./);
+  const s = await leerSaldoDeCredito(MAIL, c.deps);
+  assert.deepEqual([s.devuelto, s.usable], [0, 6_000], "no se devolvió solo: sigue descontado");
+  // El aviso se repite mientras siga «A revisar», sin tocar nada más.
+  const otra = await procesarUsoDelPago(pago, c.dp);
+  assert.equal(otra.accion === "revisar" ? otra.alerta : null, alertaTrasParcial(c.numero, 4_000));
+  assert.equal((await leerSaldoDeCredito(MAIL, c.deps)).usable, 6_000);
+});
+
+test("Reembolso total en dos partes sin que ningún aviso lo viera parcial: el pago tiene dos reembolsos y el crédito no vuelve solo", async () => {
+  const c = await compraConCredito(4_000);
+  const pago = c.agregar({});
+  await updateRecord(TABLAS.pedidos, c.fila.id, { Estado: "pagado", MP_payment_id: pago, MP_status: "approved" });
+  await procesarUsoDelPago(pago, c.dp);
+  // Los dos reembolsos llegaron juntos: el primer aviso que se procesa ya lo ve reembolsado entero.
+  c.pagos.set(pago, { ...c.pagos.get(pago)!, status: "refunded", transaction_amount_refunded: 50_000, refunds: [{ id: 1 }, { id: 2 }] } as PagoMP);
+  const r = await procesarUsoDelPago(pago, c.dp);
+  assert.equal(r.accion, "revisar");
+  assert.equal(r.accion === "revisar" ? r.alerta : null, alertaTrasParcial(c.numero, 4_000));
+  const fila = await usoDe(c.numero);
+  assert.equal(fila.estado, "A revisar");
+  assert.equal(fila.notas.includes(MARCA_REEMBOLSO_PARCIAL), false, "sin la marca: lo dice el pago");
+  assert.equal((await leerSaldoDeCredito(MAIL, c.deps)).usable, 6_000);
+  // Con un solo reembolso (la lista con uno), en cambio, vuelve solo como siempre.
+  const d = await compraConCredito(3_000);
+  const otro = d.agregar({});
+  await updateRecord(TABLAS.pedidos, d.fila.id, { Estado: "pagado", MP_payment_id: otro, MP_status: "approved" });
+  await procesarUsoDelPago(otro, d.dp);
+  d.pagos.set(otro, { ...d.pagos.get(otro)!, status: "refunded", transaction_amount_refunded: 50_000, refunds: [{ id: 3 }] } as PagoMP);
+  const unaVez = await procesarUsoDelPago(otro, d.dp);
+  assert.equal(unaVez.accion === "devolver" && unaVez.resultado.estado, "devuelto");
+});
+
+test("El aviso del parcial no sale sin la marca: con la cuenta ocupada, el webhook reintenta; y la marca frena la devolución aunque llegue mientras se espera la llave", async () => {
+  const c = await compraConCredito(4_000);
+  const pago = c.agregar({});
+  await updateRecord(TABLAS.pedidos, c.fila.id, { Estado: "pagado", MP_payment_id: pago, MP_status: "approved" });
+  await procesarUsoDelPago(pago, c.dp);
+  c.pagos.set(pago, { ...c.pagos.get(pago)!, transaction_amount_refunded: 20_000 } as PagoMP);
+  // Otra compra tiene la cuenta.
+  const tomada = await abrirCuentaDeCredito(MAIL, c.deps);
+  if ("estado" in tomada) throw new Error("ocupado");
+  const ocupada = await procesarUsoDelPago(pago, c.dp);
+  await tomada.cerrar();
+  assert.equal(ocupada.accion, "parcial");
+  assert.equal(ocupada.accion === "parcial" && ocupada.resultado.estado, "ocupado");
+  assert.equal(ocupada.accion === "parcial" ? ocupada.alerta : "", null, "sin la marca no se avisa");
+  assert.equal(usoHayQueReintentar(ocupada), true);
+  assert.equal((await usoDe(c.numero)).notas.includes(MARCA_REEMBOLSO_PARCIAL), false);
+  // El reintento la anota y avisa.
+  const reintento = await procesarUsoDelPago(pago, c.dp);
+  assert.equal(reintento.accion === "parcial" && reintento.resultado.estado, "anotado");
+  assert.ok(reintento.accion === "parcial" && reintento.alerta);
+  assert.equal(usoHayQueReintentar(reintento), false);
+  // Adentro del cerrojo, la devolución mira la marca: no devuelve aunque la llamen directo.
+  const devolucion = await devolverUsoPorReembolso(c.numero, c.deps);
+  assert.equal(devolucion.estado, "tras-parcial");
+  assert.equal((await usoDe(c.numero)).estado, "Usado");
+  assert.equal((await leerSaldoDeCredito(MAIL, c.deps)).usable, 6_000);
+});
+
+// Revisión del 20/11/2026: un reclamo que ganó el comprador en Mercado Pago
+// (refunded con bpp_refunded) no es una devolución que hizo Harper: como el
+// contracargo perdido, queda «A revisar» y decide Harper.
+test("Reclamo que ganó el comprador en Mercado Pago: el uso queda «A revisar», sigue descontado y se avisa; no se devuelve solo", async () => {
+  const c = await compraConCredito(4_000);
+  const pago = c.agregar({});
+  await updateRecord(TABLAS.pedidos, c.fila.id, { Estado: "pagado", MP_payment_id: pago, MP_status: "approved" });
+  await procesarUsoDelPago(pago, c.dp);
+  c.pagos.set(pago, { ...c.pagos.get(pago)!, status: "refunded", status_detail: "bpp_refunded", transaction_amount_refunded: 50_000 } as PagoMP);
+  const r = await procesarUsoDelPago(pago, c.dp);
+  assert.equal(r.accion, "revisar");
+  assert.equal(r.accion === "revisar" && r.resultado.estado, "a-revisar");
+  assert.equal(
+    r.accion === "revisar" ? r.alerta : null,
+    `El pedido ${c.numero} se pagó en parte con ${precio(4_000)} de Crédito Harper de ${MAIL} y tuvo un reclamo que ganó el comprador en Mercado Pago. El uso quedó «A revisar» y sigue descontado: decidí si se le devuelve. Para devolvérselo, marcá «Devuelto» su uso en Créditos y poné en Disponible_desde el día en que se lo devolvés (desde ese día tiene 6 meses para usarlo; sin fecha, no vence). Si no, marcalo «Usado».`
+  );
+  const fila = await usoDe(c.numero);
+  assert.equal(fila.estado, "A revisar");
+  assert.match(fila.notas, /A revisar: reclamo que ganó el comprador\. Harper decide si se devuelve\./);
+  assert.equal((await leerSaldoDeCredito(MAIL, c.deps)).usable, 6_000, "no se devolvió solo");
 });
 
 test("Un pago que llega después de liberar la reserva se anota igual y avisa el sobregiro", async () => {

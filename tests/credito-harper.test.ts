@@ -301,21 +301,33 @@ test("Apagado por defecto: fuera de sus módulos, solo el webhook lo mira, para 
   // publicadas, app/legales/suscriptores/page.tsx). Las pantallas solo leen el
   // interruptor y los números publicados; ninguna calcula, acredita ni cambia
   // un cobro.
+  //
+  // Revisión del 20/11/2026 (cambio a propósito): los plazos (los días y los
+  // meses) también van donde se ofrece el crédito antes de pagar (la ficha y
+  // CreditoQueSuma, del carrito, el panel y el checkout), y el interruptor y
+  // los números los leen los Términos y la Privacidad, que lo nombran solo
+  // prendido, y lib/legales.ts, para la versión de los Términos que se acepta.
+  // Siguen trayendo solo el interruptor y los números publicados (abajo).
   assert.deepEqual(
     [...usos.keys()],
     [
       path.join("app", "gracias", "page.tsx"),
       path.join("app", "layout.tsx"),
+      path.join("app", "legales", "privacidad", "page.tsx"),
       path.join("app", "legales", "suscriptores", "page.tsx"),
+      path.join("app", "legales", "terminos", "page.tsx"),
       path.join("app", "page.tsx"),
       path.join("app", "preguntas-frecuentes", "page.tsx"),
       path.join("app", "producto", "[slug]", "ficha.tsx"),
+      path.join("components", "carrito", "CreditoQueSuma.tsx"),
       path.join("components", "portada", "PortadaVitrina.tsx"),
+      path.join("components", "producto", "FichaProducto.tsx"),
       path.join("components", "suscriptores", "MiCreditoHarper.tsx"),
       path.join("lib", "credito-cuenta.ts"),
       path.join("lib", "credito-diario.ts"),
       path.join("lib", "credito-incidencias.ts"),
       path.join("lib", "credito-uso.ts"),
+      path.join("lib", "legales.ts"),
       path.join("lib", "mails.ts"),
       path.join("lib", "pedidos.ts"),
       path.join("lib", "webhook-proceso.ts"),

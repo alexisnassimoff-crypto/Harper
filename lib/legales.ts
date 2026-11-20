@@ -1,3 +1,5 @@
+import { creditoActivo } from "./credito-harper";
+
 /**
  * Versión de los Términos y condiciones publicados.
  *
@@ -14,6 +16,27 @@
 // cuyos beneficios en plata terminaron. Cada pedido guarda la versión aceptada:
 // por eso la fecha cambia junto con el texto.
 export const VERSION_TERMINOS = "2026-11-18";
+
+/**
+ * La versión de los Términos con la cláusula del Crédito Harper (#credito de
+ * app/legales/terminos/page.tsx), que se publica SOLO con
+ * HARPER_CREDITO_ACTIVO=1. Revisión del 20/11/2026: los Términos son lo único
+ * que se acepta en el checkout y no nombraban el crédito ni su vencimiento;
+ * la cláusula los dice y remite a sus condiciones. Como cambia el texto que se
+ * acepta, cambia la versión; pero solo prendido, para que apagado todo siga
+ * igual (la página y el Terminos_aceptados de cada pedido dicen 2026-11-18).
+ */
+export const VERSION_TERMINOS_CON_CREDITO = "2026-11-20";
+
+/**
+ * La versión de los Términos que se publica y que acepta quien compra ahora:
+ * con el crédito prendido, la que tiene su cláusula. La usan la página y el
+ * checkout (`registroAceptacion`), para que cada pedido guarde la del texto
+ * que de verdad aceptó.
+ */
+export function versionTerminosVigente(): string {
+  return creditoActivo() ? VERSION_TERMINOS_CON_CREDITO : VERSION_TERMINOS;
+}
 
 /** "22 de octubre de 2026", para mostrar en la página. */
 export function versionTerminosLegible(version = VERSION_TERMINOS): string {
@@ -62,4 +85,10 @@ export const VERSION_CONDICIONES_SUSCRIPTORES = "2026-11-18";
 // usarlo no hace falta abrir la cuenta ni aceptar las novedades; el aviso de
 // vencimiento sale DIAS_AVISO_VENCIMIENTO días antes; y lo usado en una compra
 // reembolsada entera vuelve a la cuenta con 6 meses nuevos (lib/credito-uso.ts).
+// También el mismo día y antes de publicarse (revisión del 20/11/2026), por eso
+// la fecha no cambia: lo usado de un crédito que pasa a revisión se descuenta
+// del resto del crédito (también con una incidencia abierta); un reclamo que
+// gana el comprador en Mercado Pago deja en revisión lo usado, como el
+// contracargo; y «Dónde lo ves» dice para qué se usan los datos del crédito en
+// lugar de remitir al punto 6, que incluye los mails de novedades.
 export const VERSION_CONDICIONES_CREDITO = "2026-11-20";
