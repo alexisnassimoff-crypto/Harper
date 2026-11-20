@@ -41,7 +41,7 @@ export function Garantias({ garantias }: { garantias: Garantia[] }) {
  * devolución o el asesoramiento, cada uno con su enlace.
  */
 export type ItemConfianza = {
-  clave: "envio" | "pago" | "cuotas" | "devolucion" | "whatsapp";
+  clave: "envio" | "pago" | "cuotas" | "devolucion" | "whatsapp" | "credito";
   texto: string;
   detalle: string | null;
   /** Una aclaración más, debajo del detalle (cómo se cuenta el mínimo del envío). */
@@ -62,6 +62,17 @@ export type ItemConfianza = {
  * Pago las confirmó); abajo, la devolución y el asesoramiento. En el celular
  * es una sola lista. Una fila vacía no se dibuja.
  */
+/** El Crédito Harper: una flecha que vuelve, para «de vuelta en tu próxima compra». */
+function IconoCredito() {
+  return (
+    <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" />
+      <path d="M4.5 3.8v3.6h3.6" />
+      <path d="M12 8.2v7.6M14.2 9.8c-.4-.7-1.2-1.1-2.2-1.1-1.3 0-2.2.7-2.2 1.6 0 2.2 4.6 1.2 4.6 3.5 0 .9-1 1.7-2.4 1.7-1 0-1.9-.4-2.3-1.2" />
+    </svg>
+  );
+}
+
 export function ConfianzaPortada({ filas }: { filas: ItemConfianza[][] }) {
   const conItems = filas.filter((fila) => fila.length > 0);
   if (conItems.length === 0) return null;
@@ -78,7 +89,13 @@ export function ConfianzaPortada({ filas }: { filas: ItemConfianza[][] }) {
             const contenido = (
               <>
                 <span className="confianza-inicio__icono" aria-hidden="true">
-                  {c.clave === "cuotas" ? <IconoConfianza clave="cuotas" /> : <IconoCondicion clave={c.clave} />}
+                  {c.clave === "cuotas" ? (
+                    <IconoConfianza clave="cuotas" />
+                  ) : c.clave === "credito" ? (
+                    <IconoCredito />
+                  ) : (
+                    <IconoCondicion clave={c.clave} />
+                  )}
                 </span>
                 <span className="confianza-inicio__texto">
                   <strong>{c.texto}</strong>

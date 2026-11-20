@@ -193,9 +193,8 @@ export default async function PortadaVitrina({ productos, config }: { productos:
   ];
   // El Crédito Harper (Ale, 18/11/2026), solo con HARPER_CREDITO_ACTIVO
   // prendido: va con lo que pasa después de comprar, al final de la segunda
-  // fila. Los porcentajes, del motor (lib/credito-harper.ts). Usa la clave
-  // «pago» (y su ícono) porque ItemConfianza no tiene una propia; en esta fila
-  // no se repite. Apagado, la portada no lo nombra.
+  // fila. Los porcentajes, del motor (lib/credito-harper.ts). Apagado, la
+  // portada no lo nombra.
   const C = TEXTOS.programa.credito;
   const servicio: ItemConfianza[] = [
     ...(devolucion ? [{ clave: "devolucion" as const, texto: devolucion.texto, detalle: devolucion.detalle, href: devolucion.href }] : []),
@@ -203,7 +202,7 @@ export default async function PortadaVitrina({ productos, config }: { productos:
       ? [{ clave: "whatsapp" as const, texto: TEXTOS.inicio.confianza.whatsapp, detalle: TEXTOS.inicio.confianza.whatsappDetalle, href: whatsapp, externo: true }]
       : []),
     ...(creditoActivo()
-      ? [{ clave: "pago" as const, texto: C.portada(PORCENTAJE_CREDITO_UN_ANTEOJO), detalle: C.portadaDetalle(PORCENTAJE_CREDITO_VARIOS), href: "/preguntas-frecuentes" }]
+      ? [{ clave: "credito" as const, texto: C.portada(PORCENTAJE_CREDITO_UN_ANTEOJO), detalle: C.portadaDetalle(PORCENTAJE_CREDITO_VARIOS), href: "/preguntas-frecuentes" }]
       : []),
   ];
 

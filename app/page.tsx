@@ -10,6 +10,13 @@ import PortadaVitrina from "@/components/portada/PortadaVitrina";
 import Opiniones from "@/components/portada/Opiniones";
 import { ComoComprar, PreguntasFrecuentes } from "@/components/portada/SeccionesPortada";
 import { duoParaAnunciar, duoParaLasPreguntas } from "@/components/portada/duoDelServidor";
+import {
+  creditoActivo,
+  DIAS_PARA_LIBERAR_CREDITO,
+  MESES_PARA_VENCER_CREDITO,
+  PORCENTAJE_CREDITO_UN_ANTEOJO,
+  PORCENTAJE_CREDITO_VARIOS,
+} from "@/lib/credito-harper";
 import { caracteristicasDe } from "@/lib/caracteristicas";
 import { getProductos } from "@/lib/catalogo";
 import { categoriasConProductos, esCategoriaDeAnteojos, rutaDeCategoria } from "@/lib/categorias";
@@ -290,6 +297,10 @@ async function PortadaEstrella({
           mesesGarantia: MESES_GARANTIA,
           porcentajeDineroMP: PORCENTAJE_DINERO_MP,
           duo: duoParaLasPreguntas(duoAnunciado),
+          // Null con el Crédito Harper apagado: la portada no lo nombra.
+          credito: creditoActivo()
+            ? { unAnteojo: PORCENTAJE_CREDITO_UN_ANTEOJO, varios: PORCENTAJE_CREDITO_VARIOS, dias: DIAS_PARA_LIBERAR_CREDITO, meses: MESES_PARA_VENCER_CREDITO }
+            : null,
         })}
       />
     </>

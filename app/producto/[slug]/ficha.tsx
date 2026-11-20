@@ -144,13 +144,14 @@ async function paresDeLaFicha(producto: Producto, tramos: Tramo[], delMismoTipo:
 /**
  * Crédito Harper (Ale, 18/11/2026): lo que suma comprar `cantidad` de este
  * modelo, según el carrito del servidor (resolverCarrito → creditoPrevisto,
- * que es `creditoQueSuma` sobre los renglones que se cobran), pagando con
- * tarjeta o Mercado Pago. Los colores, como los arma la tienda (los mismos que
+ * que es `creditoQueSuma` sobre los renglones que se cobran): pagando con
+ * tarjeta o Mercado Pago y, aparte, con el dinero de la cuenta de Mercado Pago
+ * (suma menos, porque se paga menos). Los colores, como los arma la tienda (los mismos que
  * `packConDuo`). Null si no hay stock para esa cantidad, si no suma nada o si
  * el carrito no lo trae (interruptor apagado). Es un dato para mostrar: si el
  * carrito de prueba falla, la ficha sale igual, sin la línea.
  */
-async function creditoDeLaFicha(producto: Producto, cantidad: number): Promise<number | null> {
+async function creditoDeLaFicha(producto: Producto, cantidad: number): Promise<{ tarjeta: number; dineroMP: number | null } | null> {
   const colores = coloresIniciales(producto.variantes, cantidad, indiceVarianteInicial(producto));
   if (colores.length !== cantidad || colores.some((c) => c < 0)) return null;
   const porColor = new Map<number, number>();
@@ -160,7 +161,8 @@ async function creditoDeLaFicha(producto: Producto, cantidad: number): Promise<n
     const carrito = await resolverCarrito(lineas);
     if (carrito.items.reduce((n, i) => n + i.cantidad, 0) !== cantidad) return null;
     const monto = carrito.creditoPrevisto?.mercadoPago ?? 0;
-    return monto > 0 ? monto : null;
+    const conDineroMP = carrito.creditoPrevisto?.dineroMP ?? null;
+    return monto > 0 ? { tarjeta: monto, dineroMP: conDineroMP !== null && conDineroMP > 0 ? conDineroMP : null } : null;
   } catch (error) {
     console.warn("[credito] no se pudo armar el carrito de la ficha para el Crédito Harper:", error);
     return null;
@@ -205,7 +207,14 @@ export async function Ficha({ slug, color }: { slug: string; color?: string }) {
   const credito =
     esAnteojo && creditoActivo()
       ? await Promise.all([creditoDeLaFicha(producto, 1), duo ? creditoDeLaFicha(producto, 2) : Promise.resolve(null)]).then(([uno, dos]) =>
-          uno === null ? null : { uno: formatearPrecio(uno), dos: dos === null ? null : formatearPrecio(dos) }
+          uno === null
+            ? null
+            : {
+                uno: formatearPrecio(uno.tarjeta),
+                unoDineroMP: uno.dineroMP === null ? null : formatearPrecio(uno.dineroMP),
+                dos: dos === null ? null : formatearPrecio(dos.tarjeta),
+                dosDineroMP: dos?.dineroMP == null ? null : formatearPrecio(dos.dineroMP),
+              }
         )
       : null;
 

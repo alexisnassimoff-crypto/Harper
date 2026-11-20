@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
-import { creditoActivo, DIAS_PARA_LIBERAR_CREDITO, PORCENTAJE_CREDITO_UN_ANTEOJO, PORCENTAJE_CREDITO_VARIOS } from "@/lib/credito-harper";
+import {
+  creditoActivo,
+  DIAS_PARA_LIBERAR_CREDITO,
+  MESES_PARA_VENCER_CREDITO,
+  PORCENTAJE_CREDITO_UN_ANTEOJO,
+  PORCENTAJE_CREDITO_VARIOS,
+} from "@/lib/credito-harper";
 import { PORCENTAJE_DINERO_MP } from "@/lib/dinero-mp";
 import { VERSION_CONDICIONES_CREDITO, VERSION_CONDICIONES_SUSCRIPTORES, versionTerminosLegible } from "@/lib/legales";
 import { VIGENCIA_CODIGO_MS } from "@/lib/reconocer-cliente";
@@ -42,11 +48,6 @@ import { DURACION_SESION_MS } from "@/lib/suscriptores-sesion";
  * publicado cambia cuando se prende el interruptor, y la versión de la cuenta
  * que guarda cada alta no cambia.
  */
-
-// Ale, 18/11/2026: el crédito vence a los 6 meses del día en que quedó
-// disponible. lib/credito-harper.ts todavía no exporta esa cantidad: cuando
-// exporte MESES_PARA_VENCER_CREDITO, se importa de ahí y se borra esta.
-const MESES_PARA_VENCER_CREDITO = 6;
 
 /**
  * El ejemplo del vencimiento, armado con la misma regla: un crédito disponible

@@ -84,7 +84,7 @@ export default function FichaProducto({
    * carrito del servidor). Null: la ficha no lo nombra. La ficha no mira el
    * interruptor: solo muestra lo que llega.
    */
-  credito?: { uno: string; dos: string | null } | null;
+  credito?: { uno: string; unoDineroMP: string | null; dos: string | null; dosDineroMP: string | null } | null;
 }) {
   const router = useRouter();
   const { items, agregar, cupon, abrirPanel } = useCarrito();
@@ -377,8 +377,8 @@ export default function FichaProducto({
                   muestra el Dúo, lo que suman dos. */}
               {credito ? (
                 <p style={{ fontSize: "0.8125rem" }}>
-                  {TEXTOS.programa.credito.ficha(credito.uno)}
-                  {credito.dos && mostrarDuo ? ` ${TEXTOS.programa.credito.fichaDos(credito.dos)}` : ""}
+                  {TEXTOS.programa.credito.ficha(credito.uno, credito.unoDineroMP)}
+                  {credito.dos && mostrarDuo ? ` ${TEXTOS.programa.credito.fichaDos(credito.dos, credito.dosDineroMP)}` : ""}
                 </p>
               ) : null}
             </div>

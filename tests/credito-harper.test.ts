@@ -297,7 +297,7 @@ test("Apagado por defecto: fuera de sus módulos, solo el webhook lo mira, para 
   // ahora también lo leen el uso con el vencimiento (lib/credito-uso.ts), el
   // carrito y /gracias (lib/pedidos.ts, `creditoQueSuma`), los mails
   // (lib/mails.ts) y las pantallas que lo cuentan (la barra, las preguntas, la
-  // ficha, la portada, /gracias, la billetera de Mi Cuenta y las condiciones
+  // ficha, las dos portadas, /gracias, la billetera de Mi Cuenta y las condiciones
   // publicadas, app/legales/suscriptores/page.tsx). Las pantallas solo leen el
   // interruptor y los números publicados; ninguna calcula, acredita ni cambia
   // un cobro.
@@ -307,6 +307,7 @@ test("Apagado por defecto: fuera de sus módulos, solo el webhook lo mira, para 
       path.join("app", "gracias", "page.tsx"),
       path.join("app", "layout.tsx"),
       path.join("app", "legales", "suscriptores", "page.tsx"),
+      path.join("app", "page.tsx"),
       path.join("app", "preguntas-frecuentes", "page.tsx"),
       path.join("app", "producto", "[slug]", "ficha.tsx"),
       path.join("components", "portada", "PortadaVitrina.tsx"),

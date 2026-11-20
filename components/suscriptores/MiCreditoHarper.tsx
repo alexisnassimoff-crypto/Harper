@@ -1,5 +1,5 @@
 import type { BilleteraCredito, MovimientoCredito } from "@/lib/credito-cuenta";
-import { MESES_PARA_VENCER_CREDITO } from "@/lib/credito-harper";
+import { DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO } from "@/lib/credito-harper";
 import { precio as formatearPrecio } from "@/lib/formato";
 import { fechaArgentina, fechaLegible } from "@/lib/suscriptores";
 import { TEXTOS } from "@/lib/textos";
@@ -53,7 +53,7 @@ export default function MiCreditoHarper({ billetera, hoy = fechaArgentina(new Da
               <dt>{T.pendiente}</dt>
               <dd>
                 <span className="cuenta-suscriptor__monto">{formatearPrecio(billetera.pendiente)}</span>
-                <span className="cuenta-suscriptor__detalle">{T.pendienteDetalle}</span>
+                <span className="cuenta-suscriptor__detalle">{T.pendienteDetalle(DIAS_PARA_LIBERAR_CREDITO)}</span>
               </dd>
             </div>
             {billetera.enRevision > 0 ? (
@@ -122,7 +122,7 @@ function detalleDelGanado(m: MovimientoCredito, hoy: string): string {
   switch (m.estado) {
     case "pendiente":
       if (m.conGestionAbierta) return T.conGestion;
-      if (!m.disponibleDesde) return T.sinEntrega;
+      if (!m.disponibleDesde) return T.sinEntrega(DIAS_PARA_LIBERAR_CREDITO);
       // El día ya pasó y sigue pendiente: la tarea diaria lo retuvo. No se promete una fecha pasada.
       return m.disponibleDesde < hoy ? T.retenido : T.desde(fechaLegible(m.disponibleDesde));
     case "anulado":

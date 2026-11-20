@@ -312,7 +312,7 @@ test("Cada pantalla nombra el crédito solo con el dato del servidor, que existe
   const ficha = sinComentarios(leer("app/producto/[slug]/ficha.tsx"));
   assert.match(ficha, /esAnteojo && creditoActivo\(\)\s*\?/);
   assert.match(ficha, /carrito\.creditoPrevisto\?\.mercadoPago \?\? 0/);
-  assert.match(sinComentarios(leer("components/producto/FichaProducto.tsx")), /\{credito \? \(\s*<p[^>]*>\s*\{TEXTOS\.programa\.credito\.ficha\(credito\.uno\)\}/);
+  assert.match(sinComentarios(leer("components/producto/FichaProducto.tsx")), /\{credito \? \(\s*<p[^>]*>\s*\{TEXTOS\.programa\.credito\.ficha\(credito\.uno, credito\.unoDineroMP\)\}/);
   // El carrito y el panel lateral: solo con el importe que mandó el servidor.
   assert.match(sinComentarios(leer("components/carrito/CreditoQueSuma.tsx")), /if \(!monto \|\| monto <= 0\) return null;/);
   for (const archivo of ["components/carrito/VistaCarrito.tsx", "components/carrito/PanelCarrito.tsx"]) {
@@ -430,7 +430,17 @@ test("Prendido, /gracias dice lo mismo que va a anotar el webhook, solo en pedid
   // El texto de /gracias: cuánto sumó, que queda pendiente hasta 30 días después de recibirlo, cuándo vence y dónde verlo.
   const texto = TEXTOS.programa.credito.gracias(precio(4_495), DIAS_PARA_LIBERAR_CREDITO, MESES_PARA_VENCER_CREDITO);
   assert.ok(texto.startsWith(`Con esta compra sumaste ${precio(4_495)} de Crédito Harper. Queda disponible 30 días después de que recibas tu pedido y vence 6 meses después.`), texto);
-  assert.match(texto, /cuenta Harper/);
+  assert.match(texto, /cuenta Harper, entrando con el mail de tu compra\.$/);
+});
+
+test("La ficha dice lo que suma con cada medio de pago: con dinero en Mercado Pago se paga menos y suma menos", () => {
+  const C = TEXTOS.programa.credito;
+  assert.equal(
+    C.ficha("$ 4.495", "$ 4.046"),
+    "Con este anteojo sumás $ 4.495 de Crédito Harper para tu próxima compra ($ 4.046 si pagás con dinero en Mercado Pago)."
+  );
+  assert.equal(C.ficha("$ 4.495", null), "Con este anteojo sumás $ 4.495 de Crédito Harper para tu próxima compra.");
+  assert.equal(C.fichaDos("$ 15.733", "$ 14.159"), "Llevando dos, sumás $ 15.733 ($ 14.159 con dinero en Mercado Pago).");
 });
 
 test("La billetera de Mi Cuenta muestra lo que manda el servidor: el vencimiento más próximo, «Vence el …» y lo vencido, sin calcular fechas ni importes", () => {
